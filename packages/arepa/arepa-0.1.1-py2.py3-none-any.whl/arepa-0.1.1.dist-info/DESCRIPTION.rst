@@ -1,0 +1,49 @@
+=====
+Arepa
+=====
+&#10;
+
+.. image:: https://img.shields.io/pypi/v/arepa.svg
+        :target: https://pypi.python.org/pypi/arepa
+
+.. image:: https://img.shields.io/travis/pydanny/arepa.svg
+        :target: https://travis-ci.org/pydanny/arepa
+
+.. image:: https://readthedocs.org/projects/arepa/badge/?version=latest
+        :target: https://arepa.readthedocs.io/en/latest/?badge=latest
+        :alt: Documentation Status
+
+
+
+
+Arepa-making utility
+
+
+* Free software: MIT license
+* Documentation: https://arepa.readthedocs.io.
+
+
+Features
+--------
+
+* TODO
+
+Credits
+-------
+
+This package was created with Cookiecutter_ and the `audreyr/cookiecutter-pypackage`_ project template.
+
+.. _Cookiecutter: https://github.com/audreyr/cookiecutter
+.. _`audreyr/cookiecutter-pypackage`: https://github.com/audreyr/cookiecutter-pypackage
+
+
+=======
+History
+=======
+
+0.1.0 (2018-02-11)
+------------------
+
+* First release on PyPI.
+
+
