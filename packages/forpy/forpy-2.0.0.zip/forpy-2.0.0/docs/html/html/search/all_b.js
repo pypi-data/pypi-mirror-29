@@ -1,0 +1,20 @@
+var searchData=
+[
+  ['make_5fleaf',['make_leaf',['../classforpy_1_1_classification_leaf.html#ab5f04b67d484634301d0b681c4db3412',1,'forpy::ClassificationLeaf::make_leaf()'],['../classforpy_1_1_i_leaf.html#a3c5246ea62fceb6ca96ea669f0967fe4',1,'forpy::ILeaf::make_leaf()'],['../classforpy_1_1_regression_leaf.html#afc78c7bcce730f096da6d5f1d92a78be',1,'forpy::RegressionLeaf::make_leaf()']]],
+  ['make_5fnode',['make_node',['../classforpy_1_1_fast_decider.html#a3d05e3fd5701735e77efb65e2481dce1',1,'forpy::FastDecider::make_node()'],['../classforpy_1_1_i_decider.html#ad5b4d3ca5016e3d1c32d5dffbf4058a4',1,'forpy::IDecider::make_node()'],['../classforpy_1_1_tree.html#a4fd94dc0367bea76936d4b577ba55d71',1,'forpy::Tree::make_node()']]],
+  ['make_5fto_5fleaf',['make_to_leaf',['../structforpy_1_1_decider_desk.html#ac96509bdadf9efb21c3a9a6284675f2c',1,'forpy::DeciderDesk']]],
+  ['marks',['marks',['../structforpy_1_1_tree_desk.html#a5812d7a6d8c7cd2891d5089ec06939b6',1,'forpy::TreeDesk']]],
+  ['mat',['Mat',['../namespaceforpy.html#a96f4b931f57ef7b106a2137e9b92939c',1,'forpy']]],
+  ['matcm',['MatCM',['../namespaceforpy.html#a3d22fb5cf8ae6e988763ce5d92325b39',1,'forpy']]],
+  ['matcmcref',['MatCMCRef',['../namespaceforpy.html#a6bc62385f9adac070cc01a9a77da7c92',1,'forpy']]],
+  ['matcref',['MatCRef',['../namespaceforpy.html#a4a9ac2f76a00cbaa27aa5c24ff4074a5',1,'forpy']]],
+  ['mateqvis',['MatEqVis',['../structforpy_1_1_mat_eq_vis.html',1,'forpy']]],
+  ['matref',['MatRef',['../namespaceforpy.html#ac50f86d38ff96870f057147546b8ad26',1,'forpy']]],
+  ['max_5fdepth',['max_depth',['../classforpy_1_1_tree.html#ab5f61943c13ee4a49cee80379688bf64',1,'forpy::Tree']]],
+  ['maxproxy',['maxproxy',['../structforpy_1_1_decider_desk.html#a39abbb95caaba19580be848cab7722c8',1,'forpy::DeciderDesk']]],
+  ['min',['min',['../classforpy_1_1_sampling_without_replacement.html#a0b40ff6ebdff42cabcb37e227f4bfdec',1,'forpy::SamplingWithoutReplacement']]],
+  ['min_5fsamples_5fat_5fleaf',['min_samples_at_leaf',['../classforpy_1_1_tree.html#abbda07d8785ef47b669607621af59d11',1,'forpy::Tree::min_samples_at_leaf()'],['../structforpy_1_1_decider_desk.html#af88aaf6f233898f8010ed7f701437292',1,'forpy::DeciderDesk::min_samples_at_leaf()']]],
+  ['min_5fsamples_5fat_5fnode',['min_samples_at_node',['../classforpy_1_1_tree.html#a65c0a49605a095981066f865a5cddfd5',1,'forpy::Tree']]],
+  ['move_5fassign',['MOVE_ASSIGN',['../structforpy_1_1_todo_mark.html#a18741ba1f395d5716afb2eec86eb59d9',1,'forpy::TodoMark::MOVE_ASSIGN()'],['../global_8h.html#a4b12f676fb7eefe0dbeff4303c407932',1,'MOVE_ASSIGN():&#160;global.h']]],
+  ['mutex',['mutex',['../classforpy_1_1threading_1_1detail_1_1_queue.html#ac41d1cdff98d3f5c262770bba20a8ae8',1,'forpy::threading::detail::Queue::mutex()'],['../classforpy_1_1threading_1_1thread__pool.html#a8f6ad65d996d5b6c7c62e1990b780680',1,'forpy::threading::thread_pool::mutex()']]]
+];

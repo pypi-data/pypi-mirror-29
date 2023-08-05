@@ -1,0 +1,77 @@
+var group__forpydesk_group =
+[
+    [ "TreeDesk", "structforpy_1_1_tree_desk.html", [
+      [ "reset", "structforpy_1_1_tree_desk.html#a7484bf57a80becd00662e478809b906c", null ],
+      [ "setup", "structforpy_1_1_tree_desk.html#a051ebc82b146d913b3936a53d365d6b1", null ],
+      [ "marks", "structforpy_1_1_tree_desk.html#a5812d7a6d8c7cd2891d5089ec06939b6", null ],
+      [ "next_id_p", "structforpy_1_1_tree_desk.html#aaeff10e3c9ea00a0fb9be5508972318c", null ],
+      [ "stored_in_leafs", "structforpy_1_1_tree_desk.html#a8a307628cbb298e90f9e49abd80ff428", null ],
+      [ "tree_p", "structforpy_1_1_tree_desk.html#aed4e5f0f634e0196ab107528b593a1a0", null ]
+    ] ],
+    [ "DeciderDesk", "structforpy_1_1_decider_desk.html", [
+      [ "reset", "structforpy_1_1_decider_desk.html#a22a591579b7ffeee3a3cf802ec28a267", null ],
+      [ "setup", "structforpy_1_1_decider_desk.html#a84b0c61c2150b464b274b18b928decc3", null ],
+      [ "annot_dim", "structforpy_1_1_decider_desk.html#aaa993dc50d4f5c643dbd9bf1eb1a400d", null ],
+      [ "annot_os", "structforpy_1_1_decider_desk.html#a38af5c2d5d27166bf1276109d6e39625", null ],
+      [ "annot_p", "structforpy_1_1_decider_desk.html#aac17158d8bfa77f7f85835eef81d9b02", null ],
+      [ "best_feat_idx", "structforpy_1_1_decider_desk.html#a03b7057714536094e4d88e9ec3958652", null ],
+      [ "best_res_v", "structforpy_1_1_decider_desk.html#a1eaf994131c6c4aff8a041b5ad3318dd", null ],
+      [ "class_annot_p", "structforpy_1_1_decider_desk.html#aaf91595489cfd14a9702a60a862bb164", null ],
+      [ "class_feat_values", "structforpy_1_1_decider_desk.html#a34788fe675f54a6d7b3177a0a02295e3", null ],
+      [ "elem_id_p", "structforpy_1_1_decider_desk.html#a5ca0445f4e020ce6c5ccf26ce98b9689", null ],
+      [ "elem_ids_sorted", "structforpy_1_1_decider_desk.html#a5891f028b39e17c3c82b786b5456b4bb", null ],
+      [ "elem_ids_sorted_p", "structforpy_1_1_decider_desk.html#a8c830d7c47d3d90781c0e5d430d34587", null ],
+      [ "end_id", "structforpy_1_1_decider_desk.html#a823359b2c99a81cb17a0e6fd8a593b7e", null ],
+      [ "feat_p", "structforpy_1_1_decider_desk.html#a216422cf2a36ceae02c391412f17ef9e", null ],
+      [ "feat_values", "structforpy_1_1_decider_desk.html#a9bfd18d87d78b618a8aa29111ef88792", null ],
+      [ "feature_indices", "structforpy_1_1_decider_desk.html#a067e728137a8789b80a3f00e339a3130", null ],
+      [ "full_feat_p_v", "structforpy_1_1_decider_desk.html#aa7ab48d0683e1b3a29f8b8182b57787d", null ],
+      [ "full_sum", "structforpy_1_1_decider_desk.html#a0dabf22158bbd785c1e814e315a45371", null ],
+      [ "full_sum_p", "structforpy_1_1_decider_desk.html#afb78c569ac35b5f1f752f512ff742821", null ],
+      [ "full_w", "structforpy_1_1_decider_desk.html#a2558e362d6f0c6044cd768db9b4087c9", null ],
+      [ "fullentropy", "structforpy_1_1_decider_desk.html#a196ce5d0ca4eea69ed7f54a95842ec3e", null ],
+      [ "input_dim", "structforpy_1_1_decider_desk.html#a08788dbdff48299db258606e7148e866", null ],
+      [ "invalid_counts", "structforpy_1_1_decider_desk.html#ac2b5ec11c90d36b685b850619eeadd02", null ],
+      [ "left_id", "structforpy_1_1_decider_desk.html#a69db9aa3d276008e230e7c916de8e876", null ],
+      [ "left_int", "structforpy_1_1_decider_desk.html#a196058a341b83ddc99b0405b9243bc47", null ],
+      [ "left_sum_p", "structforpy_1_1_decider_desk.html#a05fd146b8d9492ac9779227f78f1f3fd", null ],
+      [ "left_sum_vec", "structforpy_1_1_decider_desk.html#ac8c1f35d0a6a4e900cdf596ed348c821", null ],
+      [ "make_to_leaf", "structforpy_1_1_decider_desk.html#ac96509bdadf9efb21c3a9a6284675f2c", null ],
+      [ "maxproxy", "structforpy_1_1_decider_desk.html#a39abbb95caaba19580be848cab7722c8", null ],
+      [ "min_samples_at_leaf", "structforpy_1_1_decider_desk.html#af88aaf6f233898f8010ed7f701437292", null ],
+      [ "n_samples", "structforpy_1_1_decider_desk.html#ab19a5fd05daaf2ce5cec2829f192dc7d", null ],
+      [ "need_sort", "structforpy_1_1_decider_desk.html#aa66c0dd250a898300fbb32cf64f2b3ae", null ],
+      [ "node_id", "structforpy_1_1_decider_desk.html#a569f8a4264a6e3da560ad8d68ade204d", null ],
+      [ "node_to_featsel_p", "structforpy_1_1_decider_desk.html#aee6bfebfcc0bb5f3ee4b657a954c81cd", null ],
+      [ "node_to_thresh_v_p", "structforpy_1_1_decider_desk.html#a48c26a3dabc8b622501e37cf17c02fc8", null ],
+      [ "opt_res_v", "structforpy_1_1_decider_desk.html#af36ca3d0dc314cb2a608dbc3525638f6", null ],
+      [ "presorted", "structforpy_1_1_decider_desk.html#ad29ce83263259b931d8e25c3176e58a9", null ],
+      [ "right_id", "structforpy_1_1_decider_desk.html#acb035dfaa03d4f0becdf95b0651e9c3c", null ],
+      [ "right_int", "structforpy_1_1_decider_desk.html#a73de6ee3d40b2f02955cb2118ee5d391", null ],
+      [ "sort_perm", "structforpy_1_1_decider_desk.html#a1d7b8eaa1248bdc187f78cc4d4e1aea7", null ],
+      [ "sort_perm_p", "structforpy_1_1_decider_desk.html#a970b82749031105fbca1db62a9f08ab5", null ],
+      [ "start_id", "structforpy_1_1_decider_desk.html#a418698dd8ddc0133197a42cb99c0b1b8", null ],
+      [ "weights_p", "structforpy_1_1_decider_desk.html#ade20ff486b173cf28aace9dfba4189ec", null ]
+    ] ],
+    [ "LeafDesk", "structforpy_1_1_leaf_desk.html", [
+      [ "reset", "structforpy_1_1_leaf_desk.html#a57558adac185f9beab0bda6a99bcbc94", null ],
+      [ "setup", "structforpy_1_1_leaf_desk.html#a4e8cdea041b7521529af91c807e4b0d7", null ],
+      [ "leaf_regression_map_p", "structforpy_1_1_leaf_desk.html#a26d7241c866e3ebf42458f721222f234", null ]
+    ] ],
+    [ "RandomDesk", "structforpy_1_1_random_desk.html", [
+      [ "reset", "structforpy_1_1_random_desk.html#aff9d16f55626f7e71e288467ea58228e", null ],
+      [ "setup", "structforpy_1_1_random_desk.html#a8c1c8d176542e11a48a3e278f8fc754f", null ],
+      [ "random_engine", "structforpy_1_1_random_desk.html#a0e390991c7ea155abf693b1ca8ae520a", null ],
+      [ "seed", "structforpy_1_1_random_desk.html#a6976d2208fea4d97eb1fd5190e7109cc", null ]
+    ] ],
+    [ "Desk", "structforpy_1_1_desk.html", [
+      [ "Desk", "structforpy_1_1_desk.html#af5bb10adfe824e824c4ad108dad136c3", null ],
+      [ "reset", "structforpy_1_1_desk.html#a2fbf32e58f1d4b04d567962a4f62612e", null ],
+      [ "setup", "structforpy_1_1_desk.html#a8ced8ea8450cd5b9f0963a62ff5c37cb", null ],
+      [ "d", "structforpy_1_1_desk.html#aec25d1d9346713c92390fd9bf4388dc9", null ],
+      [ "l", "structforpy_1_1_desk.html#a39ddbf291c7471dea542566eedd8d651", null ],
+      [ "r", "structforpy_1_1_desk.html#a7974bca3a78a25ea3411e5edba8ec29f", null ],
+      [ "t", "structforpy_1_1_desk.html#aaa1b5963dbe76dc61c434d3275a81989", null ],
+      [ "thread_id", "structforpy_1_1_desk.html#a8e1bf333701752e44d3394d3401dca08", null ]
+    ] ]
+];

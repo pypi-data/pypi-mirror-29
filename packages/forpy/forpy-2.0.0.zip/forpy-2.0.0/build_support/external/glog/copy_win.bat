@@ -1,0 +1,2 @@
+mkdir ${CMAKE_CURRENT_BINARY_DIR}
+xcopy ${CMAKE_CURRENT_SOURCE_DIR}/glog-build ${CMAKE_CURRENT_BINARY_DIR}/glog/src /e
