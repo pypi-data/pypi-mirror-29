@@ -1,0 +1,468 @@
+{% extends "frontend/base.html" %}
+{% block content %}
+<div class="row">
+	<div class="col-lg-12">
+		<h1 class="page-header">
+			Nodes <small> {{Node.name}} </small>
+    </h1>
+    <ol class="breadcrumb">
+			<li>
+				<i class="fa fa-map-marker"></i><a href="{{url_for('index')}}"> Dashboard</a>
+			</li>
+			<li>
+				<a href="{{url_for('node_view.nodes_list')}}"> Node List</a>
+			</li>
+			<li class="active">{{Node.icpe.mac}}</li>
+    </ol>
+  </div>
+</div>
+{% include "frontend/flash.html" %}
+{% from "frontend/macros/map.html" import Map %}
+<div class="row">
+	<div class="col-lg-6">
+		<div class="panel panel-primary">
+			<div class="panel-heading">
+				{{ Node.location.street}}, {{ Node.location.city }}
+				<div class="floatRight" id="location">
+				</div>
+			</div>
+			<div class="panel-body" style="padding: 0; height: 200px;">
+				{{ Map(Node.location.latitude, Node.location.longitude) }}
+			</div>
+		</div>
+	</div>
+	<div class="col-lg-3">
+		<div class="panel panel-primary">
+			<div class="panel-heading">
+				{{Node.name}}
+				<div class="floatRight" id="general">
+				</div>
+			</div>
+			<div class="panel-body" style="height: 200px;">
+				{% from "frontend/macros/data/node/power.html" import Current as CurrentPower %}
+				{% from "frontend/macros/data/node/heat.html" import Current as CurrentHeat %}
+				<div class="row" style="height: 50%;">
+					<div class="col-lg-4 textCenter">
+						<a href="#">
+							<i class="fa fa-unlock fa-2x" aria-hidden="true"></i>
+							<p><strong>Unlocked</strong></p>
+						</a>
+					</div>
+					<div class="col-lg-4 textCenter">
+						<a href="#">
+							<h3 style="margin: 0;">0</h3>
+							<p><strong>Alarms</strong></p>
+						</a>
+					</div>
+					<div class="col-lg-4 textCenter">
+						<a href="#" onclick="showNodeMessagesModal('{{Node.name}}')">
+							<i class="fa fa-book fa-2x" aria-hidden="true"></i>
+							<p><strong>Messages</strong></p>
+						</a>
+					</div>
+				</div>
+				<div class="row" style="height: 50%;">
+					<div class="col-lg-6">
+						{{ CurrentPower(Node) }}
+					</div>
+					<div class="col-lg-6">
+						{{ CurrentHeat(Node) }}
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+	<div class="col-lg-3">
+		<div class="panel panel-primary">
+			<div class="panel-heading">
+				iCPE
+				<div id="iCPEMacAddress" style="display: inline;"></div>
+				<div id="iCPEOnlineStatus" style="display: inline;"></div>
+				<div class="floatRight" id="iCPEModals">
+					{% if Node.icpe %}
+						<a style="color: #FFFFFF; margin: 0 5px;" href="#" onclick="iCPEModal(icpeMac)"><i class="fa fa-info" aria-hidden="true"></i></a>
+					{% endif %}
+				</div>
+			</div>
+			<div class="panel-body" style="height: 200px;">
+				{% if Node.icpe %}
+					<div class="row" style="height: 50%">
+						<a href="#" id="mqttUpdate" class="col-lg-4 textCenter" data-toggle="tooltip" title="Update known Z-Wave devices">
+							<i class="fa fa-refresh fa-2x" aria-hidden="true"></i>
+							<p><strong>Update</strong></p>
+						</a>
+						<a href="#" id="mqttInclude" class="col-lg-4 textCenter" data-toggle="tooltip" title="Include Z-Wave device">
+							<i class="fa fa-sign-in fa-2x" aria-hidden="true"></i>
+							<p><strong>Include</strong></p>
+						</a>
+						<a href="#" id="mqttExclude" class="col-lg-4 textCenter" data-toggle="tooltip" title="Exclude Z-Wave device">
+							<i class="fa fa-sign-out fa-2x" aria-hidden="true"></i>
+							<p><strong>Exclude</strong></p>
+						</a>
+					</div>
+					<div class="row" style="height: 50%">
+						<div class="col-lg-6">
+							<p><strong>Connection</strong></p>
+							<p class="inline">Type: </p>
+							<p class="inline" id="connectionType">-</p>
+							<br>
+							<p class="inline">IP: </p>
+							<p class="inline" id="connectionAddr">-</p>
+						</div>
+						<div class="col-lg-6">
+							<p><strong>Power</strong></p>
+							<p class="inline">Source: </p>
+							<p class="inline" id="powerSource">-</p>
+							<br>
+							<p class="inline">Battery Level: </p>
+							<p class="inline" id="powerLevel">-</p>
+						</div>
+					</div>
+					<script>
+					$(document).ready(function() {
+						iCPE = "{{Node.icpe.mac_address}}";
+						updateButton = $('#update-icpe');
+						includeButton = $('#include-icpe');
+						excludeButton = $('#exclude-icpe');
+						iCPESocket.on('info', function(icpe) {
+							document.getElementById("iCPEMacAddress").innerHTML = icpe.mac_address;
+							if (icpe.online == "True") {
+								document.getElementById("iCPEOnlineStatus").innerHTML = "ONLINE"
+								document.getElementById("iCPEOnlineStatus").className = 'online-text';
+							} else {
+								document.getElementById("iCPEOnlineStatus").innerHTML = "OFFLINE";
+								document.getElementById("iCPEOnlineStatus").className = 'offline-text';
+							}
+						});
+
+						iCPESocket.on('connection', function(conn) {
+							document.getElementById('connectionType').innerHTML = conn.type;
+							document.getElementById('connectionAddr').innerHTML = conn.ipAddress;
+						});
+						iCPESocket.on('power', function(power) {
+							document.getElementById('powerSource').innerHTML = power.source;
+							document.getElementById('powerLevel').innerHTML = power.battery;
+						});
+						iCPESocket.emit("info", iCPE);
+						iCPESocket.emit('connection', iCPE);
+						iCPESocket.emit('power', iCPE);
+
+						document.getElementById('mqttUpdate').addEventListener("click", function() {
+							iCPESocket.emit('mqttUpdate', iCPE);
+						})
+						document.getElementById('mqttInclude').addEventListener("click", function() {
+							iCPESocket.emit('mqttInclude', iCPE);
+						})
+						document.getElementById('mqttExclude').addEventListener("click", function() {
+							iCPESocket.emit('mqttExclude', iCPE);
+						})
+					});
+					</script>
+				{% else %}
+					{% from "frontend/macros/icpe.html" import SelectiCPE %}
+					<div class="row">
+						<div class="col-lg-12">
+							<a href="#" style="display: inline-block; width: 100%; text-align: center;" data-toggle="modal" data-target="#AddiCPEModal">
+								<i class="fa fa-4x fa-plus-square-o" aria-hidden="true"></i>
+							</a>
+						</div>
+						<div class="col-lg-12" style="text-align: center">
+							<h3>Add iCPE Connection</h3>
+						</div>
+					</div>
+					<div class="modal fade" id="AddiCPEModal" role="dialog">
+						<div class="modal-dialog">
+							<div class="modal-content">
+								<div class="modal-header">
+									<button type="button" class="close" data-dismiss="modal">&times;</button>
+									<h2 class="modal-title">Add iCPE Connection</h2>
+								</div>
+								<div class="modal-body">
+									<div>
+										<div class="row" style="margin: 0 15px;">
+											{{ SelectiCPE(current_user) }}
+										</div>
+									</div>
+								</div>
+								<div class="modal-footer">
+									<button type="button" class="btn btn-success" id="AddiCPEButton">Add iCPE</button>
+									<button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+								</div>
+							</div>
+						</div>
+					</div>
+						<script>
+					$(document).ready(function() {
+						node = "{{Node.name}}";
+						function addiCPE() {
+							if ($('addiCPEMac').text() != 'None') {
+								icpe = document.getElementById('selectiCPEMacAddress').innerHTML;
+								nodeSocket.emit('addiCPE', node, icpe);
+								return true;
+							} else {
+							 toastr.error("Please choose iCPE");
+								return false;
+							}
+						}
+						document.getElementById("AddiCPEButton").addEventListener("click", addiCPE);
+					});
+						</script>
+				{% endif %}
+			</div>
+		</div>
+	</div>
+</div>
+{% from "frontend/nodes/macros/sensor.html" import SensorBox, SensorScripts %}
+{% if Node.icpe.sensors|length > 0 %}
+{% for sensors in Node.icpe.sensors|batch(6) %}
+<div class="row">
+	{% for sensor in sensors %}
+	<div class="col-lg-2">
+		<div class="panel panel-info">
+			<div class="panel-heading">
+				{% if sensor.name %}
+					{{ sensor.name }}
+				{% else %}
+					{{ sensor.sensor_id }}
+					,
+					{{ sensor.product_name }}
+				{% endif %}
+				<div class="floatRight">
+					<a href="#" style="color: #FFFFFF; margin: 0 5px;" onclick="sensorModal('{{Node.icpe.mac_address}}', '{{sensor.sensor_id}}')"><i class="fa fa-info" aria-hidden="true"></i></a>
+				</div>
+			</div>
+			<div class="panel-body" id="Box{{sensor.sensor_id}}">
+				{{ SensorBox(sensor) }}
+			</div>
+		</div>
+	</div>
+	{% endfor %}
+</div>
+{% endfor %}
+{% endif %}
+{% from "frontend/macros/data/node/power.html" import Chart as PowerChart %}
+{% from "frontend/macros/data/node/heat.html" import Chart as HeatChart %}
+{% from "frontend/macros/data/node/event.html" import EventList %}
+<div class="row">
+	{% if Node.icpe.power %}
+	<div class="col-lg-4">
+		{{ PowerChart(Node) }}
+	</div>
+	{% endif %}
+	{% if Node.icpe.heat %}
+	<div class="col-lg-4">
+		{{ HeatChart(Node) }}
+	</div>
+	{% endif %}
+	{% if Node.icpe.events %}
+	<div class="col-lg-4">
+		{{ EventList(Node) }}
+	</div>
+	{% endif %}
+</div>
+{% from "frontend/nodes/modals/node.html" import ModalGrouplist with context %}
+{% from "frontend/nodes/modals/node.html" import NodeInformation with context %}
+{% from "frontend/nodes/modals/icpe.html" import iCPEModal %}
+{% from "frontend/nodes/modals/sensor.html" import SensorModal %}
+{% from "frontend/macros/form.html" import render_manual %}
+<script>
+$(document).ready(function() {
+icpeMac = "{{Node.icpe.mac_address}}";
+$('#general').prepend('<a style="color: #FFFFFF; margin: 0 5px;" href="#" data-toggle="modal" data-target="#groupList"><i class="fa fa-users" aria-hidden="true"></i></a>');
+$('#general').prepend('<a style="color: #FFFFFF; margin: 0 5px;" href="#" data-toggle="modal" data-target="#nodeInfo"><i class="fa fa-info" aria-hidden="true"></i></a>');
+
+{% if current_user.has_role("administrator") %}
+$('#general').prepend('<a style="color: #FFFFFF; margin: 0 5px;" href="#" data-toggle="modal" data-target="#nodeModifyModal"><i class="fa fa-pencil" aria-hidden="true"></i></a>');
+{% endif %}
+
+});
+
+function sensorModal(iCPE, sensor) {
+	sensorSocket.emit('info', iCPE, sensor);
+	dataSocket.emit('sensorEvents', {'icpe' : iCPE, 'sensor' : sensor});
+
+	while (sensorEventTable.rows.length > 0)
+		sensorEventTable.deleteRow(0);
+
+	$('#SensorModal').modal('show');
+}
+function iCPEModal(iCPE) {
+	iCPESocket.emit('info', iCPE);
+
+	$('#iCPEModal').modal('show');
+}
+</script>
+{{ ModalGrouplist(Node.groups) }}
+{{ NodeInformation(Node) }}
+{% from "frontend/macros/messages.html" import MessageList %}
+<div class="modal fade" id="NodeMessagesModal" role="dialog">
+	<div class="modal-dialog">
+		<div class="modal-content">
+			<div class="modal-header">
+				<button type="button" class="close" data-dismiss="modal">&times;</button>
+				<h2 class="modal-title">Messages</h2>
+			</div>
+			<div class="modal-body">
+				<div>
+					{{ MessageList() }}
+				</div>
+			</div>
+			<div class="modal-footer">
+				<button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+			</div>
+		</div>
+	</div>
+</div>
+	<script>
+	function showNodeMessagesModal(node) {
+		dataSocket.emit('nodeMessages', node);
+		$('#NodeMessagesModal').modal('show');
+	};
+	</script>
+
+<div class="modal fade" id="nodeModifyModal" role="dialog">
+	<div class="modal-dialog">
+		<div class="modal-content">
+			<div class="modal-header">
+				<button type="button" class="close" data-dismiss="modal">&times;</button>
+				<h2 class="modal-title">Modify Node</h2>
+			</div>
+			<div class="modal-body">
+				<ul class="nav nav-pills nav-justified">
+					<li class="active"><a data-toggle="pill" href="#modifyNodeGeneral">General</a></li>
+					<li><a data-toggle="pill" href="#modifyNodeLocation">Location</a></li>
+					<li><a data-toggle="pill" href="#modifyNodeDelete">Delete</a></li>
+				</ul>
+				<br>
+				<div class="tab-content">
+					<div id="modifyNodeGeneral" class="tab-pane fade in active">
+						<div class="row">
+							{{ render_manual("Name", "modifyNodeName") }}
+							{{ render_manual("Description", "modifyNodeDescription") }}
+						</div>
+					</div>
+					<div id="modifyNodeLocation" class="tab-pane fade">
+						<div class="row">
+							<div class="form-group">
+								<label class="control-label col-sm-2">Street:</label>
+								<div class="col-sm-10">
+									<input type="string" class="form-control" id="modifyNodeStreet" onblur="getCoordinates()">
+								</div>
+							</div>
+							<div class="form-group">
+								<label class="control-label col-sm-2">City:</label>
+								<div class="col-sm-10">
+									<input type="string" class="form-control" id="modifyNodeCity" onblur="getCoordinates()">
+								</div>
+							</div>
+							{{ render_manual("Latitude", "modifyNodeLatitude") }}
+							{{ render_manual("Longitude", "modifyNodeLongitude") }}
+						</div>
+				</div>
+				<div id="modifyNodeDelete" class="tab-pane fade">
+					<div class="row">
+						<div class="col-sm-10">
+							<i>By deleting this node you remove all the history associated with it.
+							Please confirm the action by entering the name of the node in the text- box below</i>
+						</div>
+					</div>
+					<div class="row">
+						<br>
+						<div class="form-group">
+							<label class="control-label col-sm-2">Node Name:</label>
+							<div class="col-sm-10">
+								<input type="string" class="form-control" id="confirmNodeDeleteName" onkeyup="confirmNodeDelete()">
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+			</div>
+			<div class="modal-footer">
+				<button type="button" id="submitNodeGeneral" class="btn btn-primary">Update Genral</button>
+				<button type="button" id="submitNodeLocation" class="btn btn-primary">Update Location</button>
+        <button type="button" id="submitNodeDelete" class="btn btn-danger" disabled>Delete Node</button>
+			</div>
+		</div>
+	</div>
+</div>
+<script>
+$(document).ready(function() {
+	nodeName = "{{Node.name}}";
+	submitNodeGeneral = $('#submitNodeGeneral');
+	submitNodeLocation = $('#submitNodeLocation');
+	submitNodeDelete = $('#submitNodeDelete');
+	submitNodeLocation.hide();
+	submitNodeDelete.hide();
+
+	$("a[href='#modifyNodeLocation']").on('show.bs.tab', function(e) {
+	     submitNodeGeneral.hide();
+	     submitNodeDelete.hide()
+	     submitNodeLocation.show();
+	});
+	$("a[href='#modifyNodeGeneral']").on('show.bs.tab', function(e) {
+	  submitNodeLocation.hide();
+	  submitNodeDelete.hide()
+	  submitNodeGeneral.show();
+	});
+	$("a[href='#modifyNodeDelete']").on('show.bs.tab', function(e) {
+	  submitNodeLocation.hide();
+	  submitNodeGeneral.hide();
+	  submitNodeDelete.show()
+	});
+
+	nodeSocket.on("info", function(node) {
+		document.getElementById("modifyNodeName").value = node.name;
+		document.getElementById("modifyNodeDescription").value = node.description;
+		if (node.location) {
+			document.getElementById("modifyNodeStreet").value = node.location.street;
+			document.getElementById("modifyNodeCity").value = node.location.city;
+			document.getElementById("modifyNodeLatitude").value = node.location.latitude;
+			document.getElementById("modifyNodeLongitude").value = node.location.longitude;
+		}
+	})
+
+	document.getElementById("submitNodeGeneral").addEventListener("click", function() {
+	 name = document.getElementById("modifyNodeName").value;
+	 description = document.getElementById("modifyNodeDescription").value;
+	 nodeSocket.emit("update", nodeName, {'name' : name, 'description' : description});
+	});
+
+	document.getElementById("submitNodeLocation").addEventListener("click", function() {
+	 street = document.getElementById("modifyNodeStreet").value;
+	 city = document.getElementById("modifyNodeCity").value;
+	 latitude = document.getElementById("modifyNodeLatitude").value;
+	 longitude = document.getElementById("modifyNodeLongitude").value;
+	 nodeSocket.emit("updateLocation", nodeName, {'street' : street, 'city' : city, 'latitude' : latitude, 'longitude' : longitude});
+	});
+
+	document.getElementById("submitNodeDelete").addEventListener("click", function() {
+	 nodeSocket.emit("delete", nodeName);
+	});
+
+	nodeSocket.on('coordinates', function(latitude, longitude) {
+	  document.getElementById("modifyNodeLatitude").value = latitude;
+	  document.getElementById("modifyNodeLongitude").value = longitude;
+	});
+	nodeSocket.emit('info', nodeName);
+});
+
+function getCoordinates() {
+  nodeSocket.emit('coordinates', document.getElementById("modifyNodeStreet").value,
+document.getElementById("modifyNodeCity").value);
+}
+
+function confirmNodeDelete() {
+  if (document.getElementById("confirmNodeDeleteName").value === nodeName)
+    document.getElementById("submitNodeDelete").disabled = false;
+  else
+    document.getElementById("submitNodeDelete").disabled = true;
+}
+</script>
+
+{% if Node.icpe.sensors|length > 0 %}
+	{{ SensorScripts(Node.icpe.sensors) }}
+{% endif %}
+{{ iCPEModal() }}
+{{ SensorModal() }}
+{% endblock %}
