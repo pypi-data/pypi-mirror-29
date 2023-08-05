@@ -1,0 +1,174 @@
+;; Copyright 2018 the authors.
+;; This file is part of Hy, which is free software licensed under the Expat
+;; license. See the LICENSE.
+
+;;;; Hy shadow functions
+
+(import operator)
+(import [hy._compat [PY35]])
+
+
+(defn + [&rest args]
+  "Shadowed `+` operator adds `args`."
+  (if
+    (= (len args) 0)
+      0
+    (= (len args) 1)
+      (+ (first args))
+    ; else
+      (reduce operator.add args)))
+
+(defn - [a1 &rest a-rest]
+  "Shadowed `-` operator subtracts each `a-rest` from `a1`."
+  (if a-rest
+    (reduce operator.sub a-rest a1)
+    (- a1)))
+
+(defn * [&rest args]
+  "Shadowed `*` operator multiplies `args`."
+  (if
+    (= (len args) 0)
+      1
+    (= (len args) 1)
+      (first args)
+    ; else
+      (reduce operator.mul args)))
+
+(defn ** [a1 a2 &rest a-rest]
+  "Shadowed `**` operator takes `a1` to the power of `a2`, ..., `a-rest`."
+  ; We use `-foldr` instead of `reduce` because exponentiation
+  ; is right-associative.
+  (-foldr operator.pow (+ (, a1 a2) a-rest)))
+(defn -foldr [f xs]
+  (reduce (fn [x y] (f y x)) (cut xs None None -1)))
+
+(defn / [a1 &rest a-rest]
+  "Shadowed `/` operator divides `a1` by each `a-rest`."
+  (if a-rest
+    (reduce operator.truediv a-rest a1)
+    (/ 1 a1)))
+
+(defn // [a1 a2 &rest a-rest]
+  "Shadowed `//` operator floor divides `a1` by `a2`, ..., `a-rest`."
+  (reduce operator.floordiv (+ (, a2) a-rest) a1))
+
+(defn % [x y]
+  "Shadowed `%` operator takes `x` modulo `y`."
+  (% x y))
+
+(if PY35
+    (defn @ [a1 &rest a-rest]
+      "Shadowed `@` operator matrix multiples `a1` by each `a-rest`."
+      (reduce operator.matmul a-rest a1)))
+
+(defn << [a1 a2 &rest a-rest]
+  "Shadowed `<<` operator performs left-shift on `a1` by `a2`, ..., `a-rest`."
+  (reduce operator.lshift (+ (, a2) a-rest) a1))
+
+(defn >> [a1 a2 &rest a-rest]
+  "Shadowed `>>` operator performs right-shift on `a1` by `a2`, ..., `a-rest`."
+  (reduce operator.rshift (+ (, a2) a-rest) a1))
+
+(defn & [a1 &rest a-rest]
+  "Shadowed `&` operator performs bitwise-and on `a1` by each `a-rest`."
+  (if a-rest
+    (reduce operator.and_ a-rest a1)
+    a1))
+
+(defn | [&rest args]
+  "Shadowed `|` operator performs bitwise-or on `a1` by each `a-rest`."
+  (if
+    (= (len args) 0)
+      0
+    (= (len args) 1)
+      (first args)
+    ; else
+      (reduce operator.or_ args)))
+
+(defn ^ [x y]
+  "Shadowed `^` operator performs bitwise-xor on `x` and `y`."
+  (^ x y))
+
+(defn ~ [x]
+  "Shadowed `~` operator performs bitwise-negation on `x`."
+  (~ x))
+
+(defn comp-op [op a1 a-rest]
+  "Helper for shadow comparison operators"
+  (if a-rest
+    (reduce (fn [x y] (and x y))
+      (list-comp (op x y) [(, x y) (zip (+ (, a1) a-rest) a-rest)]))
+    True))
+(defn < [a1 &rest a-rest]
+  "Shadowed `<` operator perform lt comparison on `a1` by each `a-rest`."
+  (comp-op operator.lt a1 a-rest))
+(defn <= [a1 &rest a-rest]
+  "Shadowed `<=` operator perform le comparison on `a1` by each `a-rest`."
+  (comp-op operator.le a1 a-rest))
+(defn = [a1 &rest a-rest]
+  "Shadowed `=` operator perform eq comparison on `a1` by each `a-rest`."
+  (comp-op operator.eq a1 a-rest))
+(defn is [a1 &rest a-rest]
+  "Shadowed `is` keyword perform is on `a1` by each `a-rest`."
+  (comp-op operator.is_ a1 a-rest))
+(defn != [a1 a2 &rest a-rest]
+  "Shadowed `!=` operator perform neq comparison on `a1` by `a2`, ..., `a-rest`."
+  (comp-op operator.ne a1 (+ (, a2) a-rest)))
+(defn is-not [a1 a2 &rest a-rest]
+  "Shadowed `is-not` keyword perform is-not on `a1` by `a2`, ..., `a-rest`."
+  (comp-op operator.is-not a1 (+ (, a2) a-rest)))
+(defn >= [a1 &rest a-rest]
+  "Shadowed `>=` operator perform ge comparison on `a1` by each `a-rest`."
+  (comp-op operator.ge a1 a-rest))
+(defn > [a1 &rest a-rest]
+  "Shadowed `>` operator perform gt comparison on `a1` by each `a-rest`."
+  (comp-op operator.gt a1 a-rest))
+
+(defn and [&rest args]
+  "Shadowed `and` keyword perform and on `args`."
+  (if
+    (= (len args) 0)
+      True
+    (= (len args) 1)
+      (first args)
+    ; else
+      (reduce (fn [x y] (and x y)) args)))
+
+(defn or [&rest args]
+  "Shadowed `or` keyword perform or on `args`."
+  (if
+    (= (len args) 0)
+      None
+    (= (len args) 1)
+      (first args)
+    ; else
+      (reduce (fn [x y] (or x y)) args)))
+
+(defn not [x]
+  "Shadowed `not` keyword perform not on `x`."
+  (not x))
+
+(defn in [x y]
+  "Shadowed `in` keyword perform `x` in `y`."
+  (in x y))
+
+(defn not-in [x y]
+  "Shadowed `not in` keyword perform `x` not in `y`."
+  (not-in x y))
+
+(defn get [coll key1 &rest keys]
+  "Access item in `coll` indexed by `key1`, with optional `keys` nested-access."
+  (setv coll (get coll key1))
+  (for* [k keys]
+    (setv coll (get coll k)))
+  coll)
+
+(setv *exports* [
+  '+ '- '* '** '/ '// '% '@
+  '<< '>> '& '| '^ '~
+  '< '> '<= '>= '= '!=
+  'and 'or 'not
+  'is 'is-not 'in 'not-in
+  'get])
+(if (not PY35)
+  (.remove *exports* '@))
