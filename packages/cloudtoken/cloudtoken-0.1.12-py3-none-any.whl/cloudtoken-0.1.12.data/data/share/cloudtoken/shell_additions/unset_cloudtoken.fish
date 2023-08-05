@@ -1,0 +1,14 @@
+#!/usr/bin/env -S-P/bin:/usr/bin:/usr/local/bin:${PATH} fish
+
+set -e AWS_ACCESS_KEY_ID
+set -e AWS_SECRET_ACCESS_KEY
+set -e AWS_SECURITY_TOKEN
+set -e AWS_SESSION_TOKEN
+set -e AWS_SECRET_KEY
+set -e AWS_ACCESS_KEY
+set -e AWS_DELEGATION_TOKEN
+set -e AWS_ACCOUNT_ID
+set -e AWS_ROLE_NAME
+set -e AWS_EXPIRATION
+set -e AWS_EXPIRATION_TIMESTAMP
+set -e AWS_LASTUPDATED
