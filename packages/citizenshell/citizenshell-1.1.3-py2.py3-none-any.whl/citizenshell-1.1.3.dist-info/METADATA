@@ -1,0 +1,193 @@
+Metadata-Version: 2.0
+Name: citizenshell
+Version: 1.1.3
+Summary: Interact with shell locally or over different connection types (telnet, ssh, serial, adb)
+Home-page: https://github.com/meuter/citizenshell
+Author: Cedric Meuter
+Author-email: cedric.meuter@gmail.com
+License: MIT
+Download-URL: https://github.com/meuter/citizenshell/archive/1.1.3.tar.gz
+Description-Content-Type: UNKNOWN
+Keywords: shell,telnet,adb,ssh,serial
+Platform: UNKNOWN
+Classifier: Development Status :: 4 - Beta
+Classifier: Environment :: Console
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Information Technology
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: MacOS :: MacOS X
+Classifier: Operating System :: POSIX
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 2
+Classifier: Programming Language :: Python :: 2.7
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.4
+Classifier: Programming Language :: Python :: 3.5
+Classifier: Programming Language :: Python :: 3.6
+Classifier: Topic :: Utilities
+Requires-Dist: termcolor (>=1.1.0)
+Requires-Dist: paramiko (>=2.4.0)
+Requires-Dist: uritools (>=2.1.0)
+Requires-Dist: pyserial (>=3.4)
+
+citizenshell |Build Status|
+===========================
+
+**citizenshell** is (or rather will be) a python library allowing to
+execute shell commands either locally or remotely over several protocols
+(telnet, ssh, serial or adb) using a simple and consistent API. This
+library is compatible with both python 2 (2.7) and 3 (>=3.4) as well as
+with `PyPy <https://pypy.org/>`__. For now, it focuses on POSIX
+platforms like Linux and MacOS, but may be extended to work to Windows
+based platform in the future. It is distributed under
+`MIT <https://opensource.org/licenses/MIT>`__ license.
+
+Installing
+----------
+
+**citizenshell** can simply installed using ``pip install citizenshell``
+
+Examples
+--------
+
+LocalShell
+~~~~~~~~~~
+
+you can use the built-in ``sh`` command for simple commands:
+
+.. code:: python
+
+    from citizenshell import sh
+
+    assert sh("echo Hello World") == "Hello World"
+
+you can instanciate a ``LocalShell`` for more complex cases:
+
+.. code:: python
+
+    from citizenshell import LocalShell
+
+    shell = LocalShell(GREET="Hello")
+    assert shell("echo $GREET $WHO", WHO="Citizen") == "Hello Citizen"
+
+you can also iterate over stdout:
+
+.. code:: python
+
+    from citizenshell import LocalShell
+
+    shell = LocalShell()
+    result = [int(x) for x in shell("""
+        for i in 1 2 3 4; do
+            echo $i;
+        done
+    """)]
+    assert result == [1, 2, 3, 4]
+
+or you can extract stdout, stderr and exit code seperately:
+
+.. code:: python
+
+    from citizenshell import LocalShell
+
+    shell = LocalShell()
+    result = shell(">&2 echo error && echo output && exit 13")
+    assert result.out == ["output"]
+    assert result.err == ["error"]
+    assert result.xc == 13
+
+TelnetShell
+~~~~~~~~~~~
+
+you can instanciate the ``TelnetShell`` for shell over telnet:
+
+.. code:: python
+
+    from citizenshell import TelnetShell
+
+    shell = TelnetShell(hostname="acme.org", username="john", password="secretpassword")
+    assert shell("echo Hello World") == "Hello World"
+
+you can then do eveything you can do with a ``LocalShell``.
+
+SecureShell
+~~~~~~~~~~~
+
+you can instanciate the ``SecureShell`` for shell over SSH:
+
+.. code:: python
+
+    from citizenshell import SecureShell
+
+    shell = SecureShell(hostname="acme.org", username="john", password="secretpassword")
+    assert shell("echo Hello World") == "Hello World"
+
+you can then do eveything you can do with a ``LocalShell``. Beware that
+some SSH servers refuse to set environment variable (see documentation
+of AcceptEnv of
+`sshd\_config <https://linux.die.net/man/5/sshd_config>`__ and
+documentation of ``update_environment`` of `paramiko's ``Channel``
+class <http://docs.paramiko.org/en/2.4/api/channel.html>`__) and that
+will fail silently.
+
+AdbShell
+~~~~~~~~
+
+you can instanciate the ``AdbShell`` for shell over ADB:
+
+.. code:: python
+
+    from citizenshell import AdbShell
+
+    shell = AdbShell(hostname="acme.org", username="john", password="secretpassword")
+    assert shell("echo Hello World") == "Hello World"
+
+you can then do eveything you can do with a ``LocalShell``.
+
+SerialShell
+~~~~~~~~~~~
+
+you can instanciate the ``SerialShell`` for shell over serial line:
+
+.. code:: python
+
+    from serial import EIGHTBITS, PARITY_NONE
+    from citizenshell import SerialShell
+
+    shell = SerialShell(port="/dev/ttyUSB3", username="john", password="secretpassword", baudrate=115200, parity=PARITY_NONE, bytesize=EIGHTBITS)
+    assert shell("echo Hello World") == "Hello World"
+
+you can then do eveything you can do with a ``LocalShell``.
+
+Shell
+~~~~~
+
+you can also obtain shell objects by URI using the ``Shell`` function:
+
+.. code:: python
+
+    from citizenshell import Shell
+
+    localshell = Shell() 
+    telnetshell = Shell("telnet://john:secretpassword@acme.org:1234")
+    secureshell = Shell("ssh://john:secretpassword@acme.org:1234")
+    adbshell = Shell("adb://myandroiddevice:5555")
+    serialshell = Shell("serial://jogn:secretpassword@/dev/ttyUSB3?baudrate=115200")
+
+you can mix and match betweens providing arguments in the URI or via
+kwargs:
+
+.. code:: python
+
+    from citizenshell import Shell
+
+    localshell = Shell() 
+    telnetshell = Shell("telnet://john@acme.org", password="secretpassword", port=1234)
+    serialshell = Shell("serial://jogn:secretpassword@/dev/ttyUSB3", baudrate=115200)
+
+you can then use the shell objects as you would any other.
+
+.. |Build Status| image:: https://travis-ci.org/meuter/citizenshell.svg?branch=master
+   :target: https://travis-ci.org/meuter/citizenshell
+
+
