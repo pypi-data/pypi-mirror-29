@@ -1,0 +1,49 @@
+FROM {{ base_image_name }}
+
+COPY files/odoo_service.conf /etc/supervisor/conf.d/odoo_service.conf
+COPY files/postgres_service.conf /etc/supervisor/conf.d/postgres_service.conf
+COPY files/supervisord_service.conf /etc/supervisor/supervisord.conf
+RUN  if [ -h /etc/supervisord.conf ]; then echo "This image has already been build with deployv";fi; ln -s /etc/supervisor/supervisord.conf /etc/supervisord.conf
+COPY files/openerp_serverrc /external_files/openerp_serverrc
+COPY files/instance /home/odoo/instance
+COPY files/openerp_serverrc /home/odoo/.openerp_serverrc
+COPY files/install_deps.py /tmp/install_deps.py
+COPY files/getaddons.py /home/odoo/getaddons.py
+COPY files/entrypoint_image /entrypoint_image
+COPY files/apt_dependencies.txt  /tmp/apt_dependencies.txt
+RUN pip install reqgen
+RUN pip install pstats_print2list
+RUN apt-get update
+RUN python /tmp/install_deps.py
+RUN rm -rf /tmp/*
+USER odoo
+ENV HOME="/home/odoo" \\
+ODOO_CONFIG_FILE="/home/odoo/.openerp_serverrc" \\
+ODOO_FILESTORE_PATH="/home/odoo/.local/share/Odoo/filestore" \\
+XDG_DATA_HOME="/home/odoo/.local/share" \\
+VERSION={{ version }}
+USER root
+
+RUN chmod +x /entrypoint_image
+
+RUN /etc/init.d/postgresql start \
+    && su postgres -c "psql -c \"create user {{ db_user|default('odoo') }} with createdb password '{{ db_password|default('odoo') }}';\"" \
+    && /etc/init.d/postgresql stop
+
+RUN [ $(getent group supervisor) ] || groupadd supervisor \
+    && usermod -a -G supervisor odoo \
+    && sed -ri "s%(chmod).*$%\1 = 0770\nchown=root:supervisor%g" /etc/supervisor/supervisord.conf \
+    && mkdir -p /var/log/supervisor
+
+## The volumes we want to use
+VOLUME ["/var/log/supervisor", "/home/odoo/.local/share/Odoo", "/tmp", "/home/odoo/.ssh"]
+## Expose xmlrpc and longpolling ports
+EXPOSE 8069 8072
+CMD /entry_point.py
+
+# Final cleaning
+
+RUN rm -rf /tmp/*
+RUN find /var/tmp -type f -print0 | xargs -0r rm -rf
+RUN find /var/log -type f -print0 | xargs -0r rm -rf
+RUN find /var/lib/apt/lists -type f -print0 | xargs -0r rm -rf
