@@ -1,0 +1,136 @@
+#!/usr/bin/env python2.7
+# --*-- Encoding: UTF-8 --*--
+"""Usage:
+        netuitive-statsd [-d] [-f] -c <CONFIG> <command>
+        netuitive-statsd [-d] [-f] --api_key=<API_KEY>
+            [--url=<URL>] [--interval=<INTERVAL>] [--element_type=<TYPE>]
+            [--prefix=<PREFIX>] [--hostname=<HOSTNAME>] [--pid_file=<PID>]
+            [--log_file=<LOG>] [--listen_ip=<LIP>] [--listen_port=<LPRT>]
+            [--forward_ip=<FIP>] [--forward_port=<FPRT>] [--forward]
+            [--log_level=<LEVEL>] [--nolog] [--no_internal_metrics]
+            <command>
+
+         <command>
+        netuitive-statsd -h | --help
+        netuitive-statsd --version
+
+Description:
+        Netuitive StatsD server
+
+Examples:
+        netuitive-statsd -c ./netuitive-statsd.conf start
+        netuitive-statsd stop
+        netuitive-statsd restart
+
+
+Options:
+    -c CONFIG --configfile=CONFIG    Config file
+    --api_key=API_KEY      API key
+    --pid_file=PID         Process ID (PID) file to use [default: ./netuitive-statsd.pid]
+    --log_file=LOG         Log file to use [default: ./netuitive-statsd.log]
+    --log_level=LEVEL      Log level [default: WARNING]
+    --nolog                Disable writing to the log file
+    --url=URL              API URL [default: https://api.app.netuitive.com/ingest]
+    --hostname=HOSTNAME    Hostname (Element ID)
+    --interval=INTERVAL    Interval to send messages [default: 60]
+    --element_type=TYPE    Element Type [default: statsd]
+    --prefix=PREFIX        Metrics prefix [default: statsd]
+    --listen_ip=LIP        IP address to listen on [default: 127.0.0.1]
+    --listen_port=LPRT     UDP port to listen on [default: 8125]
+    --forward_ip=FIP       IP address to forward StatsD messages to
+    --forward_port=FPRT    UDP port to forward  StatsD messages to [default: 8125]
+    --forward              Enable StatsD forwarding
+    --no_internal_metrics  Disable internal metrics
+    -d --debug             Enable debug output
+    -f --foreground        Enable foreground for console logging
+
+
+    -h --help     Show this screen.
+    --version     Show version.
+"""  # NOQA
+
+from __future__ import unicode_literals, print_function
+import logging
+import logging.config
+import os
+import time
+import sys
+import json
+
+from docopt import docopt
+
+from setproctitle import setproctitle
+
+import libs
+
+# Constants
+__version__ = "0.3.4"
+__author__ = "Netuitive, Inc."
+__license__ = "Apache 2.0"
+
+logger = logging.getLogger(__name__)
+
+
+if __name__ == "__main__":
+
+    # set the process name for ps
+    setproctitle(
+        os.path.basename(__file__) + ' ' + ' '.join(sys.argv[1:]))
+
+    # Initialize Config
+    args = docopt(__doc__, version=__version__)
+
+    # build the config
+    cfg = libs.config(args)
+
+    # setup logging
+    libs.log_setup(cfg)
+
+    try:
+
+        if cfg['enabled']:
+
+            # create and element and add metadata
+            myElement = libs.Element(cfg['hostname'], cfg['element_type'])
+
+            # setup Netuitive API posting thread
+            poster = libs.Poster(cfg, myElement, __version__)
+
+            # setup StatsD server
+            server = libs.Server(cfg, poster)
+
+            # do my job
+            if cfg['debug'] is False and cfg['foreground'] is False:
+                daemon = libs.Service(cfg, server, poster)
+
+                if args['<command>'] == 'start':
+                    daemon.start()
+
+                elif args['<command>'] == 'stop':
+                    daemon.stop()
+
+                elif args['<command>'] == 'restart':
+                    daemon.restart()
+
+                elif args['<command>'] == 'info':
+                    print(json.dumps(cfg, indent=2, sort_keys=True))
+                    print(sys.argv[1:])
+
+            else:
+                # do my job loudly!
+                logger.debug('debug logging is on')
+                poster.start()
+                server.start()
+
+        else:
+            logger.warning('netuitive-statsd is disabled')
+            keep_running = True
+            while keep_running:
+                time.sleep(1)
+
+    except Exception as e:
+        logger.error(e, exc_info=True)
+        poster.stop()
+        server.stop()
+        logger.error('Exiting')
+        sys.exit(1)
