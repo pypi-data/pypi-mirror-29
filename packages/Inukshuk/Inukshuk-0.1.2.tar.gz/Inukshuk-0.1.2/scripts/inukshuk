@@ -1,0 +1,74 @@
+#!/usr/bin/env python
+import os.path
+import re
+import sys
+import argparse
+import yaml
+
+
+re_int = re.compile(r'^\d+$')
+re_float = re.compile(r'^\d+\.\d+$')
+re_bool = re.compile(r'^([Tt]rue)|([Ff]alse)$')
+
+
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description='Inukshuk command line utility')
+    parser.add_argument('--compiled', action='store_true')
+    parser.add_argument('--compiled-out')
+    parser.add_argument('--data')
+    parser.add_argument('template')
+    parser.add_argument('data_args', nargs=argparse.REMAINDER)
+    args = parser.parse_args()
+
+    data = {}
+    if args.data:
+        with open(args.data, 'r') as f:
+            data = yaml.load(f)
+
+    if args.data_args:
+        count = len(args.data_args)
+        i = 0
+        while i < count:
+            a = args.data_args[i]
+            if not a.startswith('--'):
+                raise Exception("'%s' doesn't start with '--'" % a)
+            name = a[2:]
+
+            i += 1
+            if i >= count:
+                raise Exception("'%s' isn't followed by a value." % a)
+
+            val = args.data_args[i]
+            if re_int.match(val):
+                val = int(val)
+            elif re_float.match(val):
+                val = float(val)
+            elif re_bool.match(val):
+                val = bool(val)
+
+            data[name] = val
+            i += 1
+
+    with open(args.template, 'r') as f:
+        text = f.read()
+
+    from inukshuk import Engine
+    from inukshuk.loader import FileSystemLoader
+    loader = FileSystemLoader(os.path.dirname(args.template))
+    engine = Engine(loader)
+
+    from inukshuk import Template
+    tpl = Template(text, compiled=args.compiled)
+    tpl._engine = engine
+    if args.compiled_out:
+        tpl._compiled_module_filename = args.compiled_out
+    out = tpl.render(data)
+    print(out)
+
+
+if __name__ == '__main__':
+    main()
