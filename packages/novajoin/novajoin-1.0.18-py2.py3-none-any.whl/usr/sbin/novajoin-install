@@ -1,0 +1,292 @@
+#!/usr/bin/python
+# Copyright 2016 Red Hat, Inc.
+#
+#    Licensed under the Apache License, Version 2.0 (the "License"); you may
+#    not use this file except in compliance with the License. You may obtain
+#    a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+#    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+#    License for the specific language governing permissions and limitations
+#    under the License.
+
+import argparse
+import logging
+import os
+import pwd
+import shutil
+import socket
+import subprocess
+import sys
+import time
+import copy
+import tempfile
+import getpass
+from ipapython.ipautil import run, user_input
+from ipalib import api
+from ipalib import errors
+from novajoin.errors import ConfigurationError
+from novajoin import configure_ipa
+from six.moves import input
+from six.moves.configparser import SafeConfigParser, NoOptionError
+from subprocess import CalledProcessError
+from string import Template
+from urllib3.util import parse_url
+
+try:
+    from ipapython.ipautil import kinit_password
+except ImportError:
+    # The import moved in freeIPA 4.5.0
+    from ipalib.install.kinit import kinit_password
+
+
+DATADIR = '/usr/share/novajoin'
+NOVADIR = '/etc/nova'
+IPACONF = '/etc/ipa/default.conf'
+NOVACONF = '/etc/nova/nova.conf'
+JOINCONF = '/etc/novajoin/join.conf'
+
+
+LOGFILE = '/var/log/novajoin-install.log'
+logger = logging.getLogger()
+
+
+def openlogs():
+    global logger  # pylint: disable=W0603
+    if os.path.isfile(LOGFILE):
+        try:
+            created = '%s' % time.strftime(
+                '%Y%m%d%H%M%SZ', time.gmtime(os.path.getctime(LOGFILE)))
+            shutil.move(LOGFILE, '%s.%s' % (LOGFILE, created))
+        except IOError:
+            pass
+    logger = logging.getLogger()
+    try:
+        lh = logging.FileHandler(LOGFILE)
+    except IOError as e:
+        print >> sys.stderr, 'Unable to open %s (%s)' % (LOGFILE, str(e))
+        lh = logging.StreamHandler(sys.stderr)
+    formatter = logging.Formatter('[%(asctime)s] %(message)s')
+    lh.setFormatter(formatter)
+    lh.setLevel(logging.DEBUG)
+    logger.addHandler(lh)
+    logger.propagate = False
+    ch = logging.StreamHandler(sys.stdout)
+    formatter = logging.Formatter('%(message)s')
+    ch.setFormatter(formatter)
+    ch.setLevel(logging.INFO)
+    logger.addHandler(ch)
+
+
+def install(opts):
+    logger.info('Installation initiated')
+
+    if not os.path.exists(IPACONF):
+        raise ConfigurationError('Must be enrolled in IPA')
+
+    try:
+        os.environ['OS_PASSWORD']
+        os.environ['OS_USERNAME']
+        os.environ['OS_AUTH_URL']
+    except KeyError as e:
+        raise ConfigurationError('%s environment variable not set.'
+                                 % e.message)
+
+    try:
+        user = pwd.getpwnam(opts.user)
+    except KeyError:
+        raise ConfigurationError('User: %s not found on the system' %
+                                 opts.user)
+
+    api.bootstrap(context='novajoin')
+    api.finalize()
+
+    novajoin = configure_ipa.NovajoinRole(user=opts.user)
+    if not opts.no_kinit:
+        novajoin.kinit(opts.principal, api.env.realm, opts.password)
+
+    try:
+        api.Backend.rpcclient.connect()
+    except errors.CCacheError:
+        raise ConfigurationError("No Kerberos credentials")
+
+    logger.info('Installing default config files')
+
+    keystone_url = parse_url(opts.keystone_auth_url)
+
+    config = SafeConfigParser()
+    config.read(JOINCONF)
+    config.set('DEFAULT', 'domain', api.env.domain)  # pylint: disable=no-member
+    config.set('DEFAULT',
+               'api_paste_config',
+               '/etc/novajoin/join-api-paste.ini')
+    config.set('DEFAULT',
+               'log_dir',
+               '/var/log/novajoin')
+
+    if not config.has_section('service_credentials'):
+        config.add_section('service_credentials')
+
+    config.set('service_credentials', 'auth_url', opts.keystone_auth_url)
+    config.set('service_credentials', 'password', opts.nova_password)
+    config.set('service_credentials', 'username', 'nova')
+    config.set('service_credentials', 'auth_type', 'password')
+    config.set('service_credentials', 'project_domain_name', 'default')
+    config.set('service_credentials', 'project_name', opts.project_name)
+    config.set('service_credentials', 'user_domain_id', 'default')
+
+    if not config.has_section('keystone_authtoken'):
+        config.add_section('keystone_authtoken')
+
+    config.set('keystone_authtoken', 'memcached_servers',
+               '%s:11211' % keystone_url.hostname)
+    config.set('keystone_authtoken', 'project_name', opts.project_name)
+    config.set('keystone_authtoken', 'password', opts.nova_password)
+    config.set('keystone_authtoken', 'username', 'nova')
+    config.set('keystone_authtoken', 'auth_url', opts.keystone_auth_url)
+    config.set('keystone_authtoken', 'auth_type', 'password')
+    config.set('keystone_authtoken', 'project_domain_name', 'default')
+    config.set('keystone_authtoken', 'user_domain_id', 'default')
+
+
+    with open(JOINCONF, 'w') as f:
+        config.write(f)
+
+    config = SafeConfigParser()
+    config.read(NOVACONF)
+    config.set('DEFAULT',
+               'vendordata_jsonfile_path',
+               '/etc/nova/cloud-config-novajoin.json')
+
+    # set the default domain to the IPA domain. This is added to the
+    # instance name to set the hostname.
+    config.set('DEFAULT',
+               'dhcp_domain',
+               api.env.domain)
+
+    # Novajoin service
+    config.set('DEFAULT',
+               'vendordata_providers',
+               'StaticJSON, DynamicJSON')
+
+    config.set('DEFAULT',
+               'vendordata_dynamic_targets',
+               'join@http://127.0.0.1:9090/v1/')
+
+    # Notifications
+    config.set('DEFAULT',
+               'notification_topic',
+               'notifications')
+
+    config.set('DEFAULT',
+               'notify_on_state_change',
+               'vm_state')
+
+    if not config.has_section('vendordata_dynamic_auth'):
+        config.add_section('vendordata_dynamic_auth')
+
+    config.set('vendordata_dynamic_auth', 'project_name', opts.project_name)
+    config.set('vendordata_dynamic_auth', 'password', opts.nova_password)
+    config.set('vendordata_dynamic_auth', 'username', 'nova')
+    config.set('vendordata_dynamic_auth', 'auth_url', opts.keystone_auth_url)
+    config.set('vendordata_dynamic_auth', 'auth_type', 'password')
+    config.set('vendordata_dynamic_auth', 'project_domain_name', 'default')
+    config.set('vendordata_dynamic_auth', 'user_domain_id', 'default')
+
+    try:
+        transport_url = config.get('DEFAULT', 'transport_url')
+    except NoOptionError:
+        transport_url = None
+
+    with open(NOVACONF, 'w') as f:
+        config.write(f)
+
+    if transport_url:
+        join_config = SafeConfigParser()
+        join_config.read(JOINCONF)
+        join_config.set('DEFAULT', 'transport_url', transport_url)
+        with open(JOINCONF, 'w') as f:
+            join_config.write(f)
+
+    logger.info('Importing IPA metadata')
+    (stdout, stderr, returncode) = run(
+        ['glance',
+         '--os-image-api-version',
+         '2',
+         'md-namespace-import',
+         '--file',
+         '/usr/share/novajoin/freeipa.json'], raiseonerr=False)
+    if returncode != 0:
+        logger.error('Adding IPA metadata failed: %s' % stderr)
+
+    logger.info('Creating IPA permissions')
+
+    novajoin.configure_ipa(precreate=False)
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description='Nova join Install Options')
+    parser.add_argument('--keystone-auth-url', dest='keystone_auth_url',
+                        help='Keystone auth URL', default=None)
+    parser.add_argument('--nova-password', dest='nova_password',
+                        help='Nova service user password', default=None)
+    parser.add_argument('--project', dest='project_name',
+                        help='Keystone project', default='service')
+    parser = configure_ipa.ipa_options(parser)
+
+    opts = parser.parse_args()
+
+    configure_ipa.validate_options(opts)
+
+    if not opts.keystone_auth_url:
+        opts.keystone_auth_url = user_input("Keystone auth URL", "",
+                                            allow_empty=False)
+
+    if not opts.nova_password:
+        try:
+            opts.nova_password = getpass.getpass("nova service Password: ")
+        except EOFError:
+            opts.nova_password = None
+        if not opts.nova_password:
+            raise ConfigurationError('nova service user password required.')
+
+    try:
+        pwd.getpwnam(opts.user)
+    except KeyError:
+        raise ConfigurationError('User: %s not found on the system' %
+                                 opts.user)
+
+    return opts
+
+if __name__ == '__main__':
+    opts = []
+    out = 0
+    openlogs()
+    logger.setLevel(logging.DEBUG)
+
+    try:
+        opts = parse_args()
+
+        logger.debug('Installation arguments:')
+        logger.debug(opts)
+
+        install(opts)
+    except Exception as e:  # pylint: disable=broad-except
+        logger.info(str(e))          # emit message to console
+        logger.debug(e, exc_info=1)  # add backtrace information to logfile
+
+        logger.info('Installation aborted.')
+        logger.info('See log file %s for details' % LOGFILE)
+        out = 1
+    except SystemExit:
+        out = 1
+        raise
+    finally:
+        if out == 0:
+            logger.info('Installation complete.')
+            logger.info(
+                'Please restart nova-api to enable the join service.')
+    sys.exit(out)
