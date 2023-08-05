@@ -1,0 +1,58 @@
+sudo: required
+dist: trusty
+
+language: python
+cache: pip
+python:
+  - "2.7"
+  - "3.6"
+
+env:
+  matrix:
+    - SQLALCHEMY_DATABASE_URI="sqlite://"
+    - SQLALCHEMY_DATABASE_URI="postgres://postgres@localhost/abilian_core"
+
+services:
+  - redis-server
+
+addons:
+  postgresql: "9.4"
+
+# Install OS dependencies
+before_install:
+  - pip install -U pip setuptools wheel
+
+  - export NPM_CONFIG_PREFIX=~/npm-packages
+  - mkdir "${NPM_CONFIG_PREFIX}"
+  - npm install -g less
+  - export PATH=~/npm-packages/bin:$PATH
+
+# Install Python dependencies
+install:
+  - pip install -r requirements.txt
+  - pip install -r etc/dev-requirements.txt
+  - pip install psycopg2
+  - pip check
+  - npm install
+
+# Create DB
+before_script:
+  - psql -c 'create database abilian_core;' -U postgres
+
+# Run tests
+script:
+  - pytest --cov abilian abilian tests
+  - make lint-ci
+
+# Report coverage
+after_success:
+  - pip install codecov coveralls
+  - coveralls
+  - codecov
+
+notifications:
+  slack:
+    rooms:
+      - abilian:dTtRD7DHS4Dw3jfRrqytQWU6#code
+    on_success: change
+    on_failure: always
