@@ -1,0 +1,41 @@
+# =======================
+# Import Annotation - BED
+# =======================
+---
+
+- slug: upload-bed
+  name: BED track file
+  requirements:
+    expression-engine: jinja
+    executor:
+      docker:
+        image: resolwebio/legacy:latest
+    resources:
+      network: true
+  data_name: '{{ src.file|default("?") }}'
+  version: 1.0.8
+  type: data:bed
+  category: upload
+  persistence: RAW
+  description: >
+        Upload BED file annotation track.
+  input:
+    - name: src
+      label: BED file
+      type: basic:file
+      description: >
+        Upload BED file annotation track. The first three required BED fields are chrom, chromStart and chromEnd.
+      required: true
+      validate_regex: '\.(bed|narrowPeak)$'
+  output:
+    - name: BED
+      label: BED file
+      type: basic:file
+  run:
+    runtime: polyglot
+    language: bash
+    program: |
+      re-import {{ src.file_temp }} {{ src.file }} "bed|narrowPeak" "bed" 1.0
+      bedops --ec --everything "${NAME}.bed" 1> /dev/null
+      re-checkrc "BED file format validation failed. Check file integrity."
+      re-save-file BED "${NAME}.bed"

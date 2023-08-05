@@ -1,0 +1,81 @@
+- slug: archive-samples
+  name: Archive samples
+  data_name: Sample archive
+  requirements:
+    expression-engine: jinja
+    executor:
+      docker:
+        image: "resolwebio/archive-samples"
+  version: 0.0.4
+  type: "data:archive:samples"
+  category: other
+  persistence: TEMP
+  scheduling_class: interactive
+  description: >
+    Create an archive of output files. The ouput folder
+    structure is organized by sample slug and data object's
+    output-field names.
+  input:
+    - name: data
+      label: Data list
+      type: list:data
+    - name: fields
+      label: Output file fields
+      type: list:basic:string
+    - name: j
+      label: Junk paths
+      type: basic:boolean
+      description: Store just names of saved files (junk the path)
+      default: False
+  output:
+    - name: archive
+      label: Archive
+      type: basic:file
+  run:
+    runtime: polyglot
+    language: bash
+    program: |
+
+      IGV_FILES=()
+
+      {% for d in data %}
+        {% for field in fields %}
+          {% if d[field].file %}
+            mkdir -p {{d|sample_slug}}/{{field}}/
+            ln -s --backup=numbered {{ d[field].file }} {{d|sample_slug}}/{{field}}/{{ d[field].file|basename }}
+            {% for ref in d[field].refs %}
+              ln -s --backup=numbered {{ ref }} {{d|sample_slug}}/{{field}}/{{ref|basename}}
+            {% endfor %}
+          {% endif %}
+          {% for file in d[field] %}
+            {% if file.file %}
+              mkdir -p {{d|sample_slug}}/{{field}}/
+              ln -s --backup=numbered {{ file.file }} {{d|sample_slug}}/{{field}}/{{ file.file|basename }}
+              {% for ref in file.refs %}
+                ln -s --backup=numbered {{ ref }} {{d|sample_slug}}/{{field}}/{{ref|basename}}
+              {% endfor %}
+            {% endif %}
+          {% endfor %}
+        {% endfor %}
+
+        if [[ {{ d|type }} == "data:alignment:bam"* ]]; then
+          mv {{d|sample_slug}}/bai/{{ d.bai.file|basename }} {{d|sample_slug}}/bam/{{ d.bai.file|basename }}
+          rm -r "{{d|sample_slug}}/bai"
+          IGV_FILES+=({{d|sample_slug}}/bam/{{ d.bam.file|basename }})
+
+        elif [[ {{ d|type }} == "data:variants:vcf"* ]]; then
+          IGV_FILES+=({{d|sample_slug}}/vcf/{{ d.vcf.file|basename }})
+        fi
+      {% endfor %}
+
+      make_igv_session_archive.py --files "${IGV_FILES[@]}" --genome hg19
+
+      if [ -d None ]; then
+        mv None other_data
+      fi
+
+      mkdir igv
+      mv 'igv_session.xml' 'igv/igv_session.xml'
+
+      zip -0 -r {% if j %}-j {% endif %}results.zip */
+      re-save-file archive results.zip
