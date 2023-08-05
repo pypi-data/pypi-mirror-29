@@ -1,0 +1,1 @@
+This component is a simple scheduler to execute and repeat Benchmarking Suite tests after a given time interval. The scheduling is read from a MongoDB collection
