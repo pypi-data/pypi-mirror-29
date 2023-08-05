@@ -1,0 +1,90 @@
+defaults: &defaults
+  working_directory: ~/exodus
+  docker:
+    - image: circleci/python:3.6.1
+
+
+version: 2
+jobs:
+  build:
+    <<: *defaults
+    steps:
+      - checkout
+
+      - restore_cache:
+          keys:
+          - v1-dependencies-{{ arch }}-{{ .Branch }}-{{ checksum "development-requirements.txt" }}
+          - v1-dependencies-
+
+      - run:
+          name: Install Dependencies
+          command: |
+            python3 -m venv .env
+            . .env/bin/activate
+            pip install -r development-requirements.txt
+
+      - save_cache:
+          paths:
+            - ./.env
+          key: v1-dependencies-{{ arch }}-{{ .Branch }}-{{ checksum "development-requirements.txt" }}
+
+      - run:
+          name: Run the tests.
+          command: |
+            . .env/bin/activate
+            tox
+            echo "{ \"coverage\": \"$(coverage report | tail -n 1 | awk '{print $6}')\" }" > htmlcov/total-coverage.json
+
+      - run:
+          name: Build the package.
+          command: |
+            python setup.py sdist bdist_wheel
+
+      - store_artifacts:
+          path: htmlcov
+          destination: coverage-report
+
+      - persist_to_workspace:
+          root: ~/exodus
+          paths:
+            - .env
+            - dist
+
+  deploy:
+    <<: *defaults
+    steps:
+      - attach_workspace:
+          at: ~/exodus
+      - run:
+          name: Upload package to PyPI.
+          command: |
+            . .env/bin/activate
+            twine upload --skip-existing dist/*
+
+
+workflows:
+  version: 2
+
+  build:
+    jobs:
+      - build:
+          filters:
+            tags:
+              ignore: /v[0-9]+(\.[0-9]+)*/
+
+  release:
+    jobs:
+      - build:
+          filters:
+            tags:
+              only: /v[0-9]+(\.[0-9]+)*/
+            branches:
+              ignore: /.*/
+      - deploy:
+          filters:
+            tags:
+              only: /v[0-9]+(\.[0-9]+)*/
+            branches:
+              ignore: /.*/
+          requires:
+            - build
