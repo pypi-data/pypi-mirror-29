@@ -1,0 +1,32 @@
+pyramid-hypernova
+--------------
+
+A Python client for Airbnb's [Hypernova](//github.com/airbnb/hypernova) server, for use with the [Pyramid](http://docs.pylonsproject.org/en/latest/docs/pyramid.html) web framework.
+
+Features include:
+
+* Allows SSR React components to be transparently embedded within Python-based templating languages (Cheetah, jinja2, etc...)
+
+* Batches and parallelizes calls to the Hypernova service.
+
+* Supports plugins, which may hook into any of Hypernova's [lifecycle events](https://github.com/airbnb/hypernova/blob/master/docs/client-spec.md#plugin-lifecycle-api).
+
+Install
+-------
+
+```
+pip install pyramid-hypernova
+```
+
+Usage
+-----
+
+In your service's Pyramid configuration (e.g. `webapp.py`), you can configure the Pyramid tween like so:
+
+```python
+def get_batch_url():
+    return 'https://localhost:8080/batch'
+
+config.registry.settings['pyramid_hypernova.get_batch_url'] = get_batch_url
+config.add_tween('pyramid_hypernova.tweens.hypernova_tween_factory')
+```
