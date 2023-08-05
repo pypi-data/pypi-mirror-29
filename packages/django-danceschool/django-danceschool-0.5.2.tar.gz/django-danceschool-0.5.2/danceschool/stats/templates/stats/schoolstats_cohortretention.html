@@ -1,0 +1,114 @@
+{% load sekizai_tags static i18n %}
+
+{% addtoblock "css" %}
+  <link href="{% static 'c3/c3.min.css' %}" rel="stylesheet" type="text/css">
+{% endaddtoblock %}
+
+<h3 class="mt-4">{% trans "Number of Classes Taken By Starting Cohort" %}</h3>
+
+<p>{% blocktrans %}How many people decide to progress beyond beginner and how many students stick with us a while?
+Note that a student who has taken classes in multiple roles will show up in each role's data series depending on the number of series they've taken in each.{% endblocktrans %}</p>
+
+<div class="card">
+
+  <div class="card-header">
+    <ul class="nav nav-tabs card-header-tabs">
+      <li class="nav-item">
+        <a href="#" class="nav-link studentRetentionButton active">{% trans "All Students" %}</a>
+      </li>
+      {% for prior_year in recentYears %}
+        <li class="nav-item">
+          <a href="#" data-cohortStart="{{ prior_year }}-01-01" data-cohortEnd="{{ prior_year|add:'1' }}-01-01" class="nav-link studentRetentionButton">{{ prior_year }} {% trans "Cohort" %}</a>
+        </li>
+      {% endfor %}
+    </ul>
+  </div>
+
+
+  <div class="card-body">
+    <div id="totalClassesTaken"></div>
+  </div>
+
+</div>
+
+
+{% addtoblock "js" %}
+  <script src="{% static 'd3/d3.min.js' %}"></script>
+{% endaddtoblock %}
+{% addtoblock "js" %}
+  <script src="{% static 'c3/c3.min.js' %}"></script>
+{% endaddtoblock %}
+{% addtoblock "js" %}
+<script type="text/javascript">
+$(document).ready(function(){
+
+  var totalClassesTakenChart = null;
+  var initialShowList = ['Percentage']
+  var dataKey = 'bin'
+
+  function loadClassesTakenChart(url) {
+
+    $.getJSON(url, function(data) {
+
+        xKeySet = {}
+        for(var i in data) for(var k in data[i]) xKeySet[k] = true;
+
+        xkeys = []
+        for(var i in xKeySet) if (i != dataKey) xkeys.push(i);
+
+        var hideList = xkeys.slice();
+
+        for (var s in initialShowList) {
+           var index = hideList.indexOf(initialShowList[s]);
+           if (index > -1) hideList.splice(index, 1);
+        }
+
+        var chartData = {
+          unload: true,
+          json: data,
+          type: 'bar',
+          hide: hideList,
+          x: 'Number of Classes',
+          keys: {
+            x: 'bin_label',
+            value: xkeys,
+          }
+        }
+
+        if (totalClassesTakenChart == null) {
+          totalClassesTakenChart = c3.generate({
+            bindto: '#totalClassesTaken',
+            data: chartData,
+            axis: {
+              x: {
+                type: 'category' // this needed to load string x value
+              }
+            },
+            bar: {
+              width: {
+                ratio: 0.8
+              }
+            },
+          });
+        }
+        else {
+          totalClassesTakenChart.load(chartData);
+        }
+    });
+  }
+
+  // Set the initial data on load
+  loadClassesTakenChart("{% url 'ClassCountHistogramJSON' %}");
+
+  $('.studentRetentionButton').click(function(e){
+      var cohortStart = $(this).attr('data-cohortStart');
+      var cohortEnd = $(this).attr('data-cohortEnd');
+      loadClassesTakenChart("{% url 'ClassCountHistogramJSON' %}?cohortStart=" + cohortStart + "&cohortEnd=" + cohortEnd);
+      $('.studentRetentionButton').removeClass('active');
+      $(this).addClass('active');
+      e.preventDefault();
+  });
+
+});
+</script>
+{% endaddtoblock %}
