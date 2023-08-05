@@ -1,0 +1,60 @@
+base_image:
+ FROM_DOCKERFILE: ./Dockerfile.base_image
+
+devbase:
+ requires:
+   - base_image
+ build: |
+  RUN apk add --no-cache wget
+  RUN mkdir -p /opt
+
+data_image:
+ requires:
+  - base_image
+ build: |
+  RUN mkdir /data
+
+airline_data:
+ requires:
+  - data_image
+ build_directory: sample_data/airline_data
+ build: |
+  ADD AirPassengers.csv /data
+
+plant_data:
+ requires:
+ - data_image
+ build_directory: sample_data/plant_growth
+ build: |
+  ADD Puromycin.csv /data
+
+blank_file_build:
+  description: |
+    This image isn't intended for deployment! Rather, files built in this environment
+    can be copied into other images (see data_science.copy_from below)
+  FROM: busybox
+  build: |
+    RUN mkdir -p /data
+    RUN dd if=/dev/zero of=/data/file.txt count=1024 bs=1024
+
+python_image:
+ requires:
+  - devbase
+ build: |
+  RUN apk add --no-cache python py-pip
+  RUN pip install Pint
+
+data_science:
+ requires:
+  - python_image
+  - airline_data
+  - plant_data
+ copy_from:
+   blank_file_build:
+     /data/file.txt: /data
+
+final:
+ requires:
+   - data_science
+ build: |
+   ENV version=0.01
