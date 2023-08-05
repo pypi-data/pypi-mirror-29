@@ -1,0 +1,613 @@
+#! /usr/bin/env bash
+#
+# ============================================================
+#
+# Script to manage/assemble a git repository using git subtree.
+#
+# Don't do anything weird with folder names, as internally a '.' in the name
+# will be replaced with '_' which means that there could be some confusion
+# with ansible role names for example.
+#
+# Also, only tested with https git urls, not ssh.
+#
+
+# =============================================================
+# global vars
+
+
+# =============================================================
+# Helper functions
+
+function command_exists {
+    type "$1" > /dev/null 2>&1 ;
+}
+
+function error_exit {
+
+    #	----------------------------------------------------------------
+    #	Function for exit due to fatal program error
+    #		Accepts 1 argument:
+    #			string containing descriptive error message
+    #	----------------------------------------------------------------
+
+    echo ""
+	  error_output "${PROGNAME}: ${1:-"Unknown Error"}" 1>&2
+    echo ""
+	  exit 1
+}
+
+function error_output {
+    # log $1
+    (>&2 echo "$@")
+}
+
+function clean_string {
+    eval "$1=$(echo "$2" | sed 's/[^a-zA-Z0-9_]/_/g')"
+}
+
+function prepare_github_api {
+
+    GITHUB_USERNAME=`git config github.user`
+    if [ "$GITHUB_USERNAME" = "" ]; then
+        echo ""
+        echo "Could not find username, run 'git config --global github.user <username>'"
+        echo ""
+        exit 1
+    fi
+
+    if command_exists secret-tool; then
+        GITHUB_TOKEN=`secret-tool lookup server api.github.com user "$GITHUB_USERNAME" key password`
+        if [[ -z "$GITHUB_TOKEN" ]]; then
+            echo ""
+            echo "No github token found in keyring, please create one with access to repo functions ( https://help.github.com/articles/creating-a-personal-access-token-for-the-command-line/ ), then store it via:
+
+  secret-tool store --label='github_token' server api.github.com user "$GITHUB_USERNAME" key password"
+            echo ""
+            exit 1
+        fi
+
+    else
+        echo ""
+        echo "Could not find 'secret-tool' executable, please install (e.g. 'apt install libsecret-tools')"
+        echo ""
+        exit 1
+    fi
+
+}
+
+function fork_repo {
+
+    #prepare_github_api
+
+    local repo_url_local="$2"
+
+    local repo_name=${repo_url_local##*/}
+    repo_name=${repo_name%.*}
+
+    local user_name=${repo_url_local%/*}
+    user_name=${user_name##*/}
+
+    local fork_user_name="$3"
+
+    if [ "${fork_user_name}" == "${GITHUB_USERNAME}" ]; then
+        payload="{}"
+    else
+        payload="{\"organization\": \"${fork_user_name}\"}"
+    fi
+
+    echo "Forking repo to github user account: $fork_user_name"
+    curl -su "$GITHUB_USERNAME:$GITHUB_TOKEN" "https://api.github.com/repos/$user_name/$repo_name/forks" -d "${payload}" 2>&1 > /dev/null || error_exit "Could not fork repo '$repo_url_local' to user account '$GITHUB_USERNAME"
+
+    eval "$1=https://github.com/${fork_user_name}/${repo_name}.git"
+}
+
+# =============================================================
+# COMMANDS
+
+function display_push_upstream_help {
+    echo "Usage:"
+    echo "    frankentree push -h                    display this help message."
+    echo "    frankentree push [FOLDER_PATH] ...     pushes changes to upstream repo."
+}
+
+function command_push_upstream {
+
+    while getopts ":h" opt; do
+        case ${opt} in
+            h )
+                display_push_upstream_help
+                exit 0
+                ;;
+            \? )
+                echo "Invalid Option: -$OPTARG" 1>&2
+                display_push_upstream_help
+                exit 1
+                ;;
+            : )
+                echo "Invalid Option: -$OPTARG requires an argument" 1>&2
+                display_push_upstream_help
+                exit 1
+                ;;
+        esac
+    done
+
+    shift $((OPTIND -1))
+
+    check_git_status
+
+    check_if_frankenrepo
+
+    if [[ -z "$1" ]]; then
+        local temp=$(get_all_paths)
+        repos=(`echo $temp | sed -e 's/:/\n/g'`)
+        for path in "${repos[@]}"
+        do
+            echo
+            echo "Pushing to remote for: ${path}"
+            push_upstream_path "${path}"
+        done
+    else
+        for path in "$@"
+        do
+            echo
+            echo "Pushing to remote for: ${path}"
+            push_upstream_path "${path}"
+        done
+    fi
+}
+
+function display_push_upstream_branch_help {
+    echo "Usage:"
+    echo "    frankentree push-branch -h                             display this help message."
+    echo "    frankentree push-branch -b BRANCH_NAME LOCAL_PATH      pushes changes to upstream repo using specified branch name"
+}
+
+function command_push_upstream_branch {
+
+    while getopts ":hb:" opt; do
+        case ${opt} in
+            h )
+                display_push_upstream_branch_help
+                exit 0
+                ;;
+            b )
+                upstream_branch_name=$OPTARG
+                ;;
+            \? )
+                echo "Invalid Option: -$OPTARG" 1>&2
+                display_push_upstream_branch_help
+                exit 1
+                ;;
+            : )
+                echo "Invalid Option: -$OPTARG requires an argument" 1>&2
+                display_push_upstream_branch_help
+                exit 1
+                ;;
+        esac
+    done
+
+    shift $((OPTIND -1))
+
+    if [[ -z "$upstream_branch_name" ]]; then
+        echo ""
+        echo "No upstream branch name provided, please use '-b' option"
+        echo ""
+        display_push_upstream_branch_help
+        exit 1
+    fi
+
+    if [[ "$#" -ne 1 ]]; then
+        echo ""
+        echo "Illegal number of arguments: exactly one LOCAL_PATH argument allowed."
+        echo ""
+        exit 1
+    fi
+
+    check_git_status
+
+    check_if_frankenrepo
+
+    local path="${1}"
+    echo
+    echo "Pushing to remote for: ${path}"
+    push_upstream_feature_path "${path}" "${upstream_branch_name}"
+
+}
+
+
+function push_upstream_path {
+
+    folder_path=$1
+    upstream_name=$1
+
+    git subtree push --prefix "${folder_path}" "${upstream_name}" master
+}
+
+function push_upstream_feature_path {
+
+    folder_path=$1
+    upstream_name=$1
+    upstream_branch_name=$2
+
+    git subtree push --prefix "${folder_path}" "${upstream_name}" "${upstream_branch_name}"
+}
+
+function display_pull_upstream_help {
+    echo "Usage:"
+    echo "    frankentree pull -h                    display this help message."
+    echo "    frankentree pull [FOLDER_PATH] ...     pulls changes from upstream repo."
+}
+
+function command_pull_upstream {
+
+   while getopts ":h" opt; do
+     case ${opt} in
+     h )
+         display_pull_upstream_help
+      exit 0
+      ;;
+     \? )
+       echo "Invalid Option: -$OPTARG" 1>&2
+       display_pull_upstream_help
+       exit 1
+       ;;
+     : )
+       echo "Invalid Option: -$OPTARG requires an argument" 1>&2
+       display_pull_upstream_help
+       exit 1
+       ;;
+     esac
+   done
+
+   shift $((OPTIND -1))
+
+   check_git_status
+
+   check_if_frankenrepo
+
+   if [[ -z "$1" ]]; then
+       local temp=$(get_all_paths)
+       repos=(`echo $temp | sed -e 's/:/\n/g'`)
+       for path in "${repos[@]}"
+       do
+           echo
+           echo "Pulling from remote for: ${path}"
+           pull_upstream_path "${path}"
+       done
+   else
+       for path in "$@"
+       do
+           echo
+           echo "Pulling from remote for: ${path}"
+           pull_upstream_path "${path}"
+       done
+   fi
+
+}
+
+function pull_upstream_path {
+
+    folder_path=${1}
+    upstream_name=${1}
+
+    # fetch updates
+    git fetch "${upstream_name}"
+
+    # TODO: not sure whether to use squash or not
+    git subtree pull --prefix "${folder_path}" "${upstream_name}" master #--squash
+
+}
+
+function check_if_frankenrepo {
+
+    if [ ! -f .remote_repos ]; then
+        echo
+        echo "File '.remote_repos' not found, this is not a frankentree!"
+        exit 1
+    fi
+
+}
+
+function get_all_paths {
+
+    # reading .remote_repos file
+    local result=""
+    while read -r line; do
+        if [[  -z "$line" ]]; then
+            continue
+        fi
+        local temp="${line%=*}"
+        result="${result}:${temp}"
+    done <".remote_repos"
+
+    echo "$result"
+
+
+}
+
+function display_add_help {
+    echo "Usage:"
+    echo "    frankentree add -h                                display this help message."
+    echo "    frankentree add [-g] [-f] -u REPO_URL LOCAL_PATH       adds a remote repo."
+}
+
+function display_create_remotes_help {
+    echo "Usage:"
+    echo "    frankentree create-remotes -h                                display this help message."
+    echo "    frankentree create-remotes                                   creates any missing remotes in the (local) parent git repo"
+}
+
+function display_clone_help {
+    echo "Usage:"
+    echo "    frankentree clone -h                                display this help message."
+    echo "    frankentree clone GIT_REPO_URL                      Clones a git repo and initializes the frankentree remotes."
+
+}
+
+function command_create_remotes {
+
+    while getopts ":h" opt; do
+        case ${opt} in
+
+            h )
+                display_create_remotes_help
+                exit 0
+                ;;
+            \? )
+                echo "Invalid Option: -$OPTARG" 1>&2
+                display_create_remotes_help
+                exit 1
+                ;;
+            : )
+                echo "Invalid Option: -$OPTARG requires an argument" 1>&2
+                display_create_remotes_help
+                exit 1
+                ;;
+        esac
+    done
+
+    shift $((OPTIND -1))
+
+    if [[ ! -z "$1" ]]; then
+        echo ""
+        echo "No argument allowed."
+        echo ""
+        display_create_remotes_help
+        exit 1
+    fi
+
+    echo
+
+    check_if_frankenrepo
+    create_remotes
+}
+
+function command_clone {
+
+    while getopts ":h" opt; do
+        case ${opt} in
+
+            h )
+                display_clone_help
+                exit 0
+                ;;
+            \? )
+                echo "Invalid Option: -$OPTARG" 1>&2
+                display_clone_help
+                exit 1
+                ;;
+            : )
+                echo "Invalid Option: -$OPTARG requires an argument" 1>&2
+                display_clone_help
+                exit 1
+                ;;
+        esac
+    done
+
+    shift $((OPTIND -1))
+
+    if [[ -z "$1" ]]; then
+        echo ""
+        echo "No git repo url provided."
+        echo ""
+        display_clone_help
+        exit 1
+    fi
+
+    echo
+
+    git clone "${1}" || error_exit "Could not clone repository '${1}..."
+    dir=$(basename ${1} .git)
+
+    cd "${dir}"
+
+    check_if_frankenrepo
+    create_remotes
+
+
+}
+
+function create_remotes {
+    local temp=$(get_all_paths)
+    paths=(`echo $temp | sed -e 's/:/\n/g'`)
+    for path in "${paths[@]}"
+    do
+        url=$(get_remote_for_path "${path}")
+        echo
+        echo "Adding remote '${url}' for path '${path}'"
+        git remote add -f ${path} ${url} || error_exit "Could not add remote '${url}' for path '${path}'"
+    done
+
+}
+
+function get_remote_for_path {
+
+    local line=$(grep "${1}" .remote_repos)
+
+    local url=${line##*=}
+    echo "${url}"
+
+}
+
+function command_add {
+
+   fork=false
+   while getopts ":hfg:u:" opt; do
+     case ${opt} in
+     h )
+      display_add_help
+      exit 0
+      ;;
+     f )
+       fork=true
+       ;;
+     g )
+       gh_username=$OPTARG
+       ;;
+     u )
+       repo_url=$OPTARG
+       ;;
+     \? )
+         echo "Invalid Option: -$OPTARG" 1>&2
+         display_add_help
+         exit 1
+         ;;
+     : )
+       echo "Invalid Option: -$OPTARG requires an argument" 1>&2
+       display_add_help
+       exit 1
+       ;;
+     esac
+   done
+
+   shift $((OPTIND -1))
+
+   if [[ -z "$repo_url" ]]; then
+      echo ""
+      echo "No repo url provided, please use '-u' option"
+      echo ""
+      display_add_help
+      exit 1
+   fi
+
+   if [[ "$#" -ne 1 ]]; then
+      echo ""
+      echo "Illegal number of arguments: exactly one LOCAL_PATH argument allowed."
+      echo ""
+      exit 1
+   fi
+
+   check_git_status
+
+   local_path="$1"
+
+   if [[ -e ${local_path} ]]; then
+       echo ""
+       echo "Path '${local_path}' already exists"
+       echo ""
+       exit 1
+   fi
+
+   # dir_name=$(basename ${local_path})
+   # clean_string role_name "$dir_name"
+
+   if [ "${fork}" = true ]; then
+
+       prepare_github_api
+
+       if [ -z ${gh_username} ]; then
+           gh_username=${GITHUB_USERNAME}
+       fi
+
+       fork_repo repo_url "$repo_url" "$gh_username"
+
+   fi
+
+   #upstream_alias=$(echo ${local_path} | sed 's:/:_:g')
+   upstream_alias=${local_path}
+
+   # adding alias
+   git remote add -f ${upstream_alias} ${repo_url} || error_exit "Could not add remote '${repo_url}'"
+   # adding repo
+   # TODO: not sure whether to use git squash or not
+   #git subtree add --prefix ${local_path} ${upstream_alias} master --squash || error_exit "Could not add remote tree '${repo_url}' to: ${local_path}"
+   git subtree add --prefix ${local_path} ${upstream_alias} master || error_exit "Could not add remote tree '${repo_url}' to: ${local_path}"
+
+   echo "Added repositury '${repo_url}' (using alias '${upstream_alias}' at path: ${local_path}"
+   # echo "${role_name}=${local_path}" >> .folder_repos
+   echo "${local_path}=${repo_url}" >> .remote_repos
+
+   # git add .folder_repos
+   git add .remote_repos
+   git commit -m "Added remote folder repo '${repo_url}' (alias: ${upstream_alias}) to path: ${local_path}"
+}
+
+function display_help {
+    echo "Usage:"
+    echo "    frankentree -h                      Display this help message."
+    echo "    frankentree clone                   Clones an existing frankentree."
+    echo "    frankentree create-remotes          Creates any missing remote branches in the parent (local) git repo config."
+    echo "    frankentree add                     Adds a git subtree."
+    echo "    frankentree pull                    (git) pulls all subtrees."
+    echo "    frankentree push                    (git) pushes all subtrees."
+    echo "    frankentree push-branch             pushes changes to a subtree to it's remote, creating a feature branch that can be used for a pull request"
+}
+
+function check_git_status {
+    git diff-index --quiet HEAD -- || error_exit "local git repository has modifications (or is not a git repository), not doing anything..."
+}
+
+# =============================================================
+# VARS
+
+PROGNAME="frankentree"
+
+# =============================================================
+# ARG PARSING
+
+while getopts ":h" opt; do
+    case ${opt} in
+        h )
+            display_help
+            exit 0
+            ;;
+        \? )
+            echo "Invalid Option: -$OPTARG" 1>&2
+            display_help
+            exit 1
+            ;;
+    esac
+done
+shift $((OPTIND -1))
+
+if [ -z "$1" ]
+then
+    display_help
+    exit 0
+fi
+
+subcommand=$1
+shift
+
+case "$subcommand" in
+  clone)
+    command_clone "$@"
+    ;;
+  add)
+    command_add "$@"
+    ;;
+  pull)
+    command_pull_upstream "$@"
+    ;;
+  push)
+    command_push_upstream "$@"
+    ;;
+  push-branch)
+    command_push_upstream_branch "$@"
+    ;;
+  create-remotes)
+    command_create_remotes "$@"
+    ;;
+esac
+
+#eval "command_$subcommand $repo_url"
