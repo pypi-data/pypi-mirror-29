@@ -1,0 +1,43 @@
+---
+# This file means to be a generic way to add resource agents for VIPs
+# The following are assumed to be passed:
+#
+# * current_vip.name: Name of the network
+# * current_vip.ip: the VIP
+- name: Set specific resource agent facts
+  set_fact:
+    resource_agent_name: tripleo-ipsec-{{ current_vip.name }}
+    specific_tunnel: overcloud-{{ current_vip.name }}-vip-tunnel
+    specific_vip: "{{ current_vip.ip }}"
+
+- name: Was the {{ resource_agent_name }} Resource Agent added already?
+  command: pcs resource show {{ resource_agent_name }}
+  ignore_errors: yes
+  register: found_resource_agent
+  changed_when: found_resource_agent|failed
+
+- name: Delete {{ resource_agent_name }} Resource Agent
+  command: pcs resource delete {{ resource_agent_name }}
+  when:
+  - resource_agent.changed
+  - found_resource_agent|succeeded
+
+- name: Add {{ resource_agent_name }} pacemaker resource agent
+  command: pcs resource create {{ resource_agent_name }} ocf:heartbeat:ipsec tunnel={{ specific_tunnel }} vip={{ specific_vip }} --disabled
+  when:
+  - resource_agent.changed or found_resource_agent|failed
+
+- name: Add collocation rule with VIP ( {{ resource_agent_name }} )
+  command: pcs constraint colocation add {{ resource_agent_name }} with ip-{{ specific_vip }}
+  when:
+  - resource_agent.changed or found_resource_agent|failed
+
+- name: Add ordering rule with VIP ( {{ resource_agent_name }} )
+  command: pcs constraint order start ip-{{ specific_vip }} then {{ resource_agent_name }}
+  when:
+  - resource_agent.changed or found_resource_agent|failed
+
+- name: Enable {{ resource_agent_name }} resource agent
+  command: pcs resource enable {{ resource_agent_name }}
+  when:
+  - resource_agent.changed or found_resource_agent|failed
