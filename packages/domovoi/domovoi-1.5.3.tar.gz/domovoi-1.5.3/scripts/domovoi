@@ -1,0 +1,287 @@
+#!/usr/bin/env python
+
+from __future__ import absolute_import, division, print_function, unicode_literals
+
+import os, sys, argparse, inspect, json, hashlib, time, copy
+
+import chalice, chalice.app, chalice.deploy.packager
+from chalice.cli.factory import create_botocore_session, CLIFactory
+from chalice.deploy.packager import LambdaDeploymentPackager
+from chalice.deploy.deployer import APIGatewayDeployer
+from chalice.utils import record_deployed_values, UI
+from chalice.compat import urlparse
+from chalice.constants import DEFAULT_STAGE_NAME
+import chalice.awsclient, chalice.deploy.deployer
+
+import botocore, boto3.session
+
+import domovoi
+
+try:
+    import pkg_resources
+    __version__ = pkg_resources.get_distribution(__name__).version
+except Exception:
+    __version__ = "0.0.0"
+
+class DomovoiDeploymentPackager(LambdaDeploymentPackager):
+    _CHALICE_LIB_DIR = "domovoilib"
+    def _add_app_files(self, zip, project_dir):
+        domovoi_router = inspect.getfile(domovoi.app)
+        if domovoi_router.endswith(".pyc"):
+            domovoi_router = domovoi_router[:-1]
+        zip.write(domovoi_router, "domovoi/app.py")
+
+        domovoi_init = inspect.getfile(domovoi)
+        if domovoi_init.endswith(".pyc"):
+            domovoi_init = domovoi_init[:-1]
+        zip.write(domovoi_init, "domovoi/__init__.py")
+
+        chalice_router = inspect.getfile(chalice.app)
+        if chalice_router.endswith(".pyc"):
+            chalice_router = chalice_router[:-1]
+        zip.write(chalice_router, "chalice/app.py")
+
+        chalice_init = inspect.getfile(chalice)
+        if chalice_init.endswith(".pyc"):
+            chalice_init = chalice_init[:-1]
+        zip.write(chalice_init, "chalice/__init__.py")
+
+        zip.write(os.path.join(project_dir, "app.py"), "app.py")
+        self._add_chalice_lib_if_needed(project_dir, zip)
+
+class NoOpDeployer(APIGatewayDeployer):
+    def deploy(self, *args, **kwargs):
+        return None, self._aws_client.region_name, None
+
+    def delete(self, *args, **kwargs):
+        pass
+
+class DSSChaliceTypedAWSClient(chalice.awsclient.TypedAWSClient):
+    def update_function(self, *args, **kwargs):
+        kwargs.pop("role_arn", None)
+        super(DSSChaliceTypedAWSClient, self).update_function(*args, **kwargs)
+
+
+chalice.awsclient.TypedAWSClient = DSSChaliceTypedAWSClient
+chalice.deploy.deployer.TypedAWSClient = DSSChaliceTypedAWSClient
+
+def add_filter_config(event_config, event_handler):
+    cfg = dict(event_config)
+    for fltr in "prefix", "suffix":
+        if event_handler.get(fltr):
+            cfg.setdefault("Filter", dict(Key=dict(FilterRules=[])))
+            cfg["Filter"]["Key"]["FilterRules"].append(dict(Name=fltr, Value=event_handler[fltr]))
+    return cfg
+
+
+parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
+parser.add_argument("--stage", default=DEFAULT_STAGE_NAME)
+parser.add_argument("--profile")
+parser.add_argument("--debug", action="store_true")
+parser.add_argument("--dry-run", action="store_true")
+parser.add_argument("action", choices={"deploy"})
+parser.add_argument("project_dir", nargs="?", default=os.getcwd())
+args = parser.parse_args()
+
+botocore_session = create_botocore_session(profile=args.profile, debug=args.debug)
+botocore_session.user_agent_extra = "domovoi/%s" % __version__
+boto3_session = boto3.session.Session(botocore_session=botocore_session)
+events = boto3_session.client("events")
+sns = boto3_session.resource("sns")
+awslambda = boto3_session.client("lambda")
+s3 = boto3_session.resource("s3")
+sts = boto3_session.client("sts")
+sfn = boto3.client("stepfunctions")
+iam = boto3_session.resource("iam")
+logs = boto3_session.client("logs")
+dynamodb = boto3_session.resource("dynamodb")
+
+trust_statement = copy.deepcopy(chalice.constants.LAMBDA_TRUST_POLICY["Statement"][0])
+trust_statement["Principal"] = {"Service": urlparse(sfn.meta.endpoint_url).netloc}
+chalice.constants.LAMBDA_TRUST_POLICY["Statement"].append(trust_statement)
+
+factory = CLIFactory(args.project_dir)
+config = factory.create_config_obj(chalice_stage_name=args.stage, autogen_policy=False)
+deployer = factory.create_default_deployer(session=botocore_session, ui=UI(confirm=lambda *args, **kwargs: True))
+deployer._lambda_deploy._packager.__class__ = DomovoiDeploymentPackager
+deployer._apigateway_deploy.__class__ = NoOpDeployer
+function_name = '%s-%s' % (config.app_name, args.stage)
+
+if not deployer._lambda_deploy._app_policy.load_last_policy(config)["Statement"]:
+    default_iam_policy_filename = os.path.join(os.path.dirname(domovoi.__file__), "default_iam_policy.json")
+    with open(default_iam_policy_filename) as fh:
+        deployer._lambda_deploy._app_policy.record_policy(config, json.load(fh))
+
+if args.dry_run:
+    lambda_arn = "arn:aws:lambda:::"
+else:
+    deployed_values = deployer.deploy(config, chalice_stage_name=args.stage)
+    record_deployed_values(deployed_values, os.path.join(config.project_dir, ".chalice", "deployed.json"))
+    lambda_arn = config.deployed_resources(config.chalice_stage).api_handler_arn
+    dlq_arn = config._chain_lookup('dead_letter_queue_target_arn')
+    if dlq_arn:
+        client = chalice.awsclient.TypedAWSClient(botocore_session)._client('lambda')
+        print("Setting DLQ {} for {}".format(dlq_arn, function_name))
+        client.update_function_configuration(FunctionName=function_name, DeadLetterConfig=dict(TargetArn=dlq_arn))
+
+domovoi_app = config.chalice_app
+
+# TODO: consider narrowing trust policy
+for service in ("apigateway", "events", "sns", "s3", "logs"):
+    service_uri = service + ".amazonaws.com"
+    policy = dict(FunctionName=lambda_arn, Principal=service_uri, Action="lambda:InvokeFunction")
+    policy_id = "domovoi-{}".format(hashlib.md5(json.dumps(policy).encode()).hexdigest()[:8])
+    print("Granting {} access to invoke Lambda function {}".format(service, lambda_arn))
+    if not args.dry_run:
+        try:
+            awslambda.add_permission(StatementId=policy_id, **policy)
+        except awslambda.exceptions.ResourceConflictException:
+            print("Found existing permission grant statement {}, skipping".format(policy_id))
+
+for task_name, task in domovoi_app.cloudwatch_events_rules.items():
+    print("Scheduling", task_name, "to run on schedule", task["schedule_expression"], "pattern", task["event_pattern"])
+    rule_args = dict(Name=task_name)
+    if task.get("schedule_expression"):
+        rule_args["ScheduleExpression"] = task["schedule_expression"]
+    if task.get("event_pattern"):
+        rule_args["EventPattern"] = json.dumps(task["event_pattern"])
+    if not args.dry_run:
+        rule_arn = events.put_rule(**rule_args)["RuleArn"]
+        lambda_input = '{"task_name": "%s", "event": <event>}' % task_name
+        ixform = dict(InputPathsMap=dict(event="$"), InputTemplate=lambda_input)
+        events.put_targets(Rule=task_name, Targets=[dict(Id=task_name, Arn=lambda_arn, InputTransformer=ixform)])
+        print("Scheduled CloudWatch event", rule_arn)
+
+for sns_topic, event_handler in domovoi_app.sns_subscribers.items():
+    print("Subscribing", event_handler, "to", sns_topic)
+    if not args.dry_run:
+        topic = sns.create_topic(Name=sns_topic)
+        subscription = topic.subscribe(Protocol="lambda", Endpoint=lambda_arn)
+        print("Subscribed to", subscription)
+
+for s3_bucket, event_handler in domovoi_app.s3_subscribers.items():
+    print("Subscribing", event_handler, "to events in S3 bucket", s3_bucket)
+    if args.dry_run:
+        continue
+    if event_handler["use_sns"]:
+        sns_topic = sns.create_topic(Name="domovoi-s3-bucket-events-{}".format(s3_bucket.replace(".", "_")))
+        policy = {"Statement": [{"Action": ["SNS:Publish"],
+                                 "Effect": "Allow",
+                                 "Resource": sns_topic.arn,
+                                 "Principal": {"Service": ["s3.amazonaws.com"]}}]}
+        sns_topic.set_attributes(AttributeName="Policy", AttributeValue=json.dumps(policy))
+        subscription = sns_topic.subscribe(Protocol="lambda", Endpoint=lambda_arn)
+        print("Subscribed to", subscription)
+        topic_configuration = dict(TopicArn=sns_topic.arn, Events=event_handler["events"])
+        topic_configuration = add_filter_config(topic_configuration, event_handler)
+    else:
+        lambda_function_configuration = dict(LambdaFunctionArn=lambda_arn, Events=event_handler["events"])
+        lambda_function_configuration = add_filter_config(lambda_function_configuration, event_handler)
+    for t in range(8):
+        try:
+            notification, last_exception = s3.Bucket(s3_bucket).Notification(), None
+            new_config = dict(LambdaFunctionConfigurations=notification.lambda_function_configurations or [],
+                              QueueConfigurations=notification.queue_configurations or [],
+                              TopicConfigurations=notification.topic_configurations or [])
+            if event_handler["use_sns"]:
+                old_cfgs = [cfg for cfg in new_config["TopicConfigurations"] if cfg["TopicArn"] != sns_topic.arn]
+                new_config["TopicConfigurations"] = [topic_configuration] + old_cfgs
+            else:
+                old_cfgs = [cfg for cfg in new_config["LambdaFunctionConfigurations"] if cfg["LambdaFunctionArn"] != lambda_arn]
+                new_config["LambdaFunctionConfigurations"] = [lambda_function_configuration] + old_cfgs
+            notification.put(NotificationConfiguration=new_config)
+            break
+        except botocore.exceptions.ClientError as e:
+            if "A conflicting conditional operation is currently in progress" not in str(e):
+                raise
+            last_exception = e
+            print("Waiting", int(1.6**t), "seconds for concurrent operation to complete")
+            time.sleep(1.6**t)
+    else:
+        raise last_exception
+
+for cwl_log_group_name, cwl_sub_filter_data in domovoi_app.cwl_sub_filters.items():
+    print("Subscribing", cwl_sub_filter_data, "to CloudWatch Logs filter for", cwl_log_group_name)
+    if not args.dry_run:
+        logs.put_subscription_filter(logGroupName=cwl_log_group_name,
+                                     filterName="domovoi-cwl-filter",
+                                     filterPattern=cwl_sub_filter_data["filter_pattern"],
+                                     destinationArn=lambda_arn)
+
+for table_name, source_data in domovoi_app.dynamodb_event_sources.items():
+    print("Subscribing to DynamoDB event stream for table", table_name)
+    if not args.dry_run:
+        event_source_mapping_args = dict(EventSourceArn=dynamodb.Table(table_name).latest_stream_arn,
+                                         FunctionName=function_name,
+                                         Enabled=True,
+                                         StartingPosition="TRIM_HORIZON")
+        if source_data["batch_size"] is not None:
+            event_source_mapping_args.update(BatchSize=source_data["batch_size"])
+        try:
+            awslambda.create_event_source_mapping(**event_source_mapping_args)
+        except awslambda.exceptions.ResourceConflictException as e:
+            assert "provided mapping already exists" in str(e) and str(e).split()[-2] == "UUID"
+            if source_data["batch_size"] is not None:
+                awslambda.update_event_source_mapping(UUID=str(e).split()[-1], BatchSize=source_data["batch_size"])
+
+existing_aliases = []
+if not args.dry_run:
+    for page in awslambda.get_paginator('list_aliases').paginate(FunctionName=function_name):
+        existing_aliases.extend(page["Aliases"])
+
+state_machine = None
+for sfn_task_name, sfn_task in domovoi_app.sfn_tasks.items():
+    print("Registering step function state machine for", sfn_task_name)
+    if state_machine is None:
+        state_machine = sfn_task["state_machine_definition"]
+    else:
+        msg = "Multiple state machine definitions are not supported"
+        assert state_machine == sfn_task["state_machine_definition"], msg
+    lambda_alias = "domovoi-stepfunctions-task-" + sfn_task_name
+    alias_args = dict(FunctionName=function_name,
+                      Name=lambda_alias,
+                      FunctionVersion="$LATEST",
+                      Description="Domovoi Lambda routing label for a Step Functions state machine task")
+    all_states = domovoi.Domovoi.get_all_states(state_machine)
+    state = all_states[sfn_task["state_name"]]
+    if not args.dry_run:
+        for alias in existing_aliases:
+            if alias["Name"] == lambda_alias and alias["FunctionVersion"] == "$LATEST":
+                break
+        else:
+            try:
+                awslambda.create_alias(**alias_args)
+            except awslambda.exceptions.ResourceConflictException:
+                awslambda.update_alias(**alias_args)
+        state["Resource"] = lambda_arn + ":" + lambda_alias
+
+if state_machine and not args.dry_run:
+    iam_role_arn = config.iam_role_arn or iam.Role(function_name).arn
+    sm_args = dict(name=function_name,
+                   definition=json.dumps(state_machine),
+                   roleArn=iam_role_arn)
+    try:
+        sm = sfn.create_state_machine(**sm_args)
+        print("Created new state machine", sm["stateMachineArn"])
+    except botocore.exceptions.ClientError as e:
+        for page in sfn.get_paginator("list_state_machines").paginate():
+            for sm in page["stateMachines"]:
+                if sm["name"] == function_name:
+                    break
+        if sm["name"] != function_name:
+            raise e
+        sm = sfn.describe_state_machine(stateMachineArn=sm["stateMachineArn"])
+        sm_args.clear()
+        if json.loads(sm["definition"]) != state_machine:
+            sm_args["definition"] = json.dumps(state_machine)
+        if sm["roleArn"] != iam_role_arn:
+            sm_args["roleArn"] = iam_role_arn
+        if sm_args:
+            print("Updating state machine", sm["stateMachineArn"])
+            sfn.update_state_machine(stateMachineArn=sm["stateMachineArn"], **sm_args)
+        else:
+            print("No changes required to existing state machine", sm["stateMachineArn"])
+    print("State machine:", sm["stateMachineArn"])
+
+if args.dry_run:
+    print("Dry run successful")
