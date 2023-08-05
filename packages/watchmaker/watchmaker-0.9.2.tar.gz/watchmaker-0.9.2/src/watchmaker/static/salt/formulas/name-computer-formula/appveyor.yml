@@ -1,0 +1,51 @@
+version: '{branch}-{build}'
+build: off
+environment:
+  global:
+    SALT_FILEROOT: '%APPVEYOR_BUILD_FOLDER%'
+    SALT_STATE: name-computer
+    SALT_URL: 'https://repo.saltstack.com/windows/Salt-Minion-2016.11.8-AMD64-Setup.exe'
+    SALT_GRAIN_KEY: 'name-computer:computername'
+  matrix:
+    - SALT_GRAIN_VALUE: False
+    - SALT_GRAIN_VALUE: itworx
+
+init:
+  - ps: echo $env:SALT_GRAIN_VALUE
+install:
+  - ps: |
+      $null = `
+        (new-object net.webclient).DownloadFile(${env:SALT_URL}, `
+        "${env:temp}\salt-minion.exe")
+  - ps: |
+      $null = `
+        Start-Process -FilePath "${env:temp}\salt-minion.exe" `
+        -ArgumentList "/S" -NoNewWindow -PassThru -Wait
+  - ps: C:\salt\salt-call.bat --versions-report
+  - ps: |
+      C:\salt\salt-call.bat --local --retcode-passthrough `
+        grains.set "${env:SALT_GRAIN_KEY}" "${env:SALT_GRAIN_VALUE}"
+
+test_script:
+  - ps: |
+      C:\salt\salt-call.bat --local --retcode-passthrough `
+        --log-file-level debug `
+        --file-root=${env:SALT_FILEROOT} `
+        state.show_sls `
+        "${env:SALT_STATE}"
+  - ps: |
+      C:\salt\salt-call.bat --local --retcode-passthrough `
+        --log-file-level debug `
+        --file-root="${env:SALT_FILEROOT}" `
+        state.sls `
+        "${env:SALT_STATE}" `
+        mock=True
+
+on_failure:
+  - ps: C:\salt\salt-call.bat --local grains.items
+  - ps: dir "env:"
+  - ps: get-content C:\salt\var\log\salt\*
+
+### To enable remote debugging uncomment this (also, see: http://www.appveyor.com/docs/how-to/rdp-to-build-worker):
+# on_finish:
+#   - ps: $blockRdp = $true; iex ((new-object net.webclient).DownloadString('https://raw.githubusercontent.com/appveyor/ci/master/scripts/enable-rdp.ps1'))
