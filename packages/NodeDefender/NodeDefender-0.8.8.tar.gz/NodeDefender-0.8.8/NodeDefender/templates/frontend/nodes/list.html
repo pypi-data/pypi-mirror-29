@@ -1,0 +1,138 @@
+{% extends "frontend/base.html" %}
+{% block content %}
+<div class="row">
+    <div class="col-lg-12">
+        <h1 class="page-header">
+            Nodes <small>Node List</small>
+        </h1>
+             <ol class="breadcrumb">
+           <li class="active">
+						 <i class="fa fa-map-marker"></i><a href="{{url_for('index')}}"> Dashboard</a>
+          </li>
+					<li class="active">Node List</li>
+       </ol>
+    </div>
+</div>
+{% include "frontend/flash.html" %}
+{% from "frontend/macros/node.html" import NodeList with context %}
+{% from "frontend/macros/form.html" import render_manual %}
+{% from "frontend/macros/group.html" import SelectGroup %}
+{% from "frontend/macros/icpe.html" import SelectiCPE %}
+{% from "frontend/macros/info.html" import FieldID %}
+<div class="row">
+	<div class="col-lg-12">
+		<div class="panel panel-primary">
+			<div class="panel-heading">
+				Node List
+				<div class="floatRight" id="createNode"></div>
+			</div>
+			<div class="panel-body" style="padding: 0;">
+				{{ NodeList(nodes) }}
+			</div>
+		</div>
+  </div>
+</div>
+<div class="modal fade" id="CreateNode" role="dialog">
+	<div class="modal-dialog">
+		<div class="modal-content">
+			<div class="modal-header">
+				<button type="button" class="close" data-dismiss="modal">&times;</button>
+				<h2 class="modal-title">Create Node</h2>
+				<div class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100"></div>
+			</div>
+			<div class="modal-body">
+				<div class="multiform-step">
+					<div class="row">
+						{{ render_manual('Name', 'createNodeName') }}
+						{{ render_manual('Street', 'createNodeStreet') }}
+            <div class="form-group">
+              <label class="control-label col-sm-2">City:</label>
+              <div class="col-sm-10">
+                <input type="string" class="form-control" id="createNodeCity" onblur="getCoordinates()">
+              </div>
+            </div>
+            {{ FieldID('Latitude', '0', 'createNodeLatitude') }}
+            {{ FieldID('Longitude', '0', 'createNodeLongitude') }}
+					</div>
+				</div>
+				<div class="multiform-step">
+					{{ SelectGroup(current_user) }}
+				</div>
+				<div class="multiform-step">
+					<div class="row">
+						{{ FieldID('Name', 'None', 'SubmitName') }}
+						{{ FieldID('Street', 'None', 'SubmitStreet') }}
+						{{ FieldID('City', 'None', 'SubmitCity') }}
+						{{ FieldID('Latitude', 'None', 'SubmitLatitude') }}
+						{{ FieldID('Longitude', 'None', 'SubmitLongitude') }}
+						{{ FieldID('Group', 'None', 'SubmitGroup') }}
+					</div>
+				</div>
+			</div>
+			<div class="modal-footer">
+				<button class="multibtn multiform-back btn btn-info">Back</button>
+				<button class="multibtn multiform-next btn btn-info">Next</button>
+				<button class="multibtn multiform-submit btn btn-success">Submit</button>
+			</div>
+		</div>
+	</div>
+</div>
+<script>
+$(document).ready(function() {
+	var basic = function() {
+		if ($('#createNodeName').val() == '') {
+			toastr.error('Please Enter Name');
+			return false;
+		}
+		if ($('#createNodeStreet').val() == '') {
+			toastr.error('Please Enter Street');
+			return false;
+		}
+		if ($('#createNodeCity').val() == '') {
+			toastr.error('Please enter City');
+			return false;
+		}
+
+		$('#SubmitName').text($('#createNodeName').val());
+		$('#SubmitStreet').text($('#createNodeStreet').val());
+		$('#SubmitCity').text($('#createNodeCity').val());
+		return true;
+	}
+	var group = function() {
+		if ($('#GroupsList option:selected').text() == '') {
+			toastr.error('Please choose Group');
+			return false;
+		}
+		$('#SubmitGroup').text($('#GroupsList option:selected').text());
+
+		return true;
+	}
+
+	var submit = function() {
+		var mac_address = $('#SubmitiCPE').text();
+		var group = $('#SubmitGroup').text();
+		var node = $('#SubmitName').text();
+		var street = $('#SubmitStreet').text();
+		var city = $('#SubmitCity').text();
+		nodeSocket.emit('create', node, group, {'street' : street, 'city' : city});
+	}
+	initMultistep(basic, group, submit);
+
+  {% if current_user.has_role("technician") %}
+  $('#createNode').prepend('<a style="color: #FFFFFF;" href="#" data-toggle="modal" data-target="#CreateNode"><i class="fa fa-plus" aria-hidden="true"></i></a>');
+  {% endif %}
+
+});
+function getCoordinates() {
+  nodeSocket.emit('coordinates', document.getElementById("createNodeStreet").value,
+document.getElementById("createNodeCity").value);
+}
+nodeSocket.on('coordinates', function(latitude, longitude) {
+  document.getElementById('createNodeLatitude').innerHTML = latitude;
+  document.getElementById('createNodeLongitude').innerHTML = longitude;
+  document.getElementById('SubmitLatitude').innerHTML = latitude;
+  document.getElementById('SubmitLongitude').innerHTML = longitude;
+});
+</script>
+<script src="/static/js/multistep.js"></script>
+{% endblock %}
