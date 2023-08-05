@@ -1,0 +1,858 @@
+diff --git a/opentracing/__init__.py b/opentracing/__init__.py
+index bc8bc26..4faf9de 100644
+--- a/opentracing/__init__.py
++++ b/opentracing/__init__.py
+@@ -22,6 +22,8 @@
+ from __future__ import absolute_import
+ from .span import Span  # noqa
+ from .span import SpanContext  # noqa
++from .scope import Scope  # noqa
++from .scope_manager import ScopeManager  # noqa
+ from .tracer import child_of  # noqa
+ from .tracer import follows_from  # noqa
+ from .tracer import Reference  # noqa
+diff --git a/opentracing/harness/api_check.py b/opentracing/harness/api_check.py
+index 36c6fc4..2976176 100644
+--- a/opentracing/harness/api_check.py
++++ b/opentracing/harness/api_check.py
+@@ -18,8 +18,9 @@
+ # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ # THE SOFTWARE.
+ from __future__ import absolute_import
+-import time
+ 
++import mock
++import time
+ import pytest
+ 
+ import opentracing
+@@ -39,12 +40,28 @@ class APICompatibilityCheckMixin(object):
+         """If true, the test will validate Baggage items by storing and
+         retrieving them from the trace context. If false, it will only attempt
+         to store and retrieve the Baggage items to check the API compliance,
+-        but not actually validate stored values.  The latter mode is only
++        but not actually validate stored values. The latter mode is only
+         useful for no-op tracer.
+         """
+         return True
+ 
++    def check_scope_manager(self):
++        """If true, the test suite will validate the `ScopeManager` propagation
++        to ensure correct parenting. If false, it will only use the API without
++        asserting. The latter mode is only useful for no-op tracer.
++        """
++        return True
++
++    def is_parent(self, parent, span):
++        """Utility method that must be defined by Tracer implementers to define
++        how the test suite can check when a `Span` is a parent of another one.
++        It depends by the underlying implementation that is not part of the
++        OpenTracing API.
++        """
++        return False
++
+     def test_start_span(self):
++        # test deprecated API for minor compatibility
+         tracer = self.tracer()
+         span = tracer.start_span(operation_name='Fry')
+         span.finish()
+@@ -54,15 +71,96 @@ class APICompatibilityCheckMixin(object):
+                            payload={'hospital': 'Brooklyn Pre-Med Hospital',
+                                     'city': 'Old New York'})
+ 
+-    def test_start_span_with_parent(self):
++    def test_start_active(self):
++        # the first usage returns a `Scope` that wraps a root `Span`
++        tracer = self.tracer()
++        scope = tracer.start_active(operation_name='Fry')
++
++        assert scope.span() is not None
++        if self.check_scope_manager():
++            assert self.is_parent(None, scope.span())
++
++    def test_start_active_parent(self):
++        # ensure the `ScopeManager` provides the right parenting
++        tracer = self.tracer()
++        with tracer.start_active(operation_name='Fry') as parent:
++            with tracer.start_active(operation_name='Farnsworth') as child:
++                if self.check_scope_manager():
++                    assert self.is_parent(parent.span(), child.span())
++
++    def test_start_active_ignore_active_scope(self):
++        # ensure the `ScopeManager` ignores the active `Scope`
++        # if the flag is set
++        tracer = self.tracer()
++        with tracer.start_active(operation_name='Fry') as parent:
++            with tracer.start_active(operation_name='Farnsworth',
++                                     ignore_active_scope=True) as child:
++                if self.check_scope_manager():
++                    assert not self.is_parent(parent.span(), child.span())
++
++    def test_start_active_finish_on_close(self):
++        # ensure a `Span` is finished when the `Scope` close
++        tracer = self.tracer()
++        scope = tracer.start_active(operation_name='Fry')
++        with mock.patch.object(scope.span(), 'finish') as finish:
++            scope.close()
++
++        if self.check_scope_manager():
++            assert finish.call_count == 1
++
++    def test_start_active_not_finish_on_close(self):
++        # a `Span` is not finished when the flag is set
++        tracer = self.tracer()
++        scope = tracer.start_active(operation_name='Fry',
++                                    finish_on_close=False)
++        with mock.patch.object(scope.span(), 'finish') as finish:
++            scope.close()
++
++        assert finish.call_count == 0
++
++    def test_scope_as_context_manager(self):
++        tracer = self.tracer()
++
++        with tracer.start_active(operation_name='antiquing') as scope:
++            assert scope.span() is not None
++
++    def test_start_manual(self):
++        tracer = self.tracer()
++        span = tracer.start_manual(operation_name='Fry')
++        span.finish()
++        with tracer.start_manual(operation_name='Fry',
++                                 tags={'birthday': 'August 14 1974'}) as span:
++            span.log_event('birthplace',
++                           payload={'hospital': 'Brooklyn Pre-Med Hospital',
++                                    'city': 'Old New York'})
++
++    def test_start_manual_propagation(self):
++        # `start_manual` must inherit the current active `Scope` span
++        tracer = self.tracer()
++        with tracer.start_active(operation_name='Fry') as parent:
++            with tracer.start_manual(operation_name='Farnsworth') as child:
++                if self.check_scope_manager():
++                    assert self.is_parent(parent.span(), child)
++
++    def test_start_manual_propagation_ignore_active_scope(self):
++        # `start_manual` doesn't inherit the current active `Scope` span
++        # if the flag is set
++        tracer = self.tracer()
++        with tracer.start_active(operation_name='Fry') as parent:
++            with tracer.start_manual(operation_name='Farnsworth',
++                                     ignore_active_scope=True) as child:
++                if self.check_scope_manager():
++                    assert not self.is_parent(parent.span(), child)
++
++    def test_start_manual_with_parent(self):
+         tracer = self.tracer()
+-        parent_span = tracer.start_span(operation_name='parent')
++        parent_span = tracer.start_manual(operation_name='parent')
+         assert parent_span is not None
+-        span = tracer.start_span(
++        span = tracer.start_manual(
+             operation_name='Leela',
+             child_of=parent_span)
+         span.finish()
+-        span = tracer.start_span(
++        span = tracer.start_manual(
+             operation_name='Leela',
+             references=[opentracing.follows_from(parent_span.context)],
+             tags={'birthplace': 'sewers'})
+@@ -71,7 +169,7 @@ class APICompatibilityCheckMixin(object):
+ 
+     def test_start_child_span(self):
+         tracer = self.tracer()
+-        parent_span = tracer.start_span(operation_name='parent')
++        parent_span = tracer.start_manual(operation_name='parent')
+         assert parent_span is not None
+         child_span = opentracing.start_child_span(
+             parent_span, operation_name='Leela')
+@@ -79,23 +177,24 @@ class APICompatibilityCheckMixin(object):
+         parent_span.finish()
+ 
+     def test_set_operation_name(self):
+-        span = self.tracer().start_span().set_operation_name('Farnsworth')
++        span = self.tracer().start_manual().set_operation_name('Farnsworth')
+         span.finish()
+ 
+     def test_span_as_context_manager(self):
++        tracer = self.tracer()
+         finish = {'called': False}
+ 
+         def mock_finish(*_):
+             finish['called'] = True
+ 
+-        with self.tracer().start_span(operation_name='antiquing') as span:
++        with tracer.start_manual(operation_name='antiquing') as span:
+             setattr(span, 'finish', mock_finish)
+         assert finish['called'] is True
+ 
+         # now try with exception
+         finish['called'] = False
+         try:
+-            with self.tracer().start_span(operation_name='antiquing') as span:
++            with tracer.start_manual(operation_name='antiquing') as span:
+                 setattr(span, 'finish', mock_finish)
+                 raise ValueError()
+         except ValueError:
+@@ -104,14 +203,14 @@ class APICompatibilityCheckMixin(object):
+             raise AssertionError('Expected ValueError')  # pragma: no cover
+ 
+     def test_span_tag_value_types(self):
+-        with self.tracer().start_span(operation_name='ManyTypes') as span:
++        with self.tracer().start_manual(operation_name='ManyTypes') as span:
+             span. \
+                 set_tag('an_int', 9). \
+                 set_tag('a_bool', True). \
+                 set_tag('a_string', 'aoeuidhtns')
+ 
+     def test_span_tags_with_chaining(self):
+-        span = self.tracer().start_span(operation_name='Farnsworth')
++        span = self.tracer().start_manual(operation_name='Farnsworth')
+         span. \
+             set_tag('birthday', '9 April, 2841'). \
+             set_tag('loves', 'different lengths of wires')
+@@ -121,7 +220,7 @@ class APICompatibilityCheckMixin(object):
+         span.finish()
+ 
+     def test_span_logs(self):
+-        span = self.tracer().start_span(operation_name='Fry')
++        span = self.tracer().start_manual(operation_name='Fry')
+ 
+         # Newer API
+         span.log_kv(
+@@ -146,7 +245,7 @@ class APICompatibilityCheckMixin(object):
+                 payload={'year': 2999})
+ 
+     def test_span_baggage(self):
+-        with self.tracer().start_span(operation_name='Fry') as span:
++        with self.tracer().start_manual(operation_name='Fry') as span:
+             assert span.context.baggage == {}
+             span_ref = span.set_baggage_item('Kiff-loves', 'Amy')
+             assert span_ref is span
+@@ -156,7 +255,7 @@ class APICompatibilityCheckMixin(object):
+             pass
+ 
+     def test_context_baggage(self):
+-        with self.tracer().start_span(operation_name='Fry') as span:
++        with self.tracer().start_manual(operation_name='Fry') as span:
+             assert span.context.baggage == {}
+             span.set_baggage_item('Kiff-loves', 'Amy')
+             if self.check_baggage_values():
+@@ -164,7 +263,7 @@ class APICompatibilityCheckMixin(object):
+             pass
+ 
+     def test_text_propagation(self):
+-        with self.tracer().start_span(operation_name='Bender') as span:
++        with self.tracer().start_manual(operation_name='Bender') as span:
+             text_carrier = {}
+             self.tracer().inject(
+                 span_context=span.context,
+@@ -176,7 +275,7 @@ class APICompatibilityCheckMixin(object):
+             assert extracted_ctx.baggage == {}
+ 
+     def test_binary_propagation(self):
+-        with self.tracer().start_span(operation_name='Bender') as span:
++        with self.tracer().start_manual(operation_name='Bender') as span:
+             bin_carrier = bytearray()
+             self.tracer().inject(
+                 span_context=span.context,
+@@ -193,7 +292,7 @@ class APICompatibilityCheckMixin(object):
+             (Format.HTTP_HEADERS, {}),
+             (Format.BINARY, bytearray()),
+         ]
+-        with self.tracer().start_span(operation_name='Bender') as span:
++        with self.tracer().start_manual(operation_name='Bender') as span:
+             for fmt, carrier in formats:
+                 # expecting no exceptions
+                 span.tracer.inject(span.context, fmt, carrier)
+@@ -201,8 +300,82 @@ class APICompatibilityCheckMixin(object):
+ 
+     def test_unknown_format(self):
+         custom_format = 'kiss my shiny metal ...'
+-        with self.tracer().start_span(operation_name='Bender') as span:
++        with self.tracer().start_manual(operation_name='Bender') as span:
+             with pytest.raises(opentracing.UnsupportedFormatException):
+                 span.tracer.inject(span.context, custom_format, {})
+             with pytest.raises(opentracing.UnsupportedFormatException):
+                 span.tracer.extract(custom_format, {})
++
++    def test_tracer_start_active_scope(self):
++        # the Tracer ScopeManager should store the active Scope
++        tracer = self.tracer()
++        scope = tracer.start_active(operation_name='Fry')
++
++        if self.check_scope_manager():
++            assert tracer.scope_manager.active() == scope
++
++        scope.close()
++
++    def test_tracer_start_active_nesting(self):
++        # when a Scope is closed, the previous one must be activated
++        tracer = self.tracer()
++        with tracer.start_active(operation_name='Fry') as parent:
++            with tracer.start_active(operation_name='Farnsworth'):
++                pass
++
++            if self.check_scope_manager():
++                assert tracer.scope_manager.active() == parent
++
++        if self.check_scope_manager():
++            assert tracer.scope_manager.active() is None
++
++    def test_tracer_start_active_nesting_finish_on_close(self):
++        # finish_on_close must be correctly handled
++        tracer = self.tracer()
++        parent = tracer.start_active(operation_name='Fry',
++                                     finish_on_close=False)
++        with mock.patch.object(parent.span(), 'finish') as finish:
++            with tracer.start_active(operation_name='Farnsworth'):
++                pass
++            parent.close()
++
++        assert finish.call_count == 0
++
++        if self.check_scope_manager():
++            assert tracer.scope_manager.active() is None
++
++    def test_tracer_start_active_wrong_close_order(self):
++        # only the active `Scope` can be closed
++        tracer = self.tracer()
++        parent = tracer.start_active(operation_name='Fry')
++        child = tracer.start_active(operation_name='Farnsworth')
++        parent.close()
++
++        if self.check_scope_manager():
++            assert tracer.scope_manager.active() == child
++
++    def test_tracer_start_manual_scope(self):
++        # the Tracer ScopeManager should not store the new Span
++        tracer = self.tracer()
++        span = tracer.start_manual(operation_name='Fry')
++
++        if self.check_scope_manager():
++            assert tracer.scope_manager.active() is None
++
++        span.finish()
++
++    def test_tracer_scope_manager_active(self):
++        # a `ScopeManager` has no scopes in its initial state
++        tracer = self.tracer()
++
++        if self.check_scope_manager():
++            assert tracer.scope_manager.active() is None
++
++    def test_tracer_scope_manager_activate(self):
++        # a `ScopeManager` should activate any `Span`
++        tracer = self.tracer()
++        span = tracer.start_manual(operation_name='Fry')
++        tracer.scope_manager.activate(span)
++
++        if self.check_scope_manager():
++            assert tracer.scope_manager.active().span() == span
+diff --git a/opentracing/scope.py b/opentracing/scope.py
+new file mode 100644
+index 0000000..95dde38
+--- /dev/null
++++ b/opentracing/scope.py
+@@ -0,0 +1,65 @@
++# Copyright (c) 2017 The OpenTracing Authors.
++#
++# Permission is hereby granted, free of charge, to any person obtaining a copy
++# of this software and associated documentation files (the "Software"), to deal
++# in the Software without restriction, including without limitation the rights
++# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
++# copies of the Software, and to permit persons to whom the Software is
++# furnished to do so, subject to the following conditions:
++#
++# The above copyright notice and this permission notice shall be included in
++# all copies or substantial portions of the Software.
++#
++# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
++# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
++# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
++# THE SOFTWARE.
++
++from __future__ import absolute_import
++
++
++class Scope(object):
++    """A `Scope` formalizes the activation and deactivation of a `Span`,
++    usually from a CPU standpoint. Many times a `Span` will be extant (in that
++    `Span#finish()` has not been called) despite being in a non-runnable state
++    from a CPU/scheduler standpoint. For instance, a `Span` representing the
++    client side of an RPC will be unfinished but blocked on IO while the RPC is
++    still outstanding. A `Scope` defines when a given `Span` is scheduled
++    and on the path.
++    """
++    def __init__(self, manager, span, finish_on_close=True):
++        """Initialize a `Scope` for the given `Span` object
++
++        :param manager: the `ScopeManager` that created this `Scope`
++        :param span: the `Span` used for this `Scope`
++        :param finish_on_close: whether span should automatically be
++            finished when `Scope#close()` is called
++        """
++        self._manager = manager
++        self._span = span
++
++    def span(self):
++        """Return the `Span` that's been scoped by this `Scope`."""
++        return self._span
++
++    def close(self):
++        """Mark the end of the active period for the current thread and `Scope`,
++        updating the `ScopeManager#active()` in the process.
++
++        NOTE: Calling `close()` more than once on a single `Scope` instance
++        leads to undefined behavior.
++        """
++        pass
++
++    def __enter__(self):
++        """Allow `Scope` to be used inside a Python Context Manager."""
++        return self
++
++    def __exit__(self, exc_type, exc_val, exc_tb):
++        """Call `close()` when the execution is outside the Python
++        Context Manager.
++        """
++        self.close()
+diff --git a/opentracing/scope_manager.py b/opentracing/scope_manager.py
+new file mode 100644
+index 0000000..52e5028
+--- /dev/null
++++ b/opentracing/scope_manager.py
+@@ -0,0 +1,62 @@
++# Copyright (c) 2017 The OpenTracing Authors.
++#
++# Permission is hereby granted, free of charge, to any person obtaining a copy
++# of this software and associated documentation files (the "Software"), to deal
++# in the Software without restriction, including without limitation the rights
++# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
++# copies of the Software, and to permit persons to whom the Software is
++# furnished to do so, subject to the following conditions:
++#
++# The above copyright notice and this permission notice shall be included in
++# all copies or substantial portions of the Software.
++#
++# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
++# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
++# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
++# THE SOFTWARE.
++
++from __future__ import absolute_import
++
++from .span import Span, SpanContext
++from .scope import Scope
++
++
++class ScopeManager(object):
++    """The `ScopeManager` interface abstracts both the activation of `Span`
++    instances (via `ScopeManager#activate(Span)`) and access to an active
++    `Span` / `Scope` (via `ScopeManager#active()`).
++    """
++    def __init__(self):
++        # TODO: `tracer` should not be None, but we don't have a reference;
++        # should we move the NOOP SpanContext, Span, Scope to somewhere
++        # else so that they're globally reachable?
++        self._noop_span = Span(tracer=None, context=SpanContext())
++        self._noop_scope = Scope(self, self._noop_span)
++
++    def activate(self, span, finish_on_close=True):
++        """Make a `Span` instance active.
++
++        :param span: the `Span` that should become active
++        :param finish_on_close: whether span should automatically be
++        finished when `Scope#close()` is called
++        :return: a `Scope` instance to control the end of the active period for
++        the `Span`. It is a programming error to neglect to call
++        `Scope#close()` on the returned instance. By default, `Span` will
++        automatically be finished when `Scope#close()` is called.
++        """
++        return self._noop_scope
++
++    def active(self):
++        """Return the currently active `Scope` which can be used to access the
++        currently active `Scope#span()`.
++
++        If there is a non-null `Scope`, its wrapped `Span` becomes an implicit
++        parent of any newly-created `Span` at `Tracer#start_active()`
++        time.
++
++        :return: the `Scope` that is active, or `None` if not available.
++        """
++        return self._noop_scope
+diff --git a/opentracing/tracer.py b/opentracing/tracer.py
+index 57709c3..7620b7b 100644
+--- a/opentracing/tracer.py
++++ b/opentracing/tracer.py
+@@ -24,7 +24,9 @@ from __future__ import absolute_import
+ from collections import namedtuple
+ from .span import Span
+ from .span import SpanContext
++from .scope import Scope
+ from .propagation import Format, UnsupportedFormatException
++from .scope_manager import ScopeManager
+ 
+ 
+ class Tracer(object):
+@@ -38,33 +40,88 @@ class Tracer(object):
+     _supported_formats = [Format.TEXT_MAP, Format.BINARY, Format.HTTP_HEADERS]
+ 
+     def __init__(self):
++        self._scope_manager = ScopeManager()
+         self._noop_span_context = SpanContext()
+         self._noop_span = Span(tracer=self, context=self._noop_span_context)
++        self._noop_scope = Scope(self._scope_manager, self._noop_span)
++
++    @property
++    def scope_manager(self):
++        """ScopeManager accessor"""
++        return self._scope_manager
++
++    def start_active(self,
++                     operation_name=None,
++                     child_of=None,
++                     references=None,
++                     tags=None,
++                     start_time=None,
++                     ignore_active_scope=False,
++                     finish_on_close=True):
++        """Returns a newly started and activated `Scope`.
++        Returned `Scope` supports with-statement contexts. For example:
++
++            with tracer.start_active('...') as scope:
++                scope.span().set_tag('http.method', 'GET')
++                do_some_work()
++            # Span is finished automatically outside the `Scope` `with`.
++
++        It's also possible to not finish the `Span` when the `Scope` context
++        expires:
++
++            with tracer.start_active('...', finish_on_close=False) as scope:
++                scope.span().set_tag('http.method', 'GET')
++                do_some_work()
++            # Span does not finish automatically when the Scope is closed as
++            # `finish_on_close` is `False`
+ 
+-    def start_span(self,
+-                   operation_name=None,
+-                   child_of=None,
+-                   references=None,
+-                   tags=None,
+-                   start_time=None):
++        :param operation_name: name of the operation represented by the new
++            span from the perspective of the current service.
++        :param child_of: (optional) a Span or SpanContext instance representing
++            the parent in a REFERENCE_CHILD_OF Reference. If specified, the
++            `references` parameter must be omitted.
++        :param references: (optional) a list of Reference objects that identify
++            one or more parent SpanContexts. (See the Reference documentation
++            for detail).
++        :param tags: an optional dictionary of Span Tags. The caller gives up
++            ownership of that dictionary, because the Tracer may use it as-is
++            to avoid extra data copying.
++        :param start_time: an explicit Span start time as a unix timestamp per
++            time.time().
++        :param ignore_active_scope: an explicit flag that ignores the current
++            active `Scope` and creates a root `Span`.
++        :param finish_on_close: whether span should automatically be finished
++            when `Scope#close()` is called.
++
++         :return: a `Scope`, already registered via the `ScopeManager`.
++        """
++        return self._noop_scope
++
++    def start_manual(self,
++                     operation_name=None,
++                     child_of=None,
++                     references=None,
++                     tags=None,
++                     start_time=None,
++                     ignore_active_scope=False):
+         """Starts and returns a new Span representing a unit of work.
+ 
+ 
+         Starting a root Span (a Span with no causal references)::
+ 
+-            tracer.start_span('...')
++            tracer.start_manual('...')
+ 
+ 
+         Starting a child Span (see also start_child_span())::
+ 
+-            tracer.start_span(
++            tracer.start_manual(
+                 '...',
+                 child_of=parent_span)
+ 
+ 
+         Starting a child Span in a more verbose way::
+ 
+-            tracer.start_span(
++            tracer.start_manual(
+                 '...',
+                 references=[opentracing.child_of(parent_span)])
+ 
+@@ -82,11 +139,22 @@ class Tracer(object):
+             to avoid extra data copying.
+         :param start_time: an explicit Span start time as a unix timestamp per
+             time.time()
++        :param ignore_active_scope: an explicit flag that ignores the current
++            active `Scope` and creates a root `Span`.
+ 
+         :return: Returns an already-started Span instance.
+         """
+         return self._noop_span
+ 
++    def start_span(self,
++                   operation_name=None,
++                   child_of=None,
++                   references=None,
++                   tags=None,
++                   start_time=None):
++        """Deprecated: use `start_manual()` or `start_active()` instead."""
++        return self._noop_span
++
+     def inject(self, span_context, format, carrier):
+         """Injects `span_context` into `carrier`.
+ 
+@@ -150,7 +218,7 @@ class ReferenceType(object):
+ class Reference(namedtuple('Reference', ['type', 'referenced_context'])):
+     """A Reference pairs a reference type with a referenced SpanContext.
+ 
+-    References are used by Tracer.start_span() to describe the relationships
++    References are used by Tracer.start_manual() to describe the relationships
+     between Spans.
+ 
+     Tracer implementations must ignore references where referenced_context is
+@@ -159,7 +227,7 @@ class Reference(namedtuple('Reference', ['type', 'referenced_context'])):
+     None::
+ 
+         parent_ref = tracer.extract(opentracing.HTTP_HEADERS, request.headers)
+-        span = tracer.start_span(
++        span = tracer.start_manual(
+             'operation', references=child_of(parent_ref)
+         )
+ 
+@@ -175,7 +243,7 @@ def child_of(referenced_context=None):
+         If None is passed, this reference must be ignored by the tracer.
+ 
+     :rtype: Reference
+-    :return: A Reference suitable for Tracer.start_span(..., references=...)
++    :return: A Reference suitable for Tracer.start_manual(..., references=...)
+     """
+     return Reference(
+         type=ReferenceType.CHILD_OF,
+@@ -189,7 +257,7 @@ def follows_from(referenced_context=None):
+         If None is passed, this reference must be ignored by the tracer.
+ 
+     :rtype: Reference
+-    :return: A Reference suitable for Tracer.start_span(..., references=...)
++    :return: A Reference suitable for Tracer.start_manual(..., references=...)
+     """
+     return Reference(
+         type=ReferenceType.FOLLOWS_FROM,
+@@ -201,7 +269,7 @@ def start_child_span(parent_span, operation_name, tags=None, start_time=None):
+ 
+     Equivalent to calling
+ 
+-        parent_span.tracer().start_span(
++        parent_span.tracer().start_manual(
+             operation_name,
+             references=opentracing.child_of(parent_span.context),
+             tags=tags,
+@@ -218,7 +286,7 @@ def start_child_span(parent_span, operation_name, tags=None, start_time=None):
+ 
+     :return: Returns an already-started Span instance.
+     """
+-    return parent_span.tracer.start_span(
++    return parent_span.tracer.start_manual(
+         operation_name=operation_name,
+         child_of=parent_span,
+         tags=tags,
+diff --git a/setup.py b/setup.py
+index 403459f..639520e 100644
+--- a/setup.py
++++ b/setup.py
+@@ -24,6 +24,9 @@ setup(
+     include_package_data=True,
+     zip_safe=False,
+     platforms='any',
++    install_requires=[
++        'futures',
++    ],
+     extras_require={
+         'tests': [
+             'doubles',
+diff --git a/tests/test_api.py b/tests/test_api.py
+index 7e800e2..f32df62 100644
+--- a/tests/test_api.py
++++ b/tests/test_api.py
+@@ -33,3 +33,6 @@ class APICheckNoopTracer(unittest.TestCase, APICompatibilityCheckMixin):
+ 
+     def check_baggage_values(self):
+         return False
++
++    def check_scope_manager(self):
++        return False
+diff --git a/tests/test_api_check_mixin.py b/tests/test_api_check_mixin.py
+index a1c0cad..60d24be 100644
+--- a/tests/test_api_check_mixin.py
++++ b/tests/test_api_check_mixin.py
+@@ -33,6 +33,10 @@ class VerifyAPICompatibilityCheck(unittest.TestCase):
+         api_check = APICompatibilityCheckMixin()
+         assert api_check.check_baggage_values() is True
+ 
++    def test_default_scope_manager_check_mode(self):
++        api_check = APICompatibilityCheckMixin()
++        assert api_check.check_scope_manager() is True
++
+     def test_baggage_check_works(self):
+         api_check = APICompatibilityCheckMixin()
+         setattr(api_check, 'tracer', lambda: Tracer())
+@@ -45,3 +49,46 @@ class VerifyAPICompatibilityCheck(unittest.TestCase):
+         # second check that assert on empty baggage will fail too
+         with self.assertRaises(AssertionError):
+             api_check.test_context_baggage()
++
++    def test_scope_manager_check_works(self):
++        api_check = APICompatibilityCheckMixin()
++        setattr(api_check, 'tracer', lambda: Tracer())
++
++        # these tests are expected to succeed
++        api_check.test_start_active_ignore_active_scope()
++        api_check.test_start_manual_propagation_ignore_active_scope()
++
++        # no-op tracer doesn't have a ScopeManager implementation
++        # so these tests are expected to work, but asserts to fail
++        with self.assertRaises(AssertionError):
++            api_check.test_start_active()
++
++        with self.assertRaises(AssertionError):
++            api_check.test_start_active_parent()
++
++        with self.assertRaises(AssertionError):
++            api_check.test_start_active_finish_on_close()
++
++        with self.assertRaises(AssertionError):
++            api_check.test_start_manual_propagation()
++
++        with self.assertRaises(AssertionError):
++            api_check.test_tracer_start_active_scope()
++
++        with self.assertRaises(AssertionError):
++            api_check.test_tracer_start_active_nesting()
++
++        with self.assertRaises(AssertionError):
++            api_check.test_tracer_start_active_nesting_finish_on_close()
++
++        with self.assertRaises(AssertionError):
++            api_check.test_tracer_start_active_wrong_close_order()
++
++        with self.assertRaises(AssertionError):
++            api_check.test_tracer_start_manual_scope()
++
++        with self.assertRaises(AssertionError):
++            api_check.test_tracer_scope_manager_active()
++
++        with self.assertRaises(AssertionError):
++            api_check.test_tracer_scope_manager_activate()
+diff --git a/tests/test_scope.py b/tests/test_scope.py
+new file mode 100644
+index 0000000..7d6f84b
+--- /dev/null
++++ b/tests/test_scope.py
+@@ -0,0 +1,46 @@
++# Copyright (c) 2017 The OpenTracing Authors.
++#
++# Permission is hereby granted, free of charge, to any person obtaining a copy
++# of this software and associated documentation files (the "Software"), to deal
++# in the Software without restriction, including without limitation the rights
++# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
++# copies of the Software, and to permit persons to whom the Software is
++# furnished to do so, subject to the following conditions:
++#
++# The above copyright notice and this permission notice shall be included in
++# all copies or substantial portions of the Software.
++#
++# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
++# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
++# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
++# THE SOFTWARE.
++
++from __future__ import absolute_import
++
++import mock
++
++from opentracing.scope_manager import ScopeManager
++from opentracing.tracer import Tracer
++from opentracing.scope import Scope
++from opentracing.span import Span, SpanContext
++
++
++def test_scope_wrapper():
++    # ensure `Scope` wraps the `Span` argument
++    span = Span(tracer=Tracer(), context=SpanContext())
++    scope = Scope(ScopeManager, span, finish_on_close=False)
++    assert scope.span() == span
++
++
++def test_scope_context_manager():
++    # ensure `Scope` can be used in a Context Manager that
++    # calls the `close()` method
++    span = Span(tracer=Tracer(), context=SpanContext())
++    scope = Scope(ScopeManager(), span)
++    with mock.patch.object(scope, 'close') as close:
++        with scope:
++            pass
++        assert close.call_count == 1
+diff --git a/tests/test_scope_manager.py b/tests/test_scope_manager.py
+new file mode 100644
+index 0000000..18b8c43
+--- /dev/null
++++ b/tests/test_scope_manager.py
+@@ -0,0 +1,34 @@
++# Copyright (c) 2017 The OpenTracing Authors.
++#
++# Permission is hereby granted, free of charge, to any person obtaining a copy
++# of this software and associated documentation files (the "Software"), to deal
++# in the Software without restriction, including without limitation the rights
++# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
++# copies of the Software, and to permit persons to whom the Software is
++# furnished to do so, subject to the following conditions:
++#
++# The above copyright notice and this permission notice shall be included in
++# all copies or substantial portions of the Software.
++#
++# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
++# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
++# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
++# THE SOFTWARE.
++
++from __future__ import absolute_import
++
++from opentracing.scope_manager import ScopeManager
++from opentracing.tracer import Tracer
++from opentracing.span import Span, SpanContext
++
++
++def test_scope_manager():
++    # ensure the activation returns the noop `Scope` that is always active
++    scope_manager = ScopeManager()
++    span = Span(tracer=Tracer(), context=SpanContext())
++    scope = scope_manager.activate(span)
++    assert scope == scope_manager._noop_scope
++    assert scope == scope_manager.active()
