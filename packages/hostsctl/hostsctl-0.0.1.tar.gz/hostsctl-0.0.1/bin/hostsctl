@@ -1,0 +1,135 @@
+#!/usr/bin/env python
+
+import argparse
+import json
+
+from hostsctl.core import HostController
+from hostsctl.entries import HostEntry
+
+
+def add_entry(args):
+    print('adding {}'.format(args))
+    # if os.getuid() != 0:
+    #     sys.exit("Must be run as privileged user.")
+    try:
+        cnt = HostController(path='~/hosts', mode='w')
+    except Exception as err:
+        print(err)
+        pass
+    else:
+        entry = HostEntry(args.ip, args.name)
+        print("before")
+        print(cnt.list())
+        cnt.add(entry)
+        print("after")
+        print(cnt.list())
+        cnt.populate()
+        # for entry in cnt.list():
+        #     print(entry.line)
+
+        # cnt.populate()
+        # print(cnt.list())
+
+
+def list_entries(args):
+    cnt = HostController(path='~/hosts')
+
+    if args.format == 'json':
+        print("dumping in json")
+        ddd = {}
+        for entry in cnt.list():
+            if isinstance(entry, HostEntry):
+                ddd[entry.ip_address] = {
+                    "canonical_name": entry.canonical_name,
+                    "aliases": entry.aliases
+                }
+
+        print(json.dumps(ddd, indent=4))
+
+    else:
+        for entry in cnt.list():
+            print(entry.line)
+
+
+def find_entry(args):
+    cnt = HostController(path='~/hosts')
+
+    print("Finding '{}'...".format(args.value))
+
+    found = cnt.find(args.value)
+
+    if not found:
+        print("Given value was not found!")
+        exit(1)
+    print("Success!!!")
+    print("IP address: {}".format(found.ip_address))
+    print("Canonical name: {}".format(found.canonical_name))
+    print("Aliases: {}".format(",".join(found.aliases)))
+    exit(0)
+
+
+def remove_entry(args):
+    cnt = HostController(path='~/hosts', mode="w")
+
+    found = cnt.find(args.value)
+    if not found:
+        print("{} was not found!".format(args.value))
+        exit(1)
+    else:
+        print("Found {}, removing...".format(args.value))
+        cnt.remove(found)
+        cnt.populate()
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(
+        description="""
+            Host manager gives you ability make CRUD operations over hosts file.
+            """
+    )
+
+    subparsers = parser.add_subparsers(help='commands', dest='action')
+
+    # LIST parser
+    parser_list = subparsers.add_parser("list", aliases=['l'],
+                                        help="list help",
+                                        )
+    parser_list.add_argument("format",
+                             const='raw',
+                             nargs='?',
+                             default="raw",
+                             choices=["raw", "json"]
+                             )
+
+    # ADD parser
+    parser_add = subparsers.add_parser("add", aliases=['a'],
+                                       help="add help",
+                                       )
+    parser_add.add_argument('ip', help="IP address")
+    parser_add.add_argument('name', help="Canonical name")
+    parser_add.add_argument('aliases', nargs="*",
+                            help="Aliases for canonical name")
+
+    # FIND parser
+    parser_find = subparsers.add_parser("find", aliases=['f'],
+                                        help="find help")
+
+    parser_find.add_argument('value', help="enter IP address or canonical name")
+
+    # REMOVE parser
+    parser_find = subparsers.add_parser("remove", aliases=['f'],
+                                        help="remove help")
+
+    parser_find.add_argument('value', help="enter IP address or canonical name")
+
+    args = parser.parse_args()
+    print(args.action)
+
+    if args.action == 'list':
+        list_entries(args)
+    elif args.action == "add":
+        add_entry(args)
+    elif args.action == "find":
+        find_entry(args)
+    elif args.action == "remove":
+        remove_entry(args)
