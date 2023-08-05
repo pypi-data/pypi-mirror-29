@@ -1,0 +1,96 @@
+Metadata-Version: 1.1
+Name: trezor_gpg
+Version: 0.0.6
+Summary: Use Trezor for GPG passphrases
+Home-page: https://github.com/rendaw/python-trezor-gpg
+Author: rendaw
+Author-email: spoo@zarbosoft.com
+License: BSD
+Download-URL: https://github.com/rendaw/python-trezor-gpg/tarball/v0.0.6
+Description-Content-Type: UNKNOWN
+Description: # Trezor as a GPG passphrase
+        
+        Install with:
+        ```
+        pip install trezor-gpg
+        ```
+        
+        Using this, when GPG needs to unlock a key `trezor_gpg` will bring up a keypad to enter your Trezor PIN.
+        
+        You may enter your PIN using the on-screen buttons or the keyboard grids
+        
+        ```
+        w e r      u i o      7 8 9
+        s d f      j k l      4 5 6
+        x c v      m , .      1 2 3
+        ```
+        
+        Press `enter` to submit the PIN, `escape` to cancel, or `backspace` to clear the PIN.
+        
+        # Advantages and disadvantages
+        
+        1. This prevents passphrase keylogging
+        2. It uses a difficult passphrase by default
+        3. It reduces the number of things you need to remember (assuming you already remember your Trezor PIN)
+        
+        If you're using this for general encryption:
+        
+        * It doesn't protect your GPG secret from memory eavesdropping as would directly using Trezor's decrypt/encrypt functions
+        
+        If you're using this for a password manager like `pass` or `gopass`:
+        
+        * If someone were to implement a direct-Trezor password manager without GPG the decryption key would never be in your computer memory, so unused passwords would be safer.
+        
+        Also, see the current limitations discussed below.
+        
+        # Installation
+        
+        `gpg2` must be installed and on your `PATH`. This guide assumes you're using the default GPG2 agent and not Seahorse.
+        
+        1. Run `pip install trezor_gpg`
+        2. Find where it's installed with by running `which trezor_gpg`
+        3. Add this line to `~/.gnupg/gpg-agent.conf`: `pinentry-program /path/to/trezor_gpg`
+        4. Run `echo RELOADAGENT | gpg-connect-agent` or restart your computer
+        
+        ### Setting up Trezor passphrases
+        
+        1. Run `trezor_gpg -a KEY`
+        
+        If your key has an existing non-Trezor passphrase, you need to remove the passphrase with the default pinentry program first (before doing step 3 above).
+        
+        **Note**: Responding to the old passphrase prompt requires `trezor_gpg` to identify certain prompt messages - if you have messages in a language other than English this may not work.  Adding a passphrase may ask for you to press confirm on your Trezor up to 4 times.
+        
+        ### Removing a Trezor passphrase
+        
+        1. Run `trezor_gpg -r KEY`
+        
+        **Note**: Responding to the new passphrase prompt requires `trezor_gpg` to identify certain prompt messages - if you have messages in a language other than English this may not work.
+        
+        ### Disable redundant GPG passphrase cache
+        You may also want to disable GPG passphrase caching sinze Trezor has it's own cache period. Add this to `gpg-agent.conf` or modify the value if it's already there:
+        ```
+        max-cache-ttl 0
+        ```
+        and restart the agent via step 4 above.
+        
+        ### Configuration
+        
+        Set these environment variables on your `gpg-agent` daemon, by overriding `/usr/lib/systemd/user/gpg-agent.service` for example.
+        
+        * **PINENTRY_TREZOR_DEBUG** = `1`.  Write logs to `~/.cache/trezor-gpg/log/debug.log`
+        * **PINENTRY_TREZOR_DONT_FLASH** = `1`.  Don't show which keypad button was pressed when using the keyboard.
+        * **PINENTRY_TREZOR_KEYSET** = `123456789`.  Use this letter grid for keyboard entry.
+        
+        # Current Limitations
+        
+        * This doesn't use locked memory, which means **the decrypted passphrase may be written to disk** if memory is paged out!
+        * No support for TTY entry since Python `getpass` is hardcoded to a specific TTY
+        * No mixed passphrase support - all passphrased keys must have Trezor passphrases or none
+        * Passphrases are based on the key fingerprint so they can't be changed
+        
+        # How It Works
+        
+        `trezor_gpg` acts as a pinentry program - when GPG needs to unlock an existing key or lock a new key it runs `trezor_gpg`.  `trezor_gpg` treats the key's fingerprint as an encrypted blob and decrypts it to use as a synthetic passphrase.  The fingerprint is unique to the key and an inseparable property, so if you export the key and import it on another system `trezor_gpg` can still retrieve all the information it needs.
+        
+Platform: UNKNOWN
+Classifier: License :: OSI Approved :: BSD License
