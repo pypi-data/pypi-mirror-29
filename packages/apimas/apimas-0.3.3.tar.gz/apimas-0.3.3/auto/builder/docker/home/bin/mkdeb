@@ -1,0 +1,152 @@
+#!/bin/sh
+
+set -e
+
+help () {
+    echo "Usage: ${0} [-hr] <commit>"
+    echo 'Build a debian package from a git project.'
+    echo ''
+    echo 'Options:'
+    echo ''
+    echo ' -h --help:'
+    echo '      Print this help and exit.'
+    echo ''
+    echo ' -d --debian-dist <debian_dist>:'
+    echo '      Set the debian dist (e.g. jessie, stretch)'
+    echo ''
+    echo ' -r --release <tag>:'
+    echo '      Append the given <tag> to the package version.'
+    echo '      The default tag is computed from the current tag/branch and commit.'
+    echo ''
+    echo ' -o --output-dir <output_dir>:'
+    echo '      Copy debian packages into the given directory.'
+    echo ''
+    echo 'This script should be run in the git repository of the project.'
+    echo 'The following files must be present:'
+    echo ''
+    echo ' - version.txt'
+    echo '      Contains three entries separated by space:'
+    echo '      1. The name of the software.'
+    echo '      2. The distribution version of the software.'
+    echo '      3. The "compatible version" to be used in '
+    echo '         debian/control Provides: package-vvv.'
+    echo ''
+}
+
+set -e
+
+build_dir=build
+release=
+debian_dist='jessie'
+git_commit=
+output_dir=
+
+while [ -n "$1" ]; do
+    if [ -z "$1" ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+        help
+        exit 1
+    elif [ "$1" = "-r" ] || [ "$1" = "--release" ]; then
+        shift
+        release="$1"
+    elif [ "$1" = "-d" ] || [ "$1" = "--debian-dist" ]; then
+        shift
+        debian_dist="$1"
+    elif [ "$1" = "-o" ] || [ "$2" = "--output-dir" ]; then
+        shift
+        output_dir="$1"
+    elif [ -z "${git_commit}" ]; then
+        shift
+        git_commit="$1"
+    else
+        echo "Unknown option: '$1'. Try '-h'"
+        echo ""
+        exit 2
+    fi
+    shift
+done
+
+if [ -z "${git_commit}" ]; then
+    git_commit="HEAD"
+fi
+
+case "${debian_dist}" in
+    wheezy)
+        debian_dist_tag="deb7"
+        ;;
+    jessie)
+        debian_dist_tag="deb8"
+        ;;
+    stretch)
+        debian_dist_tag="deb9"
+        ;;
+    *)
+        debian_dist_tag="${debian_dist}"
+        ;;
+esac
+
+project=
+version=
+compatible_version=
+extra_version=
+git_tag=
+
+project_version=$(cat version.txt)
+for t in ${project_version}; do
+    if [ -z "${project}" ]; then
+        project="$t"
+    elif [ -z "${version}" ]; then
+        version="$t"
+    elif [ -z "${compatible_version}" ]; then
+        compatible_version="$t"
+    fi
+done
+
+if [ -z "${project}" ] || [ -z "${version}" ]; then
+    echo "Invalid project version in version.txt: '${project} ${version}'"
+    exit 2
+fi
+
+git_commit_ref="$(git rev-parse --verify --short ${git_commit})"
+git_commit_ref="$(echo ${git_commit_ref} | tr 'A-Z' 'a-z')"
+
+if [ -z "${release}" ]; then
+    git_description="$(git describe --all --exact-match --abbrev=0 ${git_commit} || true)"
+    if [ -n "${git_description}" ]; then
+        git_tag="+$(basename ${git_description})"
+        git_tag="$(echo ${git_tag} | tr 'A-Z' 'a-z')"
+    fi
+    extra_version="~dev${git_tag}+${git_commit_ref}"
+else
+    extra_version="+${release}+${git_commit_ref}"
+fi
+
+full_version="${version}${extra_version}"
+export project version extra_version full_version git_commit_ref git_tag
+
+orig_name="${project}_${full_version}"
+orig_archive="${orig_name}.orig.tar.gz"
+
+rm -rf "${build_dir}"
+mkdir "${build_dir}"
+git archive --format=tar.gz "${git_commit}" \
+    --prefix="${orig_name}/" \
+    > "${build_dir}/${orig_archive}"
+
+tar zxvkf "${build_dir}/${orig_archive}" -C "${build_dir}"
+
+echo "entering ${build_dir}/${orig_name}/"
+cd "${build_dir}/${orig_name}"
+
+export DIST="${debian_dist}"
+export DEBFULLNAME="GRNET Development Team"
+export DEBEMAIL="team@dev.grnet.gr"
+
+dch --distribution "${debian_dist}" --force-distribution \
+	-v "${full_version}-${debian_dist_tag}" "New upstream"
+
+debuild -b -us -uc
+cd - > /dev/null
+
+if [ -n "${output_dir}" ]; then
+    rsync -a ${build_dir}/ "${output_dir}" --exclude "${orig_name}"
+fi
