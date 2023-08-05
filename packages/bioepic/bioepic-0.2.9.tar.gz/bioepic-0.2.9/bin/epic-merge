@@ -1,0 +1,93 @@
+#!/usr/bin/env python
+
+import os
+
+import argparse
+
+parser = argparse.ArgumentParser(
+    description="""Merge several epic count-matrixes into one.""",
+
+    prog=os.path.basename(__file__))
+
+
+parser.add_argument(
+    '--matrixes',
+    '-m',
+    required=True,
+    type=str,
+    nargs='+',
+    help='''epic-count matrixes to merge.''')
+
+
+parser.add_argument(
+    '--regions',
+    '-r',
+    required=False,
+    type=str,
+    nargs='+',
+    help='''Bed file(s) with regions to use. Does not work with --keep-nonenriched.''')
+
+
+parser.add_argument(
+    '--keep-nonenriched',
+    '-k',
+    required=False,
+    default=False,
+    action='store_true',
+    help='''Keep non-enriched bins also (takes much more time/mem). Not usable with --regions.''')
+
+
+parser.add_argument(
+    '--enriched-per-file',
+    '-e',
+    required=False,
+    default=False,
+    action='store_true',
+    help='''Keep a column of enrichment info per matrix used.''')
+
+
+parser.add_argument(
+    '--output',
+    '-o',
+    required=True,
+    type=str,
+    help=
+    '''Path to write gzipped output matrix.''')
+
+
+parser.add_argument(
+    '--number-cores',
+    '-cpu',
+    required=False,
+    default=1,
+    type=int,
+    help=
+    '''Number of cpus to use. Can use at most one per chromosome. Default: 1.''')
+
+
+import sys
+from subprocess import check_output
+import logging
+
+
+
+import pandas as pd
+from io import StringIO
+
+from epic.config import logging_settings
+from epic.merge.merge import main
+
+
+if __name__ == '__main__':
+
+    args = parser.parse_args()
+    files = args.matrixes
+    nb_cpus = args.number_cores
+    regions = args.regions
+    keep_nonenriched = args.keep_nonenriched
+    enriched_per_file = args.enriched_per_file
+    output = args.output
+
+    merged_df = main(files, regions, keep_nonenriched, enriched_per_file, nb_cpus)
+
+    merged_df.to_csv(output, sep=" ", compression="gzip")

@@ -1,0 +1,155 @@
+#!/usr/bin/env python
+
+import os
+
+import argparse
+
+parser = argparse.ArgumentParser(
+    description="""Cluster enriched regions.""",
+
+    prog=os.path.basename(__file__))
+
+
+parser.add_argument(
+    '--matrix',
+    '-m',
+    required=True,
+    type=str,
+    help='''Matrix to run clustering algorithm on.''')
+
+
+parser.add_argument(
+    '--outfile',
+    '-o',
+    required=True,
+    type=str,
+    help='''Where to store the cluster matrix.''')
+
+
+parser.add_argument(
+    '--bedfile',
+    '-B',
+    required=True,
+    type=str,
+    help='''Where to store the bed file with info about each cluster.''')
+
+
+parser.add_argument(
+    '--bigwig',
+    '-bw',
+    required=False,
+    type=str,
+    help='''Where to store the bigwig file that displays the number of enriched experiments in each bin.''')
+
+parser.add_argument(
+    '-g',
+    '--genome',
+    required=False,
+    type=str,
+    help='''Which genome the data is from (hg19, mm10 etc.). Only needed when --bigwig is used.''')
+
+parser.add_argument(
+    '--trunk-diff',
+    '-t',
+    required=False,
+    default=1,
+    type=int,
+    help='''The difference from the max an area needs to be not considered a trunk.''')
+
+
+parser.add_argument(
+    '--bin-size',
+    '-b',
+    required=False,
+    type=int,
+    help='''The bin size used in the matrix file. Auto-inferred by default.''')
+
+
+parser.add_argument(
+    '--distance-allowed',
+    '-d',
+    required=False,
+    type=int,
+    help='''The max distance allowed before two bins are considered to belong to a separate region. By default set to be the bin-size.''')
+
+
+parser.add_argument(
+    '--number-cores',
+    '-cpu',
+    required=False,
+    default=1,
+    type=int,
+    help=
+    '''Number of cpus to use. Can use at most one per chromosome. Default: 1.''')
+
+import sys
+from subprocess import check_output
+import logging
+
+
+
+import pandas as pd
+from io import StringIO
+from subprocess import check_output
+
+from natsort import natsorted
+
+from epic.config import logging_settings
+from epic.cluster.cluster import trunks_flanks_valleys, create_cluster_bigwig
+from epic.config.genomes import (create_genome_size_dict)
+
+from epic.utils.helper_functions import compute_bin_size
+
+
+
+if __name__ == '__main__':
+
+    args = parser.parse_args()
+    matrix = args.matrix
+    nb_cpus = args.number_cores
+
+    distance_allowed = args.distance_allowed
+    trunk_diff = args.trunk_diff
+
+    df = pd.read_table(matrix, sep=" ", header=0, index_col=0).astype(int)
+    df = df.reset_index()
+
+    if args.bigwig:
+        if not args.genome:
+            raise Exception("Genome must be given if bigwig flag is used")
+        d = create_genome_size_dict(args.genome)
+
+    if not args.bin_size:
+        bin_size = compute_bin_size(df)
+    else:
+        bin_size = args.bin_size
+
+    if not distance_allowed:
+        distance_allowed = bin_size
+
+    outdf = trunks_flanks_valleys(df, bin_size, trunk_diff, distance_allowed, nb_cpus)
+
+    columns_to_join = "ClusterID RegionID RegionKind".split()
+
+    # make all nondata columns one column so R can handle it
+    index = outdf.ClusterID + "_" + outdf.RegionID + "_" + outdf.RegionKind
+    columns_to_drop = "Chromosome Start End".split() + columns_to_join + "MaxEnrichedCluster Bins TotalEnriched".split()
+
+    bed = outdf[columns_to_drop]
+    outdf = outdf.drop(columns_to_drop, axis=1)
+
+    col_order = ["Index"] + natsorted([c for c in outdf.columns], key=lambda x: x.split("_"))
+    outdf.insert(0, "Index", index)
+    outdf.to_csv(args.outfile, sep=" ", compression="gzip", index=False)
+
+    bed.to_csv("data_used.txt", sep=" ")
+
+    bed = bed.drop("RegionID", axis=1)
+    bed.insert(4, "Index", index)
+
+    bed.to_csv(args.bedfile, sep="\t", index=False)
+
+    if args.bigwig:
+        create_cluster_bigwig(bed, args.bigwig, d, 200)
+
+    # bigbed.to_csv(args.bigbedfile, sep="\t", index=False, header=False)
