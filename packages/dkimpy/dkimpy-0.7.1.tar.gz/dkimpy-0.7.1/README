@@ -1,0 +1,140 @@
+dkimpy - DKIM (DomainKeys Identified Mail)
+https://launchpad.net/dkimpy/
+
+Friendly fork of:
+http://hewgill.com/pydkim/
+
+INTRODUCTION
+
+dkimpy is a library that implements DKIM (DomainKeys Identified Mail) email
+signing and verification.
+
+VERSION
+
+This is dkimpy 0.7.1.
+
+REQUIREMENTS
+
+ - Python 2.x >= 2.7, or Python 3.x >= 3.4.  Recent versions have not been
+   tested on python < 2.7 or python3 < 3.4, but may still work on python2.6
+   and python 3.1 - 3.3.
+ - dnspython or pydns. dnspython is preferred if both are present.
+ - argparse.  Standard library in python2.7 and later.
+ - authres.  Needed for ARC.
+ - nacl.  Needed for use of experimental ed25519 capability.
+
+INSTALLATION
+
+To build and install dkimpy:
+
+    python setup.py install
+
+DOCUMENTATION
+
+An online version of the package documentation can be found at:
+
+https://gathman.org/pydkim/
+
+TESTING
+
+To run dkimpy's test suite:
+
+    PYTHONPATH=. python dkim
+or
+    python test.py
+or
+    PYTHONPATH=. python -m unittest dkim.tests.test_suite
+
+Alternatively, if you have testrepository installed:
+
+    testr init
+    testr run
+
+The included ARC tests are very limited.  The primary testing method for ARC
+is using the ARC test suite: https://github.com/ValiMail/arc_test_suite
+
+As of 0.6.0, all tests except as_fields_b_512 pass for both python2.7 and
+python3.5. The test suite ships with test runners for dkimpy.  After
+downloading the test suite, you can run the signing and validation tests like
+this:
+
+python2.7 ./testarc.py sign runners/arcsigntest.py
+python2.7 ./testarc.py validate runners/arcverifytest.py
+
+The reason for the test failure is that the ARC specification (as of 20170120)
+sets the minimum key size to 512 bits.  This is operationally inappropriate,
+so dkimpy sets the default minkey=1024, the same as is used for DKIM.  This
+can be overridden, but that is not recommended.  The minimum key size
+requirement for DKIM (and thus ARC) has recently been updated to require at
+least a 1024 bit key.  See RFC 8301.
+
+USAGE
+
+The dkimpy library offers one module called dkim. The sign() function takes an
+RFC822 formatted message, along with some signing options, and returns a
+DKIM-Signature header line that can be prepended to the message. The verify()
+function takes an RFC822 formatted message, and returns True or False depending
+on whether the signature verifies correctly.  There is also a DKIM class which
+can be used to perform these functions in a more modern way.
+
+RFC8301 updated DKIM requirements in two ways:
+
+1.  It set the minimum valid RSA key size to 1024 bits.
+2.  It removed use of rsa-sha1.
+
+As of version 0.7, the dkimpy defaults largely support these requirements.
+
+It is possible to override the minimum key size to a lower value, but this is
+strongly discouraged.  As of 2018, keys much smaller than the minimum are not
+difficult to factor.
+
+The code for rsa-sha1 signing and verification is retained, but not used for
+signing by default.  Future releases will raise warnings and then errors when
+verifying rsa-sha1 signatures.  There are still some significant users of
+rsa-sha1 signatures, so operationally it's premature to disable verification
+of rsa-sha1.
+
+As of version 0.7, experimental signing and verifying of DKIM Ed25519
+signatures is supported as described in draft-ietf-dcrup-dkim-crypto:
+
+https://datatracker.ietf.org/doc/draft-ietf-dcrup-dkim-crypto/
+
+The dkimpy 0.7 implementation matches the -08 revision of the draft, except it
+uses Ed25519 vice Ed25519ph (a change to Ed25519 is planned for -09, but that
+had not been published yet as of the release of dkimpy 0.7).
+
+Three helper programs are also supplied: dknewkey.py, dkimsign.py and
+dkimverify.py.
+
+dknewkey.py is s script that produces private and public key pairs suitable
+for use with DKIM.  Note that the private key file format used for ed25519 is
+not standardized (there is no standard) and is unique to dkimpy.
+
+dkimsign.py is a filter that reads an RFC822 message on standard input, and
+writes the same message on standard output with a DKIM-Signature line
+prepended. The signing options are specified on the command line:
+
+dkimsign.py selector domain privatekeyfile [identity]
+
+The identity is optional and defaults to "@domain".
+
+dkimverify.py reads an RFC822 message on standard input, and returns with exit
+code 0 if the signature verifies successfully. Otherwise, it returns with exit
+code 1. 
+
+As of version 0.6.0, dkimpy provides experimental support for ARC (Authenticated
+Received Chain):
+
+https://tools.ietf.org/html/draft-ietf-dmarc-arc-protocol-01
+
+This new functionality is marked experimental because the protocol is still
+under development.  There are no guarantees about API stability or
+compatibility.
+
+In addition to arcsign.py and arcverify.py, the dkim module now provides
+arc_sign and arc_verify functions as well as an ARC class.
+
+FEEDBACK
+
+Bug reports may be submitted to the bug tracker for the dkimpy project on
+launchpad.
