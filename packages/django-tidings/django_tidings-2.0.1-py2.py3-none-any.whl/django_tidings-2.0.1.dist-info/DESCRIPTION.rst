@@ -1,0 +1,96 @@
+==========================================================
+Framework for asynchronous email notifications from Django
+==========================================================
+
+django-tidings is a framework for sending email notifications to users who have
+registered interest in certain events, such as the modification of some model
+object. Used by support.mozilla.org_ and developer.mozilla.org_, it is
+optimized for large-scale installations. Its features include...
+
+* Asynchronous operation using the celery_ task queue
+* De-duplication of notifications
+* Association of subscriptions with either registered Django users or anonymous
+  email addresses
+* Optional confirmation of anonymous subscriptions
+* Hook points for customizing any page drawn and any email sent
+
+Please see the full documentation at django-tidings.readthedocs.io_.
+
+.. _celery: http://www.celeryproject.org/
+.. _support.mozilla.org: https://support.mozilla.org/en-US/
+.. _developer.mozilla.org: https://developer.mozilla.org/en-US/
+.. _django-tidings.readthedocs.io: https://django-tidings.readthedocs.io/en/latest/
+
+
+Version History
+===============
+
+2.0.1 (2018-02-14)
+  * Fix a bug where asynchronously firing a task (the default) would
+    raise an exception when run via Celery.
+
+2.0 (2018-02-10)
+  * Added support for Django 1.9, 1.10, 1.11, and 2.0.
+  * Dropped support for Django 1.7 and South.
+  * Dropped support for jingo_. Templates for the ``unsubscribe`` view are now
+    standard Django templates.
+  * Added ``Event.fire(delay=False)``, to avoid using the
+    pickle serializer, which has `security concerns`_.
+  * Added setting ``TIDINGS_TEMPLATE_EXTENSION`` to allow changing the
+    template extension used by the ``unsubscribe`` view from ``html`` to
+    ``jinja``, ``j2``, etc.
+  * Migrated Watch.email from a maximum length of 75 to 254, to follow the
+    EmailField update in Django 1.8.
+
+.. _`security concerns`: http://docs.celeryproject.org/en/latest/userguide/security.html#serializers
+.. _jingo: https://github.com/jbalogh/jingo
+
+1.2 (2017-03-22)
+  * Added support for Django 1.8 and Python 3
+  * Dropped support for Python 2.6
+
+1.1 (2015-04-23)
+  * Added support for Django 1.7
+  * Dropped support for Django 1.4, 1.5 and 1.6
+  * Dropped mock, Fabric and django-nose dependencies.
+  * Moved tests outside of app and simplified test setup.
+  * Added Travis CI: https://travis-ci.org/mozilla/django-tidings
+  * Moved to ReadTheDocs: https://django-tidings.readthedocs.io/en/latest/
+
+1.0 (2015-03-03)
+  * Support Django 1.6.
+  * Fix a bug in reconstituting models under (perhaps) Django 1.5.x and up.
+  * Remove rate limit on ``claim_watches`` task.
+  * Add tox to support testing against multiple Django versions.
+
+0.4
+  * Fix a deprecated celery import path.
+  * Add support for newer versions of Django, and drop support for older ones.
+    We now support 1.4 and 1.5.
+  * Add an initial South migration.
+
+.. warning::
+
+  If you're already using South in your project, you need to run the following
+  command to create a "fake" migration step in South's migration history::
+
+      python path/to/manage.py migrate tidings --fake
+
+0.3
+  * Support excluding multiple users when calling
+    ``fire()``.
+
+0.2
+  * API change: ``_mails()`` now receives,
+    in each user/watch tuple, a list of ``Watch``
+    objects rather than just a single one. This enables you to list all
+    relevant watches in your emails or to make decisions from an
+    ``EventUnion``'s ``_mails()`` method based on
+    what kind of events the user was subscribed to.
+  * Expose a few attribute docs to Sphinx.
+
+0.1
+  * Initial release. In production on support.mozilla.com. API may change.
+
+
+
