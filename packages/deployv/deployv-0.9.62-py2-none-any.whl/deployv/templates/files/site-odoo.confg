@@ -1,0 +1,44 @@
+upstream odoo_local {
+    server localhost:8069 weight=1 max_fails=3 fail_timeout=40m;
+}
+
+server {
+    listen 8080;
+    access_log    /var/log/nginx/odoo-access-http.log;
+    error_log    /var/log/nginx/odoo-error-http.log;
+
+    location ~* .*/static/.* {
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forward-For $proxy_add_x_forwarded_for;
+        #proxy_set_header X-Forwarded-Host $remote_addr;
+
+        proxy_cache_valid 200 60m;
+        proxy_cache_valid 404 1m;
+        proxy_buffering    on;
+        proxy_redirect off;
+        send_timeout 200;
+        proxy_read_timeout 200;
+        proxy_connect_timeout 200;
+        expires modified 1y;
+        proxy_pass    http://odoo_local;
+    }
+
+    location / {
+        proxy_pass    http://odoo_local;
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forward-For $proxy_add_x_forwarded_for;
+        #proxy_set_header X-Forwarded-Host $remote_addr;
+        # by default, do not forward anything
+        proxy_redirect off;
+        error_page 502 = /50x.html;
+        index index.html;
+        proxy_cache_valid 200 302 304 60m;
+        proxy_cache_valid 404 1m;
+        proxy_buffering    on;
+        expires 2w;
+    }
+
+}
+
