@@ -1,0 +1,152 @@
+{% extends "layout.jinja2" %}
+
+{% macro make_table(objects, object_type) %}
+    <form id="properties_form_{{ object_type }}" class="autorestore">
+    <table class="data-table" id="table-{{ object_type }}">
+        <tr id="header-row-{{ object_type }}">
+            <th>Number</th>
+            <th>NDM()</th>
+            <th class="editable" id="header-colid-1-{{ object_type }}"></th>
+            <th>Go</th>
+        </tr>
+        <tr>
+            <th></th>
+            <th></th>
+            <th id="plotctl-colid-1-{{ object_type }}"></th>
+            <th></th>
+        </tr>
+
+        {% for h in objects %}
+            <tr class="{{ loop.cycle('odd','even') }}" id="dbid-{{ h.id }}">
+                <td>{{ h.halo_number }}</td>
+                <td>{{ h.NDM }}</td>
+                <td class="colid-1-{{ object_type }}"></td>
+                <td><a href="{{ h.url }}">Go &rarr;</a></td>
+            </tr>
+        {% endfor %}
+
+    </table>
+    </form>
+{% endmacro %}
+
+{% block content %}
+
+    <h1>Timestep: {{ timestep }}</h1>
+
+    <table id="objects-container"><tr>
+
+    {% for this_object in objects %}
+        {%  if len(this_object['items'])>0 %}
+        <td>
+            <h2>{{ this_object['title'] }}</h2>
+            {{ make_table(this_object['items'], this_object['typetag']) }}
+        </td>
+        {% endif %}
+    {% endfor %}
+
+    </tr></table>
+
+<script language="JavaScript">
+
+$.fn.markAsColumnInsertPoint = function(editable_tag) {
+    if(this.length===0)
+        return;
+    $(this).closest('form').on('change', function() {
+        filterTable(editable_tag);
+    });
+    return $(this).makeEditableTemplate(addBlankColumn, removeColumn, updateColumnData, editable_tag);
+
+}
+
+function updateColumnData(miniLanguageQuery, columnId) {
+    $('#header-'+columnId).html("<img src='/static/spinner.gif'/>"+miniLanguageQuery)
+    updatePlotControlElements('#plotctl-' + columnId, miniLanguageQuery, false, false, false);
+    $.ajax({
+        type: "GET",
+        url: "{{ gather_url }}"+uriEncodeQuery(miniLanguageQuery)+".json",
+        success: function (data) {
+            $("."+columnId).html("");
+            if(data.error) {
+                 $('#header-'+columnId).html("<span class='load_table_failed'>"+miniLanguageQuery+"</span>")
+            } else {
+                $('#header-'+columnId).html(miniLanguageQuery);
+                updatePlotControlElements('#plotctl-' + columnId, miniLanguageQuery, false, data.can_use_as_filter, false, true);
+                $.each(data.data_formatted, function(i, item) {
+                    var dbid = data.db_id[i];
+                    $('#dbid-'+dbid).find('.'+columnId).html(item);
+                })
+            }
+            $("#header-"+columnId).closest('form').change();
+        }
+    });
+}
+
+function addBlankColumn(after, object_tag) {
+    var new_name = "column-"+Math.random().toString(36).substring(7);
+    $('.data-table tr').each(function(index) {
+        $(this).find("#header-"+after).after("<th id='header-"+new_name+"' class='editable'></th>");
+        $(this).find("#plotctl-"+after).after("<th id='plotctl-"+new_name+"'></th>");
+        $(this).find("."+after).after("<td class='"+new_name+"'></td>");
+    })
+    $('#header-'+new_name).markAsColumnInsertPoint(object_tag);
+    return new_name;
+}
+
+function removeColumn(name) {
+     $('.data-table tr').each(function(index) {
+        $(this).find("#header-"+name).remove();
+        $(this).find("#plotctl-"+name).remove();
+        $(this).find("."+name).remove();
+    })
+}
+
+function setupInsertionPoint() {
+    {% for this_object in objects %}
+        $('#header-colid-1-{{ this_object["typetag"] }}').markAsColumnInsertPoint('{{ this_object["typetag"] }}')
+    {% endfor %}
+}
+
+function filterTable(object_tag) {
+    var allRows = $('#table-'+object_tag+' tr');
+    var columnsToFilterOn = [];
+    allRows.css('display','table-row');
+
+    var re = new RegExp("plotctl-(.*)");
+    $('#properties_form_'+object_tag+' input[type="checkbox"]').each(function() {
+        var $this = $(this);
+        if($this.prop('checked') && $this.is(":visible")) {
+            var control_id = $this.closest('th').attr('id');
+            var column_id = re.exec(control_id)[1];
+            columnsToFilterOn.push(column_id);
+        }
+    });
+
+
+    var nRows=0;
+    allRows.each(function() {
+        var shouldDisplay = true;
+        var $this=$(this);
+        columnsToFilterOn.forEach(function(columnId) {
+            var cell = $this.find('td.' + columnId)
+            if(cell.text()!=='True' && cell[0]!==undefined)
+                shouldDisplay=false;
+        });
+        if(!shouldDisplay)
+            $this.css('display','none');
+        else {
+            nRows+=1;
+            var parity = ((nRows%2)===0)?"even":"odd";
+            if (nRows>2) {
+                $this.attr('class', parity);
+            }
+        }
+    });
+
+}
+
+
+setupInsertionPoint();
+
+</script>
+
+{% endblock content %}
