@@ -1,0 +1,97 @@
+{% load i18n dartcms_helpers %}
+
+<script type="text/javascript">
+    function mceInit() {
+        var options = {
+            {% get_current_language as LANG %}
+            {% if LANG == 'ru-ru' or LANG == 'ru' %}
+                language: 'ru',
+            {% endif %}
+            selector: ".rte",
+            content_css: 'https://netdna.bootstrapcdn.com/font-awesome/4.6.3/css/font-awesome.min.css',
+            noneditable_noneditable_class: 'fa',
+            plugins: 'fontawesome noneditable advlist autolink link image lists charmap print preview code table textcolor media',
+            toolbar: 'undo redo | styleselect | bold italic | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | table | fontsizeselect | forecolor backcolor | fontawesome | media',
+            file_browser_callback: filebrowserCallback,
+            relative_urls: false,
+            remove_script_host: true,
+            media_live_embeds: true,
+            extended_valid_elements: 'span[*]',
+            setup: function (ed) {
+                var el = $('#' + ed.id);
+                if (el.attr('readonly') || el.attr('disabled'))
+                    ed.settings.readonly = true;
+            }
+        };
+
+        {% get_tinymce_settings as tinymce_settings %}
+
+        {% if tinymce_settings %}
+            {% for option, value in tinymce_settings.items %}
+                {% with type=value|get_type %}
+                    if (options.hasOwnProperty('{{ option }}')) {
+                        {% if type == 'dict' %}
+                            {% for value_option, value_value in value.items %}
+                                {% with value_value_type=value_value|get_type %}
+                                    {% if value_value_type == 'dict' %}
+                                        {% for value_value_option, value_value_value in value_value.items %}
+                                            options['{{ option }}']['{{ value_option }}']['{{ value_value_option }}'] = '{{ value_value_value }}';
+                                        {% endfor %}
+                                    {% elif value_value_type == 'str' %}
+                                        options['{{ option }}']['{{ value_option }}'] += '{{ value_value }}';
+                                    {% endif %}
+                                {% endwith %}
+                            {% endfor %}
+                        {% elif type == 'list' or type == 'tuple' %}
+                            var formatted = [{% for el in value %}{% if el|get_type == 'str' %}'{{ el }}'{% else %}JSON.parse({{ el|json_dumps|safe }}){% endif %}{% if not forloop.last %}, {% endif %}{% endfor %}];
+                            options['{{ option }}'] = $.merge(options['{{ option }}'], formatted);
+                        {% elif type == 'str' %}
+                            options['{{ option }}'] += ',{{ value }}';
+                        {% endif %}
+                    } else {
+                        {% if type == 'dict' %}
+                            options['{{ option }}'] = {};
+                            {% for value_option, value_value in value.items %}
+                                {% with value_value_type=value_value|get_type %}
+                                    {% if value_value_type == 'dict' %}
+                                        options['{{ option }}']['{{ value_option }}'] = {};
+                                        {% for value_value_option, value_value_value in value_value.items %}
+                                            options['{{ option }}']['{{ value_option }}']['{{ value_value_option }}'] = '{{ value_value_value }}';
+                                        {% endfor %}
+                                    {% elif value_value_type == 'str' %}
+                                        options['{{ option }}']['{{ value_option }}'] = '{{ value_value }}';
+                                    {% endif %}
+                                {% endwith %}
+                            {% endfor %}
+                        {% elif type == 'list' or type == 'tuple' %}
+                            var formatted = [{% for el in value %}{% if el|get_type == 'str' %}'{{ el }}'{% else %}JSON.parse('{{ el|json_dumps|safe }}'){% endif %}{% if not forloop.last %}, {% endif %}{% endfor %}];
+                            options['{{ option }}'] = formatted;
+                        {% elif type == 'str' %}
+                            options['{{ option }}'] = '{{ value }}';
+                        {% endif %}
+                    }
+                {% endwith %}
+            {% endfor %}
+        {% endif %}
+
+        tinymce.init(options);
+    }
+    function filebrowserCallback(field_name, url, type, win) {
+        tinymce.activeEditor.windowManager.open({
+            file: '{% url 'dartcms:filemanager:index' %}',
+            title: 'Filemanager',
+            width: 900,
+            height: 450,
+            resizable: 'yes'
+        }, {
+            setUrl: function (url) {
+                url = url.replace('//', '/');
+                win.document.getElementById(field_name).value = url;
+            }
+        });
+        return false;
+    }
+    function mceDestroy() {
+        tinymce.remove();
+    }
+</script>
