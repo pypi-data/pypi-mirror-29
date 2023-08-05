@@ -1,0 +1,220 @@
+# =================================
+# Import - Sequencing Reads (FASTQ)
+# =================================
+---
+
+- slug: upload-fastq-single
+  name: Reads (single-end)
+  requirements:
+    expression-engine: jinja
+    executor:
+      docker:
+        image: resolwebio/legacy:latest
+    resources:
+      network: true
+  data_name: '{{ src.0.file|default("?") }}'
+  version: 1.1.3
+  type: data:reads:fastq:single
+  flow_collection: sample
+  category: upload
+  persistence: RAW
+  description: >
+    Upload NGS reads in FASTQ format.
+  input:
+    - name: src
+      label: NGS reads (FASTQ)
+      type: list:basic:file
+      description: >
+        NGS reads in FASTQ format. Supported extensions: .fastq.gz (preferred), .fq.* or .fastq.*
+      validate_regex: '(\.(fastq|fq)(|\.gz|\.bz2|\.tgz|\.tar\.gz|\.tar\.bz2|\.zip|\.rar|\.7z))|(\.bz2)$'
+  output:
+    - name: fastq
+      label: Reads file
+      type: list:basic:file
+    - name: fastqc_url
+      label: Quality control with FastQC
+      type: list:basic:file:html
+    - name: fastqc_archive
+      label: Download FastQC archive
+      type: list:basic:file
+  run:
+    runtime: polyglot
+    language: bash
+    program: |
+      {% for reads in src %}
+        re-import {{ reads.file_temp|default(reads.file) }} {{ reads.file }} "fastq|fq|bz2" "fastq" 0.5
+      {% endfor %}
+
+      FASTQ=(*.fastq)
+      echo "Postprocessing FastQC..."
+      mkdir "fastqc" && fastqc "${FASTQ[@]}" --extract --outdir="fastqc" 2> stderr.txt
+      re-checkrc "Failed while processing with FastQC."
+      if [[ $(grep --text "Failed to process file" stderr.txt) != "" ]]
+      then
+        re-error "Failed while processing with FastQC."
+      fi
+
+      mv fastqc/*_fastqc.zip .
+
+      for report_dir in ./fastqc/*/
+      do
+        READS_NAME=`basename "${report_dir}" _fastqc`
+        ENCODING=`parse_encoding_type.py "${report_dir}fastqc_data.txt"`
+
+        if [ "${ENCODING}" == "Illumina 1.5" ] ||  [ "${ENCODING}" == "Illumina 1.3" ]; then
+
+          echo "Recoding input reads from Phred64 encoding to Phred33 encoding."
+          mv "${READS_NAME}.fastq" input_reads.fastq
+          TrimmomaticSE input_reads.fastq reformated.fastq.gz TOPHRED33
+          mv reformated.fastq.gz "${READS_NAME}.fastq.gz"
+
+        elif [ "${ENCODING}" != "Sanger / Illumina 1.9" ]; then
+          re-error "Only Sanger / Illumina 1.9 / llumina 1.5 / Illumina 1.3 encoding is supported."
+        fi
+      done
+
+      FASTQGZ=(*.fastq.gz)
+      re-save-file-list fastq "${FASTQGZ[@]}"
+
+      FASTQC=(*_fastqc.zip)
+      FASTQC_URL=()
+
+      for fqc in "${FASTQC[@]}"
+      do
+        NAME=`basename "$fqc" _fastqc.zip`
+        FASTQC_URL+=("{\"file\":\"fastqc/${NAME}_fastqc/fastqc_report.html\",\"refs\":[\"fastqc/${NAME}_fastqc\"]}")
+      done
+
+      re-save-file-list fastqc_archive "${FASTQC[@]}"
+      re-save-list fastqc_url "${FASTQC_URL[@]}"
+
+- slug: upload-fastq-paired
+  name: Reads (paired-end)
+  requirements:
+    expression-engine: jinja
+    executor:
+      docker:
+        image: resolwebio/legacy:latest
+    resources:
+      network: true
+  data_name: '{{ src1.0.file|default("?") }}'
+  version: 1.1.4
+  type: data:reads:fastq:paired
+  category: upload
+  flow_collection: sample
+  persistence: RAW
+  description: >
+    Upload paired-end reads in FASTQ format.
+  input:
+    - name: src1
+      label: NGS upstream reads (FASTQ)
+      type: list:basic:file
+      description: >
+        NGS reads in FASTQ format. Supported extensions: .fastq.gz (preferred), .fq.* or .fastq.*
+      validate_regex: '(\.(fastq|fq)(|\.gz|\.bz2|\.tgz|\.tar\.gz|\.tar\.bz2|\.zip|\.rar|\.7z))|(\.bz2)$'
+    - name: src2
+      label: NGS downstream reads (FASTQ)
+      type: list:basic:file
+      description: >
+        NGS reads in FASTQ format. Supported extensions: .fastq.gz (preferred), .fq.* or .fastq.*
+      validate_regex: '(\.(fastq|fq)(|\.gz|\.bz2|\.tgz|\.tar\.gz|\.tar\.bz2|\.zip|\.rar|\.7z))|(\.bz2)$'
+  output:
+    - name: fastq
+      label: Reads file (mate 1)
+      type: list:basic:file
+    - name: fastq2
+      label: Reads file (mate 2)
+      type: list:basic:file
+    - name: fastqc_url
+      label: Quality control with FastQC (Upstream)
+      type: list:basic:file:html
+    - name: fastqc_url2
+      label: Quality control with FastQC (Downstream)
+      type: list:basic:file:html
+    - name: fastqc_archive
+      label: Download FastQC archive (Upstream)
+      type: list:basic:file
+    - name: fastqc_archive2
+      label: Download FastQC archive (Downstream)
+      type: list:basic:file
+  run:
+    runtime: polyglot
+    language: bash
+    program: |
+
+      FW_FASTQ=()
+      FW_FASTQGZ=()
+      FW_FASTQC=()
+      FW_FASTQC_URL=()
+
+      RW_FASTQ=()
+      RW_FASTQGZ=()
+      RW_FASTQC=()
+      RW_FASTQC_URL=()
+
+      {% for reads in src1 %}
+        re-import {{ reads.file_temp|default(reads.file) }} {{ reads.file }} "fastq|fq|bz2" "fastq" 0.5
+        FW_FASTQ+=("${NAME}.fastq")
+        FW_FASTQGZ+=("${NAME}.fastq.gz")
+        FW_FASTQC+=("${NAME}_fastqc.zip")
+        FW_FASTQC_URL+=("{\"file\":\"fastqc/${NAME}_fastqc/fastqc_report.html\",\"refs\":[\"fastqc/${NAME}_fastqc\"]}")
+      {% endfor %}
+
+      {% for reads in src2 %}
+        re-import {{ reads.file_temp|default(reads.file) }} {{ reads.file }} "fastq|fq|bz2" "fastq" 0.5
+        RW_FASTQ+=("${NAME}.fastq")
+        RW_FASTQGZ+=("${NAME}.fastq.gz")
+        RW_FASTQC+=("${NAME}_fastqc.zip")
+        RW_FASTQC_URL+=("{\"file\":\"fastqc/${NAME}_fastqc/fastqc_report.html\",\"refs\":[\"fastqc/${NAME}_fastqc\"]}")
+      {% endfor %}
+
+      FASTQ=(*.fastq)
+
+      echo "Postprocessing FastQC..."
+      mkdir "fastqc" && fastqc "${FASTQ[@]}" --extract --outdir="fastqc" 2> stderr.txt
+      re-checkrc "Failed while processing with FastQC."
+      if [[ $(grep --text "Failed to process file" stderr.txt) != "" ]]
+      then
+        re-error "Failed while processing with FastQC."
+      fi
+
+      mv fastqc/*_fastqc.zip .
+
+      for name in "${FW_FASTQ[@]}"; do
+        READS_NAME_FW=`basename "$name" .fastq`
+        ENCODING=`parse_encoding_type.py "./fastqc/${READS_NAME_FW}_fastqc/fastqc_data.txt"`
+
+        if [ "${ENCODING}" == "Illumina 1.5" ] ||  [ "${ENCODING}" == "Illumina 1.3" ]; then
+
+          echo "Recoding input reads from Phred64 encoding to Phred33 encoding."
+          mv "${READS_NAME_FW}.fastq" input_reads.fastq
+          TrimmomaticSE input_reads.fastq reformated.fastq.gz TOPHRED33
+          mv reformated.fastq.gz "${READS_NAME_FW}.fastq.gz"
+
+        elif [ "${ENCODING}" != "Sanger / Illumina 1.9" ]; then
+          re-error "Only Sanger / Illumina 1.9 / llumina 1.5 / Illumina 1.3 encoding is supported."
+        fi
+      done
+
+      for name in "${RW_FASTQ[@]}"; do
+        READS_NAME_RW=`basename "$name" .fastq`
+        ENCODING=`parse_encoding_type.py "./fastqc/${READS_NAME_RW}_fastqc/fastqc_data.txt"`
+
+        if [ "${ENCODING}" == "Illumina 1.5" ] ||  [ "${ENCODING}" == "Illumina 1.3" ]; then
+
+          echo "Recoding input reads from Phred64 encoding to Phred33 encoding."
+          mv "${READS_NAME_RW}.fastq" input_reads.fastq
+          TrimmomaticSE input_reads.fastq reformated.fastq.gz TOPHRED33
+          mv reformated.fastq.gz "${READS_NAME_RW}.fastq.gz"
+
+        elif [ "${ENCODING}" != "Sanger / Illumina 1.9" ]; then
+          re-error "Only Sanger / Illumina 1.9 / llumina 1.5 / Illumina 1.3 encoding is supported."
+        fi
+      done
+
+      re-save-file-list fastq "${FW_FASTQGZ[@]}"
+      re-save-file-list fastq2 "${RW_FASTQGZ[@]}"
+      re-save-file-list fastqc_archive "${FW_FASTQC[@]}"
+      re-save-file-list fastqc_archive2 "${RW_FASTQC[@]}"
+      re-save-list fastqc_url "${FW_FASTQC_URL[@]}"
+      re-save-list fastqc_url2 "${RW_FASTQC_URL[@]}"

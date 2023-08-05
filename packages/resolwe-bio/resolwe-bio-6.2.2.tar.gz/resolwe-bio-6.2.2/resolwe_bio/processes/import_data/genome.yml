@@ -1,0 +1,179 @@
+# ===============
+# Import - Genome
+# ===============
+---
+
+- slug: upload-genome
+  name: Genome
+  requirements:
+    expression-engine: jinja
+    executor:
+      docker:
+        image: resolwebio/legacy:latest
+    resources:
+      network: true
+  data_name: '{{ src.file|default("?") }}'
+  version: 2.1.5
+  type: data:genome:fasta
+  category: upload
+  persistence: RAW
+  description: >
+    Upload genome sequence in FASTA format.
+  input:
+    - name: src
+      label: Genome sequence (FASTA)
+      type: basic:file
+      description: >
+        Genome sequence in FASTA format. Supported extensions: .fasta.gz (preferred), .fa.*, .fna.* or .fasta.*
+      validate_regex: '\.(fasta|fa|fna|fsa)(|\.gz|\.bz2|\.tgz|\.tar\.gz|\.tar\.bz2|\.zip|\.rar|\.7z)$'
+    - name: bowtie_index
+      label: Bowtie index files
+      type: basic:file
+      required: false
+      description: >
+        Bowtie index files. Supported extensions (*.tar.gz).
+      validate_regex: '(\.tar\.gz)$'
+    - name: bowtie2_index
+      label: Bowtie2 index files
+      type: basic:file
+      required: false
+      description: >
+        Bowtie2 index files. Supported extensions (*.tar.gz).
+      validate_regex: '(\.tar\.gz)$'
+    - name: bwa_index
+      label: BWA index files
+      type: basic:file
+      required: false
+      description: >
+        BWA index files. Supported extensions (*.tar.gz).
+      validate_regex: '(\.tar\.gz)$'
+    - name: hisat2_index
+      label: HISAT2 index files
+      type: basic:file
+      required: false
+      description: >
+        HISAT2 index files. Supported extensions (*.tar.gz).
+      validate_regex: '(\.tar\.gz)$'
+    - name: subread_index
+      label: subread index files
+      type: basic:file
+      required: false
+      description: >
+        subread index files. Supported extensions (*.tar.gz).
+      validate_regex: '(\.tar\.gz)$'
+  output:
+    - name: fastagz
+      label: Genome FASTA file (compressed)
+      type: basic:file
+    - name: fasta
+      label: Genome FASTA file
+      type: basic:file
+    - name: index_bt
+      label: Bowtie index
+      type: basic:dir
+    - name: index_bt2
+      label: Bowtie2 index
+      type: basic:dir
+    - name: index_bwa
+      label: BWA index
+      type: basic:dir
+    - name: index_hisat2
+      label: HISAT2 index
+      type: basic:dir
+    - name: index_subread
+      label: subread index
+      type: basic:dir
+    - name: fai
+      label: Fasta index
+      type: basic:file
+    - name: dict
+      label: Fasta dict
+      type: basic:file
+  run:
+    runtime: polyglot
+    language: bash
+    program: |
+      re-import {{ src.file_temp }} {{ src.file }} "fasta|fa|fna|fsa" "fasta" 0.5
+      FASTA_NAME=${NAME}
+
+      # If last line empty, remove this line from a FASTA file. Improves Cufflinks compatibility.
+      if [ "$(tail -n 1 "${FASTA_NAME}.fasta")" == "" ]; then
+        echo "Removing empty line at the end of FASTA file."
+        sed -i '$ d' ${FASTA_NAME}.fasta
+        rm "${FASTA_NAME}.fasta.gz"
+        gzip -c -k "${FASTA_NAME}.fasta" > "${FASTA_NAME}.fasta.gz"
+      fi
+
+      # Create fasta index
+      samtools faidx "${FASTA_NAME}.fasta"
+      re-checkrc
+
+      # Create fasta dictionary file
+      picard-tools CreateSequenceDictionary R="${FASTA_NAME}.fasta" O="${FASTA_NAME}.dict"
+      re-checkrc
+
+      re-save-file fastagz "${FASTA_NAME}.fasta.gz"
+      re-save-file fasta "${FASTA_NAME}.fasta"
+      re-save-file fai "${FASTA_NAME}.fasta.fai"
+      re-save-file dict "${FASTA_NAME}.dict"
+
+      {% if bowtie_index %}
+        re-import {{ bowtie_index.file_temp|default(bowtie_index.file) }} {{ bowtie_index.file }} "tar" "tar" compress 0.6
+        format_index_files.py ${NAME}.tar.gz ${FASTA_NAME}_index bowtie_index
+      {% else %}
+        mkdir bowtie_index
+        bowtie-build "${FASTA_NAME}.fasta" "bowtie_index/${FASTA_NAME}_index"
+        re-checkrc
+        re-progress 0.6
+      {% endif %}
+
+      re-save-dir index_bt bowtie_index
+
+      {% if bowtie2_index %}
+        re-import {{ bowtie2_index.file_temp|default(bowtie2_index.file) }} {{ bowtie2_index.file }} "tar" "tar" 0.7 compress
+        format_index_files.py ${NAME}.tar.gz ${FASTA_NAME}_index bowtie2_index
+      {% else %}
+        mkdir bowtie2_index
+        bowtie2-build "$FASTA_NAME.fasta" "bowtie2_index/${FASTA_NAME}_index"
+        re-checkrc
+        re-progress 0.7
+      {% endif %}
+
+      cp "${FASTA_NAME}.fasta" "bowtie2_index/${FASTA_NAME}_index.fa"
+      re-save-dir index_bt2 bowtie2_index
+
+      {% if bwa_index %}
+        re-import {{ bwa_index.file_temp|default(bwa_index.file) }} {{ bwa_index.file }} "tar" "tar" 0.8 compress
+        format_index_files.py ${NAME}.tar.gz ${FASTA_NAME}.fasta BWA_index --bwa
+      {% else %}
+        mkdir BWA_index
+        bwa index -p "BWA_index/${FASTA_NAME}.fasta" "${FASTA_NAME}.fasta"
+        re-checkrc
+        re-progress 0.8
+      {% endif %}
+
+      re-save-dir index_bwa BWA_index
+
+      {% if hisat2_index %}
+        re-import {{ hisat2_index.file_temp|default(hisat2_index.file) }} {{ hisat2_index.file }} "tar" "tar" 0.9 compress
+        format_index_files.py ${NAME}.tar.gz ${FASTA_NAME}_index hisat2_index
+      {% else %}
+        mkdir hisat2_index
+        hisat2-build "${FASTA_NAME}.fasta" "hisat2_index/${FASTA_NAME}_index"
+        re-checkrc
+        re-progress 0.9
+      {% endif %}
+
+      re-save-dir index_hisat2 hisat2_index
+
+      {% if subread_index %}
+        re-import {{ subread_index.file_temp|default(subread_index.file) }} {{ subread_index.file }} "tar" "tar" 0.9 compress
+        format_index_files.py ${NAME}.tar.gz ${FASTA_NAME}_index subread_index
+      {% else %}
+        mkdir subread_index
+        subread-buildindex "${FASTA_NAME}.fasta" -o "subread_index/${FASTA_NAME}_index"
+        re-checkrc
+        re-progress 0.9
+      {% endif %}
+
+      re-save-dir index_subread subread_index
