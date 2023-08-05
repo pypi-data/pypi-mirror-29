@@ -1,0 +1,71 @@
+{% from 'invisibleroads_uploads:templates/parts.jinja2' import upload_button %}
+
+{% macro head_style_loaded(request) %}
+<link rel="stylesheet" href="//api.mapbox.com/mapbox.js/v3.0.1/mapbox.css">
+{% endmacro %}
+
+{% macro head_style_inline(request) %}{% endmacro %}
+
+{% macro head_script_inline(request) %}
+x = CC.geotable = {};
+x.import_url = '{{ request.route_path('geotable/import_geotable') }}';
+x.definitions = {};
+{% endmacro %}
+
+{% macro body_script_loaded(request) %}
+<script src='//api.mapbox.com/mapbox.js/v3.0.1/mapbox.js'></script>
+{% endmacro %}
+
+{% macro body_script_inline(request) %}
+L.mapbox.accessToken = '{{ get_environment_variable("MAPBOX_TOKEN", "pk.eyJ1IjoiaW52aXNpYmxlcm9hZHMiLCJhIjoiY2piemVjdXZ0M2M1ODJ3bWtwd3ZrYWpkdSJ9.brDanNx0E9bjXxdalrD9Sg") }}';
+$.each(CC.geotable.definitions, draw_map);
+{% endmacro %}
+
+{% macro render_argument(request, data_item) %}
+{% set key = data_item.key %}
+{{ upload_button(request, id='%s-upload-button' % key, text='Upload', class='btn-lg geotable-upload', data_name=key) }}
+<div id="{{ key }}">{{ render_property(request, data_item) }}</div>
+{% endmacro %}
+
+{% macro render_property(request, data_item, stamp='') %}
+{% set key = data_item.key + stamp %}
+{% set table = data_item.value %}
+
+{% if table is not none %}
+{% set row_count = table.index.shape[0] %}
+{% set packs, properties = table.display_bundle %}
+{% set column_names = packs[0][-1].columns if packs else [] %}
+<div id="{{ key }}-map" class="geotable-map"></div>
+
+{% if table.is_abbreviated %}
+<div class="alert alert-warning">Showing first {{ '{:,}'.format(packs|length) }} out of {{ '{:,}'.format(row_count) }} features</div>
+{% endif %}
+
+<table id="{{ key }}-table" class="table geotable-table">
+<thead><tr>{% for column_name in column_names %}<th>{{ column_name }}</th>{% endfor %}</tr></thead>
+{% for geometry_type_id, geometry_coordinates, local_properties, local_table in packs %}
+<tbody id="{{ key }}-row{{ loop.index0 }}">
+{%- for index, row in local_table.fillna('').iterrows() -%}
+<tr>{% for value in row %}<td>{{ value }}</td>{% endfor %}</tr>
+{%- endfor -%}
+</tbody>
+{% endfor %}
+</table>
+
+<script>
+{# render geojson here #}
+CC.geotable.definitions['{{ key }}'] = [[
+{% for geometry_type_id, geometry_coordinates, local_properties, local_table in packs %}
+[{{ geometry_type_id }}, {{ geometry_coordinates }}, {
+{%- for k, v in local_properties.items() %}
+'{{ k }}': '{{ v }}'
+{%- if not loop.last %}, {% endif %}
+{% endfor -%}
+}]
+{%- if not loop.last %},{% endif %}
+{% endfor %}], {{ properties }}];
+</script>
+{% endif %}
+
+<input name="{{ key }}" type="hidden" value="{{ data_item.file_location }}">
+{%- endmacro %}
