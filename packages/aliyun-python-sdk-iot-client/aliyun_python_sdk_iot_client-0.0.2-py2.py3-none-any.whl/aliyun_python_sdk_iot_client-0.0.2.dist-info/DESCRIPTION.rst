@@ -1,0 +1,25 @@
+aliyun-python-sdk-iot
+This is the iot module of Aliyun Python SDK.
+
+Aliyun Python SDK is the official software development kit. It makes things easy to integrate your Python application, library, or script with Aliyun services.
+
+This module works on Python versions:
+
+2.6.5 and greater
+Documentation:
+
+Please visit http://develop.aliyun.com/sdk/python
+
+
+.. :changelog:
+
+Release History
+---------------
+
+0.0.1 (2018-02-13)
+++++++++++++++++++
+
+* Frustration
+* Conception
+
+
