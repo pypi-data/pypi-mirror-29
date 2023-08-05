@@ -1,0 +1,219 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>petgem.solver.solver &#8212; PETGEM 1.01 documentation</title>
+    <link rel="stylesheet" href="../../../_static/petgem.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '1.01',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+  </head>
+  <body>
+<div style="background-color: white; text-align: left; padding: 10px 10px 15px 15px">
+  <a href="../../../index.html"><img style="vertical-align: middle" src="../../../_static/figures/petgem_logo.png" border="0" height="80px" alt="PETGEM"/></a>
+    <a href="../../../index.html"><strong><font color="#355f7c"> Parallel Edge-based Tool for Geophysical Electromagnetic Modelling</font></strong></a>
+  <a href="http://www.bsc.es/"><img src="../../../_static/figures/logo_bsc.jpeg" align="right" border="0" height="80px" alt="BSC"/></a>
+</div>
+
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">Home</a>|&nbsp;</li>
+        <li><a href="../../../WhatIs.html">What is PETGEM?</a>|&nbsp;</li>
+        <li><a href="../../../Features.html">Features</a>|&nbsp;</li>
+        <li><a href="../../../CSEMEdges.html">CSEM FM modelling</a>|&nbsp;</li>
+        <li><a href="../../../Installation.html">Installation</a>|&nbsp;</li>
+        <li><a href="../../../Tutorial.html">Tutorial</a>|&nbsp;</li>
+        <li><a href="../../../Manual.html">Manual</a>|&nbsp;</li>
+        <li><a href="../../../Publications.html">Publications</a>|&nbsp;</li>
+	      <li><a href="../../../Download.html">Download</a>|&nbsp;</li>
+        <li><a href="../../../Contact.html">Contact</a></li>
+
+          <li class="nav-item nav-item-1"><a href="../../index.html" accesskey="U">Module code</a> &#187;</li> 
+      </ul>
+    </div>
+
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for petgem.solver.solver</h1><div class="highlight"><pre>
+<span></span><span class="ch">#!/usr/bin/env python3</span>
+<span class="c1"># Author:  Octavio Castillo Reyes</span>
+<span class="c1"># Contact: octavio.castillo@bsc.es</span>
+<span class="sd">&#39;&#39;&#39; Define functions to find the solution of a sparse linear system of the</span>
+<span class="sd">format Ax = b, in Edge Finite Element Method (EFEM) of lowest order in</span>
+<span class="sd">tetrahedral meshes.</span>
+<span class="sd">&#39;&#39;&#39;</span>
+
+
+<div class="viewcode-block" id="setBoundaryConditions"><a class="viewcode-back" href="../../../petgem/solver/solver.html#petgem.solver.solver.setBoundaryConditions">[docs]</a><span class="k">def</span> <span class="nf">setBoundaryConditions</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">bEdges</span><span class="p">,</span> <span class="n">Istart_bEdges</span><span class="p">,</span> <span class="n">Iend_bEdges</span><span class="p">,</span> <span class="n">rank</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39; Given a parallel matrix and a parallel vector, set Dirichlet boundary</span>
+<span class="sd">    conditions.</span>
+
+<span class="sd">    :param petsc matrix A: sparse and complex coefficients matrix in</span>
+<span class="sd">                           petsc format</span>
+<span class="sd">    :param petsc vector b: parallel right hand side</span>
+<span class="sd">    :param petsc vector bEdges: array of boundary indexes</span>
+<span class="sd">    :param int Istart_bEdges: init range for boundaries</span>
+<span class="sd">    :param int Iend_bEdges: last range for boundaries</span>
+<span class="sd">    :para int rank: MPI rank</span>
+<span class="sd">    :return: equation system after applied Dirichlet boundary conditions</span>
+<span class="sd">             and elapsed time</span>
+<span class="sd">    :rtype: petsc matrix, petsc vector and float.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="n">PETSc</span><span class="o">.</span><span class="n">Sys</span><span class="o">.</span><span class="n">syncPrint</span><span class="p">(</span><span class="s1">&#39;  Rank: &#39;</span><span class="p">,</span> <span class="n">rank</span><span class="p">,</span> <span class="s1">&#39; is setting boundary conditions&#39;</span><span class="p">)</span>
+    <span class="n">PETSc</span><span class="o">.</span><span class="n">Sys</span><span class="o">.</span><span class="n">syncFlush</span><span class="p">()</span>
+
+    <span class="c1"># Start timer</span>
+    <span class="n">Init_boundaries</span> <span class="o">=</span> <span class="n">getTime</span><span class="p">()</span>
+
+    <span class="c1"># Boundaries for LHS</span>
+    <span class="n">A</span><span class="o">.</span><span class="n">zeroRowsColumns</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">real</span><span class="p">(</span><span class="n">bEdges</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">PETSc</span><span class="o">.</span><span class="n">IntType</span><span class="p">))</span>
+    <span class="c1"># Boundaries for RHS</span>
+    <span class="n">numLocalBoundaries</span> <span class="o">=</span> <span class="n">Iend_bEdges</span> <span class="o">-</span> <span class="n">Istart_bEdges</span>
+    <span class="n">b</span><span class="o">.</span><span class="n">setValues</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">real</span><span class="p">(</span><span class="n">bEdges</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">PETSc</span><span class="o">.</span><span class="n">IntType</span><span class="p">),</span>
+                <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">numLocalBoundaries</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">complex</span><span class="p">),</span>
+                <span class="n">addv</span><span class="o">=</span><span class="n">PETSc</span><span class="o">.</span><span class="n">InsertMode</span><span class="o">.</span><span class="n">INSERT_VALUES</span><span class="p">)</span>
+
+    <span class="c1"># Start global system assembly</span>
+    <span class="n">A</span><span class="o">.</span><span class="n">assemblyBegin</span><span class="p">()</span>
+    <span class="n">b</span><span class="o">.</span><span class="n">assemblyBegin</span><span class="p">()</span>
+    <span class="c1"># End global system assembly</span>
+    <span class="n">A</span><span class="o">.</span><span class="n">assemblyEnd</span><span class="p">()</span>
+    <span class="n">b</span><span class="o">.</span><span class="n">assemblyEnd</span><span class="p">()</span>
+
+    <span class="c1"># End timer</span>
+    <span class="n">End_boundaries</span> <span class="o">=</span> <span class="n">getTime</span><span class="p">()</span>
+
+    <span class="c1"># Elapsed time in assembly</span>
+    <span class="n">elapsedTimeBoundaries</span> <span class="o">=</span> <span class="n">End_boundaries</span><span class="o">-</span><span class="n">Init_boundaries</span>
+
+    <span class="k">return</span> <span class="n">A</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">elapsedTimeBoundaries</span></div>
+
+
+<div class="viewcode-block" id="solveSystem"><a class="viewcode-back" href="../../../petgem/solver/solver.html#petgem.solver.solver.solveSystem">[docs]</a><span class="k">def</span> <span class="nf">solveSystem</span><span class="p">(</span><span class="n">A</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">rank</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39; Solve a matrix system of the form Ax = b in parallel.</span>
+
+<span class="sd">    :param petsc matrix A: sparse and complex coefficients matrix in</span>
+<span class="sd">                           petsc format</span>
+<span class="sd">    :param petsc vector b: parallel right hand side</span>
+<span class="sd">    :param petsc vector x: parallel solution vector</span>
+<span class="sd">    :param int rank: MPI rank</span>
+<span class="sd">    :return: solution of the equation system, iteration number</span>
+<span class="sd">             of solver and elapsed time</span>
+<span class="sd">    :rtype: petsc vector, int and float</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="n">PETSc</span><span class="o">.</span><span class="n">Sys</span><span class="o">.</span><span class="n">syncPrint</span><span class="p">(</span><span class="s1">&#39;  Rank: &#39;</span><span class="p">,</span> <span class="n">rank</span><span class="p">,</span> <span class="s1">&#39; is solving system&#39;</span><span class="p">)</span>
+    <span class="n">PETSc</span><span class="o">.</span><span class="n">Sys</span><span class="o">.</span><span class="n">syncFlush</span><span class="p">()</span>
+
+    <span class="c1"># Start timer</span>
+    <span class="n">Init_solver</span> <span class="o">=</span> <span class="n">getTime</span><span class="p">()</span>
+
+    <span class="c1"># Create KSP: linear equation solver</span>
+    <span class="n">ksp</span> <span class="o">=</span> <span class="n">PETSc</span><span class="o">.</span><span class="n">KSP</span><span class="p">()</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">comm</span><span class="o">=</span><span class="n">PETSc</span><span class="o">.</span><span class="n">COMM_WORLD</span><span class="p">)</span>
+    <span class="n">ksp</span><span class="o">.</span><span class="n">setOperators</span><span class="p">(</span><span class="n">A</span><span class="p">)</span>
+    <span class="n">ksp</span><span class="o">.</span><span class="n">setFromOptions</span><span class="p">()</span>
+    <span class="n">ksp</span><span class="o">.</span><span class="n">solve</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
+    <span class="n">iterationNumber</span> <span class="o">=</span> <span class="n">ksp</span><span class="o">.</span><span class="n">getIterationNumber</span><span class="p">()</span>
+    <span class="n">ksp</span><span class="o">.</span><span class="n">destroy</span><span class="p">()</span>
+
+    <span class="c1"># End timer</span>
+    <span class="n">End_solver</span> <span class="o">=</span> <span class="n">getTime</span><span class="p">()</span>
+
+    <span class="c1"># Elapsed time in assembly</span>
+    <span class="n">elapsedTimeSolver</span> <span class="o">=</span> <span class="n">End_solver</span><span class="o">-</span><span class="n">Init_solver</span>
+
+    <span class="k">return</span> <span class="n">x</span><span class="p">,</span> <span class="n">iterationNumber</span><span class="p">,</span> <span class="n">elapsedTimeSolver</span></div>
+
+
+<div class="viewcode-block" id="unitary_test"><a class="viewcode-back" href="../../../petgem/solver/solver.html#petgem.solver.solver.unitary_test">[docs]</a><span class="k">def</span> <span class="nf">unitary_test</span><span class="p">():</span>
+    <span class="sd">&#39;&#39;&#39; Unitary test for solver.py script.</span>
+<span class="sd">    &#39;&#39;&#39;</span></div>
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>
+    <span class="c1"># Standard module import</span>
+    <span class="n">unitary_test</span><span class="p">()</span>
+<span class="k">else</span><span class="p">:</span>
+    <span class="c1"># Standard module import</span>
+    <span class="kn">import</span> <span class="nn">petsc4py</span>
+    <span class="kn">from</span> <span class="nn">petsc4py</span> <span class="k">import</span> <span class="n">PETSc</span>
+    <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+    <span class="c1"># PETGEM module import</span>
+    <span class="kn">from</span> <span class="nn">petgem.monitoring.monitoring</span> <span class="k">import</span> <span class="n">getTime</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">Home</a>|&nbsp;</li>
+        <li><a href="../../../WhatIs.html">What is PETGEM?</a>|&nbsp;</li>
+        <li><a href="../../../Features.html">Features</a>|&nbsp;</li>
+        <li><a href="../../../CSEMEdges.html">CSEM FM modelling</a>|&nbsp;</li>
+        <li><a href="../../../Installation.html">Installation</a>|&nbsp;</li>
+        <li><a href="../../../Tutorial.html">Tutorial</a>|&nbsp;</li>
+        <li><a href="../../../Manual.html">Manual</a>|&nbsp;</li>
+        <li><a href="../../../Publications.html">Publications</a>|&nbsp;</li>
+	      <li><a href="../../../Download.html">Download</a>|&nbsp;</li>
+        <li><a href="../../../Contact.html">Contact</a></li>
+
+          <li class="nav-item nav-item-1"><a href="../../index.html" >Module code</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2017, Octavio Castillo Reyes.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.6.
+    </div>
+  </body>
+</html>

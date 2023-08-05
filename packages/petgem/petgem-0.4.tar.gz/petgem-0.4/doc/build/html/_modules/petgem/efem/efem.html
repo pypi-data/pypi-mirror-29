@@ -1,0 +1,531 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>petgem.efem.efem &#8212; PETGEM 1.01 documentation</title>
+    <link rel="stylesheet" href="../../../_static/petgem.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '1.01',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+  </head>
+  <body>
+<div style="background-color: white; text-align: left; padding: 10px 10px 15px 15px">
+  <a href="../../../index.html"><img style="vertical-align: middle" src="../../../_static/figures/petgem_logo.png" border="0" height="80px" alt="PETGEM"/></a>
+    <a href="../../../index.html"><strong><font color="#355f7c"> Parallel Edge-based Tool for Geophysical Electromagnetic Modelling</font></strong></a>
+  <a href="http://www.bsc.es/"><img src="../../../_static/figures/logo_bsc.jpeg" align="right" border="0" height="80px" alt="BSC"/></a>
+</div>
+
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">Home</a>|&nbsp;</li>
+        <li><a href="../../../WhatIs.html">What is PETGEM?</a>|&nbsp;</li>
+        <li><a href="../../../Features.html">Features</a>|&nbsp;</li>
+        <li><a href="../../../CSEMEdges.html">CSEM FM modelling</a>|&nbsp;</li>
+        <li><a href="../../../Installation.html">Installation</a>|&nbsp;</li>
+        <li><a href="../../../Tutorial.html">Tutorial</a>|&nbsp;</li>
+        <li><a href="../../../Manual.html">Manual</a>|&nbsp;</li>
+        <li><a href="../../../Publications.html">Publications</a>|&nbsp;</li>
+	      <li><a href="../../../Download.html">Download</a>|&nbsp;</li>
+        <li><a href="../../../Contact.html">Contact</a></li>
+
+          <li class="nav-item nav-item-1"><a href="../../index.html" accesskey="U">Module code</a> &#187;</li> 
+      </ul>
+    </div>
+
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for petgem.efem.efem</h1><div class="highlight"><pre>
+<span></span><span class="ch">#!/usr/bin/env python3</span>
+<span class="c1"># Author:  Octavio Castillo Reyes</span>
+<span class="c1"># Contact: octavio.castillo@bsc.es</span>
+<span class="sd">&#39;&#39;&#39; Define the classes, methods and functions for Edge Finite</span>
+<span class="sd">Element Method (EFEM) of lowest order in tetrahedral meshes, namely,</span>
+<span class="sd">Nedelec elements.</span>
+<span class="sd">&#39;&#39;&#39;</span>
+
+
+<div class="viewcode-block" id="computeDofs"><a class="viewcode-back" href="../../../petgem/efem/efem.html#petgem.efem.efem.computeDofs">[docs]</a><span class="k">def</span> <span class="nf">computeDofs</span><span class="p">(</span><span class="n">elemsN</span><span class="p">,</span> <span class="n">nElems</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39; Compute degrees of freedom (DOF) of a 3D tetrahedral mesh. Here, dofs</span>
+<span class="sd">    are defined for edge finite element computations.</span>
+
+<span class="sd">    :param ndarray elemsN: elements-nodes connectivity.</span>
+<span class="sd">    :param int nElems: number of tetrahedral elements in the mesh.</span>
+<span class="sd">    :return: dof connectivity and dofsNodes connectivity.</span>
+<span class="sd">    :rtype: ndarray</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="c1"># Extracts sets of edges</span>
+    <span class="n">edges1</span> <span class="o">=</span> <span class="n">elemsN</span><span class="p">[:,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]]</span>
+    <span class="n">edges2</span> <span class="o">=</span> <span class="n">elemsN</span><span class="p">[:,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">]]</span>
+    <span class="n">edges3</span> <span class="o">=</span> <span class="n">elemsN</span><span class="p">[:,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">]]</span>
+    <span class="n">edges4</span> <span class="o">=</span> <span class="n">elemsN</span><span class="p">[:,</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">]]</span>
+    <span class="n">edges5</span> <span class="o">=</span> <span class="n">elemsN</span><span class="p">[:,</span> <span class="p">[</span><span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">]]</span>
+    <span class="n">edges6</span> <span class="o">=</span> <span class="n">elemsN</span><span class="p">[:,</span> <span class="p">[</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">]]</span>
+
+    <span class="c1"># Edges as sets of their nodes (vertices)</span>
+    <span class="n">vertices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">([</span><span class="n">nElems</span><span class="o">*</span><span class="mi">6</span><span class="p">,</span> <span class="mi">2</span><span class="p">])</span>
+    <span class="n">vertices</span><span class="p">[</span><span class="mi">0</span><span class="p">::</span><span class="mi">6</span><span class="p">]</span> <span class="o">=</span> <span class="n">edges1</span>
+    <span class="n">vertices</span><span class="p">[</span><span class="mi">1</span><span class="p">::</span><span class="mi">6</span><span class="p">]</span> <span class="o">=</span> <span class="n">edges2</span>
+    <span class="n">vertices</span><span class="p">[</span><span class="mi">2</span><span class="p">::</span><span class="mi">6</span><span class="p">]</span> <span class="o">=</span> <span class="n">edges3</span>
+    <span class="n">vertices</span><span class="p">[</span><span class="mi">3</span><span class="p">::</span><span class="mi">6</span><span class="p">]</span> <span class="o">=</span> <span class="n">edges4</span>
+    <span class="n">vertices</span><span class="p">[</span><span class="mi">4</span><span class="p">::</span><span class="mi">6</span><span class="p">]</span> <span class="o">=</span> <span class="n">edges5</span>
+    <span class="n">vertices</span><span class="p">[</span><span class="mi">5</span><span class="p">::</span><span class="mi">6</span><span class="p">]</span> <span class="o">=</span> <span class="n">edges6</span>
+
+    <span class="c1"># Delete duplicate rows</span>
+    <span class="p">[</span><span class="n">dofsNodes</span><span class="p">,</span> <span class="n">dofs</span><span class="p">]</span> <span class="o">=</span> <span class="n">deleteDuplicateRows</span><span class="p">(</span><span class="n">vertices</span><span class="p">)</span>
+
+    <span class="c1"># Build dofs matrix</span>
+    <span class="n">dofs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">dofs</span><span class="p">,</span> <span class="p">(</span><span class="n">nElems</span><span class="p">,</span> <span class="mi">6</span><span class="p">)),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int</span><span class="p">)</span>
+
+    <span class="c1"># Build dofs to nodes connectivity</span>
+    <span class="n">dofsNodes</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">dofsNodes</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">dofsNodes</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">dofs</span><span class="p">,</span> <span class="n">dofsNodes</span></div>
+
+
+<div class="viewcode-block" id="computeFaces"><a class="viewcode-back" href="../../../petgem/efem/efem.html#petgem.efem.efem.computeFaces">[docs]</a><span class="k">def</span> <span class="nf">computeFaces</span><span class="p">(</span><span class="n">elemsN</span><span class="p">,</span> <span class="n">nElems</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39; Compute the element\&#39;s faces of a 3D tetrahedral mesh.</span>
+
+<span class="sd">    :param ndarray matrix: elements-nodes connectivity.</span>
+<span class="sd">    :return: element/faces connectivity.</span>
+<span class="sd">    :rtype: ndarray</span>
+
+<span class="sd">    .. note:: References:\n</span>
+<span class="sd">       Rognes, Marie E., Robert Cndarray. Kirby, and Anders Logg. &quot;Efficient</span>
+<span class="sd">       assembly of H(div) and H(curl) conforming finite elements.&quot;</span>
+<span class="sd">       SIAM Journal on Scientific Computing 31.6 (2009): 4130-4151.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="c1"># Extracts sets of faces</span>
+    <span class="n">faces1</span> <span class="o">=</span> <span class="n">elemsN</span><span class="p">[:,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">]]</span>
+    <span class="n">faces2</span> <span class="o">=</span> <span class="n">elemsN</span><span class="p">[:,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">]]</span>
+    <span class="n">faces3</span> <span class="o">=</span> <span class="n">elemsN</span><span class="p">[:,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">2</span><span class="p">]]</span>
+    <span class="n">faces4</span> <span class="o">=</span> <span class="n">elemsN</span><span class="p">[:,</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">]]</span>
+
+    <span class="c1"># Faces as sets of their nodes (vertices)</span>
+    <span class="n">vertices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">([</span><span class="n">nElems</span><span class="o">*</span><span class="mi">4</span><span class="p">,</span> <span class="mi">3</span><span class="p">])</span>
+    <span class="n">vertices</span><span class="p">[</span><span class="mi">0</span><span class="p">::</span><span class="mi">4</span><span class="p">]</span> <span class="o">=</span> <span class="n">faces1</span>
+    <span class="n">vertices</span><span class="p">[</span><span class="mi">1</span><span class="p">::</span><span class="mi">4</span><span class="p">]</span> <span class="o">=</span> <span class="n">faces2</span>
+    <span class="n">vertices</span><span class="p">[</span><span class="mi">2</span><span class="p">::</span><span class="mi">4</span><span class="p">]</span> <span class="o">=</span> <span class="n">faces3</span>
+    <span class="n">vertices</span><span class="p">[</span><span class="mi">3</span><span class="p">::</span><span class="mi">4</span><span class="p">]</span> <span class="o">=</span> <span class="n">faces4</span>
+
+    <span class="p">[</span><span class="n">facesN</span><span class="p">,</span> <span class="n">elemsF</span><span class="p">]</span> <span class="o">=</span> <span class="n">deleteDuplicateRows</span><span class="p">(</span><span class="n">vertices</span><span class="p">)</span>
+
+    <span class="n">numFacesElement</span> <span class="o">=</span> <span class="mi">4</span>
+    <span class="n">elemsF</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">elemsF</span><span class="p">,</span> <span class="p">(</span><span class="n">nElems</span><span class="p">,</span> <span class="n">numFacesElement</span><span class="p">)),</span>
+                      <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int</span><span class="p">)</span>
+    <span class="n">facesN</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">facesN</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">elemsF</span><span class="p">,</span> <span class="n">facesN</span></div>
+
+
+<div class="viewcode-block" id="computeBoundaryFaces"><a class="viewcode-back" href="../../../petgem/efem/efem.html#petgem.efem.efem.computeBoundaryFaces">[docs]</a><span class="k">def</span> <span class="nf">computeBoundaryFaces</span><span class="p">(</span><span class="n">elemsF</span><span class="p">,</span> <span class="n">facesN</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39; Compute boundary faces of a tetrahedral mesh.</span>
+
+<span class="sd">    :param ndarray elemsF: elements-face connectivity.</span>
+<span class="sd">    :param ndarray facesN: faces-nodes connectivity.</span>
+<span class="sd">    :return: boundary-faces connectivity.</span>
+<span class="sd">    :rtype: ndarray</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="c1"># Sort indexes and add 1 position in order to use indexes as Matlab</span>
+    <span class="n">A0</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">elemsF</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">])</span> <span class="o">+</span> <span class="mi">1</span>
+    <span class="n">I0</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="n">elemsF</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">])</span> <span class="o">+</span> <span class="mi">1</span>
+    <span class="n">A1</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">elemsF</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">])</span> <span class="o">+</span> <span class="mi">1</span>
+    <span class="n">I1</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="n">elemsF</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">])</span> <span class="o">+</span> <span class="mi">1</span>
+    <span class="n">A2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">elemsF</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">])</span> <span class="o">+</span> <span class="mi">1</span>
+    <span class="n">I2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="n">elemsF</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">])</span> <span class="o">+</span> <span class="mi">1</span>
+    <span class="n">A3</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">elemsF</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">])</span> <span class="o">+</span> <span class="mi">1</span>
+    <span class="n">I3</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="n">elemsF</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">])</span> <span class="o">+</span> <span class="mi">1</span>
+
+    <span class="c1"># Number of faces</span>
+    <span class="n">nFaces</span> <span class="o">=</span> <span class="n">elemsF</span><span class="o">.</span><span class="n">max</span><span class="p">()</span>
+
+    <span class="c1"># As consequence, dimensions of E must be increased</span>
+    <span class="c1"># 2 rows and 1 column</span>
+    <span class="n">E</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">nFaces</span><span class="o">+</span><span class="mi">2</span><span class="p">,</span> <span class="mi">9</span><span class="p">))</span>
+
+    <span class="n">E</span><span class="p">[</span><span class="n">A0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">I0</span>
+    <span class="n">E</span><span class="p">[</span><span class="n">A1</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="n">I1</span>
+    <span class="n">E</span><span class="p">[</span><span class="n">A2</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="n">I2</span>
+    <span class="n">E</span><span class="p">[</span><span class="n">A3</span><span class="p">,</span> <span class="mi">4</span><span class="p">]</span> <span class="o">=</span> <span class="n">I3</span>
+
+    <span class="c1"># If the same face is listed in the same row of &#39;elemsF&#39;</span>
+    <span class="c1"># more than, once it will simply be missed! Because of this we</span>
+    <span class="c1"># have to insert the following dummy variables in order to</span>
+    <span class="c1"># determine the boundary faces.</span>
+    <span class="n">tmp</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">A0</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span>
+    <span class="n">ind0</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">tmp</span><span class="p">)[</span><span class="kc">False</span><span class="p">]</span>
+    <span class="n">tmp</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">A1</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span>
+    <span class="n">ind1</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">tmp</span><span class="p">)[</span><span class="kc">False</span><span class="p">]</span>
+    <span class="n">tmp</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">A2</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span>
+    <span class="n">ind2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">tmp</span><span class="p">)[</span><span class="kc">False</span><span class="p">]</span>
+    <span class="n">tmp</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">A3</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span>
+    <span class="n">ind3</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">tmp</span><span class="p">)[</span><span class="kc">False</span><span class="p">]</span>
+
+    <span class="n">E</span><span class="p">[</span><span class="n">A0</span><span class="p">[</span><span class="n">ind0</span><span class="p">],</span> <span class="mi">5</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">E</span><span class="p">[</span><span class="n">A1</span><span class="p">[</span><span class="n">ind1</span><span class="p">],</span> <span class="mi">6</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">E</span><span class="p">[</span><span class="n">A2</span><span class="p">[</span><span class="n">ind2</span><span class="p">],</span> <span class="mi">7</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">E</span><span class="p">[</span><span class="n">A3</span><span class="p">[</span><span class="n">ind3</span><span class="p">],</span> <span class="mi">8</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+
+    <span class="c1"># Delete extra rows and column</span>
+    <span class="n">E</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="n">E</span><span class="p">,</span> <span class="p">(</span><span class="mi">0</span><span class="p">),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">E</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="n">E</span><span class="p">,</span> <span class="p">(</span><span class="mi">0</span><span class="p">),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="c1"># Final sorting</span>
+    <span class="n">E</span><span class="o">.</span><span class="n">sort</span><span class="p">()</span>
+    <span class="n">E</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">fliplr</span><span class="p">(</span><span class="n">E</span><span class="p">)</span>
+
+    <span class="c1">#  Get boundary nodes by first examining which columns in E</span>
+    <span class="c1"># have only one nonzero element, meaning that this face is</span>
+    <span class="c1"># related to only one single tetra, which means it is on the</span>
+    <span class="c1"># boundary of the domain. Since faces are defined by their nodes,</span>
+    <span class="c1"># we have the boundary nodes too.</span>
+    <span class="n">tmp</span> <span class="o">=</span> <span class="p">(</span><span class="n">E</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="n">ind</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">tmp</span><span class="p">)[</span><span class="kc">False</span><span class="p">]</span>
+
+    <span class="n">bfacesN</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="n">facesN</span><span class="p">[</span><span class="n">ind</span><span class="p">,</span> <span class="p">:]),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">bfacesN</span></div>
+
+
+<div class="viewcode-block" id="computeBoundaryDofs"><a class="viewcode-back" href="../../../petgem/efem/efem.html#petgem.efem.efem.computeBoundaryDofs">[docs]</a><span class="k">def</span> <span class="nf">computeBoundaryDofs</span><span class="p">(</span><span class="n">edgesN</span><span class="p">,</span> <span class="n">bfacesN</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39; Compute boundary dofs of a tetrahedral mesh.</span>
+
+<span class="sd">    :param ndarray edgesN: edges-nodes connectivity.</span>
+<span class="sd">    :param ndarray bfacesN: boundary-faces-nodes connectivity.</span>
+<span class="sd">    :return: boundary-edges connectivity.</span>
+<span class="sd">    :rtype: ndarray</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="c1"># Extracts sets of edges-nodes (add 1 to indexes - Matlab indexing)</span>
+    <span class="n">edges1</span> <span class="o">=</span> <span class="p">(</span><span class="n">bfacesN</span><span class="p">[[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="p">:]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">transpose</span><span class="p">()</span>
+    <span class="n">edges2</span> <span class="o">=</span> <span class="p">(</span><span class="n">bfacesN</span><span class="p">[[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span> <span class="p">:]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">transpose</span><span class="p">()</span>
+    <span class="n">edges3</span> <span class="o">=</span> <span class="p">(</span><span class="n">bfacesN</span><span class="p">[[</span><span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span> <span class="p">:]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">transpose</span><span class="p">()</span>
+
+    <span class="c1"># Number of boundary-faces</span>
+    <span class="n">dim</span> <span class="o">=</span> <span class="n">bfacesN</span><span class="o">.</span><span class="n">shape</span>
+    <span class="n">nBoundaryFaces</span> <span class="o">=</span> <span class="n">dim</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="c1"># Boudary faces as sets of their edges (vertices)</span>
+    <span class="n">vertices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">([</span><span class="n">nBoundaryFaces</span><span class="o">*</span><span class="mi">3</span><span class="p">,</span> <span class="mi">2</span><span class="p">])</span>
+    <span class="n">vertices</span><span class="p">[</span><span class="mi">0</span><span class="p">::</span><span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="n">edges1</span>
+    <span class="n">vertices</span><span class="p">[</span><span class="mi">1</span><span class="p">::</span><span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="n">edges2</span>
+    <span class="n">vertices</span><span class="p">[</span><span class="mi">2</span><span class="p">::</span><span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="n">edges3</span>
+
+    <span class="c1"># Repeated setts of nodes (joint edges) are eliminated</span>
+    <span class="p">[</span><span class="n">temp</span><span class="p">,</span> <span class="n">_</span><span class="p">]</span> <span class="o">=</span> <span class="n">deleteDuplicateRows</span><span class="p">(</span><span class="n">vertices</span><span class="p">)</span>
+
+    <span class="n">matrixs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">((</span><span class="n">edgesN</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">temp</span><span class="p">),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+    <span class="n">matrixs</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="n">tags</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">lexsort</span><span class="p">((</span><span class="n">matrixs</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">matrixs</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]))</span>
+    <span class="n">matrixs</span> <span class="o">=</span> <span class="n">matrixs</span><span class="p">[</span><span class="n">tags</span><span class="p">]</span>
+
+    <span class="n">ind0</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">matrixs</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">])</span> <span class="o">==</span> <span class="mi">0</span>
+    <span class="n">ind1</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">matrixs</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">])</span> <span class="o">==</span> <span class="mi">0</span>
+
+    <span class="c1"># Concatenate vectors (vertical stack)</span>
+    <span class="n">ind</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">((</span><span class="n">ind0</span><span class="p">,</span> <span class="n">ind1</span><span class="p">))</span>
+    <span class="n">ind</span> <span class="o">=</span> <span class="n">ind</span><span class="o">.</span><span class="n">transpose</span><span class="p">()</span>
+
+    <span class="c1"># Which ones were reps? k is a vector of indexes to matrix</span>
+    <span class="n">k</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">ind</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span><span class="o">.</span><span class="n">nonzero</span><span class="p">())</span>
+
+    <span class="c1"># tags(k) is an index vector to edgesN (matrix) and denotes those edges</span>
+    <span class="c1"># which are on boundary tags(k+1) is an index vector to matrix and</span>
+    <span class="c1"># matrix(tags(k+a)) is the same as bedges, but in different order.</span>
+    <span class="c1"># I could just return tags(k), but we want that the order is the same</span>
+    <span class="c1"># as in bEdgesN</span>
+    <span class="n">tags2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="n">tags</span><span class="p">[</span><span class="n">k</span><span class="o">+</span><span class="mi">1</span><span class="p">]))</span>
+
+    <span class="n">bEdges</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">tags</span><span class="p">[</span><span class="n">k</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="n">tags2</span><span class="p">]],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">bEdges</span></div>
+
+
+<div class="viewcode-block" id="defineEFEMConstants"><a class="viewcode-back" href="../../../petgem/efem/efem.html#petgem.efem.efem.defineEFEMConstants">[docs]</a><span class="k">def</span> <span class="nf">defineEFEMConstants</span><span class="p">():</span>
+    <span class="sd">&#39;&#39;&#39; Set constants for edge finite element computations, namely,</span>
+<span class="sd">    order linear edge finite elements (edgeOrder), order linear nodal finite</span>
+<span class="sd">    elements (nodalOrder) and number of dimensions (numDimensions).</span>
+
+<span class="sd">    :param: None.</span>
+<span class="sd">    :return: edgeOrder, nodalOrder and numDimensions.</span>
+<span class="sd">    :rtype: integer.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="c1"># Set order of linear edge finite elements</span>
+    <span class="n">edgeOrder</span> <span class="o">=</span> <span class="mi">6</span>
+    <span class="c1"># Set order of linear nodal finite lements</span>
+    <span class="n">nodalOrder</span> <span class="o">=</span> <span class="mi">4</span>
+    <span class="c1"># Set number of dimensions</span>
+    <span class="n">numDimensions</span> <span class="o">=</span> <span class="mi">3</span>
+
+    <span class="k">return</span> <span class="n">edgeOrder</span><span class="p">,</span> <span class="n">nodalOrder</span><span class="p">,</span> <span class="n">numDimensions</span></div>
+
+
+<div class="viewcode-block" id="nedelecBasisIterative"><a class="viewcode-back" href="../../../petgem/efem/efem.html#petgem.efem.efem.nedelecBasisIterative">[docs]</a><span class="k">def</span> <span class="nf">nedelecBasisIterative</span><span class="p">(</span><span class="n">eleNodes</span><span class="p">,</span> <span class="n">points</span><span class="p">,</span> <span class="n">eleVol</span><span class="p">,</span> <span class="n">lengthEdges</span><span class="p">,</span> <span class="n">edgeOrder</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39; Compute the basis Nedelec functions in an iterative way for a</span>
+<span class="sd">    set of points in a given element.</span>
+
+<span class="sd">    :param ndarray eleNodes: nodal spatial coordinates of the element</span>
+<span class="sd">    :param ndarray points: spatial coordinates of the evaluation points</span>
+<span class="sd">    :param float eleVol: element&#39;s volume</span>
+<span class="sd">    :param ndarray lengthEdges: element&#39;s edges defined by their length</span>
+<span class="sd">    :param int edgeOrder: order of tetrahedral edge element</span>
+<span class="sd">    :return: values of Nedelec functions.</span>
+<span class="sd">    :rtype: ndarray.</span>
+
+<span class="sd">    .. note: References:\n</span>
+<span class="sd">       Jin, Jian-Ming. The finite element method in electromagnetics.</span>
+<span class="sd">       John Wiley &amp; Sons, 2002.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="c1"># Coefficients computation. Running in a cycling way</span>
+    <span class="n">a</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">([</span><span class="mi">4</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+    <span class="n">b</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">([</span><span class="mi">4</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">([</span><span class="mi">4</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+    <span class="n">d</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">([</span><span class="mi">4</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+
+    <span class="n">tmp</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int</span><span class="p">)</span>
+    <span class="n">temp_ones</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">([</span><span class="mi">3</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">iCoeff</span> <span class="ow">in</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">4</span><span class="p">):</span>
+        <span class="n">a</span><span class="p">[</span><span class="n">iCoeff</span><span class="p">]</span> <span class="o">=</span> <span class="n">det</span><span class="p">([[</span><span class="n">eleNodes</span><span class="p">[</span><span class="n">tmp</span><span class="p">[</span><span class="n">iCoeff</span><span class="o">+</span><span class="mi">1</span><span class="p">],</span> <span class="mi">0</span><span class="p">],</span>
+                          <span class="n">eleNodes</span><span class="p">[</span><span class="n">tmp</span><span class="p">[</span><span class="n">iCoeff</span><span class="o">+</span><span class="mi">2</span><span class="p">],</span> <span class="mi">0</span><span class="p">],</span>
+                          <span class="n">eleNodes</span><span class="p">[</span><span class="n">tmp</span><span class="p">[</span><span class="n">iCoeff</span><span class="o">+</span><span class="mi">3</span><span class="p">],</span> <span class="mi">0</span><span class="p">]],</span>
+                         <span class="p">[</span><span class="n">eleNodes</span><span class="p">[</span><span class="n">tmp</span><span class="p">[</span><span class="n">iCoeff</span><span class="o">+</span><span class="mi">1</span><span class="p">],</span> <span class="mi">1</span><span class="p">],</span>
+                          <span class="n">eleNodes</span><span class="p">[</span><span class="n">tmp</span><span class="p">[</span><span class="n">iCoeff</span><span class="o">+</span><span class="mi">2</span><span class="p">],</span> <span class="mi">1</span><span class="p">],</span>
+                          <span class="n">eleNodes</span><span class="p">[</span><span class="n">tmp</span><span class="p">[</span><span class="n">iCoeff</span><span class="o">+</span><span class="mi">3</span><span class="p">],</span> <span class="mi">1</span><span class="p">]],</span>
+                         <span class="p">[</span><span class="n">eleNodes</span><span class="p">[</span><span class="n">tmp</span><span class="p">[</span><span class="n">iCoeff</span><span class="o">+</span><span class="mi">1</span><span class="p">],</span> <span class="mi">2</span><span class="p">],</span>
+                          <span class="n">eleNodes</span><span class="p">[</span><span class="n">tmp</span><span class="p">[</span><span class="n">iCoeff</span><span class="o">+</span><span class="mi">2</span><span class="p">],</span> <span class="mi">2</span><span class="p">],</span>
+                          <span class="n">eleNodes</span><span class="p">[</span><span class="n">tmp</span><span class="p">[</span><span class="n">iCoeff</span><span class="o">+</span><span class="mi">3</span><span class="p">],</span> <span class="mi">2</span><span class="p">]]])</span>
+        <span class="n">b</span><span class="p">[</span><span class="n">iCoeff</span><span class="p">]</span> <span class="o">=</span> <span class="n">det</span><span class="p">([</span><span class="n">temp_ones</span><span class="p">,</span>
+                         <span class="p">[</span><span class="n">eleNodes</span><span class="p">[</span><span class="n">tmp</span><span class="p">[</span><span class="n">iCoeff</span><span class="o">+</span><span class="mi">1</span><span class="p">],</span> <span class="mi">1</span><span class="p">],</span>
+                          <span class="n">eleNodes</span><span class="p">[</span><span class="n">tmp</span><span class="p">[</span><span class="n">iCoeff</span><span class="o">+</span><span class="mi">2</span><span class="p">],</span> <span class="mi">1</span><span class="p">],</span>
+                          <span class="n">eleNodes</span><span class="p">[</span><span class="n">tmp</span><span class="p">[</span><span class="n">iCoeff</span><span class="o">+</span><span class="mi">3</span><span class="p">],</span> <span class="mi">1</span><span class="p">]],</span>
+                         <span class="p">[</span><span class="n">eleNodes</span><span class="p">[</span><span class="n">tmp</span><span class="p">[</span><span class="n">iCoeff</span><span class="o">+</span><span class="mi">1</span><span class="p">],</span> <span class="mi">2</span><span class="p">],</span>
+                          <span class="n">eleNodes</span><span class="p">[</span><span class="n">tmp</span><span class="p">[</span><span class="n">iCoeff</span><span class="o">+</span><span class="mi">2</span><span class="p">],</span> <span class="mi">2</span><span class="p">],</span>
+                          <span class="n">eleNodes</span><span class="p">[</span><span class="n">tmp</span><span class="p">[</span><span class="n">iCoeff</span><span class="o">+</span><span class="mi">3</span><span class="p">],</span> <span class="mi">2</span><span class="p">]]])</span>
+        <span class="n">c</span><span class="p">[</span><span class="n">iCoeff</span><span class="p">]</span> <span class="o">=</span> <span class="n">det</span><span class="p">([</span><span class="n">temp_ones</span><span class="p">,</span>
+                         <span class="p">[</span><span class="n">eleNodes</span><span class="p">[</span><span class="n">tmp</span><span class="p">[</span><span class="n">iCoeff</span><span class="o">+</span><span class="mi">1</span><span class="p">],</span> <span class="mi">0</span><span class="p">],</span>
+                          <span class="n">eleNodes</span><span class="p">[</span><span class="n">tmp</span><span class="p">[</span><span class="n">iCoeff</span><span class="o">+</span><span class="mi">2</span><span class="p">],</span> <span class="mi">0</span><span class="p">],</span>
+                          <span class="n">eleNodes</span><span class="p">[</span><span class="n">tmp</span><span class="p">[</span><span class="n">iCoeff</span><span class="o">+</span><span class="mi">3</span><span class="p">],</span> <span class="mi">0</span><span class="p">]],</span>
+                         <span class="p">[</span><span class="n">eleNodes</span><span class="p">[</span><span class="n">tmp</span><span class="p">[</span><span class="n">iCoeff</span><span class="o">+</span><span class="mi">1</span><span class="p">],</span> <span class="mi">2</span><span class="p">],</span>
+                          <span class="n">eleNodes</span><span class="p">[</span><span class="n">tmp</span><span class="p">[</span><span class="n">iCoeff</span><span class="o">+</span><span class="mi">2</span><span class="p">],</span> <span class="mi">2</span><span class="p">],</span>
+                          <span class="n">eleNodes</span><span class="p">[</span><span class="n">tmp</span><span class="p">[</span><span class="n">iCoeff</span><span class="o">+</span><span class="mi">3</span><span class="p">],</span> <span class="mi">2</span><span class="p">]]])</span>
+        <span class="n">d</span><span class="p">[</span><span class="n">iCoeff</span><span class="p">]</span> <span class="o">=</span> <span class="n">det</span><span class="p">([</span><span class="n">temp_ones</span><span class="p">,</span>
+                         <span class="p">[</span><span class="n">eleNodes</span><span class="p">[</span><span class="n">tmp</span><span class="p">[</span><span class="n">iCoeff</span><span class="o">+</span><span class="mi">1</span><span class="p">],</span> <span class="mi">0</span><span class="p">],</span>
+                          <span class="n">eleNodes</span><span class="p">[</span><span class="n">tmp</span><span class="p">[</span><span class="n">iCoeff</span><span class="o">+</span><span class="mi">2</span><span class="p">],</span> <span class="mi">0</span><span class="p">],</span>
+                          <span class="n">eleNodes</span><span class="p">[</span><span class="n">tmp</span><span class="p">[</span><span class="n">iCoeff</span><span class="o">+</span><span class="mi">3</span><span class="p">],</span> <span class="mi">0</span><span class="p">]],</span>
+                         <span class="p">[</span><span class="n">eleNodes</span><span class="p">[</span><span class="n">tmp</span><span class="p">[</span><span class="n">iCoeff</span><span class="o">+</span><span class="mi">1</span><span class="p">],</span> <span class="mi">1</span><span class="p">],</span>
+                          <span class="n">eleNodes</span><span class="p">[</span><span class="n">tmp</span><span class="p">[</span><span class="n">iCoeff</span><span class="o">+</span><span class="mi">2</span><span class="p">],</span> <span class="mi">1</span><span class="p">],</span>
+                          <span class="n">eleNodes</span><span class="p">[</span><span class="n">tmp</span><span class="p">[</span><span class="n">iCoeff</span><span class="o">+</span><span class="mi">3</span><span class="p">],</span> <span class="mi">1</span><span class="p">]]])</span>
+
+    <span class="c1"># Add signs</span>
+    <span class="n">sign</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">(</span><span class="o">-</span><span class="mf">1.0</span><span class="p">)</span>
+    <span class="n">a</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">a</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">sign</span>
+    <span class="n">a</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="n">a</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="o">*</span> <span class="n">sign</span>
+    <span class="n">b</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">b</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">sign</span>
+    <span class="n">b</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="n">b</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">*</span> <span class="n">sign</span>
+    <span class="n">c</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">c</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">sign</span>
+    <span class="n">c</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="n">c</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="o">*</span> <span class="n">sign</span>
+    <span class="n">d</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">d</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">sign</span>
+    <span class="n">d</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="n">d</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">*</span> <span class="n">sign</span>
+
+    <span class="c1"># Number of points</span>
+    <span class="k">if</span> <span class="n">points</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">nPoints</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">nPoints</span> <span class="o">=</span> <span class="n">points</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="c1"># Nedelec basis for all points</span>
+    <span class="k">if</span> <span class="n">nPoints</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">AA</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span> <span class="o">/</span> <span class="p">((</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">(</span><span class="mf">6.0</span><span class="p">)</span><span class="o">*</span><span class="n">eleVol</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+        <span class="c1"># To reduce number of multiplications</span>
+        <span class="n">b1x</span> <span class="o">=</span> <span class="n">b</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">points</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">b2x</span> <span class="o">=</span> <span class="n">b</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">points</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">b3x</span> <span class="o">=</span> <span class="n">b</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">*</span><span class="n">points</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">b4x</span> <span class="o">=</span> <span class="n">b</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">*</span><span class="n">points</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">c1y</span> <span class="o">=</span> <span class="n">c</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">points</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">c2y</span> <span class="o">=</span> <span class="n">c</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">points</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">c3y</span> <span class="o">=</span> <span class="n">c</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">*</span><span class="n">points</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">c4y</span> <span class="o">=</span> <span class="n">c</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">*</span><span class="n">points</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">d1z</span> <span class="o">=</span> <span class="n">d</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">points</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+        <span class="n">d2z</span> <span class="o">=</span> <span class="n">d</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">points</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+        <span class="n">d3z</span> <span class="o">=</span> <span class="n">d</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">*</span><span class="n">points</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+        <span class="n">d4z</span> <span class="o">=</span> <span class="n">d</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">*</span><span class="n">points</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+        <span class="n">A1</span> <span class="o">=</span> <span class="n">a</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">b1x</span> <span class="o">+</span> <span class="n">c1y</span> <span class="o">+</span> <span class="n">d1z</span>
+        <span class="n">A2</span> <span class="o">=</span> <span class="n">a</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">b2x</span> <span class="o">+</span> <span class="n">c2y</span> <span class="o">+</span> <span class="n">d2z</span>
+        <span class="n">A3</span> <span class="o">=</span> <span class="n">a</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">+</span> <span class="n">b3x</span> <span class="o">+</span> <span class="n">c3y</span> <span class="o">+</span> <span class="n">d3z</span>
+        <span class="n">A4</span> <span class="o">=</span> <span class="n">a</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="o">+</span> <span class="n">b4x</span> <span class="o">+</span> <span class="n">c4y</span> <span class="o">+</span> <span class="n">d4z</span>
+        <span class="c1"># Basis 1</span>
+        <span class="n">b1</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">multiply</span><span class="p">([(</span><span class="n">b</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">A1</span><span class="p">)</span><span class="o">-</span><span class="p">(</span><span class="n">b</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">A2</span><span class="p">),</span>
+                          <span class="p">(</span><span class="n">c</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">A1</span><span class="p">)</span><span class="o">-</span><span class="p">(</span><span class="n">c</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">A2</span><span class="p">),</span>
+                          <span class="p">(</span><span class="n">d</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">A1</span><span class="p">)</span><span class="o">-</span><span class="p">(</span><span class="n">d</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">A2</span><span class="p">)],</span> <span class="n">lengthEdges</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="c1"># Basis 2</span>
+        <span class="n">b2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">multiply</span><span class="p">([</span><span class="n">b</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">*</span><span class="n">A1</span><span class="o">-</span><span class="n">b</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">A3</span><span class="p">,</span>
+                          <span class="n">c</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">*</span><span class="n">A1</span><span class="o">-</span><span class="n">c</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">A3</span><span class="p">,</span>
+                          <span class="n">d</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">*</span><span class="n">A1</span><span class="o">-</span><span class="n">d</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">A3</span><span class="p">],</span> <span class="n">lengthEdges</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+        <span class="c1"># Basis 3</span>
+        <span class="n">b3</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">multiply</span><span class="p">([</span><span class="n">b</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">*</span><span class="n">A1</span><span class="o">-</span><span class="n">b</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">A4</span><span class="p">,</span>
+                          <span class="n">c</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">*</span><span class="n">A1</span><span class="o">-</span><span class="n">c</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">A4</span><span class="p">,</span>
+                          <span class="n">d</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">*</span><span class="n">A1</span><span class="o">-</span><span class="n">d</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">A4</span><span class="p">],</span> <span class="n">lengthEdges</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+        <span class="c1"># Basis 4</span>
+        <span class="n">b4</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">multiply</span><span class="p">([</span><span class="n">b</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">*</span><span class="n">A2</span><span class="o">-</span><span class="n">b</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">A3</span><span class="p">,</span>
+                          <span class="n">c</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">*</span><span class="n">A2</span><span class="o">-</span><span class="n">c</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">A3</span><span class="p">,</span>
+                          <span class="n">d</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">*</span><span class="n">A2</span><span class="o">-</span><span class="n">d</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">A3</span><span class="p">],</span> <span class="n">lengthEdges</span><span class="p">[</span><span class="mi">3</span><span class="p">])</span>
+        <span class="c1"># Basis 5</span>
+        <span class="n">b5</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">multiply</span><span class="p">([</span><span class="n">b</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">A4</span><span class="o">-</span><span class="n">b</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">*</span><span class="n">A2</span><span class="p">,</span>
+                          <span class="n">c</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">A4</span><span class="o">-</span><span class="n">c</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">*</span><span class="n">A2</span><span class="p">,</span>
+                          <span class="n">d</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">A4</span><span class="o">-</span><span class="n">d</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">*</span><span class="n">A2</span><span class="p">],</span> <span class="n">lengthEdges</span><span class="p">[</span><span class="mi">4</span><span class="p">])</span>
+        <span class="c1"># Basis 6</span>
+        <span class="n">b6</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">multiply</span><span class="p">([</span><span class="n">b</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">*</span><span class="n">A3</span><span class="o">-</span><span class="n">b</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">*</span><span class="n">A4</span><span class="p">,</span>
+                          <span class="n">c</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">*</span><span class="n">A3</span><span class="o">-</span><span class="n">c</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">*</span><span class="n">A4</span><span class="p">,</span>
+                          <span class="n">d</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">*</span><span class="n">A3</span><span class="o">-</span><span class="n">d</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">*</span><span class="n">A4</span><span class="p">],</span> <span class="n">lengthEdges</span><span class="p">[</span><span class="mi">5</span><span class="p">])</span>
+
+        <span class="n">basis</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">((</span><span class="n">b1</span><span class="p">,</span> <span class="n">b2</span><span class="p">,</span> <span class="n">b3</span><span class="p">,</span> <span class="n">b4</span><span class="p">,</span> <span class="n">b5</span><span class="p">,</span> <span class="n">b6</span><span class="p">))</span> <span class="o">*</span> <span class="n">AA</span><span class="p">,</span>
+                         <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+    <span class="c1"># If not</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">basis</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">edgeOrder</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="n">nPoints</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+        <span class="n">AA</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span> <span class="o">/</span> <span class="p">((</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">(</span><span class="mf">6.0</span><span class="p">)</span><span class="o">*</span><span class="n">eleVol</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+        <span class="c1"># Compute basis for each point</span>
+        <span class="k">for</span> <span class="n">iP</span> <span class="ow">in</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">nPoints</span><span class="p">):</span>
+            <span class="c1"># To reduce number of multiplications</span>
+            <span class="n">b1x</span> <span class="o">=</span> <span class="n">b</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">points</span><span class="p">[</span><span class="n">iP</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+            <span class="n">b2x</span> <span class="o">=</span> <span class="n">b</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">points</span><span class="p">[</span><span class="n">iP</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+            <span class="n">b3x</span> <span class="o">=</span> <span class="n">b</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">*</span><span class="n">points</span><span class="p">[</span><span class="n">iP</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+            <span class="n">b4x</span> <span class="o">=</span> <span class="n">b</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">*</span><span class="n">points</span><span class="p">[</span><span class="n">iP</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+            <span class="n">c1y</span> <span class="o">=</span> <span class="n">c</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">points</span><span class="p">[</span><span class="n">iP</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+            <span class="n">c2y</span> <span class="o">=</span> <span class="n">c</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">points</span><span class="p">[</span><span class="n">iP</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+            <span class="n">c3y</span> <span class="o">=</span> <span class="n">c</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">*</span><span class="n">points</span><span class="p">[</span><span class="n">iP</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+            <span class="n">c4y</span> <span class="o">=</span> <span class="n">c</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">*</span><span class="n">points</span><span class="p">[</span><span class="n">iP</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+            <span class="n">d1z</span> <span class="o">=</span> <span class="n">d</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">points</span><span class="p">[</span><span class="n">iP</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span>
+            <span class="n">d2z</span> <span class="o">=</span> <span class="n">d</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">points</span><span class="p">[</span><span class="n">iP</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span>
+            <span class="n">d3z</span> <span class="o">=</span> <span class="n">d</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">*</span><span class="n">points</span><span class="p">[</span><span class="n">iP</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span>
+            <span class="n">d4z</span> <span class="o">=</span> <span class="n">d</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">*</span><span class="n">points</span><span class="p">[</span><span class="n">iP</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span>
+            <span class="n">A1</span> <span class="o">=</span> <span class="n">a</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">b1x</span> <span class="o">+</span> <span class="n">c1y</span> <span class="o">+</span> <span class="n">d1z</span>
+            <span class="n">A2</span> <span class="o">=</span> <span class="n">a</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">b2x</span> <span class="o">+</span> <span class="n">c2y</span> <span class="o">+</span> <span class="n">d2z</span>
+            <span class="n">A3</span> <span class="o">=</span> <span class="n">a</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">+</span> <span class="n">b3x</span> <span class="o">+</span> <span class="n">c3y</span> <span class="o">+</span> <span class="n">d3z</span>
+            <span class="n">A4</span> <span class="o">=</span> <span class="n">a</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="o">+</span> <span class="n">b4x</span> <span class="o">+</span> <span class="n">c4y</span> <span class="o">+</span> <span class="n">d4z</span>
+            <span class="c1"># Basis 1</span>
+            <span class="n">b1</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">multiply</span><span class="p">([(</span><span class="n">b</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">A1</span><span class="p">)</span><span class="o">-</span><span class="p">(</span><span class="n">b</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">A2</span><span class="p">),</span>
+                              <span class="p">(</span><span class="n">c</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">A1</span><span class="p">)</span><span class="o">-</span><span class="p">(</span><span class="n">c</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">A2</span><span class="p">),</span>
+                              <span class="p">(</span><span class="n">d</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">A1</span><span class="p">)</span><span class="o">-</span><span class="p">(</span><span class="n">d</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">A2</span><span class="p">)],</span> <span class="n">lengthEdges</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+            <span class="c1"># Basis 2</span>
+            <span class="n">b2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">multiply</span><span class="p">([</span><span class="n">b</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">*</span><span class="n">A1</span><span class="o">-</span><span class="n">b</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">A3</span><span class="p">,</span>
+                              <span class="n">c</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">*</span><span class="n">A1</span><span class="o">-</span><span class="n">c</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">A3</span><span class="p">,</span>
+                              <span class="n">d</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">*</span><span class="n">A1</span><span class="o">-</span><span class="n">d</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">A3</span><span class="p">],</span> <span class="n">lengthEdges</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+            <span class="c1"># Basis 3</span>
+            <span class="n">b3</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">multiply</span><span class="p">([</span><span class="n">b</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">*</span><span class="n">A1</span><span class="o">-</span><span class="n">b</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">A4</span><span class="p">,</span>
+                              <span class="n">c</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">*</span><span class="n">A1</span><span class="o">-</span><span class="n">c</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">A4</span><span class="p">,</span>
+                              <span class="n">d</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">*</span><span class="n">A1</span><span class="o">-</span><span class="n">d</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">A4</span><span class="p">],</span> <span class="n">lengthEdges</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+            <span class="c1"># Basis 4</span>
+            <span class="n">b4</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">multiply</span><span class="p">([</span><span class="n">b</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">*</span><span class="n">A2</span><span class="o">-</span><span class="n">b</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">A3</span><span class="p">,</span>
+                              <span class="n">c</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">*</span><span class="n">A2</span><span class="o">-</span><span class="n">c</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">A3</span><span class="p">,</span>
+                              <span class="n">d</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">*</span><span class="n">A2</span><span class="o">-</span><span class="n">d</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">A3</span><span class="p">],</span> <span class="n">lengthEdges</span><span class="p">[</span><span class="mi">3</span><span class="p">])</span>
+            <span class="c1"># Basis 5</span>
+            <span class="n">b5</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">multiply</span><span class="p">([</span><span class="n">b</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">A4</span><span class="o">-</span><span class="n">b</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">*</span><span class="n">A2</span><span class="p">,</span>
+                              <span class="n">c</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">A4</span><span class="o">-</span><span class="n">c</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">*</span><span class="n">A2</span><span class="p">,</span>
+                              <span class="n">d</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">A4</span><span class="o">-</span><span class="n">d</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">*</span><span class="n">A2</span><span class="p">],</span> <span class="n">lengthEdges</span><span class="p">[</span><span class="mi">4</span><span class="p">])</span>
+            <span class="c1"># Basis 6</span>
+            <span class="n">b6</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">multiply</span><span class="p">([</span><span class="n">b</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">*</span><span class="n">A3</span><span class="o">-</span><span class="n">b</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">*</span><span class="n">A4</span><span class="p">,</span>
+                              <span class="n">c</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">*</span><span class="n">A3</span><span class="o">-</span><span class="n">c</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">*</span><span class="n">A4</span><span class="p">,</span>
+                              <span class="n">d</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">*</span><span class="n">A3</span><span class="o">-</span><span class="n">d</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">*</span><span class="n">A4</span><span class="p">],</span> <span class="n">lengthEdges</span><span class="p">[</span><span class="mi">5</span><span class="p">])</span>
+
+            <span class="n">basis</span><span class="p">[:,</span> <span class="p">:,</span> <span class="n">iP</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">((</span><span class="n">b1</span><span class="p">,</span> <span class="n">b2</span><span class="p">,</span> <span class="n">b3</span><span class="p">,</span> <span class="n">b4</span><span class="p">,</span> <span class="n">b5</span><span class="p">,</span> <span class="n">b6</span><span class="p">))</span> <span class="o">*</span> <span class="n">AA</span>
+
+    <span class="k">return</span> <span class="n">basis</span></div>
+
+
+<div class="viewcode-block" id="unitary_test"><a class="viewcode-back" href="../../../petgem/efem/efem.html#petgem.efem.efem.unitary_test">[docs]</a><span class="k">def</span> <span class="nf">unitary_test</span><span class="p">():</span>
+    <span class="sd">&#39;&#39;&#39; Unitary test for efem.py script.</span>
+<span class="sd">    &#39;&#39;&#39;</span></div>
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>
+    <span class="c1"># Standard module import</span>
+    <span class="n">unitary_test</span><span class="p">()</span>
+<span class="k">else</span><span class="p">:</span>
+    <span class="c1"># Standard module import</span>
+    <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+    <span class="kn">from</span> <span class="nn">scipy.linalg</span> <span class="k">import</span> <span class="n">det</span>
+    <span class="c1"># PETGEM module import</span>
+    <span class="kn">from</span> <span class="nn">petgem.efem.vectorMatrixFunctions</span> <span class="k">import</span> <span class="n">deleteDuplicateRows</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">Home</a>|&nbsp;</li>
+        <li><a href="../../../WhatIs.html">What is PETGEM?</a>|&nbsp;</li>
+        <li><a href="../../../Features.html">Features</a>|&nbsp;</li>
+        <li><a href="../../../CSEMEdges.html">CSEM FM modelling</a>|&nbsp;</li>
+        <li><a href="../../../Installation.html">Installation</a>|&nbsp;</li>
+        <li><a href="../../../Tutorial.html">Tutorial</a>|&nbsp;</li>
+        <li><a href="../../../Manual.html">Manual</a>|&nbsp;</li>
+        <li><a href="../../../Publications.html">Publications</a>|&nbsp;</li>
+	      <li><a href="../../../Download.html">Download</a>|&nbsp;</li>
+        <li><a href="../../../Contact.html">Contact</a></li>
+
+          <li class="nav-item nav-item-1"><a href="../../index.html" >Module code</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2017, Octavio Castillo Reyes.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.6.
+    </div>
+  </body>
+</html>
