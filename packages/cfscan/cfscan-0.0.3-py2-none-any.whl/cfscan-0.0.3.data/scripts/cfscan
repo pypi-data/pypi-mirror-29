@@ -1,0 +1,56 @@
+#!python
+
+import sys
+import os
+import argparse
+from cfscan import CFScanner, PASS, FAIL
+
+
+class bcolors(set):
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
+
+
+def parse_args():
+    argparser = argparse.ArgumentParser(
+        prog=os.path.basename(sys.argv[0]),
+        description='cfscan open-source cloud foundry vulnerability scanner maintained by the good people of https://cloudhound.io'
+    )
+
+    argparser.add_argument(
+        'target',
+        help='target cloud foundry API endpoint to scan, ex: http://api.local.pcfdev.io',
+    )
+
+    argparser.add_argument(
+        '--skip-ssl-validation',
+        action='store_true',
+        help='skip ssl certificate verification, not recommended',
+        dest='skip_ssl_validation'
+    )
+
+    return argparser.parse_args()
+
+
+if __name__ == "__main__":
+
+    args = parse_args()
+    scanner = CFScanner(args.target, args.skip_ssl_validation)
+
+    print 'Generating report for %s\n' % scanner.target
+    for test, results in scanner.scan():
+        print '\t%s:' % test.desc
+
+        for status, msg in results:
+            status_str = '[%s%s%s]' % (bcolors.OKGREEN if status == PASS else bcolors.FAIL,
+                                       'PASS' if status == PASS else 'FAIL', bcolors.ENDC)
+            print '\t\t%s %s' % (status_str, msg)
+        sys.stdout.write('\n')
+
+    exit(0)
