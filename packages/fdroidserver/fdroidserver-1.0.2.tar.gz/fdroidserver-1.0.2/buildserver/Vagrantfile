@@ -1,0 +1,81 @@
+
+require 'yaml'
+require 'pathname'
+
+srvpath = Pathname.new(File.dirname(__FILE__)).realpath
+configfile = YAML.load_file(File.join(srvpath, "/Vagrantfile.yaml"))
+
+Vagrant.configure("2") do |config|
+
+  # these two caching methods conflict, so only use one at a time
+  if Vagrant.has_plugin?("vagrant-cachier") and not configfile.has_key? "aptcachedir"
+    config.cache.scope = :box
+    config.cache.auto_detect = false
+    config.cache.enable :apt
+    config.cache.enable :chef
+  end
+
+  config.vm.box = configfile['basebox']
+  config.vm.box_url = configfile['baseboxurl']
+
+  if not configfile.has_key? "vm_provider" or configfile["vm_provider"] == "virtualbox"
+    # default to VirtualBox if not set
+    config.vm.provider "virtualbox" do |v|
+      v.customize ["modifyvm", :id, "--memory", configfile['memory']]
+      v.customize ["modifyvm", :id, "--cpus", configfile['cpus']]
+      v.customize ["modifyvm", :id, "--hwvirtex", configfile['hwvirtex']]
+    end
+    synced_folder_type = 'virtualbox'
+  elsif configfile["vm_provider"] == "libvirt"
+    # use KVM/QEMU if this is running in KVM/QEMU
+    config.vm.provider :libvirt do |libvirt|
+      libvirt.driver = configfile["hwvirtex"] == "on" ? "kvm" : "qemu"
+      libvirt.host = "localhost"
+      libvirt.uri = "qemu:///system"
+      libvirt.cpus = configfile["cpus"]
+      libvirt.memory = configfile["memory"]
+    end
+    config.vm.synced_folder './', '/vagrant', type: '9p'
+    synced_folder_type = '9p'
+  else
+    abort("No supported VM Provider found, set vm_provider in Vagrantfile.yaml!")
+  end
+
+  config.vm.boot_timeout = configfile['boot_timeout']
+
+  if configfile.has_key? "aptproxy"
+    config.vm.provision :shell, path: "provision-apt-proxy",
+      args: [configfile["aptproxy"]]
+  end
+
+  # buildserver/ is shared to the VM's /vagrant by default so the old
+  # default does not need a custom mount
+  if configfile["cachedir"] != "buildserver/cache"
+    config.vm.synced_folder configfile["cachedir"], '/vagrant/cache',
+      create: true, type: synced_folder_type
+  end
+  # Make sure dir exists to mount to, since buildserver/ is
+  # automatically mounted as /vagrant in the guest VM. This is more
+  # necessary with 9p synced folders
+  Dir.mkdir('cache') unless File.exists?('cache')
+
+  # cache .deb packages on the host via a mount trick
+  if configfile.has_key? "aptcachedir"
+    config.vm.synced_folder configfile["aptcachedir"], "/var/cache/apt/archives",
+      owner: 'root', group: 'root', create: true
+  end
+
+  config.vm.provision "shell", path: "setup-env-vars",
+    args: ["/home/vagrant/android-sdk"]
+  config.vm.provision "shell", path: "provision-apt-get-install",
+    args: [configfile['debian_mirror']]
+  config.vm.provision "shell", path: "provision-android-sdk"
+  config.vm.provision "shell", path: "provision-android-ndk",
+    args: ["/home/vagrant/android-ndk"]
+  config.vm.provision "shell", path: "provision-pip",
+    args: ["compare-locales"]
+  config.vm.provision "shell", path: "provision-gradle"
+  config.vm.provision "file", source: "gradle",
+    destination: "/opt/gradle/bin/gradle"
+
+end

@@ -1,0 +1,108 @@
+#!/bin/bash
+#
+# this is the script run by the Jenkins and gitlab-ci continuous integration
+# build services.  It is a thorough set of tests that runs all the tests using
+# the various methods of installing/running fdroidserver.  It is separate from
+# ./tests/run-tests because its too heavy for manual use.
+
+if [ `dirname $0` != "." ]; then
+    echo "only run this script like ./`basename $0`"
+    exit 1
+fi
+
+set -e
+set -x
+
+if [ -z $WORKSPACE ]; then
+    WORKSPACE=`cd $(dirname $0)/.. && pwd`
+    echo "Setting Workspace to $WORKSPACE"
+fi
+
+if [ -z $ANDROID_HOME ]; then
+    if [ -e ~/.android/bashrc ]; then
+        . ~/.android/bashrc
+    else
+        echo "ANDROID_HOME must be set!"
+        exit 1
+    fi
+fi
+
+apksource=$1
+
+#------------------------------------------------------------------------------#
+# cache pypi downloads
+if [ -z $PIP_DOWNLOAD_CACHE ]; then
+    export PIP_DOWNLOAD_CACHE=$HOME/.pip_download_cache
+fi
+
+
+#------------------------------------------------------------------------------#
+# required Java 7 or later keytool/jarsigner for :file support
+
+export PATH=/usr/lib/jvm/java-8-openjdk-amd64/bin:$PATH
+
+
+#------------------------------------------------------------------------------#
+# run local tests, don't scan fdroidserver/ project for APKs
+
+cd $WORKSPACE/tests
+./run-tests $apksource
+
+#------------------------------------------------------------------------------#
+# find pyvenv, to support Ubuntu/trusty's python3.4-venv
+
+if which pyvenv; then
+    pyvenv=pyvenv
+elif which pyvenv-3.4; then
+    pyvenv=pyvenv-3.4
+else
+    echo "pyvenv required to run this test suite!"
+    exit 1
+fi
+
+
+#------------------------------------------------------------------------------#
+# make sure that translations do not cause stacktraces
+cd $WORKSPACE/locale
+for locale in *; do
+    if [ ! -d $locale ]; then
+        continue
+    fi
+    for cmd in `sed -n 's/.*("\(.*\)", *_.*/\1/p' $WORKSPACE/fdroid`; do
+        LANGUAGE=$locale $WORKSPACE/fdroid $cmd --help > /dev/null
+    done
+done
+
+
+#------------------------------------------------------------------------------#
+# test install using install direct from git repo
+cd $WORKSPACE
+rm -rf $WORKSPACE/env
+$pyvenv $WORKSPACE/env
+. $WORKSPACE/env/bin/activate
+# workaround https://github.com/pypa/setuptools/issues/937
+pip3 install --quiet setuptools==33.1.1 Babel
+pip3 install --quiet -e $WORKSPACE
+python3 setup.py compile_catalog install
+
+# make sure translation files were installed
+test -e $WORKSPACE/env/share/locale/de/LC_MESSAGES/fdroidserver.mo
+
+# run tests in new pip+pyvenv install
+fdroid=$WORKSPACE/env/bin/fdroid $WORKSPACE/tests/run-tests $apksource
+
+
+#------------------------------------------------------------------------------#
+# run pylint
+
+# only run it where it will work, for example, the pyvenvs above don't have pylint
+if which pylint3 && python3 -c "import pylint" 2> /dev/null; then
+    cd $WORKSPACE
+    pylint3 --rcfile=.pylint-rcfile --output-format=colorized --reports=n \
+            fdroid \
+            makebuildserver \
+            setup.py \
+            fdroidserver/*.py \
+            tests/*.py \
+            tests/*.TestCase
+fi

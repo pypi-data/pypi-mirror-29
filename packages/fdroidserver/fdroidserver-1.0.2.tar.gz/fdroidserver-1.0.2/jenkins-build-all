@@ -1,0 +1,97 @@
+#!/bin/bash
+#
+# this is the script run by the Jenkins server to run the build tests.  Be
+# sure to always run it in its dir, i.e. ./jenkins-build, otherwise it might
+# remove things that you don't want it to.
+#
+# runs here:
+# https://jenkins.debian.net/job/reproducible_fdroid_build_apps
+
+
+if [ `dirname $0` != "." ]; then
+    echo "only run this script like ./`basename $0`"
+    exit
+fi
+
+# jenkins.debian.net slaves do not export WORKSPACE
+if [ -z $WORKSPACE ]; then
+    export WORKSPACE=`pwd`
+fi
+
+set -e
+set -x
+
+# report info about virtualization
+(dmesg | grep -i -e hypervisor -e qemu -e kvm) || true
+(lspci | grep -i -e virtio -e virtualbox -e qemu -e kvm) || true
+lsmod
+if systemd-detect-virt -q ; then
+        echo "Virtualization is used:" `systemd-detect-virt`
+else
+        echo "No virtualization is used."
+fi
+sudo /bin/chmod -R a+rX /var/lib/libvirt/images
+echo 'maximum allowed number of open file descriptors: ' `ulimit -n`
+ls -ld /var/lib/libvirt/images
+ls -l /var/lib/libvirt/images || echo no access
+ls -lR ~/.vagrant.d/ || echo no access
+virsh --connect qemu:///system list --all || echo cannot virsh list
+cat /etc/issue
+
+/sbin/ifconfig || true
+hostname || true
+
+# point to the Vagrant/VirtualBox configs created by reproducible_setup_fdroid_build_environment.sh
+# these variables are actually set in fdroidserver/jenkins-build-makebuildserver
+export SETUP_WORKSPACE=$(dirname $WORKSPACE)/reproducible_setup_fdroid_build_environment
+export XDG_CONFIG_HOME=$SETUP_WORKSPACE
+export VBOX_USER_HOME=$SETUP_WORKSPACE/VirtualBox
+export VAGRANT_HOME=$SETUP_WORKSPACE/vagrant.d
+
+# make sure we have the right buildserver paths and its ready for use
+vagrant global-status \
+    | grep -F -e reproducible_setup_fdroid_build_environment -o -e fdroiddata/builder
+
+# the way we handle jenkins slaves doesn't copy the workspace to the slaves
+# so we need to "manually" clone the git repo here…
+cd $WORKSPACE
+
+# set up Android SDK to use the Debian packages in stretch
+export ANDROID_HOME=/usr/lib/android-sdk
+
+# now build the whole archive
+cd $WORKSPACE
+
+# this can be handled in the jenkins job, or here:
+if [ -e fdroiddata ]; then
+    cd fdroiddata
+    while ! git fetch origin --tags --prune; do sleep 10; done
+    git checkout master
+    git reset --hard origin/master
+    # keep all the cloned source repos
+    git clean -fdx --exclude build --exclude repo --exclude unsigned
+else
+    git clone https://gitlab.com/fdroid/fdroiddata.git fdroiddata
+    cd fdroiddata
+fi
+
+echo "build_server_always = True" > config.py
+# if the local mediawiki is available, then use it
+if nc -z -w1 localhost 32445; then
+    wikiflag="--wiki"
+    echo "wiki_protocol = 'http'" >> config.py
+    echo "wiki_server = 'localhost:32445'" >> config.py
+    echo "wiki_path = '/mediawiki/'" >> config.py
+    echo "wiki_user = 'fdroid'" >> config.py
+    echo "wiki_password = 'update.TestCase'" >> config.py
+else
+    sed -i '/^wiki_/d' config.py
+fi
+
+$WORKSPACE/fdroid build --verbose --latest --no-tarball --all $wikiflag
+
+vagrant global-status
+if [ -d builder ]; then
+    cd builder
+    vagrant status
+fi

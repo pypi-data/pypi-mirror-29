@@ -1,0 +1,151 @@
+#!/usr/bin/env python3
+
+# http://www.drdobbs.com/testing/unit-testing-with-python/240165163
+
+import glob
+import inspect
+import logging
+import optparse
+import os
+import random
+import shutil
+import sys
+import unittest
+import yaml
+import tempfile
+
+localmodule = os.path.realpath(
+    os.path.join(os.path.dirname(inspect.getfile(inspect.currentframe())), '..'))
+print('localmodule: ' + localmodule)
+if localmodule not in sys.path:
+    sys.path.insert(0, localmodule)
+
+import fdroidserver.common
+import fdroidserver.metadata
+
+
+class MetadataTest(unittest.TestCase):
+    '''fdroidserver/metadata.py'''
+
+    def setUp(self):
+        logging.basicConfig(level=logging.DEBUG)
+        self.basedir = os.path.join(localmodule, 'tests')
+        self.tmpdir = os.path.abspath(os.path.join(self.basedir, '..', '.testfiles'))
+        if not os.path.exists(self.tmpdir):
+            os.makedirs(self.tmpdir)
+        os.chdir(self.basedir)
+
+    def test_read_metadata(self):
+
+        def _build_yaml_representer(dumper, data):
+            '''Creates a YAML representation of a Build instance'''
+            return dumper.represent_dict(data)
+
+        self.maxDiff = None
+
+        # these need to be set to prevent code running on None, only
+        # 'accepted_formats' is actually used in metadata.py
+        config = dict()
+        config['sdk_path'] = '/opt/android-sdk'
+        config['ndk_paths'] = dict()
+        config['accepted_formats'] = ['json', 'txt', 'yml']
+        fdroidserver.common.config = config
+
+        apps = fdroidserver.metadata.read_metadata(xref=True)
+        for appid in ('org.smssecure.smssecure', 'org.adaway',
+                      'org.videolan.vlc', 'com.politedroid'):
+            savepath = os.path.join('metadata', 'dump', appid + '.yaml')
+            frommeta = dict(apps[appid])
+            self.assertTrue(appid in apps)
+            with open(savepath, 'r') as f:
+                frompickle = yaml.load(f)
+            self.assertEqual(frommeta, frompickle)
+            # comment above assert and uncomment below to update test
+            # files when new metadata fields are added
+            # with open(savepath, 'w') as f:
+            #     yaml.add_representer(fdroidserver.metadata.Build, _build_yaml_representer)
+            #     yaml.dump(frommeta, f, default_flow_style=False)
+
+    def test_rewrite_yaml_fakeotaupdate(self):
+        testdir = tempfile.mkdtemp(prefix=inspect.currentframe().f_code.co_name, dir=self.tmpdir)
+        fdroidserver.common.config = {'accepted_formats': ['txt', 'yml']}
+
+        # rewrite metadata
+        allapps = fdroidserver.metadata.read_metadata(xref=True)
+        for appid, app in allapps.items():
+            if appid == 'fake.ota.update':
+                fdroidserver.metadata.write_metadata(os.path.join(testdir, appid + '.yml'), app)
+
+        # assert rewrite result
+        with open(os.path.join(testdir, 'fake.ota.update.yml'), 'r', encoding='utf-8') as result:
+            with open('metadata-rewrite-yml/fake.ota.update.yml', 'r', encoding='utf-8') as orig:
+                self.maxDiff = None
+                self.assertEqual(result.read(), orig.read())
+
+    def test_rewrite_yaml_fdroidclient(self):
+        testdir = tempfile.mkdtemp(prefix=inspect.currentframe().f_code.co_name, dir=self.tmpdir)
+        fdroidserver.common.config = {'accepted_formats': ['txt', 'yml']}
+
+        # rewrite metadata
+        allapps = fdroidserver.metadata.read_metadata(xref=True)
+        for appid, app in allapps.items():
+            if appid == 'org.fdroid.fdroid':
+                fdroidserver.metadata.write_metadata(os.path.join(testdir, appid + '.yml'), app)
+
+        # assert rewrite result
+        with open(os.path.join(testdir, 'org.fdroid.fdroid.yml'), 'r', encoding='utf-8') as result:
+            with open('metadata-rewrite-yml/org.fdroid.fdroid.yml', 'r', encoding='utf-8') as orig:
+                self.maxDiff = None
+                self.assertEqual(result.read(), orig.read())
+
+    def test_rewrite_yaml_special_build_params(self):
+        testdir = tempfile.mkdtemp(prefix=inspect.currentframe().f_code.co_name, dir=self.tmpdir)
+        fdroidserver.common.config = {'accepted_formats': ['txt', 'yml']}
+
+        # rewrite metadata
+        allapps = fdroidserver.metadata.read_metadata(xref=True)
+        for appid, app in allapps.items():
+            if appid == 'app.with.special.build.params':
+                fdroidserver.metadata.write_metadata(os.path.join(testdir, appid + '.yml'), app)
+
+        # assert rewrite result
+        with open(os.path.join(testdir, 'app.with.special.build.params.yml'), 'r', encoding='utf-8') as result:
+            with open('metadata-rewrite-yml/app.with.special.build.params.yml', 'r', encoding='utf-8') as orig:
+                self.maxDiff = None
+                self.assertEqual(result.read(), orig.read())
+
+    def test_read_metadata_sort_by_time(self):
+        testdir = tempfile.mkdtemp(prefix=inspect.currentframe().f_code.co_name, dir=self.tmpdir)
+        metadatadir = os.path.join(testdir, 'metadata')
+        os.makedirs(metadatadir)
+        fdroidserver.common.config = {'accepted_formats': ['txt']}
+
+        randomlist = []
+        randomapps = glob.glob(os.path.join(self.basedir, 'metadata', '*.txt'))
+        random.shuffle(randomapps)
+        i = 1
+        for f in randomapps:
+            shutil.copy(f, metadatadir)
+            new = os.path.join(metadatadir, os.path.basename(f))
+            stat = os.stat(new)
+            os.utime(new, (stat.st_ctime, stat.st_mtime + i))
+            # prepend new item so newest is always first
+            randomlist = [os.path.basename(f)[:-4]] + randomlist
+            i += 1
+        os.chdir(testdir)
+        allapps = fdroidserver.metadata.read_metadata(xref=True, sort_by_time=True)
+        allappids = []
+        for appid, app in allapps.items():
+            allappids.append(appid)
+        self.assertEqual(randomlist, allappids)
+
+
+if __name__ == "__main__":
+    parser = optparse.OptionParser()
+    parser.add_option("-v", "--verbose", action="store_true", default=False,
+                      help="Spew out even more information than normal")
+    (fdroidserver.common.options, args) = parser.parse_args(['--verbose'])
+
+    newSuite = unittest.TestSuite()
+    newSuite.addTest(unittest.makeSuite(MetadataTest))
+    unittest.main(failfast=False)

@@ -1,0 +1,748 @@
+#!/usr/bin/env python3
+
+# http://www.drdobbs.com/testing/unit-testing-with-python/240165163
+
+import inspect
+import logging
+import optparse
+import os
+import re
+import shutil
+import sys
+import tempfile
+import unittest
+import textwrap
+import yaml
+from zipfile import ZipFile
+
+
+localmodule = os.path.realpath(
+    os.path.join(os.path.dirname(inspect.getfile(inspect.currentframe())), '..'))
+print('localmodule: ' + localmodule)
+if localmodule not in sys.path:
+    sys.path.insert(0, localmodule)
+
+import fdroidserver.index
+import fdroidserver.signindex
+import fdroidserver.common
+import fdroidserver.metadata
+from testcommon import TmpCwd
+from fdroidserver.exception import FDroidException
+
+
+class CommonTest(unittest.TestCase):
+    '''fdroidserver/common.py'''
+
+    def setUp(self):
+        logging.basicConfig(level=logging.DEBUG)
+        self.basedir = os.path.join(localmodule, 'tests')
+        self.tmpdir = os.path.abspath(os.path.join(self.basedir, '..', '.testfiles'))
+        if not os.path.exists(self.tmpdir):
+            os.makedirs(self.tmpdir)
+        os.chdir(self.basedir)
+
+    def test_assert_config_keystore(self):
+        with tempfile.TemporaryDirectory() as tmpdir, TmpCwd(tmpdir):
+            with self.assertRaises(FDroidException):
+                fdroidserver.common.assert_config_keystore({})
+
+        with tempfile.TemporaryDirectory() as tmpdir, TmpCwd(tmpdir):
+            c = {'repo_keyalias': 'localhost',
+                 'keystore': 'keystore.jks',
+                 'keystorepass': '12345',
+                 'keypass': '12345'}
+            with open('keystore.jks', 'w'):
+                pass
+            fdroidserver.common.assert_config_keystore(c)
+
+    def _set_build_tools(self):
+        build_tools = os.path.join(fdroidserver.common.config['sdk_path'], 'build-tools')
+        if os.path.exists(build_tools):
+            fdroidserver.common.config['build_tools'] = ''
+            for f in sorted(os.listdir(build_tools), reverse=True):
+                versioned = os.path.join(build_tools, f)
+                if os.path.isdir(versioned) \
+                        and os.path.isfile(os.path.join(versioned, 'aapt')):
+                    fdroidserver.common.config['build_tools'] = versioned
+                    break
+            return True
+        else:
+            print('no build-tools found: ' + build_tools)
+            return False
+
+    def _find_all(self):
+        tools = ['aapt', 'adb', 'zipalign']
+        if os.path.exists(os.path.join(os.getenv('ANDROID_HOME'), 'tools', 'android')):
+            tools.append('android')
+        for cmd in tools:
+            path = fdroidserver.common.find_sdk_tools_cmd(cmd)
+            if path is not None:
+                self.assertTrue(os.path.exists(path))
+                self.assertTrue(os.path.isfile(path))
+
+    def test_find_sdk_tools_cmd(self):
+        fdroidserver.common.config = dict()
+        # TODO add this once everything works without sdk_path set in config
+        # self._find_all()
+        sdk_path = os.getenv('ANDROID_HOME')
+        if os.path.exists(sdk_path):
+            fdroidserver.common.config['sdk_path'] = sdk_path
+            build_tools = os.path.join(sdk_path, 'build-tools')
+            if self._set_build_tools() or os.path.exists('/usr/bin/aapt'):
+                self._find_all()
+            else:
+                print('no build-tools found: ' + build_tools)
+
+    def test_find_java_root_path(self):
+        testdir = tempfile.mkdtemp(prefix=inspect.currentframe().f_code.co_name, dir=self.tmpdir)
+        os.chdir(testdir)
+
+        all_pathlists = [
+            ([  # Debian
+                '/usr/lib/jvm/java-1.5.0-gcj-5-amd64',
+                '/usr/lib/jvm/java-8-openjdk-amd64',
+                '/usr/lib/jvm/java-1.8.0-openjdk-amd64',
+            ], '/usr/lib/jvm/java-8-openjdk-amd64'),
+            ([  # OSX
+                '/Library/Java/JavaVirtualMachines/jdk1.8.0_131.jdk',
+                '/Library/Java/JavaVirtualMachines/jdk1.8.0_45.jdk',
+                '/System/Library/Java/JavaVirtualMachines/jdk1.7.0_45.jdk',
+            ], '/Library/Java/JavaVirtualMachines/jdk1.8.0_131.jdk'),
+        ]
+
+        for pathlist, choice in all_pathlists:
+            # strip leading / to make relative paths to test without root
+            pathlist = [p[1:] for p in pathlist]
+
+            # create test file used in common._add_java_paths_to_config()
+            for p in pathlist:
+                if p.startswith('/System') or p.startswith('/Library'):
+                    basedir = os.path.join(p, 'Contents', 'Home', 'bin')
+                else:
+                    basedir = os.path.join(p, 'bin')
+                os.makedirs(basedir)
+                open(os.path.join(basedir, 'javac'), 'w').close()
+
+            config = dict()
+            config['java_paths'] = dict()
+            fdroidserver.common._add_java_paths_to_config(pathlist, config)
+            self.assertEqual(config['java_paths']['8'], choice[1:])
+
+    def testIsApkDebuggable(self):
+        config = dict()
+        fdroidserver.common.fill_config_defaults(config)
+        fdroidserver.common.config = config
+        self._set_build_tools()
+        config['aapt'] = fdroidserver.common.find_sdk_tools_cmd('aapt')
+        # these are set debuggable
+        testfiles = []
+        testfiles.append(os.path.join(self.basedir, 'urzip.apk'))
+        testfiles.append(os.path.join(self.basedir, 'urzip-badsig.apk'))
+        testfiles.append(os.path.join(self.basedir, 'urzip-badcert.apk'))
+        for apkfile in testfiles:
+            debuggable = fdroidserver.common.is_apk_and_debuggable(apkfile)
+            self.assertTrue(debuggable,
+                            "debuggable APK state was not properly parsed!")
+        # these are set NOT debuggable
+        testfiles = []
+        testfiles.append(os.path.join(self.basedir, 'urzip-release.apk'))
+        testfiles.append(os.path.join(self.basedir, 'urzip-release-unsigned.apk'))
+        for apkfile in testfiles:
+            debuggable = fdroidserver.common.is_apk_and_debuggable(apkfile)
+            self.assertFalse(debuggable,
+                             "debuggable APK state was not properly parsed!")
+
+    def testPackageNameValidity(self):
+        for name in ["org.fdroid.fdroid",
+                     "org.f_droid.fdr0ID"]:
+            self.assertTrue(fdroidserver.common.is_valid_package_name(name),
+                            "{0} should be a valid package name".format(name))
+        for name in ["0rg.fdroid.fdroid",
+                     ".f_droid.fdr0ID",
+                     "org.fdroid/fdroid",
+                     "/org.fdroid.fdroid"]:
+            self.assertFalse(fdroidserver.common.is_valid_package_name(name),
+                             "{0} should not be a valid package name".format(name))
+
+    def test_prepare_sources(self):
+        testint = 99999999
+        teststr = 'FAKE_STR_FOR_TESTING'
+
+        testdir = tempfile.mkdtemp(prefix=inspect.currentframe().f_code.co_name, dir=self.tmpdir)
+        shutil.copytree(os.path.join(self.basedir, 'source-files'),
+                        os.path.join(testdir, 'source-files'))
+
+        fdroidclient_testdir = os.path.join(testdir, 'source-files', 'fdroid', 'fdroidclient')
+
+        config = dict()
+        config['sdk_path'] = os.getenv('ANDROID_HOME')
+        config['ndk_paths'] = {'r10d': os.getenv('ANDROID_NDK_HOME')}
+        config['build_tools'] = 'FAKE_BUILD_TOOLS_VERSION'
+        fdroidserver.common.config = config
+        app = fdroidserver.metadata.App()
+        app.id = 'org.fdroid.froid'
+        build = fdroidserver.metadata.Build()
+        build.commit = 'master'
+        build.forceversion = True
+        build.forcevercode = True
+        build.gradle = ['yes']
+        build.target = 'android-' + str(testint)
+        build.versionName = teststr
+        build.versionCode = testint
+
+        class FakeVcs():
+            # no need to change to the correct commit here
+            def gotorevision(self, rev, refresh=True):
+                pass
+
+            # no srclib info needed, but it could be added...
+            def getsrclib(self):
+                return None
+
+        fdroidserver.common.prepare_source(FakeVcs(), app, build,
+                                           fdroidclient_testdir, fdroidclient_testdir, fdroidclient_testdir)
+
+        with open(os.path.join(fdroidclient_testdir, 'build.gradle'), 'r') as f:
+            filedata = f.read()
+        self.assertIsNotNone(re.search("\s+compileSdkVersion %s\s+" % testint, filedata))
+
+        with open(os.path.join(fdroidclient_testdir, 'AndroidManifest.xml')) as f:
+            filedata = f.read()
+        self.assertIsNone(re.search('android:debuggable', filedata))
+        self.assertIsNotNone(re.search('android:versionName="%s"' % build.versionName, filedata))
+        self.assertIsNotNone(re.search('android:versionCode="%s"' % build.versionCode, filedata))
+
+    def test_prepare_sources_refresh(self):
+        packageName = 'org.fdroid.ci.test.app'
+        testdir = tempfile.mkdtemp(prefix=inspect.currentframe().f_code.co_name, dir=self.tmpdir)
+        print('testdir', testdir)
+        os.chdir(testdir)
+        os.mkdir('build')
+        os.mkdir('metadata')
+
+        # use a local copy if available to avoid hitting the network
+        tmprepo = os.path.join(self.basedir, 'tmp', 'importer')
+        if os.path.exists(tmprepo):
+            git_url = tmprepo
+        else:
+            git_url = 'https://gitlab.com/fdroid/ci-test-app.git'
+
+        metadata = dict()
+        metadata['Description'] = 'This is just a test app'
+        metadata['RepoType'] = 'git'
+        metadata['Repo'] = git_url
+        with open(os.path.join('metadata', packageName + '.yml'), 'w') as fp:
+            yaml.dump(metadata, fp)
+
+        gitrepo = os.path.join(testdir, 'build', packageName)
+        vcs0 = fdroidserver.common.getvcs('git', git_url, gitrepo)
+        vcs0.gotorevision('0.3', refresh=True)
+        vcs1 = fdroidserver.common.getvcs('git', git_url, gitrepo)
+        vcs1.gotorevision('0.3', refresh=False)
+
+    def test_fdroid_popen_stderr_redirect(self):
+        config = dict()
+        fdroidserver.common.fill_config_defaults(config)
+        fdroidserver.common.config = config
+
+        commands = ['sh', '-c', 'echo stdout message && echo stderr message 1>&2']
+
+        p = fdroidserver.common.FDroidPopen(commands)
+        self.assertEqual(p.output, 'stdout message\nstderr message\n')
+
+        p = fdroidserver.common.FDroidPopen(commands, stderr_to_stdout=False)
+        self.assertEqual(p.output, 'stdout message\n')
+
+    def test_signjar(self):
+        fdroidserver.common.config = None
+        config = fdroidserver.common.read_config(fdroidserver.common.options)
+        config['jarsigner'] = fdroidserver.common.find_sdk_tools_cmd('jarsigner')
+        fdroidserver.common.config = config
+        fdroidserver.signindex.config = config
+
+        sourcedir = os.path.join(self.basedir, 'signindex')
+        testsdir = tempfile.mkdtemp(prefix=inspect.currentframe().f_code.co_name, dir=self.tmpdir)
+        for f in ('testy.jar', 'guardianproject.jar',):
+            sourcefile = os.path.join(sourcedir, f)
+            testfile = os.path.join(testsdir, f)
+            shutil.copy(sourcefile, testsdir)
+            fdroidserver.signindex.sign_jar(testfile)
+            # these should be resigned, and therefore different
+            self.assertNotEqual(open(sourcefile, 'rb').read(), open(testfile, 'rb').read())
+
+    def test_verify_apk_signature(self):
+        fdroidserver.common.config = None
+        config = fdroidserver.common.read_config(fdroidserver.common.options)
+        config['jarsigner'] = fdroidserver.common.find_sdk_tools_cmd('jarsigner')
+        fdroidserver.common.config = config
+
+        self.assertTrue(fdroidserver.common.verify_apk_signature('bad-unicode-πÇÇ现代通用字-български-عربي1.apk'))
+        self.assertFalse(fdroidserver.common.verify_apk_signature('org.bitbucket.tickytacky.mirrormirror_1.apk'))
+        self.assertFalse(fdroidserver.common.verify_apk_signature('org.bitbucket.tickytacky.mirrormirror_2.apk'))
+        self.assertFalse(fdroidserver.common.verify_apk_signature('org.bitbucket.tickytacky.mirrormirror_3.apk'))
+        self.assertFalse(fdroidserver.common.verify_apk_signature('org.bitbucket.tickytacky.mirrormirror_4.apk'))
+        self.assertTrue(fdroidserver.common.verify_apk_signature('org.dyndns.fules.ck_20.apk'))
+        self.assertTrue(fdroidserver.common.verify_apk_signature('urzip.apk'))
+        self.assertFalse(fdroidserver.common.verify_apk_signature('urzip-badcert.apk'))
+        self.assertFalse(fdroidserver.common.verify_apk_signature('urzip-badsig.apk'))
+        self.assertTrue(fdroidserver.common.verify_apk_signature('urzip-release.apk'))
+        self.assertFalse(fdroidserver.common.verify_apk_signature('urzip-release-unsigned.apk'))
+
+    def test_verify_old_apk_signature(self):
+        fdroidserver.common.config = None
+        config = fdroidserver.common.read_config(fdroidserver.common.options)
+        config['jarsigner'] = fdroidserver.common.find_sdk_tools_cmd('jarsigner')
+        fdroidserver.common.config = config
+
+        self.assertTrue(fdroidserver.common.verify_old_apk_signature('bad-unicode-πÇÇ现代通用字-български-عربي1.apk'))
+        self.assertTrue(fdroidserver.common.verify_old_apk_signature('org.bitbucket.tickytacky.mirrormirror_1.apk'))
+        self.assertTrue(fdroidserver.common.verify_old_apk_signature('org.bitbucket.tickytacky.mirrormirror_2.apk'))
+        self.assertTrue(fdroidserver.common.verify_old_apk_signature('org.bitbucket.tickytacky.mirrormirror_3.apk'))
+        self.assertTrue(fdroidserver.common.verify_old_apk_signature('org.bitbucket.tickytacky.mirrormirror_4.apk'))
+        self.assertTrue(fdroidserver.common.verify_old_apk_signature('org.dyndns.fules.ck_20.apk'))
+        self.assertTrue(fdroidserver.common.verify_old_apk_signature('urzip.apk'))
+        self.assertFalse(fdroidserver.common.verify_old_apk_signature('urzip-badcert.apk'))
+        self.assertFalse(fdroidserver.common.verify_old_apk_signature('urzip-badsig.apk'))
+        self.assertTrue(fdroidserver.common.verify_old_apk_signature('urzip-release.apk'))
+        self.assertFalse(fdroidserver.common.verify_old_apk_signature('urzip-release-unsigned.apk'))
+
+    def test_verify_jar_signature_succeeds(self):
+        fdroidserver.common.config = None
+        config = fdroidserver.common.read_config(fdroidserver.common.options)
+        config['jarsigner'] = fdroidserver.common.find_sdk_tools_cmd('jarsigner')
+        fdroidserver.common.config = config
+        source_dir = os.path.join(self.basedir, 'signindex')
+        for f in ('testy.jar', 'guardianproject.jar'):
+            testfile = os.path.join(source_dir, f)
+            fdroidserver.common.verify_jar_signature(testfile)
+
+    def test_verify_jar_signature_fails(self):
+        fdroidserver.common.config = None
+        config = fdroidserver.common.read_config(fdroidserver.common.options)
+        config['jarsigner'] = fdroidserver.common.find_sdk_tools_cmd('jarsigner')
+        fdroidserver.common.config = config
+        source_dir = os.path.join(self.basedir, 'signindex')
+        testfile = os.path.join(source_dir, 'unsigned.jar')
+        with self.assertRaises(fdroidserver.index.VerificationException):
+            fdroidserver.common.verify_jar_signature(testfile)
+
+    def test_verify_apks(self):
+        fdroidserver.common.config = None
+        config = fdroidserver.common.read_config(fdroidserver.common.options)
+        config['jarsigner'] = fdroidserver.common.find_sdk_tools_cmd('jarsigner')
+        fdroidserver.common.config = config
+
+        sourceapk = os.path.join(self.basedir, 'urzip.apk')
+
+        testdir = tempfile.mkdtemp(prefix=inspect.currentframe().f_code.co_name, dir=self.tmpdir)
+        print('testdir', testdir)
+
+        copyapk = os.path.join(testdir, 'urzip-copy.apk')
+        shutil.copy(sourceapk, copyapk)
+        self.assertTrue(fdroidserver.common.verify_apk_signature(copyapk))
+        self.assertIsNone(fdroidserver.common.verify_apks(sourceapk, copyapk, self.tmpdir))
+
+        unsignedapk = os.path.join(testdir, 'urzip-unsigned.apk')
+        with ZipFile(sourceapk, 'r') as apk:
+            with ZipFile(unsignedapk, 'w') as testapk:
+                for info in apk.infolist():
+                    if not info.filename.startswith('META-INF/'):
+                        testapk.writestr(info, apk.read(info.filename))
+        self.assertIsNone(fdroidserver.common.verify_apks(sourceapk, unsignedapk, self.tmpdir))
+
+        twosigapk = os.path.join(testdir, 'urzip-twosig.apk')
+        otherapk = ZipFile(os.path.join(self.basedir, 'urzip-release.apk'), 'r')
+        with ZipFile(sourceapk, 'r') as apk:
+            with ZipFile(twosigapk, 'w') as testapk:
+                for info in apk.infolist():
+                    testapk.writestr(info, apk.read(info.filename))
+                    if info.filename.startswith('META-INF/'):
+                        testapk.writestr(info, otherapk.read(info.filename))
+        otherapk.close()
+        self.assertFalse(fdroidserver.common.verify_apk_signature(twosigapk))
+        self.assertIsNone(fdroidserver.common.verify_apks(sourceapk, twosigapk, self.tmpdir))
+
+    def test_write_to_config(self):
+        with tempfile.TemporaryDirectory() as tmpPath:
+            cfgPath = os.path.join(tmpPath, 'config.py')
+            with open(cfgPath, 'w', encoding='utf-8') as f:
+                f.write(textwrap.dedent("""\
+                    # abc
+                    # test = 'example value'
+                    default_me= '%%%'
+
+                    # comment
+                    do_not_touch = "good value"
+                    default_me="!!!"
+
+                    key="123"    # inline"""))
+
+            cfg = {'key': '111', 'default_me_orig': 'orig'}
+            fdroidserver.common.write_to_config(cfg, 'key', config_file=cfgPath)
+            fdroidserver.common.write_to_config(cfg, 'default_me', config_file=cfgPath)
+            fdroidserver.common.write_to_config(cfg, 'test', value='test value', config_file=cfgPath)
+            fdroidserver.common.write_to_config(cfg, 'new_key', value='new', config_file=cfgPath)
+
+            with open(cfgPath, 'r', encoding='utf-8') as f:
+                self.assertEqual(f.read(), textwrap.dedent("""\
+                    # abc
+                    test = 'test value'
+                    default_me = 'orig'
+
+                    # comment
+                    do_not_touch = "good value"
+
+                    key = "111"    # inline
+
+                    new_key = "new"
+                    """))
+
+    def test_write_to_config_when_empty(self):
+        with tempfile.TemporaryDirectory() as tmpPath:
+            cfgPath = os.path.join(tmpPath, 'config.py')
+            with open(cfgPath, 'w') as f:
+                pass
+            fdroidserver.common.write_to_config({}, 'key', 'val', cfgPath)
+            with open(cfgPath, 'r', encoding='utf-8') as f:
+                self.assertEqual(f.read(), textwrap.dedent("""\
+
+                key = "val"
+                """))
+
+    def test_apk_name_regex(self):
+        good = [
+            'urzipπÇÇπÇÇ现代汉语通用字българскиعربي1234ö_-123456.apk',
+            'urzipπÇÇπÇÇ现代汉语通用字българскиعربي1234ö_123456_abcdef0.apk',
+            'urzip_-123456.apk',
+            'a0_0.apk',
+            'Z0_0.apk',
+            'a0_0_abcdef0.apk',
+            'a_a_a_a_0_abcdef0.apk',
+            'a_____0.apk',
+            'a_____123456_abcdef0.apk',
+            'org.fdroid.fdroid_123456.apk',
+            # valid, but "_99999" is part of packageName rather than versionCode
+            'org.fdroid.fdroid_99999_123456.apk',
+            # should be valid, but I can't figure out the regex since \w includes digits
+            # 'πÇÇπÇÇ现代汉语通用字българскиعربي1234ö_0_123bafd.apk',
+        ]
+        for name in good:
+            m = fdroidserver.common.APK_NAME_REGEX.match(name)
+            self.assertIsNotNone(m)
+            self.assertIn(m.group(2), ('-123456', '0', '123456'))
+            self.assertIn(m.group(3), ('abcdef0', None))
+
+        bad = [
+            'urzipπÇÇπÇÇ现代汉语通用字българскиعربي1234ö_123456_abcdefg.apk',
+            'urzip-_-198274.apk',
+            'urzip-_0_123bafd.apk',
+            'no spaces allowed_123.apk',
+            '0_0.apk',
+            '0_0_abcdef0.apk',
+        ]
+        for name in bad:
+            self.assertIsNone(fdroidserver.common.APK_NAME_REGEX.match(name))
+
+    def test_standard_file_name_regex(self):
+        good = [
+            'urzipπÇÇπÇÇ现代汉语通用字българскиعربي1234ö_-123456.mp3',
+            'urzipπÇÇπÇÇ现代汉语通用字българскиعربي1234ö_123456.mov',
+            'Document_-123456.pdf',
+            'WTF_0.MOV',
+            'Z0_0.ebk',
+            'a_a_a_a_0.txt',
+            'org.fdroid.fdroid.privileged.ota_123456.zip',
+            'πÇÇπÇÇ现代汉语通用字българскиعربي1234ö_0.jpeg',
+            'a_____0.PNG',
+            # valid, but "_99999" is part of packageName rather than versionCode
+            'a_____99999_123456.zip',
+            'org.fdroid.fdroid_99999_123456.zip',
+        ]
+        for name in good:
+            m = fdroidserver.common.STANDARD_FILE_NAME_REGEX.match(name)
+            self.assertIsNotNone(m)
+            self.assertIn(m.group(2), ('-123456', '0', '123456'))
+
+        bad = [
+            'urzipπÇÇπÇÇ现代汉语通用字българскиعربي1234ö_abcdefg.JPEG',
+            'urzip-_-198274.zip',
+            'urzip-_123bafd.pdf',
+            'no spaces allowed_123.foobar',
+            'a_____0.',
+        ]
+        for name in bad:
+            self.assertIsNone(fdroidserver.common.STANDARD_FILE_NAME_REGEX.match(name))
+
+    def test_apk_signer_fingerprint(self):
+
+        # fingerprints fetched with: keytool -printcert -file ____.RSA
+        testapks = (('repo/obb.main.oldversion_1444412523.apk',
+                     '818e469465f96b704e27be2fee4c63ab9f83ddf30e7a34c7371a4728d83b0bc1'),
+                    ('repo/obb.main.twoversions_1101613.apk',
+                     '32a23624c201b949f085996ba5ed53d40f703aca4989476949cae891022e0ed6'),
+                    ('repo/obb.main.twoversions_1101617.apk',
+                     '32a23624c201b949f085996ba5ed53d40f703aca4989476949cae891022e0ed6'))
+
+        for apkfile, keytoolcertfingerprint in testapks:
+            self.assertEqual(keytoolcertfingerprint,
+                             fdroidserver.common.apk_signer_fingerprint(apkfile))
+
+    def test_apk_signer_fingerprint_short(self):
+
+        # fingerprints fetched with: keytool -printcert -file ____.RSA
+        testapks = (('repo/obb.main.oldversion_1444412523.apk', '818e469'),
+                    ('repo/obb.main.twoversions_1101613.apk', '32a2362'),
+                    ('repo/obb.main.twoversions_1101617.apk', '32a2362'))
+
+        for apkfile, keytoolcertfingerprint in testapks:
+            self.assertEqual(keytoolcertfingerprint,
+                             fdroidserver.common.apk_signer_fingerprint_short(apkfile))
+
+    def test_sign_apk(self):
+        fdroidserver.common.config = None
+        config = fdroidserver.common.read_config(fdroidserver.common.options)
+        config['jarsigner'] = fdroidserver.common.find_sdk_tools_cmd('jarsigner')
+        config['keyalias'] = 'sova'
+        config['keystorepass'] = 'r9aquRHYoI8+dYz6jKrLntQ5/NJNASFBacJh7Jv2BlI='
+        config['keypass'] = 'r9aquRHYoI8+dYz6jKrLntQ5/NJNASFBacJh7Jv2BlI='
+        config['keystore'] = os.path.join(self.basedir, 'keystore.jks')
+        fdroidserver.common.config = config
+        fdroidserver.signindex.config = config
+
+        testdir = tempfile.mkdtemp(prefix=inspect.currentframe().f_code.co_name, dir=self.tmpdir)
+        unsigned = os.path.join(testdir, 'urzip-release-unsigned.apk')
+        signed = os.path.join(testdir, 'urzip-release.apk')
+
+        self.assertFalse(fdroidserver.common.verify_apk_signature(unsigned))
+
+        shutil.copy(os.path.join(self.basedir, 'urzip-release-unsigned.apk'), testdir)
+        fdroidserver.common.sign_apk(unsigned, signed, config['keyalias'])
+        self.assertTrue(os.path.isfile(signed))
+        self.assertFalse(os.path.isfile(unsigned))
+        self.assertTrue(fdroidserver.common.verify_apk_signature(signed))
+
+        # now sign an APK with minSdkVersion >= 18
+        unsigned = os.path.join(testdir, 'duplicate.permisssions_9999999-unsigned.apk')
+        signed = os.path.join(testdir, 'duplicate.permisssions_9999999.apk')
+        shutil.copy(os.path.join(self.basedir, 'repo', 'duplicate.permisssions_9999999.apk'),
+                    os.path.join(unsigned))
+        fdroidserver.common.apk_strip_signatures(unsigned, strip_manifest=True)
+        fdroidserver.common.sign_apk(unsigned, signed, config['keyalias'])
+        self.assertTrue(os.path.isfile(signed))
+        self.assertFalse(os.path.isfile(unsigned))
+        self.assertTrue(fdroidserver.common.verify_apk_signature(signed))
+        self.assertEqual(18, fdroidserver.common.get_minSdkVersion_aapt(signed))
+
+    def test_get_api_id_aapt(self):
+
+        config = dict()
+        fdroidserver.common.fill_config_defaults(config)
+        fdroidserver.common.config = config
+        self._set_build_tools()
+        config['aapt'] = fdroidserver.common.find_sdk_tools_cmd('aapt')
+
+        testcases = [
+            ('repo/obb.main.twoversions_1101613.apk', 'obb.main.twoversions', '1101613', '0.1'),
+            ('OBBMainPatchCurrent.apk', 'obb.mainpatch.current', '1619', '0.1'),
+            ('OBBMainTwoVersions.apk', 'obb.main.twoversions', '1101613', '0.1'),
+            ('org.bitbucket.tickytacky.mirrormirror_1.apk', 'org.bitbucket.tickytacky.mirrormirror', '1', '1.0'),
+            ('org.bitbucket.tickytacky.mirrormirror_2.apk', 'org.bitbucket.tickytacky.mirrormirror', '2', '1.0.1'),
+            ('org.bitbucket.tickytacky.mirrormirror_3.apk', 'org.bitbucket.tickytacky.mirrormirror', '3', '1.0.2'),
+            ('org.bitbucket.tickytacky.mirrormirror_4.apk', 'org.bitbucket.tickytacky.mirrormirror', '4', '1.0.3'),
+            ('org.dyndns.fules.ck_20.apk', 'org.dyndns.fules.ck', '20', 'v1.6pre2'),
+            ('urzip.apk', 'info.guardianproject.urzip', '100', '0.1'),
+            ('urzip-badcert.apk', 'info.guardianproject.urzip', '100', '0.1'),
+            ('urzip-badsig.apk', 'info.guardianproject.urzip', '100', '0.1'),
+            ('urzip-release.apk', 'info.guardianproject.urzip', '100', '0.1'),
+            ('urzip-release-unsigned.apk', 'info.guardianproject.urzip', '100', '0.1'),
+            ('urzip-πÇÇπÇÇ现代汉语通用字-български-عربي1234.apk', 'info.guardianproject.urzip', '100', '0.1'),
+            ('repo/com.politedroid_3.apk', 'com.politedroid', '3', '1.2'),
+            ('repo/com.politedroid_4.apk', 'com.politedroid', '4', '1.3'),
+            ('repo/com.politedroid_5.apk', 'com.politedroid', '5', '1.4'),
+            ('repo/com.politedroid_6.apk', 'com.politedroid', '6', '1.5'),
+            ('repo/duplicate.permisssions_9999999.apk', 'duplicate.permisssions', '9999999', '0.3-7-gb817ac8'),
+            ('repo/info.zwanenburg.caffeinetile_4.apk', 'info.zwanenburg.caffeinetile', '4', '1.3'),
+            ('repo/obb.main.oldversion_1444412523.apk', 'obb.main.oldversion', '1444412523', '0.1'),
+            ('repo/obb.mainpatch.current_1619_another-release-key.apk', 'obb.mainpatch.current', '1619', '0.1'),
+            ('repo/obb.mainpatch.current_1619.apk', 'obb.mainpatch.current', '1619', '0.1'),
+            ('repo/obb.main.twoversions_1101613.apk', 'obb.main.twoversions', '1101613', '0.1'),
+            ('repo/obb.main.twoversions_1101615.apk', 'obb.main.twoversions', '1101615', '0.1'),
+            ('repo/obb.main.twoversions_1101617.apk', 'obb.main.twoversions', '1101617', '0.1'),
+            ('repo/urzip-; Рахма́нинов, [rɐxˈmanʲɪnəf] سيرجي_رخمانينوف 谢尔盖·.apk', 'info.guardianproject.urzip', '100', '0.1'),
+        ]
+        for apkfilename, appid, versionCode, versionName in testcases:
+            a, vc, vn = fdroidserver.common.get_apk_id_aapt(apkfilename)
+            self.assertEqual(appid, a)
+            self.assertEqual(versionCode, vc)
+            self.assertEqual(versionName, vn)
+
+        with self.assertRaises(FDroidException):
+            fdroidserver.common.get_apk_id_aapt('nope')
+
+    def test_get_minSdkVersion_aapt(self):
+
+        config = dict()
+        fdroidserver.common.fill_config_defaults(config)
+        fdroidserver.common.config = config
+        self._set_build_tools()
+        config['aapt'] = fdroidserver.common.find_sdk_tools_cmd('aapt')
+
+        minSdkVersion = fdroidserver.common.get_minSdkVersion_aapt('bad-unicode-πÇÇ现代通用字-български-عربي1.apk')
+        self.assertEqual(4, minSdkVersion)
+        minSdkVersion = fdroidserver.common.get_minSdkVersion_aapt('org.bitbucket.tickytacky.mirrormirror_1.apk')
+        self.assertEqual(14, minSdkVersion)
+        minSdkVersion = fdroidserver.common.get_minSdkVersion_aapt('org.bitbucket.tickytacky.mirrormirror_2.apk')
+        self.assertEqual(14, minSdkVersion)
+        minSdkVersion = fdroidserver.common.get_minSdkVersion_aapt('org.bitbucket.tickytacky.mirrormirror_3.apk')
+        self.assertEqual(14, minSdkVersion)
+        minSdkVersion = fdroidserver.common.get_minSdkVersion_aapt('org.bitbucket.tickytacky.mirrormirror_4.apk')
+        self.assertEqual(14, minSdkVersion)
+        minSdkVersion = fdroidserver.common.get_minSdkVersion_aapt('org.dyndns.fules.ck_20.apk')
+        self.assertEqual(7, minSdkVersion)
+        minSdkVersion = fdroidserver.common.get_minSdkVersion_aapt('urzip.apk')
+        self.assertEqual(4, minSdkVersion)
+        minSdkVersion = fdroidserver.common.get_minSdkVersion_aapt('urzip-badcert.apk')
+        self.assertEqual(4, minSdkVersion)
+        minSdkVersion = fdroidserver.common.get_minSdkVersion_aapt('urzip-badsig.apk')
+        self.assertEqual(4, minSdkVersion)
+        minSdkVersion = fdroidserver.common.get_minSdkVersion_aapt('urzip-release.apk')
+        self.assertEqual(4, minSdkVersion)
+        minSdkVersion = fdroidserver.common.get_minSdkVersion_aapt('urzip-release-unsigned.apk')
+        self.assertEqual(4, minSdkVersion)
+        minSdkVersion = fdroidserver.common.get_minSdkVersion_aapt('repo/com.politedroid_3.apk')
+        self.assertEqual(3, minSdkVersion)
+        minSdkVersion = fdroidserver.common.get_minSdkVersion_aapt('repo/com.politedroid_4.apk')
+        self.assertEqual(3, minSdkVersion)
+        minSdkVersion = fdroidserver.common.get_minSdkVersion_aapt('repo/com.politedroid_5.apk')
+        self.assertEqual(3, minSdkVersion)
+        minSdkVersion = fdroidserver.common.get_minSdkVersion_aapt('repo/com.politedroid_6.apk')
+        self.assertEqual(14, minSdkVersion)
+        minSdkVersion = fdroidserver.common.get_minSdkVersion_aapt('repo/obb.main.oldversion_1444412523.apk')
+        self.assertEqual(4, minSdkVersion)
+        minSdkVersion = fdroidserver.common.get_minSdkVersion_aapt('repo/obb.mainpatch.current_1619_another-release-key.apk')
+        self.assertEqual(4, minSdkVersion)
+        minSdkVersion = fdroidserver.common.get_minSdkVersion_aapt('repo/obb.mainpatch.current_1619.apk')
+        self.assertEqual(4, minSdkVersion)
+        minSdkVersion = fdroidserver.common.get_minSdkVersion_aapt('repo/obb.main.twoversions_1101613.apk')
+        self.assertEqual(4, minSdkVersion)
+        minSdkVersion = fdroidserver.common.get_minSdkVersion_aapt('repo/obb.main.twoversions_1101615.apk')
+        self.assertEqual(4, minSdkVersion)
+        minSdkVersion = fdroidserver.common.get_minSdkVersion_aapt('repo/obb.main.twoversions_1101617.apk')
+        self.assertEqual(4, minSdkVersion)
+        minSdkVersion = fdroidserver.common.get_minSdkVersion_aapt('repo/urzip-; Рахма́нинов, [rɐxˈmanʲɪnəf] سيرجي_رخمانينوف 谢尔盖·.apk')
+
+        with self.assertRaises(FDroidException):
+            fdroidserver.common.get_minSdkVersion_aapt('nope')
+
+    def test_apk_release_name(self):
+        appid, vercode, sigfp = fdroidserver.common.apk_parse_release_filename('com.serwylo.lexica_905.apk')
+        self.assertEqual(appid, 'com.serwylo.lexica')
+        self.assertEqual(vercode, '905')
+        self.assertEqual(sigfp, None)
+
+        appid, vercode, sigfp = fdroidserver.common.apk_parse_release_filename('com.serwylo.lexica_905_c82e0f6.apk')
+        self.assertEqual(appid, 'com.serwylo.lexica')
+        self.assertEqual(vercode, '905')
+        self.assertEqual(sigfp, 'c82e0f6')
+
+        appid, vercode, sigfp = fdroidserver.common.apk_parse_release_filename('beverly_hills-90210.apk')
+        self.assertEqual(appid, None)
+        self.assertEqual(vercode, None)
+        self.assertEqual(sigfp, None)
+
+    def test_metadata_find_developer_signature(self):
+        sig = fdroidserver.common.metadata_find_developer_signature('org.smssecure.smssecure')
+        self.assertEqual('b30bb971af0d134866e158ec748fcd553df97c150f58b0a963190bbafbeb0868', sig)
+
+    def test_parse_androidmanifests(self):
+        source_files_dir = os.path.join(os.path.dirname(__file__), 'source-files')
+        app = fdroidserver.metadata.App()
+        app.id = 'org.fdroid.fdroid'
+        paths = [
+            os.path.join(source_files_dir, 'fdroid', 'fdroidclient', 'AndroidManifest.xml'),
+            os.path.join(source_files_dir, 'fdroid', 'fdroidclient', 'build.gradle'),
+        ]
+        for path in paths:
+            self.assertTrue(os.path.isfile(path))
+        self.assertEqual(('0.94-test', '940', 'org.fdroid.fdroid'),
+                         fdroidserver.common.parse_androidmanifests(paths, app))
+
+    def test_parse_androidmanifests_with_flavor(self):
+        source_files_dir = os.path.join(os.path.dirname(__file__), 'source-files')
+
+        app = fdroidserver.metadata.App()
+        build = fdroidserver.metadata.Build()
+        build.gradle = ['devVersion']
+        app.builds = [build]
+        app.id = 'org.fdroid.fdroid.dev'
+        paths = [
+            os.path.join(source_files_dir, 'fdroid', 'fdroidclient', 'AndroidManifest.xml'),
+            os.path.join(source_files_dir, 'fdroid', 'fdroidclient', 'build.gradle'),
+        ]
+        for path in paths:
+            self.assertTrue(os.path.isfile(path))
+        self.assertEqual(('0.95-dev', '949', 'org.fdroid.fdroid.dev'),
+                         fdroidserver.common.parse_androidmanifests(paths, app))
+
+        app = fdroidserver.metadata.App()
+        build = fdroidserver.metadata.Build()
+        build.gradle = ['free']
+        app.builds = [build]
+        app.id = 'eu.siacs.conversations'
+        paths = [
+            os.path.join(source_files_dir, 'eu.siacs.conversations', 'build.gradle'),
+        ]
+        for path in paths:
+            self.assertTrue(os.path.isfile(path))
+        self.assertEqual(('1.23.1', '245', 'eu.siacs.conversations'),
+                         fdroidserver.common.parse_androidmanifests(paths, app))
+
+        app = fdroidserver.metadata.App()
+        build = fdroidserver.metadata.Build()
+        build.gradle = ['generic']
+        app.builds = [build]
+        app.id = 'com.nextcloud.client'
+        paths = [
+            os.path.join(source_files_dir, 'com.nextcloud.client', 'build.gradle'),
+        ]
+        for path in paths:
+            self.assertTrue(os.path.isfile(path))
+        self.assertEqual(('2.0.0', '20000099', 'com.nextcloud.client'),
+                         fdroidserver.common.parse_androidmanifests(paths, app))
+
+        app = fdroidserver.metadata.App()
+        build = fdroidserver.metadata.Build()
+        build.gradle = ['versionDev']
+        app.builds = [build]
+        app.id = 'com.nextcloud.android.beta'
+        paths = [
+            os.path.join(source_files_dir, 'com.nextcloud.client', 'build.gradle'),
+        ]
+        for path in paths:
+            self.assertTrue(os.path.isfile(path))
+        self.assertEqual(('20171223', '20171223', 'com.nextcloud.android.beta'),
+                         fdroidserver.common.parse_androidmanifests(paths, app))
+
+        app = fdroidserver.metadata.App()
+        build = fdroidserver.metadata.Build()
+        build.gradle = ['standard']
+        app.builds = [build]
+        app.id = 'at.bitfire.davdroid'
+        paths = [
+            os.path.join(source_files_dir, 'at.bitfire.davdroid', 'build.gradle'),
+        ]
+        for path in paths:
+            self.assertTrue(os.path.isfile(path))
+        self.assertEqual(('1.9.8.1-ose', '197', 'at.bitfire.davdroid'),
+                         fdroidserver.common.parse_androidmanifests(paths, app))
+
+
+if __name__ == "__main__":
+    parser = optparse.OptionParser()
+    parser.add_option("-v", "--verbose", action="store_true", default=False,
+                      help="Spew out even more information than normal")
+    (fdroidserver.common.options, args) = parser.parse_args(['--verbose'])
+
+    newSuite = unittest.TestSuite()
+    newSuite.addTest(unittest.makeSuite(CommonTest))
+    unittest.main(failfast=False)

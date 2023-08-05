@@ -1,0 +1,227 @@
+#!/usr/bin/env python3
+
+import inspect
+import logging
+import optparse
+import os
+import sys
+import unittest
+import zipfile
+from unittest.mock import patch
+import requests
+import tempfile
+import json
+import shutil
+
+localmodule = os.path.realpath(
+    os.path.join(os.path.dirname(inspect.getfile(inspect.currentframe())), '..'))
+print('localmodule: ' + localmodule)
+if localmodule not in sys.path:
+    sys.path.insert(0, localmodule)
+
+import fdroidserver.common
+import fdroidserver.index
+import fdroidserver.signindex
+import fdroidserver.publish
+from testcommon import TmpCwd
+
+
+GP_FINGERPRINT = 'B7C2EEFD8DAC7806AF67DFCD92EB18126BC08312A7F2D6F3862E46013C7A6135'
+
+
+class IndexTest(unittest.TestCase):
+
+    def setUp(self):
+        logging.basicConfig(level=logging.DEBUG)
+        self.basedir = os.path.join(localmodule, 'tests')
+        self.tmpdir = os.path.abspath(os.path.join(self.basedir, '..', '.testfiles'))
+        if not os.path.exists(self.tmpdir):
+            os.makedirs(self.tmpdir)
+        os.chdir(self.basedir)
+
+        fdroidserver.common.config = None
+        config = fdroidserver.common.read_config(fdroidserver.common.options)
+        config['jarsigner'] = fdroidserver.common.find_sdk_tools_cmd('jarsigner')
+        fdroidserver.common.config = config
+        fdroidserver.signindex.config = config
+
+    def test_get_public_key_from_jar_succeeds(self):
+        source_dir = os.path.join(self.basedir, 'signindex')
+        for f in ('testy.jar', 'guardianproject.jar'):
+            testfile = os.path.join(source_dir, f)
+            jar = zipfile.ZipFile(testfile)
+            _, fingerprint = fdroidserver.index.get_public_key_from_jar(jar)
+            # comparing fingerprints should be sufficient
+            if f == 'testy.jar':
+                self.assertTrue(fingerprint ==
+                                '818E469465F96B704E27BE2FEE4C63AB' +
+                                '9F83DDF30E7A34C7371A4728D83B0BC1')
+            if f == 'guardianproject.jar':
+                self.assertTrue(fingerprint == GP_FINGERPRINT)
+
+    def test_get_public_key_from_jar_fails(self):
+        source_dir = os.path.join(self.basedir, 'signindex')
+        testfile = os.path.join(source_dir, 'unsigned.jar')
+        jar = zipfile.ZipFile(testfile)
+        with self.assertRaises(fdroidserver.index.VerificationException):
+            fdroidserver.index.get_public_key_from_jar(jar)
+
+    def test_download_repo_index_no_fingerprint(self):
+        with self.assertRaises(fdroidserver.index.VerificationException):
+            fdroidserver.index.download_repo_index("http://example.org")
+
+    def test_download_repo_index_no_jar(self):
+        with self.assertRaises(requests.exceptions.HTTPError):
+            fdroidserver.index.download_repo_index("http://example.org?fingerprint=nope")
+
+    @patch('requests.head')
+    def test_download_repo_index_same_etag(self, head):
+        url = 'http://example.org?fingerprint=test'
+        etag = '"4de5-54d840ce95cb9"'
+
+        head.return_value.headers = {'ETag': etag}
+        index, new_etag = fdroidserver.index.download_repo_index(url, etag=etag)
+
+        self.assertIsNone(index)
+        self.assertEqual(etag, new_etag)
+
+    @patch('requests.get')
+    @patch('requests.head')
+    def test_download_repo_index_new_etag(self, head, get):
+        url = 'http://example.org?fingerprint=' + GP_FINGERPRINT
+        etag = '"4de5-54d840ce95cb9"'
+
+        # fake HTTP answers
+        head.return_value.headers = {'ETag': 'new_etag'}
+        get.return_value.headers = {'ETag': 'new_etag'}
+        get.return_value.status_code = 200
+        testfile = os.path.join(os.path.dirname(__file__), 'signindex', 'guardianproject-v1.jar')
+        with open(testfile, 'rb') as file:
+            get.return_value.content = file.read()
+
+        index, new_etag = fdroidserver.index.download_repo_index(url, etag=etag)
+
+        # assert that the index was retrieved properly
+        self.assertEqual('Guardian Project Official Releases', index['repo']['name'])
+        self.assertEqual(GP_FINGERPRINT, index['repo']['fingerprint'])
+        self.assertTrue(len(index['repo']['pubkey']) > 500)
+        self.assertEqual(10, len(index['apps']))
+        self.assertEqual(10, len(index['packages']))
+        self.assertEqual('new_etag', new_etag)
+
+    def test_v1_sort_packages(self):
+
+        i = [{'packageName': 'org.smssecure.smssecure',
+              'apkName': 'org.smssecure.smssecure_134.apk',
+              'signer': 'b33a601a9da97c82e6eb121eb6b90adab561f396602ec4dc8b0019fb587e2af6',
+              'versionCode': 134},
+             {'packageName': 'org.smssecure.smssecure',
+              'apkName': 'org.smssecure.smssecure_134_b30bb97.apk',
+              'signer': 'b30bb971af0d134866e158ec748fcd553df97c150f58b0a963190bbafbeb0868',
+              'versionCode': 134},
+             {'packageName': 'b075b32b4ef1e8a869e00edb136bd48e34a0382b85ced8628f164d1199584e4e'},
+             {'packageName': '43af70d1aca437c2f9974c4634cc5abe45bdc4d5d71529ac4e553488d3bb3ff6'},
+             {'packageName': 'org.smssecure.smssecure',
+              'apkName': 'org.smssecure.smssecure_135_b30bb97.apk',
+              'signer': 'b30bb971af0d134866e158ec748fcd553df97c150f58b0a963190bbafbeb0868',
+              'versionCode': 135},
+             {'packageName': 'org.smssecure.smssecure',
+              'apkName': 'org.smssecure.smssecure_135.apk',
+              'signer': 'b33a601a9da97c82e6eb121eb6b90adab561f396602ec4dc8b0019fb587e2af6',
+              'versionCode': 135},
+             {'packageName': 'org.smssecure.smssecure',
+              'apkName': 'org.smssecure.smssecure_133.apk',
+              'signer': 'b33a601a9da97c82e6eb121eb6b90adab561f396602ec4dc8b0019fb587e2af6',
+              'versionCode': 133},
+             {'packageName': 'org.smssecure.smssecure',
+              'apkName': 'smssecure-weird-version.apk',
+              'signer': '99ff99ff99ff99ff99ff99ff99ff99ff99ff99ff99ff99ff99ff99ff99ff99ff',
+              'versionCode': 133},
+             {'packageName': 'org.smssecure.smssecure',
+              'apkName': 'smssecure-custom.apk',
+              'signer': '1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
+              'versionCode': 133},
+             {'packageName': 'org.smssecure.smssecure',
+              'apkName': 'smssecure-new-custom.apk',
+              'signer': '1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
+              'versionCode': 135}]
+
+        o = [{'packageName': '43af70d1aca437c2f9974c4634cc5abe45bdc4d5d71529ac4e553488d3bb3ff6'},
+             {'packageName': 'b075b32b4ef1e8a869e00edb136bd48e34a0382b85ced8628f164d1199584e4e'},
+             # app test data
+             # # packages with reproducible developer signature
+             {'packageName': 'org.smssecure.smssecure',
+              'apkName': 'org.smssecure.smssecure_135_b30bb97.apk',
+              'signer': 'b30bb971af0d134866e158ec748fcd553df97c150f58b0a963190bbafbeb0868',
+              'versionCode': 135},
+             {'packageName': 'org.smssecure.smssecure',
+              'apkName': 'org.smssecure.smssecure_134_b30bb97.apk',
+              'signer': 'b30bb971af0d134866e158ec748fcd553df97c150f58b0a963190bbafbeb0868',
+              'versionCode': 134},
+             # # packages build and signed by fdroid
+             {'packageName': 'org.smssecure.smssecure',
+              'apkName': 'org.smssecure.smssecure_135.apk',
+              'signer': 'b33a601a9da97c82e6eb121eb6b90adab561f396602ec4dc8b0019fb587e2af6',
+              'versionCode': 135},
+             {'packageName': 'org.smssecure.smssecure',
+              'apkName': 'org.smssecure.smssecure_134.apk',
+              'signer': 'b33a601a9da97c82e6eb121eb6b90adab561f396602ec4dc8b0019fb587e2af6',
+              'versionCode': 134},
+             {'packageName': 'org.smssecure.smssecure',
+              'apkName': 'org.smssecure.smssecure_133.apk',
+              'signer': 'b33a601a9da97c82e6eb121eb6b90adab561f396602ec4dc8b0019fb587e2af6',
+              'versionCode': 133},
+             # # packages signed with unkown keys
+             {'packageName': 'org.smssecure.smssecure',
+              'apkName': 'smssecure-new-custom.apk',
+              'signer': '1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
+              'versionCode': 135},
+             {'packageName': 'org.smssecure.smssecure',
+              'apkName': 'smssecure-custom.apk',
+              'signer': '1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
+              'versionCode': 133},
+             {'packageName': 'org.smssecure.smssecure',
+              'apkName': 'smssecure-weird-version.apk',
+              'signer': '99ff99ff99ff99ff99ff99ff99ff99ff99ff99ff99ff99ff99ff99ff99ff99ff',
+              'versionCode': 133}]
+
+        fdroidserver.common.config = {}
+        fdroidserver.common.fill_config_defaults(fdroidserver.common.config)
+        fdroidserver.publish.config = fdroidserver.common.config
+        fdroidserver.publish.config['keystorepass'] = '123456'
+        fdroidserver.publish.config['keypass'] = '123456'
+        fdroidserver.publish.config['keystore'] = os.path.join(os.getcwd(),
+                                                               'dummy-keystore.jks')
+        fdroidserver.publish.config['repo_keyalias'] = 'repokey'
+
+        testsmetadir = os.path.join(os.getcwd(), 'metadata')
+        with tempfile.TemporaryDirectory() as tmpdir, TmpCwd(tmpdir):
+            shutil.copytree(testsmetadir, 'metadata')
+            sigkeyfps = {
+                "org.smssecure.smssecure": {
+                    "signer": "b33a601a9da97c82e6eb121eb6b90adab561f396602ec4dc8b0019fb587e2af6"
+                }
+            }
+            os.makedirs('stats')
+            jarfile = 'stats/publishsigkeys.jar'
+            with zipfile.ZipFile(jarfile, 'w', zipfile.ZIP_DEFLATED) as jar:
+                jar.writestr('publishsigkeys.json', json.dumps(sigkeyfps))
+            fdroidserver.publish.sign_sig_key_fingerprint_list(jarfile)
+            with open('config.py', 'w'):
+                pass
+
+            fdroidserver.index.v1_sort_packages(
+                i, 'repo', fdroidserver.common.load_stats_fdroid_signing_key_fingerprints())
+            self.maxDiff = None
+            self.assertEqual(json.dumps(i, indent=2), json.dumps(o, indent=2))
+
+
+if __name__ == "__main__":
+    parser = optparse.OptionParser()
+    parser.add_option("-v", "--verbose", action="store_true", default=False,
+                      help="Spew out even more information than normal")
+    (fdroidserver.common.options, args) = parser.parse_args(['--verbose'])
+
+    newSuite = unittest.TestSuite()
+    newSuite.addTest(unittest.makeSuite(IndexTest))
+    unittest.main(failfast=False)
