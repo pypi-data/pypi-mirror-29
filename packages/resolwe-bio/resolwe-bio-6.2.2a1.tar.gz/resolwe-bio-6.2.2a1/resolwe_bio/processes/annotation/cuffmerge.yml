@@ -1,0 +1,106 @@
+# ==============================
+# GTF/GFF processing - Cuffmerge
+# ==============================
+---
+
+- slug: cuffmerge
+  name: Cuffmerge
+  requirements:
+    expression-engine: jinja
+    executor:
+      docker:
+        image: resolwebio/legacy:latest
+  data_name: 'Merged annotation (Cuffmerge)'
+  version: 1.0.16
+  type: data:annotation:cuffmerge
+  category: analyses
+  persistence: CACHED
+  description: >
+    Merge together several Cufflinks assemblies
+  input:
+    - name: expressions
+      label: Cufflinks transcripts (GTF)
+      type: list:data:cufflinks:cufflinks
+      required: false
+    - name: gtf
+      label: Annotation files (GTF)
+      type: list:data:annotation:gtf
+      required: false
+      description: >
+        Annotation files you wish to merge together with Cufflinks produced annotation files (e.g. upload Cufflinks annotation GTF file)
+    - name: gff
+      label: Reference annotation (GTF/GFF3)
+      type: data:annotation
+      required: false
+      description: >
+        An optional "reference" annotation GTF. The input assemblies are merged together with the reference GTF and included in the final output.
+    - name: genome
+      label: Reference genome
+      type: data:genome:fasta
+      required: false
+      description: >
+        This argument should point to the genomic DNA sequences for the reference. If a directory, it should contain one fasta file per contig. If a multifasta file, all contigs should be present. The merge script will pass this option to cuffcompare, which will use the sequences to assist in classifying transfrags and excluding artifacts (e.g. repeats). For example, Cufflinks transcripts consisting mostly of lower-case bases are classified as repeats. Note that <seq_dir> must contain one fasta file per reference chromosome, and each file must be named after the chromosome, and have a .fa or .fasta extension
+    - name: threads
+      label: Use this many processor threads
+      type: basic:integer
+      default: 1
+      description: >
+        Use this many threads to align reads. The default is 1.
+  output:
+    - name: merged_gtf
+      label: Merged GTF file
+      type: basic:file
+    - name: source
+      label: Gene ID source
+      type: basic:string
+  run:
+    runtime: polyglot
+    language: bash
+    program: |
+      echo "Preparing transcript assembly list!"
+
+      {% for e in expressions %}
+        {% for annot in gtf %}
+          {% if expressions.0.source != e.source or e.source != annot.source %}
+            re-error "The input data must use Gene IDs from the same source."
+          {% endif %}
+        {% endfor %}
+      {% endfor %}
+
+      {% for exp in expressions %}
+        echo {{ exp.transcripts.file }} >> transcript_assembly_list.txt
+        re-checkrc
+      {% endfor %}
+
+      {% for annotation in gtf %}
+        echo {{ annotation.gtf.file }} >> transcript_assembly_list.txt
+        re-checkrc
+      {% endfor %}
+
+      re-progress 0.1
+
+      {% if gff.gff.file %}
+        gffread {{gff.gff.file}} -T -o reference_annotation.gtf
+        re-checkrc "Gffread failure. GFF3 to GTF format conversion failed."
+      {% endif %}
+
+      echo "Running Cuffmerge"
+
+      cuffmerge \
+        {% if gff.gtf.file %} --ref-gtf {{ gff.gtf.file }} {% else %} --ref-gtf reference_annotation.gtf {% endif %} \
+        {% if genome %} --ref-sequence {{ genome.fasta.file }} {% endif %} \
+        --num-threads {{ threads }} \
+        -o ./ \
+        transcript_assembly_list.txt
+
+      re-checkrc
+      re-progress 0.95
+
+      mv merged.gtf cuffmerge_$(date +'%m-%d-%Y').gtf
+      re-save-file merged_gtf cuffmerge_$(date +'%m-%d-%Y').gtf
+
+      {% if expressions.0.source %}
+        re-save source {{expressions.0.source}}
+      {% else %}
+        re-save source {{gtf.0.source}}
+      {% endif %}

@@ -1,0 +1,73 @@
+# =================================
+# Processors for genome mappability
+# =================================
+#
+# Processor for computing the genome mappability.
+---
+
+- slug: mappability-bcm
+  name: Mappability
+  requirements:
+    expression-engine: jinja
+    executor:
+      docker:
+        image: resolwebio/legacy:latest
+  data_name: "Mappability ({{genome.fasta.file|basename|default('?')}}, length {{length}})"
+  version: 1.0.13
+  type: data:mappability:bcm
+  category: analyses
+  persistence: CACHED
+  description: >
+    Compute genome mappability. Developed by Bioinformatics Laboratory, Faculty of Computer and Information Science,
+    University of Ljubljana, Slovenia and Shaulsky's Lab, Department of Molecular and Human Genetics, Baylor College of
+    Medicine, Houston, TX, USA.
+  input:
+    - name: genome
+      label: Reference genome
+      type: data:genome:fasta
+    - name: gff
+      label: General feature format
+      type: data:annotation:gff3
+    - name: length
+      label: Read length
+      type: basic:integer
+      default: 50
+  output:
+    - name: mappability
+      label: Mappability
+      type: basic:file
+  run:
+    runtime: polyglot
+    language: bash
+    program: |
+      echo "MAPPABILITY..."
+      echo "UNCOMPRESSING genome..."
+      GENOME_NAME=`basename {{ genome.fasta.file }} .fasta`
+      echo "{\"proc.progress\":0.1,\"proc.rc\":$?}"
+
+      echo "BUILDING genome index..."
+      bowtie-build {{ genome.fasta.file }} "${GENOME_NAME}_index"
+      echo "{\"proc.progress\":0.2,\"proc.rc\":$?}"
+
+      cp {{ genome.fasta.file }} .
+
+      mappability.py "${GENOME_NAME}.fasta" {{ gff.gff.file }} {{length}}
+      echo "{\"proc.progress\":0.95,\"proc.rc\":$?}"
+
+      str="{\"proc.progress\":1"
+      if [ -f {{ proc.data_dir }}"/"{{ proc.data_id }}"/${GENOME_NAME}_mappability_"{{length}}".tab" ]
+      then
+        xtabcoverage.py \
+          --tab {{ proc.data_dir }}"/"{{ proc.data_id }}"/${GENOME_NAME}_mappability_"{{length}}".tab" \
+          --tab-coverage-col 4 \
+          --gff3 {{ gff.gff.file }} > tmp.bedgraph
+        cat {{ genome.fai.file }} | cut -f -2 > chrom.sizes
+        bedGraphToBigWig tmp.bedgraph chrom.sizes "${GENOME_NAME}_mappability_"{{length}}".tab.bw"
+        rm tmp.bedgraph
+
+        str=$str",\"mappability\":{\"file\":\"${GENOME_NAME}_mappability_"{{length}}".tab\",\"refs\":[\"${GENOME_NAME}_mappability_"{{length}}".tab.bw\"]}"
+      else
+        str=$str",\"proc.rc\":1"
+      fi
+      str=$str"}"
+      echo $str

@@ -1,0 +1,139 @@
+# ================
+# ChIP-Seq - ROSE2
+# ================
+---
+
+- slug: rose2
+  name: ROSE2
+  requirements:
+    expression-engine: jinja
+    executor:
+      docker:
+        image: "resolwebio/chipseq:1.0.0"
+  data_name: ROSE2 analysis
+  version: 2.0.4
+  type: data:chipseq:rose2
+  category: analyses
+  persistence: CACHED
+  description: >
+    Rank ordering of super-enhancers.
+  input:
+    - name: genome
+      label: Genome build
+      type: basic:string
+      choices:
+        - label: MM10
+          value: MM10
+        - label: MM9
+          value: MM9
+        - label: MM8
+          value: MM8
+        - label: HG19
+          value: HG19
+        - label: HG18
+          value: HG18
+        - label: RN4
+          value: RN4
+        - label: RN6
+          value: RN6
+    - name: input
+      label: BED file (MACS results)
+      type: data:chipseq:macs14
+      required: false
+    - name: input_upload
+      label: BED file (Upload)
+      type: data:bed
+      required: false
+    - name: rankby
+      label: BAM File
+      type: data:alignment:bam
+      description: >
+        bamfile to rank enhancer by
+    - name: control
+      label: Control BAM File
+      type: data:alignment:bam
+      required: false
+      description: >
+        bamfile to rank enhancer by
+    - name: tss
+      label: TSS exclusion
+      type: basic:integer
+      default: 0
+      description: >
+        Enter a distance from TSS to exclude. 0 = no TSS exclusion
+    - name: stitch
+      label: Stitch
+      type: basic:integer
+      required: false
+      description: >
+        Enter a max linking distance for stitching. If not given, optimal stitching parameter will be determined automatically.
+  output:
+    - name: all_enhancers
+      label: All enhancers table
+      type: basic:file
+    - name: enhancers_with_super
+      label: Super enhancers table
+      type: basic:file
+    - name: plot_points
+      label: Plot points
+      type: basic:file
+    - name: plot_panel
+      label: Plot panel
+      type: basic:file
+    - name: enhancer_gene
+      label: Enhancer to gene
+      type: basic:file
+    - name: enhancer_top_gene
+      label: Enhancer to top gene
+      type: basic:file
+    - name: gene_enhancer
+      label: Gene to Enhancer
+      type: basic:file
+    - name: stich_parameter
+      label: Stich parameter
+      type: basic:file
+    - name: all_output
+      label: All output
+      type: basic:file
+    - name: scatter_plot
+      label: Super-Enhancer plot
+      type: basic:json
+  run:
+    runtime: polyglot
+    language: bash
+    program: |
+      {% if not input and not input_upload %}
+        re-error "Peaks file missing. Please provide .bed peaks file as a file upload or MACS14 output."
+      {% endif %}
+
+      {% if input and input_upload %}
+        re-error "Please provide only one .bed peaks file."
+      {% endif %}
+
+      {% if input_upload %}
+        NAME=`basename {{ input_upload.BED.file }} .bed`
+      {% else %}
+        NAME=`basename {{ input.peaks_bed.file }} .bed`
+      {% endif %}
+
+      INPUT='-i {% if input_upload %}{{ input_upload.BED.file }}{% else %}{{ input.peaks_bed.file }}{% endif%}'
+      CONTROL='{% if control %}--control {{ control.bam.file }}{% endif %}'
+      STITCH='{% if stitch %}--stitch {{ stitch }} {% endif %}'
+      rose2 --genome {{ genome }} ${INPUT} --rankby {{ rankby.bam.file }} ${CONTROL} --tss {{ tss }} ${STITCH} --out .
+      re-checkrc "Rose2 run failed."
+
+      re-save-file all_enhancers ${NAME}_AllEnhancers.table.txt
+      re-save-file enhancers_with_super ${NAME}_Enhancers_withSuper.bed
+      re-save-file plot_points ${NAME}_Plot_points.png
+      re-save-file plot_panel ${NAME}_Plot_panel.png
+      re-save-file enhancer_gene ${NAME}_SuperEnhancers_ENHANCER_TO_GENE.txt
+      re-save-file enhancer_top_gene ${NAME}_SuperEnhancers_ENHANCER_TO_TOP_GENE.txt
+      re-save-file gene_enhancer ${NAME}_SuperEnhancers_GENE_TO_ENHANCER.txt
+      re-save-file stich_parameter ${NAME}_stitch_parameter.pdf
+
+      plot_enhancers.py ${NAME}_AllEnhancers.table.txt scatter_plot.json {% if control %} -c {% endif %}
+      re-checkrc
+
+      zip ${NAME}_output_all.zip ${NAME}_*
+      re-save-file all_output ${NAME}_output_all.zip
+      re-save scatter_plot scatter_plot.json

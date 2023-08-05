@@ -1,0 +1,66 @@
+# =================================
+# Gene Ontology Enrichment Analysis
+# =================================
+---
+
+- slug: goenrichment
+  name: GO Enrichment analysis
+  requirements:
+    expression-engine: jinja
+    executor:
+      docker:
+        image: resolwebio/legacy:latest
+    resources:
+      network: true
+  data_name: 'GO Enrichment analysis for {{genes|join(", ")|default("?")}}'
+  version: 3.0.4
+  type: data:goea
+  category: analyses
+  persistence: TEMP
+  scheduling_class: interactive
+  description: >
+    Identify significantly enriched Gene Ontology terms for given genes.
+  input:
+    - name: ontology
+      label: Gene Ontology
+      type: data:ontology:obo
+    - name: gaf
+      label: GO annotation file (GAF v2.0)
+      type: data:gaf
+    - name: genes
+      label: List of genes
+      type: list:basic:string
+      placeholder: new gene id
+    - name: source
+      label: Source
+      type: basic:string
+    - name: pval_threshold
+      label: P-value threshold
+      type: basic:decimal
+      default: 0.1
+      required: false
+    - name: min_genes
+      label: Minimum number of genes
+      type: basic:integer
+      default: 1
+      required: false
+      description: Minimum number of genes on a GO term.
+  output:
+    - name: terms
+      label: Enriched terms
+      type: basic:json
+    - name: source
+      label: Source
+      type: basic:string
+  run:
+    runtime: polyglot
+    language: bash
+    program: |
+      {% for gene in genes %}
+        echo {{ gene }} >> genes.txt
+      {% endfor %}
+
+      goea.py {{source}} {{gaf.source}} {{gaf.species}} genes.txt {{ontology.obo_obj.file}} {{gaf.gaf_obj.file}} --pval {{pval_threshold}} --min_genes {{min_genes}}
+      re-checkrc
+      re-save source {{gaf.source}}
+      re-save terms terms.json
