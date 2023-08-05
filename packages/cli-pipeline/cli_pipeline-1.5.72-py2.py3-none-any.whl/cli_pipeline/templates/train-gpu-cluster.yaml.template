@@ -1,0 +1,150 @@
+{%- set task_port = 2222 -%}
+{%- set admin_port = 6006 -%}
+
+{%- set replicas = {"chief": 1, "master": 1, "worker": PIPELINE_WORKER_REPLICAS, "ps": PIPELINE_PS_REPLICAS, "evaluator": 1} -%}
+
+{%- macro evaluator_hosts() -%}
+  {%- for task_index in range(1) -%}
+    {%- if not loop.first -%},{%- endif -%}
+    {{ PIPELINE_IMAGE_REGISTRY_NAMESPACE}}-{{ PIPELINE_MODEL_NAME }}-{{ PIPELINE_MODEL_TAG }}-evaluator-{{ task_index }}:{{ task_port }}
+  {%- endfor -%}
+{%- endmacro -%}
+
+{%- macro chief_hosts() -%}
+  {%- for task_index in range(1) -%}
+    {%- if not loop.first -%},{%- endif -%}
+    {{ PIPELINE_IMAGE_REGISTRY_NAMESPACE}}-{{ PIPELINE_MODEL_NAME }}-{{ PIPELINE_MODEL_TAG }}-chief-{{ task_index }}:{{ task_port }}
+  {%- endfor -%}
+{%- endmacro -%}
+
+{%- macro master_hosts() -%}
+  {%- for task_index in range(1) -%}
+    {%- if not loop.first -%},{%- endif -%}
+    {{ PIPELINE_IMAGE_REGISTRY_NAMESPACE}}-{{ PIPELINE_MODEL_NAME }}-{{ PIPELINE_MODEL_TAG }}-master-{{ task_index }}:{{ task_port }}
+  {%- endfor -%}
+{%- endmacro -%}
+
+{%- macro worker_hosts() -%}
+  {%- for task_index in range(PIPELINE_WORKER_REPLICAS) -%}
+    {%- if not loop.first -%},{%- endif -%}
+    {{ PIPELINE_IMAGE_REGISTRY_NAMESPACE}}-{{ PIPELINE_MODEL_NAME }}-{{ PIPELINE_MODEL_TAG }}-worker-{{ task_index }}:{{ task_port }}
+  {%- endfor -%}
+{%- endmacro -%}
+
+{%- macro ps_hosts() -%}
+  {%- for task_index in range(PIPELINE_PS_REPLICAS) -%}
+    {%- if not loop.first -%},{%- endif -%}
+    {{ PIPELINE_IMAGE_REGISTRY_NAMESPACE}}-{{ PIPELINE_MODEL_NAME }}-{{ PIPELINE_MODEL_TAG }}-ps-{{ task_index }}:{{ task_port }}
+  {%- endfor -%}
+{%- endmacro -%}
+
+{%- for task_type in ["master", "worker", "ps"] -%}
+{%- for task_index in range(replicas[task_type]) -%}
+kind: Service
+apiVersion: v1
+metadata:
+  name: {{ PIPELINE_IMAGE_REGISTRY_NAMESPACE}}-{{ PIPELINE_MODEL_NAME }}-{{ PIPELINE_MODEL_TAG }}-{{ task_type }}-{{ task_index }}
+spec:
+  type: ClusterIP
+  selector:
+    name: {{ PIPELINE_IMAGE_REGISTRY_NAMESPACE}}-{{ PIPELINE_MODEL_NAME }}-{{ PIPELINE_MODEL_TAG }}
+    task_type: {{ task_type }}
+    task_index: "{{ task_index }}"
+  ports:
+  - name: grpc
+    port: {{ task_port }}
+  - name: http
+    port: {{ admin_port }}
+---
+kind: ReplicaSet
+apiVersion: extensions/v1beta1
+metadata:
+  name: {{ PIPELINE_IMAGE_REGISTRY_NAMESPACE}}-{{ PIPELINE_MODEL_NAME }}-{{ PIPELINE_MODEL_TAG }}-{{ task_type }}-{{ task_index }}
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        name: {{ PIPELINE_IMAGE_REGISTRY_NAMESPACE}}-{{ PIPELINE_MODEL_NAME }}-{{ PIPELINE_MODEL_TAG }}
+        task_type: "{{ task_type }}"
+        task_index: "{{ task_index }}"
+    spec:
+      containers:
+      - name: {{ PIPELINE_IMAGE_REGISTRY_NAMESPACE }}-{{ PIPELINE_MODEL_NAME }}-{{ PIPELINE_MODEL_TAG }}        
+        image: {{ PIPELINE_IMAGE_REGISTRY_URL }}/{{ PIPELINE_IMAGE_REGISTRY_REPO }}/{{ PIPELINE_IMAGE_REGISTRY_NAMESPACE }}-{{ PIPELINE_MODEL_NAME }}:{{ PIPELINE_MODEL_TAG }}
+        resources:
+          limits:
+            alpha.kubernetes.io/nvidia-gpu: 1
+#          limits:
+#            cpu: {{ PIPELINE_WORKER_CORE_LIMIT }}
+#            memory: {{ PIPELINE_WORKER_MEMORY_LIMIT }}
+          requests:
+            memory: 100Mi
+            cpu: 100m
+        imagePullPolicy: "Always"
+        env:
+        - name: TF_CONFIG
+          value: "{\"environment\": \"cloud\", \"cluster\": {\"master\": [\"{{ master_hosts() }}\"], \"worker\": [\"{{ worker_hosts() }}\"], \"ps\": [\"{{ ps_hosts() }}\"]}, \"task\": {\"type\": \"{{ task_type }}\", \"index\": \"{{ task_index }}\"} }"
+        - name: PIPELINE_MODEL_TASK_TYPE
+          value: "{{ task_type }}"
+        - name: PIPELINE_MODEL_TASK_INDEX
+          value: "{{ task_index }}"
+        - name: PIPELINE_MODEL_MASTER_HOSTS
+          value: "{{ master_hosts() }}"        
+        - name: PIPELINE_MODEL_WORKER_HOSTS
+          value: "{{ worker_hosts() }}"
+        - name: PIPELINE_MODEL_PS_HOSTS
+          value: "{{ ps_hosts() }}"
+# TODO:  We should remove PIPELINE_MODEL_TYPE if possible (not needed after Docker image is built)
+        - name: PIPELINE_INPUT_PATH
+          value: "/opt/ml/input/models/{{ PIPELINE_MODEL_TYPE }}/{{ PIPELINE_MODEL_NAME }}/input" 
+        - name: PIPELINE_OUTPUT_PATH
+          value: "/opt/ml/output"
+        - name: PIPELINE_LOG_STREAM_URL
+          value: "{{ PIPELINE_LOG_STREAM_URL }}"
+        - name: PIPELINE_LOG_STREAM_TOPIC
+          value: "{{ PIPELINE_LOG_STREAM_TOPIC }}"
+        - name: PIPELINE_INPUT_STREAM_URL
+          value: "{{ PIPELINE_INPUT_STREAM_URL }}"
+        - name: PIPELINE_INPUT_STREAM_TOPIC
+          value: "{{ PIPELINE_INPUT_STREAM_TOPIC }}"
+        - name: PIPELINE_OUTPUT_STREAM_URL
+          value: "{{ PIPELINE_OUTPUT_STREAM_URL }}"
+        - name: PIPELINE_OUTPUT_STREAM_TOPIC
+          value: "{{ PIPELINE_OUTPUT_STREAM_TOPIC }}"
+        - name: PIPELINE_MODEL_TRAIN_ARGS
+          value: "{{ PIPELINE_MODEL_TRAIN_ARGS }}"
+        ports:
+        - containerPort: {{ task_port }}
+        - containerPort: {{ admin_port }}
+        volumeMounts:
+        - name: input
+          mountPath: /opt/ml/input
+        - name: output
+          mountPath: /opt/ml/output
+        - name: cuda
+          mountPath: /usr/local/cuda
+          readOnly: true
+        - name: rootfs-usr-lib
+          mountPath: /rootfs/usr/lib
+          readOnly: true
+      volumes:
+      - name: input
+        gitRepo:
+          repository: "https://github.com/PipelineAI/models.git"
+          revision: "master"
+#      - name: input
+#        hostPath:
+#          path: {{ PIPELINE_INPUT_HOST_PATH }}
+      - name: output 
+        hostPath:
+          path: {{ PIPELINE_OUTPUT_HOST_PATH }}
+      - name: cuda
+        hostPath:
+          path: /usr/local/cuda
+      - name: rootfs-usr-lib
+        hostPath:
+          path: /usr/lib
+---
+{% endfor %}
+{%- endfor -%}
