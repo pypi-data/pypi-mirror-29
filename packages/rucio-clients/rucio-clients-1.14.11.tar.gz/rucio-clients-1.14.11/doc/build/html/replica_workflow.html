@@ -1,0 +1,171 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>Typical replica workflow &#8212; Rucio 1.2 documentation</title>
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '1.2',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Architecture" href="architecture.html" />
+    <link rel="prev" title="Subscriptions" href="overview_Subscriptions.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="typical-replica-workflow">
+<h1>Typical replica workflow<a class="headerlink" href="#typical-replica-workflow" title="Permalink to this headline">¶</a></h1>
+<p>This section gives an overview of what happens within Rucio, for a typical replica workflow. Two workflows are described:
+When a replica is uploaded to Rucio via a client and when a replica is created by a
+site to site transfer due to the creation of a <a class="reference external" href="overview_Replica_management.html">replication rule</a>.</p>
+<div class="section" id="replica-pathes-on-storage">
+<h2>Replica pathes on storage<a class="headerlink" href="#replica-pathes-on-storage" title="Permalink to this headline">¶</a></h2>
+<p>Rucio has two basic paradigms in deciding the path for a replica on a specific storage system. <strong>Deterministic</strong> and <strong>Non-deterministic</strong> pathes. If we assume
+a file whose data identifier is <code class="docutils literal"><span class="pre">user.jdoe:test.file.1</span></code>, thus the scope is <code class="docutils literal"><span class="pre">user.jdoe</span></code> and the name is <code class="docutils literal"><span class="pre">test.file.1</span></code>. In Rucio a deterministcally created path is a path
+which can be generated soley knowing the scope and name of a data identifier (Ignoring the static prefix of the storage endpoint). For a non-deterministic path
+additional information describing the file is necessary, such as meta-data, the dataset the file belongs to, etc.</p>
+<p>Rucio supports plugable algorithms for both deterministic and non-deterministic algorithms. This section explains a few of them.</p>
+<div class="section" id="deterministc-algorithm-based-on-hashes">
+<h3>Deterministc algorithm based on hashes<a class="headerlink" href="#deterministc-algorithm-based-on-hashes" title="Permalink to this headline">¶</a></h3>
+<p>The hash deterministc algorithm is an algorithm commonly used in Rucio. The advantage of this algorithm is that, due to the characteristics of cryptographic hash functions,
+that the files are evenly distributed to directories. This can be an important characteristic for storage systems whose access performance degrades based on the number
+of files in a directory.</p>
+<p>For a data identifier, e.g. <code class="docutils literal"><span class="pre">user.jdoe:test.file.1</span></code> a md5-hashsum is calculated <code class="docutils literal"><span class="pre">077c8119053bebb168d125034bff64ac</span></code>. The generated path is then based on the first four
+characters of the hashsum. e.g. <code class="docutils literal"><span class="pre">/07/7c/user.jdoe/test.file.1</span></code>.</p>
+</div>
+<div class="section" id="deterministic-algorithm-based-on-naming-convention">
+<h3>Deterministic algorithm based on naming convention<a class="headerlink" href="#deterministic-algorithm-based-on-naming-convention" title="Permalink to this headline">¶</a></h3>
+<p>If a specific naming convention is enforced on the filenames, a possible deterministic algorithm can be based on it.</p>
+<p>For the data identifier <code class="docutils literal"><span class="pre">user.jdoe:test.file.1</span></code> the first part of the filename (<code class="docutils literal"><span class="pre">test</span></code>) is exctracted and used to generate the path: <code class="docutils literal"><span class="pre">/test/user.jdoe/file.1</span></code></p>
+</div>
+<div class="section" id="non-deterministc-algorithm-based-on-parent-dataset">
+<h3>Non-Deterministc algorithm based on parent dataset<a class="headerlink" href="#non-deterministc-algorithm-based-on-parent-dataset" title="Permalink to this headline">¶</a></h3>
+<p>If the file is part of a datasets, e.g. <code class="docutils literal"><span class="pre">data:dataset1234</span></code> the dataset can be used in the path of the filename. This is useful for e.g. tape storage systems, to keep the files belonging to the same dataset on the same tape.</p>
+<p>For the data identifier <code class="docutils literal"><span class="pre">user.jdoe:test.file.1</span></code> which is part of the datset <code class="docutils literal"><span class="pre">data:dataset1234</span></code> the generated path is: <code class="docutils literal"><span class="pre">/data/dataset1234/user.jdoe/test.file.1</span></code></p>
+</div>
+</div>
+<div class="section" id="replica-is-uploaded-with-the-command-line-client">
+<h2>Replica is uploaded with the command line client<a class="headerlink" href="#replica-is-uploaded-with-the-command-line-client" title="Permalink to this headline">¶</a></h2>
+<p>This is a typical workflow when a user uploads multiple files, which are part of a dataset, via the command line client.</p>
+<ol class="arabic simple">
+<li>The dataset <code class="docutils literal"><span class="pre">test.dataset</span></code> is being registered at the server.
+All files, or datasets are associated to a <a class="reference external" href="overview_File_Dataset_Container.html">scope</a>, if not specifically mentioned the client will assume the default scope of the user,
+such as <code class="docutils literal"><span class="pre">user.jdoe</span></code>. Thus the full data identifier for the dataset is <code class="docutils literal"><span class="pre">user.jdoe:test.dataset</span></code>.</li>
+<li>The client queries the RSE information from the server. This not only gives a list of prioritized write protocols to use but also the information
+if the RSE is a deterministic or non-deterministic one.</li>
+<li>The file replica is registered as <code class="docutils literal"><span class="pre">COPYING</span></code> on the RSE.</li>
+<li>Based on the identified naming algorithm of the RSE and the list of prioritized write protocols, the file URL is calculated.
+e.g. usig the hash algorithm from above: <code class="docutils literal"><span class="pre">https://storageserver.organization.org/VO/data/07/7c/user.jdoe/test.file.1</span></code></li>
+<li>The file upload is done with the first priritized protocol. If the upload fails, step 4 is repeated with the second prioritized protocol, etc.</li>
+<li>Once the upload is successfully finished, the replica state is changed to <code class="docutils literal"><span class="pre">AVAILABLE</span></code>.</li>
+<li>Step 3-6 are repeated (done in parallel) with all other files part of the uploaded dataset.</li>
+</ol>
+</div>
+<div class="section" id="replica-is-created-by-a-replication-rule">
+<h2>Replica is created by a replication rule<a class="headerlink" href="#replica-is-created-by-a-replication-rule" title="Permalink to this headline">¶</a></h2>
+<p>This is a typical workflow if a file already exists in Rucio but the user wants to replicate it to a different RSE.</p>
+<ol class="arabic simple">
+<li>The user creates a replication rule for the dataset <code class="docutils literal"><span class="pre">user.jdoe:test.dataset</span></code> at the server.</li>
+<li>The Rucio server creates internal requests for each single file in the dataset and puts them in a queue to be read by the data transfer service.</li>
+<li>The data transfer submitter picks these requests up and queries the destination RSE information for each file.</li>
+<li>Based on the identified naming algorithm of the destination RSE it creates the destination URLs and creates the file replicas in <code class="docutils literal"><span class="pre">COPYING</span></code> state.</li>
+<li>The transfer service then submits the transfer job to the connected transfer tool (e.g. FTS)</li>
+<li>Once the transfers are finished the transfer tool notifies Rucio about the transfer success and the transfer services marks the replicas as <code class="docutils literal"><span class="pre">AVAILABLE</span></code>.</li>
+</ol>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">Typical replica workflow</a><ul>
+<li><a class="reference internal" href="#replica-pathes-on-storage">Replica pathes on storage</a><ul>
+<li><a class="reference internal" href="#deterministc-algorithm-based-on-hashes">Deterministc algorithm based on hashes</a></li>
+<li><a class="reference internal" href="#deterministic-algorithm-based-on-naming-convention">Deterministic algorithm based on naming convention</a></li>
+<li><a class="reference internal" href="#non-deterministc-algorithm-based-on-parent-dataset">Non-Deterministc algorithm based on parent dataset</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#replica-is-uploaded-with-the-command-line-client">Replica is uploaded with the command line client</a></li>
+<li><a class="reference internal" href="#replica-is-created-by-a-replication-rule">Replica is created by a replication rule</a></li>
+</ul>
+</li>
+</ul>
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="overview_Subscriptions.html" title="previous chapter">Subscriptions</a></li>
+      <li>Next: <a href="architecture.html" title="next chapter">Architecture</a></li>
+  </ul></li>
+</ul>
+</div>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/replica_workflow.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2012-2018 CERN for the benefit of the ATLAS collaboration..
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.6.5</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.10</a>
+      
+      |
+      <a href="_sources/replica_workflow.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
