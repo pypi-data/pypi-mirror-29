@@ -1,0 +1,190 @@
+#!python
+"""
+
+This file handles command line input to all vectools functions. It determines whether to print the main help menu,
+a function help menu (Note: All function help data is self-contained), or run a function.
+
+The rest of Vectools can be found in the following directories:
+examples/ - Contains files that can be used for example input.
+features/ - Contains files for integration testing.
+lib/      - Contains the sub-section classes.
+lib/__init__.py - A dictionary mapping function names to their respective classes and functions.
+test/     - Contains files for unit testing.
+
+"""
+from __future__ import print_function
+from lib import operations_dict
+import sys
+import argparse
+import os.path
+from signal import signal, SIGPIPE, SIG_DFL
+# from lib.main_script_helper_functions import get_main_help_string, import_from, __version__
+
+program_name = "hekase"  # os.path.basename(sys.argv[0])
+
+# Problem with broken pipe error (Errno-32) solved with
+# http://newbebweb.blogspot.de/2012/02/python-head-ioerror-errno-32-broken.html
+signal(SIGPIPE, SIG_DFL)
+reserved_flags = (
+    "--update-help",
+    "--commands?",
+    "--help", "-help", "-h", "--h",
+)
+help_menu_file = "hekase_docstring.txt"
+
+
+def generatehelpstr():
+    """ Handles the main help output for Vectortools
+
+    1. The function first checks for a pre-built strings in /tmp as generating the string from scratch takes time.
+    2. If pre-build string is not available it iterates over the dictionary in lib/__init__.py
+    3. The first line of each doc string is read
+
+    :return: joined_list - A string of possible operations formatted as a help string.
+    """
+
+    import lib
+    function_dicts = lib.operations_dict
+    offset = "    "
+    out_list = []
+    longest_name = 0
+
+    # Get the longest name to calculate description offset.
+    for main_type in function_dicts:
+        for operation_name_el in function_dicts[main_type]:
+            if len(operation_name_el) > longest_name:
+                longest_name = len(operation_name_el)
+
+    # Build the argparse help strings.
+    for main_type in sorted(function_dicts):
+
+        # Main types serve as headings for groups of operations.
+        out_list.append(main_type)
+
+        for operation_name_el in sorted(function_dicts[main_type]):
+
+            # Generate the number of spaces we need to
+            description_offset = "".join([" " for i in range(longest_name - len(operation_name_el))]) + " -"
+
+            out_list.append("".join([
+                offset,
+                operation_name_el,
+                description_offset,
+                function_dicts[main_type][operation_name_el].__doc__.split("\n")[0]
+            ]))
+
+    joined_list = "\n".join(out_list)
+
+    return joined_list
+
+
+if len(sys.argv) > 1 and not sys.argv[1] in ("--help", "-help", "-h", "--h", "--commands?"):
+    # Run an operation or function.
+
+    # Get the base program name.
+    program_name = os.path.basename(sys.argv[0])
+
+    # The name of the operation should be the first argument.
+    operation_name = sys.argv[1]
+
+    # Rebase the sys.argv command, pretend the operation is the program that was ran.
+    sys.argv = sys.argv[1:]
+
+    # Helps catch cases where the argument supplied does not match the available operations.
+    operation_found = False
+
+    import lib
+    # Since we organize the data structure by headings, loop through each heading.
+    for section_name in lib.operations_dict:
+        # Check for the operation name within each heading.
+        if operation_name in lib.operations_dict[section_name]:
+
+            # Build the argument parser for the operation.
+            parser = argparse.ArgumentParser(
+                prog=" ".join((program_name, operation_name)),
+                formatter_class=argparse.RawTextHelpFormatter,
+                epilog="\n".join(lib.operations_dict[section_name][operation_name].__doc__.split("\n")[1:])
+            )
+
+            # Run the operation.
+            lib.operations_dict[section_name][operation_name](parser)
+            operation_found = True
+            break
+
+    if not operation_found:
+        sys.stderr.write("function {} not found\n".format(operation_name))
+
+else:
+    parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
+    help_str = generatehelpstr()
+    parser.add_argument('operation', type=str, nargs=1, help='Operations Avalible:\n' + help_str)
+    parser.print_help()
+
+'''
+# First catch keyboard interrupts i.e. Ctrl-C or Ctrl-D
+try:
+    if len(sys.argv) > 1 and not sys.argv[1] in reserved_flags:
+        # Run an operation or function, this can also print the help menu for a function.
+        # Get the base program name.
+
+        # The name of the operation should be the first argument.
+        operation_name = sys.argv[1]
+
+        # Rebase the sys.argv command, pretend the operation is the program that was ran.
+        sys.argv = sys.argv[1:]
+
+        # Helps catch cases where the argument supplied does not match the available operations.
+        operation_found = False
+
+        # Since we organize the data structure by headings, loop through each heading.
+        # This isn't the most efficient method, but it allows pretty formatting of the main help menu.
+        for section_name in operations_dict:
+            # Check for the operation name within each heading.
+            if operation_name in operations_dict[section_name]:
+
+                # import the function for its respective module.
+                function_path = operations_dict[section_name][operation_name]
+                module_to_import = ".".join(function_path.split(".")[:-1])
+                function_to_import = function_path.split(".")[-1]
+                imported_function = import_from(module_to_import, function_to_import)
+
+                # Build the argument parser for the operation.
+                parser = argparse.ArgumentParser(
+                    prog=" ".join((program_name, operation_name)),
+                    description="version: %s" % __version__,
+                    formatter_class=argparse.RawTextHelpFormatter,
+                    epilog="\n".join(imported_function.__doc__.split("\n")[1:])
+                )
+
+                # Run the operation.
+                # If a help argument is passed after the function, a function specific help menu will be printed.
+                # Note: help information for each function is self-contained.
+                imported_function(parser)
+                operation_found = True
+                break
+
+        if not operation_found:
+            exit()
+            # error_quit("Function {} not found.\n".format(operation_name))
+    else:
+        # Handle the main help page.
+        parser = argparse.ArgumentParser(
+            prog=program_name,
+            description="version: %s" % __version__,
+            formatter_class=argparse.RawTextHelpFormatter)
+
+        # --update-help is a hidden value for updating the main help menu.
+        # Dynamically genetaring the help menu takes extra time, so it is not done every time.
+        update_bool = True if len(sys.argv) > 1 and sys.argv[1] == "--update-help" else False
+
+        # Get main help string.
+        help_str = get_main_help_string(operations_dict, doc_f=help_menu_file, update_help_str=update_bool)
+
+        # Add main help string to Argparse.
+        parser.add_argument('operation', type=str, nargs=1, help='Operations Available:\n' + help_str)
+
+        parser.print_help()
+
+except KeyboardInterrupt:
+    exit("Program killed by user.")
+'''
