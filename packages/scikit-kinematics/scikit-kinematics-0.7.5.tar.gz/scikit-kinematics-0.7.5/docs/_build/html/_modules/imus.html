@@ -1,0 +1,824 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>imus &#8212; skinematics 0.7.4 documentation</title>
+    <link rel="stylesheet" href="../_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '0.7.4',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="shortcut icon" href="../_static/skinematics.ico"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" /> 
+  </head>
+  <body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../index.html">skinematics 0.7.4 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="index.html" accesskey="U">Module code</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for imus</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">This file contains the abstract base class &quot;IMU_Base&quot; for analyzing movements</span>
+<span class="sd">recordings with inertial measurement units (IMUs), as well as functions and</span>
+<span class="sd">classes for the evaluation of IMU-data..</span>
+
+<span class="sd">The advantage of using an &quot;abstract base class&quot; is that it allows to write</span>
+<span class="sd">code that is independent of the IMU-sensor. All IMUs provide acceleration</span>
+<span class="sd">and angular velocities, and most of them also the direction of the local</span>
+<span class="sd">magnetic field. The specifics of each sensor are hidden in the sensor-object</span>
+<span class="sd">(specifically, in the &quot;get\_data&quot; method which has to be implemented once</span>
+<span class="sd">for each sensor). Initialization of a sensor object includes a number of</span>
+<span class="sd">activities:</span>
+
+<span class="sd">        - Reading in the data.</span>
+<span class="sd">        - Making acceleration, angular\_velocity etc. accessible in a sensor-independent way</span>
+<span class="sd">        - Calculating duration, totalSamples, etc.</span>
+<span class="sd">        - Calculating orientation (expressed as &quot;quat&quot;), with the method specified in &quot;q\_type&quot;</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="c1">#Author: Thomas Haslwanter</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+<span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span> 
+<span class="kn">import</span> <span class="nn">scipy</span> <span class="k">as</span> <span class="nn">sp</span>
+<span class="kn">from</span> <span class="nn">scipy</span> <span class="k">import</span> <span class="n">constants</span>     <span class="c1"># for &quot;g&quot;</span>
+<span class="kn">from</span> <span class="nn">scipy.integrate</span> <span class="k">import</span> <span class="n">cumtrapz</span>
+<span class="kn">import</span> <span class="nn">re</span>
+
+<span class="c1"># The following construct is required since I want to run the module as a script</span>
+<span class="c1"># inside the skinematics-directory</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+
+<span class="n">file_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span>
+<span class="k">if</span> <span class="n">file_dir</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="p">:</span>
+    <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">file_dir</span><span class="p">)</span>
+
+<span class="kn">import</span> <span class="nn">quat</span><span class="o">,</span> <span class="nn">vector</span><span class="o">,</span> <span class="nn">misc</span><span class="o">,</span> <span class="nn">rotmat</span>
+
+<span class="c1"># For deprecation warnings</span>
+<span class="c1"># import deprecation</span>
+<span class="kn">import</span> <span class="nn">warnings</span>
+
+<span class="c1"># For the definition of the abstract base class IMU_Base</span>
+<span class="kn">import</span> <span class="nn">abc</span>
+
+<div class="viewcode-block" id="IMU_Base"><a class="viewcode-back" href="../imus.html#imus.IMU_Base">[docs]</a><span class="k">class</span> <span class="nc">IMU_Base</span><span class="p">(</span><span class="n">metaclass</span><span class="o">=</span><span class="n">abc</span><span class="o">.</span><span class="n">ABCMeta</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Abstract BaseClass for working with working with inertial measurement units (IMUs)</span>
+<span class="sd">    A concrete class must be instantiated, which implements &quot;get_data&quot;. (See example below.)</span>
+
+<span class="sd">    Attributes:</span>
+<span class="sd">        acc (Nx3 array) : 3D linear acceleration</span>
+<span class="sd">        dataType (string) : Type of data (commonly float)</span>
+<span class="sd">        duration (float) : Duration of recording [sec]</span>
+<span class="sd">        mag (Nx3 array) : 3D orientation of local magnectic field</span>
+<span class="sd">        omega (Nx3 array) : 3D angular velocity</span>
+<span class="sd">        pos (Nx3 array) : 3D position</span>
+<span class="sd">        pos_init (3-vector) : Initial position. default is np.ones(3)</span>
+<span class="sd">        quat (Nx4 array) : 3D orientation</span>
+<span class="sd">        q_type (string) : Method of calculation for orientation quaternion</span>
+<span class="sd">        rate (int) : Sampling rate</span>
+<span class="sd">        R_init (3x3 array) : Rotation matrix defining the initial orientation. Default is np.eye(3)</span>
+<span class="sd">        source (str) : Name of data-file</span>
+<span class="sd">        totalSamples (int) : Number of samples</span>
+<span class="sd">        vel (Nx3 array) : 3D velocity</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    inFile : string</span>
+<span class="sd">        path- and file-name of data file / input source</span>
+<span class="sd">    inData : dictionary</span>
+<span class="sd">        The following fields are required:</span>
+
+<span class="sd">        acc : (N x 3) array</span>
+<span class="sd">             Linear acceleration [m/s^2], in the x-, y-, and z-direction</span>
+<span class="sd">        omega : (N x 3) array</span>
+<span class="sd">             Angular velocity [deg/s], about the x-, y-, and z-axis</span>
+<span class="sd">        [mag] : (N x 3) array (optional)</span>
+<span class="sd">             Local magnetic field, in the x-, y-, and z-direction</span>
+<span class="sd">        rate: integer</span>
+<span class="sd">            sample rate [Hz]</span>
+
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; # Set the in-file, initial sensor orientation </span>
+<span class="sd">    &gt;&gt;&gt; in_file = r&#39;tests/data/data_xsens.txt&#39;</span>
+<span class="sd">    &gt;&gt;&gt; initial_orientation = np.array([[1,0,0],</span>
+<span class="sd">    &gt;&gt;&gt;                                 [0,0,-1],</span>
+<span class="sd">    &gt;&gt;&gt;                                 [0,1,0]])</span>
+<span class="sd">    &gt;&gt;&gt;  </span>
+<span class="sd">    &gt;&gt;&gt; # Choose a sensor </span>
+<span class="sd">    &gt;&gt;&gt; from skinematics.sensors.xsens import XSens</span>
+<span class="sd">    &gt;&gt;&gt;</span>
+<span class="sd">    &gt;&gt;&gt; # Only read in the data</span>
+<span class="sd">    &gt;&gt;&gt; data = XSens(in_file, q_type=None)</span>
+<span class="sd">    &gt;&gt;&gt;</span>
+<span class="sd">    &gt;&gt;&gt; # Read in and evaluate the data</span>
+<span class="sd">    &gt;&gt;&gt; sensor = XSens(in_file=in_file, R_init=initial_orientation)</span>
+<span class="sd">    &gt;&gt;&gt;  </span>
+<span class="sd">    &gt;&gt;&gt; # By default, the orientation quaternion gets automatically calculated, using the option &quot;analytical&quot;</span>
+<span class="sd">    &gt;&gt;&gt; q_analytical = sensor.quat</span>
+<span class="sd">    &gt;&gt;&gt;  </span>
+<span class="sd">    &gt;&gt;&gt; # Automatic re-calculation of orientation if &quot;q_type&quot; is changed</span>
+<span class="sd">    &gt;&gt;&gt; sensor.q_type = &#39;madgwick&#39;</span>
+<span class="sd">    &gt;&gt;&gt; q_Madgwick = sensor.quat</span>
+<span class="sd">    &gt;&gt;&gt;  </span>
+<span class="sd">    &gt;&gt;&gt; sensor.q_type = &#39;kalman&#39;</span>
+<span class="sd">    &gt;&gt;&gt; q_Kalman = sensor.quat</span>
+<span class="sd">    &gt;&gt;&gt;</span>
+<span class="sd">    &gt;&gt;&gt; # Demonstrate how to fill up a sensor manually</span>
+<span class="sd">    &gt;&gt;&gt; in_data = {&#39;rate&#39;:sensor.rate,</span>
+<span class="sd">    &gt;&gt;&gt;         &#39;acc&#39;: sensor.acc,</span>
+<span class="sd">    &gt;&gt;&gt;         &#39;omega&#39;:sensor.omega,</span>
+<span class="sd">    &gt;&gt;&gt;         &#39;mag&#39;:sensor.mag}</span>
+<span class="sd">    &gt;&gt;&gt; my_sensor = MyOwnSensor(in_file=&#39;My own 123 sensor.&#39;, in_data=in_data)</span>
+
+<span class="sd">    &#39;&#39;&#39;</span>
+
+<div class="viewcode-block" id="IMU_Base.get_data"><a class="viewcode-back" href="../imus.html#imus.IMU_Base.get_data">[docs]</a>    <span class="nd">@abc</span><span class="o">.</span><span class="n">abstractmethod</span>
+    <span class="k">def</span> <span class="nf">get_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">in_file</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">in_data</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Retrieve &quot;rate&quot;, &quot;acc&quot;, &quot;omega&quot;, &quot;mag&quot; from the input source</span>
+<span class="sd">        and set the corresponding values of &quot;self&quot;.</span>
+<span class="sd">        With some sensors, &quot;rate&quot; has to be provided, and is taken from &quot;in_data&quot;.</span>
+<span class="sd">        &quot;&quot;&quot;</span></div>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">in_file</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                 <span class="n">q_type</span><span class="o">=</span><span class="s1">&#39;madgwick&#39;</span><span class="p">,</span> <span class="n">R_init</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="mi">3</span><span class="p">),</span>
+                 <span class="n">calculate_position</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">pos_init</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">3</span><span class="p">),</span>
+                 <span class="n">in_data</span> <span class="o">=</span> <span class="kc">None</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Initialize an IMU-object.</span>
+<span class="sd">        Note that this includes a number of activities:</span>
+<span class="sd">        - Read in the data (which have to be either in &quot;in_file&quot; or in &quot;in_data&quot;)</span>
+<span class="sd">        - Make acceleration, angular_velocity etc. accessible, in a sensor-independent way</span>
+<span class="sd">        - Calculates duration, totalSamples, etc</span>
+<span class="sd">        - If q_type==None, data are only read in; otherwise, 3-D orientation is calculated</span>
+<span class="sd">          with the method specified in &quot;q_type&quot;, and stored in the property &quot;quat&quot;.</span>
+<span class="sd">        - If position==True, the method &quot;calc_position&quot; is automatically called, and the</span>
+<span class="sd">          3D position stored in the propery &quot;pos&quot;. (Note that if q_type==None, then</span>
+<span class="sd">          &quot;position&quot; is set to &quot;False&quot;.)</span>
+
+<span class="sd">        in_file : string</span>
+<span class="sd">                Location of infile / input</span>
+<span class="sd">        q_type : string</span>
+<span class="sd">                Determines how the orientation gets calculated:</span>
+<span class="sd">                - &#39;analytical&#39; .... quaternion integration of angular velocity</span>
+<span class="sd">                - &#39;kalman&#39; ..... quaternion Kalman filter</span>
+<span class="sd">                - &#39;madgwick&#39; ... gradient descent method, efficient</span>
+<span class="sd">                - &#39;mahony&#39; ....  formula from Mahony, as implemented by Madgwick</span>
+<span class="sd">                - &#39;None&#39; ... data are only read in, no orientation calculated</span>
+<span class="sd">        R_init : 3x3 array</span>
+<span class="sd">                approximate alignment of sensor-CS with space-fixed CS</span>
+<span class="sd">                currently only used in &quot;analytical&quot;</span>
+<span class="sd">        calculate_position : Boolean</span>
+<span class="sd">                If &quot;True&quot;, position is calculated, and stored in property &quot;pos&quot;.</span>
+<span class="sd">        pos_init : (,3) vector</span>
+<span class="sd">                initial position</span>
+<span class="sd">                currently only used in &quot;analytical&quot;</span>
+<span class="sd">        in_data : dictionary</span>
+<span class="sd">                If the data are provided directly, not from a file</span>
+<span class="sd">                Also used to provide &quot;rate&quot; for &quot;polulu&quot; sensors.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="n">in_data</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">in_file</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Either in_data or in_file must be provided.&#39;</span><span class="p">)</span>
+
+        <span class="k">elif</span> <span class="n">in_file</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># Get the data from &quot;in_data&quot;</span>
+            <span class="c1"># In that case, &quot;in_data&quot;</span>
+            <span class="c1">#   - must contain the fields [&#39;acc&#39;, &#39;omega&#39;]</span>
+            <span class="c1">#   - can contain the fields [&#39;rate&#39;, &#39;mag&#39;]</span>
+            <span class="c1"># self.source is set to &quot;None&quot;</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_set_data</span><span class="p">(</span><span class="n">in_data</span><span class="p">)</span>
+
+        <span class="k">else</span><span class="p">:</span> 
+            <span class="c1"># Set rate, acc, omega, mag</span>
+            <span class="c1"># Note: this is implemented in the concrete class, implenented in </span>
+            <span class="c1"># the corresponding module in &quot;sensors&quot;</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">source</span> <span class="o">=</span> <span class="n">in_file</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">get_data</span><span class="p">(</span><span class="n">in_file</span><span class="p">,</span> <span class="n">in_data</span><span class="p">)</span>
+
+        <span class="c1"># Set information not determined by the IMU-data</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">R_init</span> <span class="o">=</span> <span class="n">R_init</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pos_init</span> <span class="o">=</span> <span class="n">pos_init</span>
+
+        <span class="c1"># Set the analysis method, and consolidate the object (see below)</span>
+        <span class="c1"># This also means calculating the orientation quaternion!!</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">q_type</span> <span class="o">=</span> <span class="n">q_type</span>
+        
+        <span class="k">if</span> <span class="n">q_type</span> <span class="o">!=</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">calculate_position</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">calc_position</span><span class="p">()</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">q_type</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;q_type determines how the orientation is calculated.</span>
+<span class="sd">        If &quot;q_type&quot; is &quot;None&quot;, no orientation gets calculated; otherwise,</span>
+<span class="sd">        the orientation calculation is performed with </span>
+<span class="sd">        &quot;_calc_orientation&quot;, using the option &quot;q_type&quot;.</span>
+
+<span class="sd">        It has to be one of the following values:</span>
+
+<span class="sd">        * analytical</span>
+<span class="sd">        * kalman</span>
+<span class="sd">        * madgwick</span>
+<span class="sd">        * mahony</span>
+<span class="sd">        * None</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_q_type</span>
+
+    <span class="nd">@q_type</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">q_type</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="n">allowed_values</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;analytical&#39;</span><span class="p">,</span>
+                          <span class="s1">&#39;kalman&#39;</span><span class="p">,</span>
+                          <span class="s1">&#39;madgwick&#39;</span><span class="p">,</span>
+                          <span class="s1">&#39;mahony&#39;</span><span class="p">,</span>
+                          <span class="kc">None</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">allowed_values</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_q_type</span> <span class="o">=</span> <span class="n">value</span>
+            <span class="k">if</span> <span class="n">value</span> <span class="o">==</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">quat</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_calc_orientation</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;q_type must be one of the following: </span><span class="si">{0}</span><span class="s1">, not </span><span class="si">{1}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">allowed_values</span><span class="p">,</span> <span class="n">value</span><span class="p">))</span>
+
+
+    <span class="k">def</span> <span class="nf">_set_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+        <span class="c1"># Set the properties of an IMU-object directly</span>
+
+        <span class="k">if</span> <span class="s1">&#39;rate&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Set the &quot;rate&quot; to the default value (100 Hz).&#39;</span><span class="p">)</span>
+            <span class="n">data</span><span class="p">[</span><span class="s1">&#39;rate&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mf">100.0</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">rate</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;rate&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">acc</span><span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;acc&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">omega</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;omega&#39;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="s1">&#39;mag&#39;</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">mag</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;mag&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">source</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_set_info</span><span class="p">()</span>
+
+
+    <span class="k">def</span> <span class="nf">_calc_orientation</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Calculate the current orientation</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        type : string</span>
+<span class="sd">                - &#39;analytical&#39; .... quaternion integration of angular velocity</span>
+<span class="sd">                - &#39;kalman&#39; ..... quaternion Kalman filter</span>
+<span class="sd">                - &#39;madgwick&#39; ... gradient descent method, efficient</span>
+<span class="sd">                - &#39;mahony&#39; ....  formula from Mahony, as implemented by Madgwick</span>
+
+<span class="sd">        &#39;&#39;&#39;</span>
+
+        <span class="n">initialPosition</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">r_</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">]</span>
+
+        <span class="n">method</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_q_type</span>
+        <span class="k">if</span> <span class="n">method</span> <span class="o">==</span> <span class="s1">&#39;analytical&#39;</span><span class="p">:</span>
+            <span class="p">(</span><span class="n">quaternion</span><span class="p">,</span> <span class="n">position</span><span class="p">)</span> <span class="o">=</span> <span class="n">analytical</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">R_init</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">omega</span><span class="p">,</span> <span class="n">initialPosition</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">acc</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">rate</span><span class="p">)</span> 
+
+        <span class="k">elif</span> <span class="n">method</span> <span class="o">==</span> <span class="s1">&#39;kalman&#39;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_checkRequirements</span><span class="p">()</span>
+            <span class="n">quaternion</span> <span class="o">=</span> <span class="n">kalman</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rate</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">acc</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">omega</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">mag</span><span class="p">)</span>
+
+        <span class="k">elif</span> <span class="n">method</span> <span class="o">==</span> <span class="s1">&#39;madgwick&#39;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_checkRequirements</span><span class="p">()</span>
+
+            <span class="c1"># Initialize object</span>
+            <span class="n">AHRS</span> <span class="o">=</span> <span class="n">Madgwick</span><span class="p">(</span><span class="n">SamplePeriod</span><span class="o">=</span><span class="mf">1.</span><span class="o">/</span><span class="bp">self</span><span class="o">.</span><span class="n">rate</span><span class="p">,</span> <span class="n">Beta</span><span class="o">=</span><span class="mf">1.5</span><span class="p">)</span>
+            <span class="n">quaternion</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">totalSamples</span><span class="p">,</span> <span class="mi">4</span><span class="p">))</span>
+
+            <span class="c1"># The &quot;Update&quot;-function uses angular velocity in radian/s, and only the directions of acceleration and magnetic field</span>
+            <span class="n">Gyr</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">omega</span>
+            <span class="n">Acc</span> <span class="o">=</span> <span class="n">vector</span><span class="o">.</span><span class="n">normalize</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">acc</span><span class="p">)</span>
+            <span class="n">Mag</span> <span class="o">=</span> <span class="n">vector</span><span class="o">.</span><span class="n">normalize</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">mag</span><span class="p">)</span>
+
+            <span class="c1">#for t in range(len(time)):</span>
+            <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">misc</span><span class="o">.</span><span class="n">progressbar</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">totalSamples</span><span class="p">),</span> <span class="s1">&#39;Calculating the Quaternions &#39;</span><span class="p">,</span> <span class="mi">25</span><span class="p">)</span> <span class="p">:</span>
+                <span class="n">AHRS</span><span class="o">.</span><span class="n">Update</span><span class="p">(</span><span class="n">Gyr</span><span class="p">[</span><span class="n">t</span><span class="p">],</span> <span class="n">Acc</span><span class="p">[</span><span class="n">t</span><span class="p">],</span> <span class="n">Mag</span><span class="p">[</span><span class="n">t</span><span class="p">])</span>
+                <span class="n">quaternion</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">=</span> <span class="n">AHRS</span><span class="o">.</span><span class="n">Quaternion</span>
+
+        <span class="k">elif</span> <span class="n">method</span> <span class="o">==</span> <span class="s1">&#39;mahony&#39;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_checkRequirements</span><span class="p">()</span>
+
+            <span class="c1"># Initialize object</span>
+            <span class="n">AHRS</span> <span class="o">=</span> <span class="n">Mahony</span><span class="p">(</span><span class="n">SamplePeriod</span><span class="o">=</span><span class="mf">1.</span><span class="o">/</span><span class="n">np</span><span class="o">.</span><span class="n">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rate</span><span class="p">),</span> <span class="n">Kp</span><span class="o">=</span><span class="mf">0.5</span><span class="p">)</span>
+            <span class="n">quaternion</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">totalSamples</span><span class="p">,</span> <span class="mi">4</span><span class="p">))</span>
+
+            <span class="c1"># The &quot;Update&quot;-function uses angular velocity in radian/s, and only the directions of acceleration and magnetic field</span>
+            <span class="n">Gyr</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">omega</span>
+            <span class="n">Acc</span> <span class="o">=</span> <span class="n">vector</span><span class="o">.</span><span class="n">normalize</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">acc</span><span class="p">)</span>
+            <span class="n">Mag</span> <span class="o">=</span> <span class="n">vector</span><span class="o">.</span><span class="n">normalize</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">mag</span><span class="p">)</span>
+
+            <span class="c1">#for t in range(len(time)):</span>
+            <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">misc</span><span class="o">.</span><span class="n">progressbar</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">totalSamples</span><span class="p">),</span> <span class="s1">&#39;Calculating the Quaternions &#39;</span><span class="p">,</span> <span class="mi">25</span><span class="p">)</span> <span class="p">:</span>
+                <span class="n">AHRS</span><span class="o">.</span><span class="n">Update</span><span class="p">(</span><span class="n">Gyr</span><span class="p">[</span><span class="n">t</span><span class="p">],</span> <span class="n">Acc</span><span class="p">[</span><span class="n">t</span><span class="p">],</span> <span class="n">Mag</span><span class="p">[</span><span class="n">t</span><span class="p">])</span>
+                <span class="n">quaternion</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">=</span> <span class="n">AHRS</span><span class="o">.</span><span class="n">Quaternion</span>
+
+        <span class="k">else</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Unknown orientation type: </span><span class="si">{0}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">method</span><span class="p">))</span>
+            <span class="k">return</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">quat</span> <span class="o">=</span> <span class="n">quaternion</span>
+
+
+<div class="viewcode-block" id="IMU_Base.calc_position"><a class="viewcode-back" href="../imus.html#imus.IMU_Base.calc_position">[docs]</a>    <span class="k">def</span> <span class="nf">calc_position</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Calculate the position, assuming that the orientation is already known.&#39;&#39;&#39;</span>
+
+        <span class="n">initialPosition</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pos_init</span>
+        <span class="c1"># Acceleration, velocity, and position ----------------------------</span>
+        <span class="c1"># From q and the measured acceleration, get the \frac{d^2x}{dt^2}</span>
+        <span class="n">g</span> <span class="o">=</span> <span class="n">constants</span><span class="o">.</span><span class="n">g</span>
+        <span class="n">g_v</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">r_</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">g</span><span class="p">]</span> 
+        <span class="n">accReSensor</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">acc</span> <span class="o">-</span> <span class="n">vector</span><span class="o">.</span><span class="n">rotate_vector</span><span class="p">(</span><span class="n">g_v</span><span class="p">,</span> <span class="n">quat</span><span class="o">.</span><span class="n">q_inv</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">quat</span><span class="p">))</span>
+        <span class="n">accReSpace</span> <span class="o">=</span> <span class="n">vector</span><span class="o">.</span><span class="n">rotate_vector</span><span class="p">(</span><span class="n">accReSensor</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">quat</span><span class="p">)</span>
+
+        <span class="c1"># Position and Velocity through integration, assuming 0-velocity at t=0</span>
+        <span class="n">vel</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">accReSpace</span><span class="p">)</span>
+        <span class="n">pos</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">accReSpace</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">accReSpace</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]):</span>
+            <span class="n">vel</span><span class="p">[:,</span><span class="n">ii</span><span class="p">]</span> <span class="o">=</span> <span class="n">cumtrapz</span><span class="p">(</span><span class="n">accReSpace</span><span class="p">[:,</span><span class="n">ii</span><span class="p">],</span> <span class="n">dx</span><span class="o">=</span><span class="mf">1.</span><span class="o">/</span><span class="n">np</span><span class="o">.</span><span class="n">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rate</span><span class="p">),</span> <span class="n">initial</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+            <span class="n">pos</span><span class="p">[:,</span><span class="n">ii</span><span class="p">]</span> <span class="o">=</span> <span class="n">cumtrapz</span><span class="p">(</span><span class="n">vel</span><span class="p">[:,</span><span class="n">ii</span><span class="p">],</span>        <span class="n">dx</span><span class="o">=</span><span class="mf">1.</span><span class="o">/</span><span class="n">np</span><span class="o">.</span><span class="n">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rate</span><span class="p">),</span> <span class="n">initial</span><span class="o">=</span><span class="n">initialPosition</span><span class="p">[</span><span class="n">ii</span><span class="p">])</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">vel</span> <span class="o">=</span> <span class="n">vel</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pos</span> <span class="o">=</span> <span class="n">pos</span></div>
+
+    <span class="k">def</span> <span class="nf">_checkRequirements</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Check if all the necessary variables are available.&#39;&#39;&#39;</span>
+        <span class="n">required</span> <span class="o">=</span> <span class="p">[</span> <span class="s1">&#39;rate&#39;</span><span class="p">,</span> <span class="s1">&#39;acc&#39;</span><span class="p">,</span> <span class="s1">&#39;omega&#39;</span><span class="p">,</span> <span class="s1">&#39;mag&#39;</span> <span class="p">]</span>
+
+        <span class="k">for</span> <span class="n">field</span> <span class="ow">in</span> <span class="n">required</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">field</span> <span class="ow">not</span> <span class="ow">in</span> <span class="nb">vars</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Cannot find </span><span class="si">{0}</span><span class="s1"> in calc_orientation!&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">field</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">_set_info</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Complete the information properties of that IMU&#39;&#39;&#39;</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">totalSamples</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">omega</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">duration</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">totalSamples</span><span class="p">)</span><span class="o">/</span><span class="bp">self</span><span class="o">.</span><span class="n">rate</span> <span class="c1"># [sec]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dataType</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">omega</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="analytical"><a class="viewcode-back" href="../imus.html#imus.analytical">[docs]</a><span class="k">def</span> <span class="nf">analytical</span><span class="p">(</span><span class="n">R_initialOrientation</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="mi">3</span><span class="p">),</span>
+               <span class="n">omega</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">5</span><span class="p">,</span><span class="mi">3</span><span class="p">)),</span>
+               <span class="n">initialPosition</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">3</span><span class="p">),</span>
+               <span class="n">accMeasured</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">column_stack</span><span class="p">((</span><span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">5</span><span class="p">,</span><span class="mi">2</span><span class="p">)),</span> <span class="mf">9.81</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="mi">5</span><span class="p">))),</span>
+               <span class="n">rate</span><span class="o">=</span><span class="mi">100</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39; Reconstruct position and orientation with an analytical solution,</span>
+<span class="sd">    from angular velocity and linear acceleration.</span>
+<span class="sd">    Assumes a start in a stationary position. No compensation for drift.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    R_initialOrientation: ndarray(3,3)</span>
+<span class="sd">        Rotation matrix describing the initial orientation of the sensor,</span>
+<span class="sd">        except a mis-orienation with respect to gravity</span>
+<span class="sd">    omega : ndarray(N,3)</span>
+<span class="sd">        Angular velocity, in [rad/s]</span>
+<span class="sd">    initialPosition : ndarray(3,)</span>
+<span class="sd">        initial Position, in [m]</span>
+<span class="sd">    accMeasured : ndarray(N,3)</span>
+<span class="sd">        Linear acceleration, in [m/s^2]</span>
+<span class="sd">    rate : float</span>
+<span class="sd">        sampling rate, in [Hz]</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    q : ndarray(N,3)</span>
+<span class="sd">        Orientation, expressed as a quaternion vector</span>
+<span class="sd">    pos : ndarray(N,3)</span>
+<span class="sd">        Position in space [m]</span>
+
+<span class="sd">    Example</span>
+<span class="sd">    -------</span>
+<span class="sd">     </span>
+<span class="sd">    &gt;&gt;&gt; q1, pos1 = analytical(R_initialOrientation, omega, initialPosition, acc, rate)</span>
+
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="c1"># Transform recordings to angVel/acceleration in space --------------</span>
+
+    <span class="c1"># Orientation of \vec{g} with the sensor in the &quot;R_initialOrientation&quot;</span>
+    <span class="n">g</span> <span class="o">=</span> <span class="n">constants</span><span class="o">.</span><span class="n">g</span>
+    <span class="n">g0</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">inv</span><span class="p">(</span><span class="n">R_initialOrientation</span><span class="p">)</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">r_</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="n">g</span><span class="p">])</span>
+
+    <span class="c1"># for the remaining deviation, assume the shortest rotation to there</span>
+    <span class="n">q0</span> <span class="o">=</span> <span class="n">vector</span><span class="o">.</span><span class="n">q_shortest_rotation</span><span class="p">(</span><span class="n">accMeasured</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">g0</span><span class="p">)</span>    
+    
+    <span class="n">q_initial</span> <span class="o">=</span> <span class="n">rotmat</span><span class="o">.</span><span class="n">convert</span><span class="p">(</span><span class="n">R_initialOrientation</span><span class="p">,</span> <span class="n">to</span><span class="o">=</span><span class="s1">&#39;quat&#39;</span><span class="p">)</span>
+    
+    <span class="c1"># combine the two, to form a reference orientation. Note that the sequence</span>
+    <span class="c1"># is very important!</span>
+    <span class="n">q_ref</span> <span class="o">=</span> <span class="n">quat</span><span class="o">.</span><span class="n">q_mult</span><span class="p">(</span><span class="n">q_initial</span><span class="p">,</span> <span class="n">q0</span><span class="p">)</span>
+    
+    <span class="c1"># Calculate orientation q by &quot;integrating&quot; omega -----------------</span>
+    <span class="n">q</span> <span class="o">=</span> <span class="n">quat</span><span class="o">.</span><span class="n">calc_quat</span><span class="p">(</span><span class="n">omega</span><span class="p">,</span> <span class="n">q_ref</span><span class="p">,</span> <span class="n">rate</span><span class="p">,</span> <span class="s1">&#39;bf&#39;</span><span class="p">)</span>
+
+    <span class="c1"># Acceleration, velocity, and position ----------------------------</span>
+    <span class="c1"># From q and the measured acceleration, get the \frac{d^2x}{dt^2}</span>
+    <span class="n">g_v</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">r_</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">g</span><span class="p">]</span> 
+    <span class="n">accReSensor</span> <span class="o">=</span> <span class="n">accMeasured</span> <span class="o">-</span> <span class="n">vector</span><span class="o">.</span><span class="n">rotate_vector</span><span class="p">(</span><span class="n">g_v</span><span class="p">,</span> <span class="n">quat</span><span class="o">.</span><span class="n">q_inv</span><span class="p">(</span><span class="n">q</span><span class="p">))</span>
+    <span class="n">accReSpace</span> <span class="o">=</span> <span class="n">vector</span><span class="o">.</span><span class="n">rotate_vector</span><span class="p">(</span><span class="n">accReSensor</span><span class="p">,</span> <span class="n">q</span><span class="p">)</span>
+
+    <span class="c1"># Make the first position the reference position</span>
+    <span class="n">q</span> <span class="o">=</span> <span class="n">quat</span><span class="o">.</span><span class="n">q_mult</span><span class="p">(</span><span class="n">q</span><span class="p">,</span> <span class="n">quat</span><span class="o">.</span><span class="n">q_inv</span><span class="p">(</span><span class="n">q</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+
+    <span class="c1"># compensate for drift</span>
+    <span class="c1">#drift = np.mean(accReSpace, 0)</span>
+    <span class="c1">#accReSpace -= drift*0.7</span>
+
+    <span class="c1"># Position and Velocity through integration, assuming 0-velocity at t=0</span>
+    <span class="n">vel</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">accReSpace</span><span class="p">)</span>
+    <span class="n">pos</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">accReSpace</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">accReSpace</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]):</span>
+        <span class="n">vel</span><span class="p">[:,</span><span class="n">ii</span><span class="p">]</span> <span class="o">=</span> <span class="n">cumtrapz</span><span class="p">(</span><span class="n">accReSpace</span><span class="p">[:,</span><span class="n">ii</span><span class="p">],</span> <span class="n">dx</span><span class="o">=</span><span class="mf">1.</span><span class="o">/</span><span class="n">rate</span><span class="p">,</span> <span class="n">initial</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">pos</span><span class="p">[:,</span><span class="n">ii</span><span class="p">]</span> <span class="o">=</span> <span class="n">cumtrapz</span><span class="p">(</span><span class="n">vel</span><span class="p">[:,</span><span class="n">ii</span><span class="p">],</span>        <span class="n">dx</span><span class="o">=</span><span class="mf">1.</span><span class="o">/</span><span class="n">rate</span><span class="p">,</span> <span class="n">initial</span><span class="o">=</span><span class="n">initialPosition</span><span class="p">[</span><span class="n">ii</span><span class="p">])</span>
+
+    <span class="k">return</span> <span class="p">(</span><span class="n">q</span><span class="p">,</span> <span class="n">pos</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="kalman"><a class="viewcode-back" href="../imus.html#imus.kalman">[docs]</a><span class="k">def</span> <span class="nf">kalman</span><span class="p">(</span><span class="n">rate</span><span class="p">,</span> <span class="n">acc</span><span class="p">,</span> <span class="n">omega</span><span class="p">,</span> <span class="n">mag</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Calclulate the orientation from IMU magnetometer data.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    rate : float</span>
+<span class="sd">    	   sample rate [Hz]	</span>
+<span class="sd">    acc : (N,3) ndarray</span>
+<span class="sd">    	  linear acceleration [m/sec^2]</span>
+<span class="sd">    omega : (N,3) ndarray</span>
+<span class="sd">    	  angular velocity [rad/sec]</span>
+<span class="sd">    mag : (N,3) ndarray</span>
+<span class="sd">    	  magnetic field orientation</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    qOut : (N,4) ndarray</span>
+<span class="sd">    	   unit quaternion, describing the orientation relativ to the coordinate system spanned by the local magnetic field, and gravity</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    Based on &quot;Design, Implementation, and Experimental Results of a Quaternion-Based Kalman Filter for Human Body Motion Tracking&quot; Yun, X. and Bachman, E.R., IEEE TRANSACTIONS ON ROBOTICS, VOL. 22, 1216-1227 (2006)</span>
+
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="n">numData</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">acc</span><span class="p">)</span>
+
+    <span class="c1"># Set parameters for Kalman Filter</span>
+    <span class="n">tstep</span> <span class="o">=</span> <span class="mf">1.</span><span class="o">/</span><span class="n">rate</span>
+    <span class="n">tau</span> <span class="o">=</span> <span class="p">[</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">]</span>	<span class="c1"># from Yun, 2006</span>
+
+    <span class="c1"># Initializations </span>
+    <span class="n">x_k</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">7</span><span class="p">)</span>	<span class="c1"># state vector</span>
+    <span class="n">z_k</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">7</span><span class="p">)</span>   <span class="c1"># measurement vector</span>
+    <span class="n">z_k_pre</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">7</span><span class="p">)</span>
+    <span class="n">P_k</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">matrix</span><span class="p">(</span> <span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="mi">7</span><span class="p">)</span> <span class="p">)</span>		 <span class="c1"># error covariance matrix P_k</span>
+
+    <span class="n">Phi_k</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">matrix</span><span class="p">(</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">7</span><span class="p">,</span><span class="mi">7</span><span class="p">))</span> <span class="p">)</span> <span class="c1"># discrete state transition matrix Phi_k</span>
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">3</span><span class="p">):</span>
+        <span class="n">Phi_k</span><span class="p">[</span><span class="n">ii</span><span class="p">,</span><span class="n">ii</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">tstep</span><span class="o">/</span><span class="n">tau</span><span class="p">[</span><span class="n">ii</span><span class="p">])</span>
+
+    <span class="n">H_k</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">matrix</span><span class="p">(</span> <span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="mi">7</span><span class="p">)</span> <span class="p">)</span>		<span class="c1"># Identity matrix</span>
+
+    <span class="n">Q_k</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">matrix</span><span class="p">(</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">7</span><span class="p">,</span><span class="mi">7</span><span class="p">))</span> <span class="p">)</span>	<span class="c1"># process noise matrix Q_k</span>
+    <span class="n">D</span> <span class="o">=</span> <span class="mf">0.0001</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">r_</span><span class="p">[</span><span class="mf">0.4</span><span class="p">,</span> <span class="mf">0.4</span><span class="p">,</span> <span class="mf">0.4</span><span class="p">]</span>		<span class="c1"># [rad^2/sec^2]; from Yun, 2006</span>
+                                                                            <span class="c1"># check 0.0001 in Yun</span>
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">3</span><span class="p">):</span>
+        <span class="n">Q_k</span><span class="p">[</span><span class="n">ii</span><span class="p">,</span><span class="n">ii</span><span class="p">]</span> <span class="o">=</span>  <span class="n">D</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">/</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">tau</span><span class="p">[</span><span class="n">ii</span><span class="p">])</span>  <span class="o">*</span> <span class="p">(</span> <span class="mi">1</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="mi">2</span><span class="o">*</span><span class="n">tstep</span><span class="o">/</span><span class="n">tau</span><span class="p">[</span><span class="n">ii</span><span class="p">])</span> <span class="p">)</span>
+
+    <span class="c1"># Evaluate measurement noise covariance matrix R_k</span>
+    <span class="n">R_k</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">matrix</span><span class="p">(</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">7</span><span class="p">,</span><span class="mi">7</span><span class="p">))</span> <span class="p">)</span>
+    <span class="n">r_angvel</span> <span class="o">=</span> <span class="mf">0.01</span><span class="p">;</span>      <span class="c1"># [rad**2/sec**2]; from Yun, 2006</span>
+    <span class="n">r_quats</span> <span class="o">=</span> <span class="mf">0.0001</span><span class="p">;</span>     <span class="c1"># from Yun, 2006</span>
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">7</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">ii</span><span class="o">&lt;</span><span class="mi">3</span><span class="p">:</span>
+            <span class="n">R_k</span><span class="p">[</span><span class="n">ii</span><span class="p">,</span><span class="n">ii</span><span class="p">]</span> <span class="o">=</span> <span class="n">r_angvel</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">R_k</span><span class="p">[</span><span class="n">ii</span><span class="p">,</span><span class="n">ii</span><span class="p">]</span> <span class="o">=</span> <span class="n">r_quats</span>
+
+    <span class="c1"># Calculation of orientation for every time step</span>
+    <span class="n">qOut</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span> <span class="p">(</span><span class="n">numData</span><span class="p">,</span><span class="mi">4</span><span class="p">)</span> <span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">numData</span><span class="p">):</span>
+        <span class="n">accelVec</span>  <span class="o">=</span> <span class="n">acc</span><span class="p">[</span><span class="n">ii</span><span class="p">,:]</span>
+        <span class="n">magVec</span>    <span class="o">=</span> <span class="n">mag</span><span class="p">[</span><span class="n">ii</span><span class="p">,:]</span>
+        <span class="n">angvelVec</span> <span class="o">=</span> <span class="n">omega</span><span class="p">[</span><span class="n">ii</span><span class="p">,:]</span>
+        <span class="n">z_k_pre</span> <span class="o">=</span> <span class="n">z_k</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>	<span class="c1"># watch out: by default, Python passes the reference!!</span>
+
+        <span class="c1"># Evaluate quaternion based on acceleration and magnetic field data</span>
+        <span class="n">accelVec_n</span> <span class="o">=</span> <span class="n">vector</span><span class="o">.</span><span class="n">normalize</span><span class="p">(</span><span class="n">accelVec</span><span class="p">)</span>
+        <span class="n">magVec_hor</span> <span class="o">=</span> <span class="n">magVec</span> <span class="o">-</span> <span class="n">accelVec_n</span> <span class="o">*</span> <span class="n">accelVec_n</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">magVec</span><span class="p">)</span>
+        <span class="n">magVec_n</span>   <span class="o">=</span> <span class="n">vector</span><span class="o">.</span><span class="n">normalize</span><span class="p">(</span><span class="n">magVec_hor</span><span class="p">)</span>
+        <span class="n">basisVectors</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">(</span> <span class="p">(</span><span class="n">magVec_n</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">cross</span><span class="p">(</span><span class="n">accelVec_n</span><span class="p">,</span> <span class="n">magVec_n</span><span class="p">),</span> <span class="n">accelVec_n</span><span class="p">)</span> <span class="p">)</span><span class="o">.</span><span class="n">T</span>
+        <span class="n">quatRef</span> <span class="o">=</span> <span class="n">quat</span><span class="o">.</span><span class="n">q_inv</span><span class="p">(</span><span class="n">rotmat</span><span class="o">.</span><span class="n">convert</span><span class="p">(</span><span class="n">basisVectors</span><span class="p">,</span> <span class="n">to</span><span class="o">=</span><span class="s1">&#39;quat&#39;</span><span class="p">))</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+
+        <span class="c1"># Update measurement vector z_k</span>
+        <span class="n">z_k</span><span class="p">[:</span><span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="n">angvelVec</span>
+        <span class="n">z_k</span><span class="p">[</span><span class="mi">3</span><span class="p">:]</span> <span class="o">=</span> <span class="n">quatRef</span>
+
+        <span class="c1"># Calculate Kalman Gain</span>
+        <span class="c1"># K_k = P_k * H_k.T * inv(H_k*P_k*H_k.T + R_k)</span>
+        <span class="c1"># Check: why is H_k used in the original formulas?</span>
+        <span class="n">K_k</span> <span class="o">=</span> <span class="n">P_k</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">inv</span><span class="p">(</span><span class="n">P_k</span> <span class="o">+</span> <span class="n">R_k</span><span class="p">)</span>
+
+        <span class="c1"># Update state vector x_k</span>
+        <span class="n">x_k</span> <span class="o">+=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span> <span class="n">K_k</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">z_k</span><span class="o">-</span><span class="n">z_k_pre</span><span class="p">)</span> <span class="p">)</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span>
+
+        <span class="c1"># Evaluate discrete state transition matrix Phi_k</span>
+        <span class="n">Phi_k</span><span class="p">[</span><span class="mi">3</span><span class="p">,:]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">r_</span><span class="p">[</span><span class="o">-</span><span class="n">x_k</span><span class="p">[</span><span class="mi">4</span><span class="p">]</span><span class="o">*</span><span class="n">tstep</span><span class="o">/</span><span class="mi">2</span><span class="p">,</span> <span class="o">-</span><span class="n">x_k</span><span class="p">[</span><span class="mi">5</span><span class="p">]</span><span class="o">*</span><span class="n">tstep</span><span class="o">/</span><span class="mi">2</span><span class="p">,</span> <span class="o">-</span><span class="n">x_k</span><span class="p">[</span><span class="mi">6</span><span class="p">]</span><span class="o">*</span><span class="n">tstep</span><span class="o">/</span><span class="mi">2</span><span class="p">,</span>              <span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="n">x_k</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">tstep</span><span class="o">/</span><span class="mi">2</span><span class="p">,</span> <span class="o">-</span><span class="n">x_k</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">tstep</span><span class="o">/</span><span class="mi">2</span><span class="p">,</span> <span class="o">-</span><span class="n">x_k</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">*</span><span class="n">tstep</span><span class="o">/</span><span class="mi">2</span><span class="p">]</span>
+        <span class="n">Phi_k</span><span class="p">[</span><span class="mi">4</span><span class="p">,:]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">r_</span><span class="p">[</span> <span class="n">x_k</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">*</span><span class="n">tstep</span><span class="o">/</span><span class="mi">2</span><span class="p">,</span> <span class="o">-</span><span class="n">x_k</span><span class="p">[</span><span class="mi">6</span><span class="p">]</span><span class="o">*</span><span class="n">tstep</span><span class="o">/</span><span class="mi">2</span><span class="p">,</span>  <span class="n">x_k</span><span class="p">[</span><span class="mi">5</span><span class="p">]</span><span class="o">*</span><span class="n">tstep</span><span class="o">/</span><span class="mi">2</span><span class="p">,</span> <span class="n">x_k</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">tstep</span><span class="o">/</span><span class="mi">2</span><span class="p">,</span>               <span class="mi">1</span><span class="p">,</span>  <span class="n">x_k</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">*</span><span class="n">tstep</span><span class="o">/</span><span class="mi">2</span><span class="p">,</span> <span class="o">-</span><span class="n">x_k</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">tstep</span><span class="o">/</span><span class="mi">2</span><span class="p">]</span>
+        <span class="n">Phi_k</span><span class="p">[</span><span class="mi">5</span><span class="p">,:]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">r_</span><span class="p">[</span> <span class="n">x_k</span><span class="p">[</span><span class="mi">6</span><span class="p">]</span><span class="o">*</span><span class="n">tstep</span><span class="o">/</span><span class="mi">2</span><span class="p">,</span>  <span class="n">x_k</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">*</span><span class="n">tstep</span><span class="o">/</span><span class="mi">2</span><span class="p">,</span> <span class="o">-</span><span class="n">x_k</span><span class="p">[</span><span class="mi">4</span><span class="p">]</span><span class="o">*</span><span class="n">tstep</span><span class="o">/</span><span class="mi">2</span><span class="p">,</span> <span class="n">x_k</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">tstep</span><span class="o">/</span><span class="mi">2</span><span class="p">,</span> <span class="o">-</span><span class="n">x_k</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">*</span><span class="n">tstep</span><span class="o">/</span><span class="mi">2</span><span class="p">,</span>               <span class="mi">1</span><span class="p">,</span>  <span class="n">x_k</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">tstep</span><span class="o">/</span><span class="mi">2</span><span class="p">]</span>
+        <span class="n">Phi_k</span><span class="p">[</span><span class="mi">6</span><span class="p">,:]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">r_</span><span class="p">[</span><span class="o">-</span><span class="n">x_k</span><span class="p">[</span><span class="mi">5</span><span class="p">]</span><span class="o">*</span><span class="n">tstep</span><span class="o">/</span><span class="mi">2</span><span class="p">,</span>  <span class="n">x_k</span><span class="p">[</span><span class="mi">4</span><span class="p">]</span><span class="o">*</span><span class="n">tstep</span><span class="o">/</span><span class="mi">2</span><span class="p">,</span>  <span class="n">x_k</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">*</span><span class="n">tstep</span><span class="o">/</span><span class="mi">2</span><span class="p">,</span> <span class="n">x_k</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">*</span><span class="n">tstep</span><span class="o">/</span><span class="mi">2</span><span class="p">,</span>  <span class="n">x_k</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">tstep</span><span class="o">/</span><span class="mi">2</span><span class="p">,</span> <span class="o">-</span><span class="n">x_k</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">tstep</span><span class="o">/</span><span class="mi">2</span><span class="p">,</span>               <span class="mi">1</span><span class="p">]</span>
+
+        <span class="c1"># Update error covariance matrix</span>
+        <span class="c1">#P_k = (eye(7)-K_k*H_k)*P_k</span>
+        <span class="c1"># Check: why is H_k used in the original formulas?</span>
+        <span class="n">P_k</span> <span class="o">=</span> <span class="p">(</span><span class="n">H_k</span> <span class="o">-</span> <span class="n">K_k</span><span class="p">)</span> <span class="o">*</span> <span class="n">P_k</span>
+
+        <span class="c1"># Projection of state quaternions</span>
+        <span class="n">x_k</span><span class="p">[</span><span class="mi">3</span><span class="p">:]</span> <span class="o">+=</span> <span class="n">quat</span><span class="o">.</span><span class="n">q_mult</span><span class="p">(</span><span class="mf">0.5</span><span class="o">*</span><span class="n">x_k</span><span class="p">[</span><span class="mi">3</span><span class="p">:],</span><span class="n">np</span><span class="o">.</span><span class="n">r_</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="n">x_k</span><span class="p">[:</span><span class="mi">3</span><span class="p">]])</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+        <span class="n">x_k</span><span class="p">[</span><span class="mi">3</span><span class="p">:]</span> <span class="o">=</span> <span class="n">vector</span><span class="o">.</span><span class="n">normalize</span><span class="p">(</span> <span class="n">x_k</span><span class="p">[</span><span class="mi">3</span><span class="p">:]</span> <span class="p">)</span>
+        <span class="n">x_k</span><span class="p">[:</span><span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
+        <span class="n">x_k</span><span class="p">[:</span><span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="n">tstep</span> <span class="o">*</span> <span class="p">(</span><span class="o">-</span><span class="n">x_k</span><span class="p">[:</span><span class="mi">3</span><span class="p">]</span><span class="o">+</span><span class="n">z_k</span><span class="p">[:</span><span class="mi">3</span><span class="p">])</span>
+
+        <span class="n">qOut</span><span class="p">[</span><span class="n">ii</span><span class="p">,:]</span> <span class="o">=</span> <span class="n">x_k</span><span class="p">[</span><span class="mi">3</span><span class="p">:]</span>
+
+        <span class="c1"># Projection of error covariance matrix</span>
+        <span class="n">P_k</span> <span class="o">=</span> <span class="n">Phi_k</span> <span class="o">*</span> <span class="n">P_k</span> <span class="o">*</span> <span class="n">Phi_k</span><span class="o">.</span><span class="n">T</span> <span class="o">+</span> <span class="n">Q_k</span>
+
+    <span class="c1"># Make the first position the reference position</span>
+    <span class="n">qOut</span> <span class="o">=</span> <span class="n">quat</span><span class="o">.</span><span class="n">q_mult</span><span class="p">(</span><span class="n">qOut</span><span class="p">,</span> <span class="n">quat</span><span class="o">.</span><span class="n">q_inv</span><span class="p">(</span><span class="n">qOut</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+
+    <span class="k">return</span> <span class="n">qOut</span></div>
+
+<div class="viewcode-block" id="Madgwick"><a class="viewcode-back" href="../imus.html#imus.Madgwick">[docs]</a><span class="k">class</span> <span class="nc">Madgwick</span><span class="p">:</span>
+    <span class="sd">&#39;&#39;&#39;Madgwick&#39;s gradient descent filter.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        SamplePeriod : double</span>
+<span class="sd">            sample period [s]</span>
+<span class="sd">        Beta : double</span>
+<span class="sd">            algorithm gain</span>
+<span class="sd">        Quaternion : array, shape (N,4)</span>
+<span class="sd">            output quaternion describing the Earth relative to the sensor</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">SamplePeriod</span><span class="o">=</span><span class="mf">1.</span><span class="o">/</span><span class="mi">256</span><span class="p">,</span> <span class="n">Beta</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">Quaternion</span><span class="o">=</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">]):</span>
+        <span class="sd">&#39;&#39;&#39;Initialization &#39;&#39;&#39;</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">SamplePeriod</span> <span class="o">=</span> <span class="n">SamplePeriod</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">Beta</span> <span class="o">=</span> <span class="n">Beta</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">Quaternion</span> <span class="o">=</span> <span class="n">Quaternion</span>
+
+<div class="viewcode-block" id="Madgwick.Update"><a class="viewcode-back" href="../imus.html#imus.Madgwick.Update">[docs]</a>    <span class="k">def</span> <span class="nf">Update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">Gyroscope</span><span class="p">,</span> <span class="n">Accelerometer</span><span class="p">,</span> <span class="n">Magnetometer</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Calculate the best quaternion to the given measurement values.</span>
+<span class="sd">        </span>
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        Gyroscope : array, shape (N,3)</span>
+<span class="sd">            Angular velocity [rad/s]</span>
+<span class="sd">        Accelerometer : array, shape (N,3)</span>
+<span class="sd">            Linear acceleration (Only the direction is used, so units don&#39;t matter.)</span>
+<span class="sd">        Magnetometer : array, shape (N,3)</span>
+<span class="sd">            Orientation of local magenetic field.</span>
+<span class="sd">            (Again, only the direction is used, so units don&#39;t matter.)</span>
+<span class="sd">            </span>
+<span class="sd">        &#39;&#39;&#39;</span>
+
+        <span class="n">q</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">Quaternion</span><span class="p">;</span> <span class="c1"># short name local variable for readability</span>
+
+        <span class="c1"># Reference direction of Earth&#39;s magnetic field</span>
+        <span class="n">h</span> <span class="o">=</span> <span class="n">vector</span><span class="o">.</span><span class="n">rotate_vector</span><span class="p">(</span><span class="n">Magnetometer</span><span class="p">,</span> <span class="n">q</span><span class="p">)</span>
+        <span class="n">b</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">h</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span><span class="o">+</span><span class="n">h</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span><span class="p">),</span> <span class="mi">0</span><span class="p">,</span> <span class="n">h</span><span class="p">[</span><span class="mi">2</span><span class="p">]))</span>
+
+        <span class="c1"># Gradient decent algorithm corrective step</span>
+        <span class="n">F</span> <span class="o">=</span> <span class="p">[</span><span class="mi">2</span><span class="o">*</span><span class="p">(</span><span class="n">q</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">q</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="o">-</span> <span class="n">q</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">q</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>   <span class="o">-</span> <span class="n">Accelerometer</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+             <span class="mi">2</span><span class="o">*</span><span class="p">(</span><span class="n">q</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">q</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">q</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">*</span><span class="n">q</span><span class="p">[</span><span class="mi">3</span><span class="p">])</span>   <span class="o">-</span> <span class="n">Accelerometer</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>
+             <span class="mi">2</span><span class="o">*</span><span class="p">(</span><span class="mf">0.5</span> <span class="o">-</span> <span class="n">q</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span> <span class="o">-</span> <span class="n">q</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span> <span class="o">-</span> <span class="n">Accelerometer</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span>
+             <span class="mi">2</span><span class="o">*</span><span class="n">b</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="p">(</span><span class="mf">0.5</span> <span class="o">-</span> <span class="n">q</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span> <span class="o">-</span> <span class="n">q</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="mi">2</span><span class="o">*</span><span class="n">b</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">*</span><span class="p">(</span><span class="n">q</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">q</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="o">-</span> <span class="n">q</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">q</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>   <span class="o">-</span> <span class="n">Magnetometer</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+             <span class="mi">2</span><span class="o">*</span><span class="n">b</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="p">(</span><span class="n">q</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">q</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">-</span> <span class="n">q</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">q</span><span class="p">[</span><span class="mi">3</span><span class="p">])</span>   <span class="o">+</span> <span class="mi">2</span><span class="o">*</span><span class="n">b</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">*</span><span class="p">(</span><span class="n">q</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">q</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">q</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">*</span><span class="n">q</span><span class="p">[</span><span class="mi">3</span><span class="p">])</span>   <span class="o">-</span> <span class="n">Magnetometer</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>
+             <span class="mi">2</span><span class="o">*</span><span class="n">b</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="p">(</span><span class="n">q</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">q</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">+</span> <span class="n">q</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">q</span><span class="p">[</span><span class="mi">3</span><span class="p">])</span>   <span class="o">+</span> <span class="mi">2</span><span class="o">*</span><span class="n">b</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">*</span><span class="p">(</span><span class="mf">0.5</span> <span class="o">-</span> <span class="n">q</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span> <span class="o">-</span> <span class="n">q</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span> <span class="o">-</span> <span class="n">Magnetometer</span><span class="p">[</span><span class="mi">2</span><span class="p">]]</span>
+
+        <span class="n">J</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span>
+            <span class="p">[</span><span class="o">-</span><span class="mi">2</span><span class="o">*</span><span class="n">q</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span>                 	<span class="mi">2</span><span class="o">*</span><span class="n">q</span><span class="p">[</span><span class="mi">3</span><span class="p">],</span>                    <span class="o">-</span><span class="mi">2</span><span class="o">*</span><span class="n">q</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>                         <span class="mi">2</span><span class="o">*</span><span class="n">q</span><span class="p">[</span><span class="mi">1</span><span class="p">]],</span>
+            <span class="p">[</span> <span class="mi">2</span><span class="o">*</span><span class="n">q</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>                 	<span class="mi">2</span><span class="o">*</span><span class="n">q</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>                	    <span class="mi">2</span><span class="o">*</span><span class="n">q</span><span class="p">[</span><span class="mi">3</span><span class="p">],</span>                         <span class="mi">2</span><span class="o">*</span><span class="n">q</span><span class="p">[</span><span class="mi">2</span><span class="p">]],</span>
+            <span class="p">[</span><span class="mi">0</span><span class="p">,</span>                        <span class="o">-</span><span class="mi">4</span><span class="o">*</span><span class="n">q</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>                    <span class="o">-</span><span class="mi">4</span><span class="o">*</span><span class="n">q</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span>                         <span class="mi">0</span><span class="p">],</span>
+            <span class="p">[</span><span class="o">-</span><span class="mi">2</span><span class="o">*</span><span class="n">b</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">*</span><span class="n">q</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span>              <span class="mi">2</span><span class="o">*</span><span class="n">b</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">*</span><span class="n">q</span><span class="p">[</span><span class="mi">3</span><span class="p">],</span>               <span class="o">-</span><span class="mi">4</span><span class="o">*</span><span class="n">b</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">q</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">-</span><span class="mi">2</span><span class="o">*</span><span class="n">b</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">*</span><span class="n">q</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>       <span class="o">-</span><span class="mi">4</span><span class="o">*</span><span class="n">b</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">q</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">+</span><span class="mi">2</span><span class="o">*</span><span class="n">b</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">*</span><span class="n">q</span><span class="p">[</span><span class="mi">1</span><span class="p">]],</span>
+            <span class="p">[</span><span class="o">-</span><span class="mi">2</span><span class="o">*</span><span class="n">b</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">q</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">+</span><span class="mi">2</span><span class="o">*</span><span class="n">b</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">*</span><span class="n">q</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>	<span class="mi">2</span><span class="o">*</span><span class="n">b</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">q</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">+</span><span class="mi">2</span><span class="o">*</span><span class="n">b</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">*</span><span class="n">q</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>    <span class="mi">2</span><span class="o">*</span><span class="n">b</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">q</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">+</span><span class="mi">2</span><span class="o">*</span><span class="n">b</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">*</span><span class="n">q</span><span class="p">[</span><span class="mi">3</span><span class="p">],</span>       <span class="o">-</span><span class="mi">2</span><span class="o">*</span><span class="n">b</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">q</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">+</span><span class="mi">2</span><span class="o">*</span><span class="n">b</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">*</span><span class="n">q</span><span class="p">[</span><span class="mi">2</span><span class="p">]],</span>
+            <span class="p">[</span> <span class="mi">2</span><span class="o">*</span><span class="n">b</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">q</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span>              <span class="mi">2</span><span class="o">*</span><span class="n">b</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">q</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">-</span><span class="mi">4</span><span class="o">*</span><span class="n">b</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">*</span><span class="n">q</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>    <span class="mi">2</span><span class="o">*</span><span class="n">b</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">q</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">-</span><span class="mi">4</span><span class="o">*</span><span class="n">b</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">*</span><span class="n">q</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span>        <span class="mi">2</span><span class="o">*</span><span class="n">b</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">q</span><span class="p">[</span><span class="mi">1</span><span class="p">]]])</span>
+
+        <span class="n">step</span> <span class="o">=</span> <span class="n">J</span><span class="o">.</span><span class="n">T</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">F</span><span class="p">)</span>
+        <span class="n">step</span> <span class="o">=</span> <span class="n">vector</span><span class="o">.</span><span class="n">normalize</span><span class="p">(</span><span class="n">step</span><span class="p">)</span>	<span class="c1"># normalise step magnitude</span>
+
+        <span class="c1"># Compute rate of change of quaternion</span>
+        <span class="n">qDot</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">quat</span><span class="o">.</span><span class="n">q_mult</span><span class="p">(</span><span class="n">q</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="n">Gyroscope</span><span class="p">]))</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">Beta</span> <span class="o">*</span> <span class="n">step</span>
+
+        <span class="c1"># Integrate to yield quaternion</span>
+        <span class="n">q</span> <span class="o">=</span> <span class="n">q</span> <span class="o">+</span> <span class="n">qDot</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">SamplePeriod</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">Quaternion</span> <span class="o">=</span> <span class="n">vector</span><span class="o">.</span><span class="n">normalize</span><span class="p">(</span><span class="n">q</span><span class="p">)</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span></div></div>
+
+<div class="viewcode-block" id="Mahony"><a class="viewcode-back" href="../imus.html#imus.Mahony">[docs]</a><span class="k">class</span> <span class="nc">Mahony</span><span class="p">:</span>
+    <span class="sd">&#39;&#39;&#39;Madgwick&#39;s implementation of Mayhony&#39;s AHRS algorithm</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        SamplePeriod : sample period</span>
+<span class="sd">        Kp : algorithm proportional gain</span>
+<span class="sd">        Ki : algorithm integral gain</span>
+<span class="sd">        Quaternion : output quaternion describing the Earth relative to the sensor</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">SamplePeriod</span><span class="o">=</span><span class="mf">1.</span><span class="o">/</span><span class="mi">256</span><span class="p">,</span> <span class="n">Kp</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">Ki</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">Quaternion</span><span class="o">=</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">]):</span>
+        <span class="sd">&#39;&#39;&#39;Initialization &#39;&#39;&#39;</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">SamplePeriod</span> <span class="o">=</span> <span class="n">SamplePeriod</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">Kp</span> <span class="o">=</span> <span class="n">Kp</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">Ki</span> <span class="o">=</span> <span class="n">Ki</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">Quaternion</span> <span class="o">=</span> <span class="n">Quaternion</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_eInt</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>  <span class="c1"># integral error</span>
+
+<div class="viewcode-block" id="Mahony.Update"><a class="viewcode-back" href="../imus.html#imus.Mahony.Update">[docs]</a>    <span class="k">def</span> <span class="nf">Update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">Gyroscope</span><span class="p">,</span> <span class="n">Accelerometer</span><span class="p">,</span> <span class="n">Magnetometer</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Calculate the best quaternion to the given measurement values.</span>
+<span class="sd">        </span>
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        Gyroscope : array, shape (N,3)</span>
+<span class="sd">            Angular velocity [rad/s]</span>
+<span class="sd">        Accelerometer : array, shape (N,3)</span>
+<span class="sd">            Linear acceleration (Only the direction is used, so units don&#39;t matter.)</span>
+<span class="sd">        Magnetometer : array, shape (N,3)</span>
+<span class="sd">            Orientation of local magenetic field.</span>
+<span class="sd">            (Again, only the direction is used, so units don&#39;t matter.)</span>
+<span class="sd">            </span>
+<span class="sd">        &#39;&#39;&#39;</span>
+
+        <span class="n">q</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">Quaternion</span><span class="p">;</span> <span class="c1"># short name local variable for readability</span>
+
+        <span class="c1"># Reference direction of Earth&#39;s magnetic field</span>
+        <span class="n">h</span> <span class="o">=</span> <span class="n">vector</span><span class="o">.</span><span class="n">rotate_vector</span><span class="p">(</span><span class="n">Magnetometer</span><span class="p">,</span> <span class="n">q</span><span class="p">)</span>
+        <span class="n">b</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">h</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span><span class="o">+</span><span class="n">h</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span><span class="p">),</span> <span class="mi">0</span><span class="p">,</span> <span class="n">h</span><span class="p">[</span><span class="mi">2</span><span class="p">]))</span>
+
+        <span class="c1"># Estimated direction of gravity and magnetic field</span>
+        <span class="n">v</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span>
+            <span class="mi">2</span><span class="o">*</span><span class="p">(</span><span class="n">q</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">q</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="o">-</span> <span class="n">q</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">q</span><span class="p">[</span><span class="mi">2</span><span class="p">]),</span>
+            <span class="mi">2</span><span class="o">*</span><span class="p">(</span><span class="n">q</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">q</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">q</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">*</span><span class="n">q</span><span class="p">[</span><span class="mi">3</span><span class="p">]),</span>
+            <span class="n">q</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span> <span class="o">-</span> <span class="n">q</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span> <span class="o">-</span> <span class="n">q</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="n">q</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span><span class="p">])</span>
+
+        <span class="n">w</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span>
+            <span class="mi">2</span><span class="o">*</span><span class="n">b</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="p">(</span><span class="mf">0.5</span> <span class="o">-</span> <span class="n">q</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span> <span class="o">-</span> <span class="n">q</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="mi">2</span><span class="o">*</span><span class="n">b</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">*</span><span class="p">(</span><span class="n">q</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">q</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="o">-</span> <span class="n">q</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">q</span><span class="p">[</span><span class="mi">2</span><span class="p">]),</span>
+            <span class="mi">2</span><span class="o">*</span><span class="n">b</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="p">(</span><span class="n">q</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">q</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">-</span> <span class="n">q</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">q</span><span class="p">[</span><span class="mi">3</span><span class="p">])</span> <span class="o">+</span> <span class="mi">2</span><span class="o">*</span><span class="n">b</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">*</span><span class="p">(</span><span class="n">q</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">q</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">q</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">*</span><span class="n">q</span><span class="p">[</span><span class="mi">3</span><span class="p">]),</span>
+            <span class="mi">2</span><span class="o">*</span><span class="n">b</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="p">(</span><span class="n">q</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">q</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">+</span> <span class="n">q</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">q</span><span class="p">[</span><span class="mi">3</span><span class="p">])</span> <span class="o">+</span> <span class="mi">2</span><span class="o">*</span><span class="n">b</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">*</span><span class="p">(</span><span class="mf">0.5</span> <span class="o">-</span> <span class="n">q</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span> <span class="o">-</span> <span class="n">q</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span><span class="p">)])</span> 
+
+        <span class="c1"># Error is sum of cross product between estimated direction and measured direction of fields</span>
+        <span class="n">e</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cross</span><span class="p">(</span><span class="n">Accelerometer</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">cross</span><span class="p">(</span><span class="n">Magnetometer</span><span class="p">,</span> <span class="n">w</span><span class="p">)</span> 
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">Ki</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_eInt</span> <span class="o">+=</span> <span class="n">e</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">SamplePeriod</span>  
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_eInt</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float</span><span class="p">)</span>
+
+        <span class="c1"># Apply feedback terms</span>
+        <span class="n">Gyroscope</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">Kp</span> <span class="o">*</span> <span class="n">e</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">Ki</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">_eInt</span><span class="p">;</span>            
+
+        <span class="c1"># Compute rate of change of quaternion</span>
+        <span class="n">qDot</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">quat</span><span class="o">.</span><span class="n">q_mult</span><span class="p">(</span><span class="n">q</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="n">Gyroscope</span><span class="p">]))</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+
+        <span class="c1"># Integrate to yield quaternion</span>
+        <span class="n">q</span> <span class="o">+=</span> <span class="n">qDot</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">SamplePeriod</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">Quaternion</span> <span class="o">=</span> <span class="n">vector</span><span class="o">.</span><span class="n">normalize</span><span class="p">(</span><span class="n">q</span><span class="p">)</span></div></div>
+
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    in_file = r&#39;../others/skinematics-invalid-sqrt.txt&#39;</span>
+<span class="sd">    import pandas as pd</span>
+<span class="sd">    </span>
+<span class="sd">    data = pd.read_csv(in_file, delimiter=&#39;\t&#39;)</span>
+<span class="sd">    omega = data.filter(regex=&#39;Gyr*&#39;).values</span>
+<span class="sd">    acc = data.filter(regex=&#39;Acc*&#39;).values    </span>
+<span class="sd">    analytical(omega = omega, accMeasured=acc)</span>
+<span class="sd">    </span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="kn">from</span> <span class="nn">sensors.xsens</span> <span class="k">import</span> <span class="n">XSens</span>
+
+    <span class="n">in_file</span> <span class="o">=</span> <span class="sa">r</span><span class="s1">&#39;tests/data/data_xsens.txt&#39;</span>
+    <span class="n">initial_orientation</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">],</span>
+                                     <span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span>
+                                     <span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">]])</span>
+
+    <span class="c1">#in_file = r&#39;tests/data/data_xsens2.txt&#39;</span>
+    <span class="c1">#initial_orientation = np.array([[0,0,-1],</span>
+                                    <span class="c1">#[1, 0, 0],</span>
+                                    <span class="c1">#[0,-1,0]])</span>
+    <span class="n">initial_position</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">r_</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="n">sensor</span> <span class="o">=</span> <span class="n">XSens</span><span class="p">(</span><span class="n">in_file</span><span class="o">=</span><span class="n">in_file</span><span class="p">,</span> <span class="n">R_init</span><span class="o">=</span><span class="n">initial_orientation</span><span class="p">,</span> <span class="n">pos_init</span><span class="o">=</span><span class="n">initial_position</span><span class="p">)</span>
+
+        <span class="c1"># By default, the orientation quaternion gets automatically calculated, using &quot;analytical&quot;</span>
+    <span class="n">q_analytical</span> <span class="o">=</span> <span class="n">sensor</span><span class="o">.</span><span class="n">quat</span>
+
+        <span class="c1"># Automatic re-calculation of orientation if &quot;q_type&quot; is changed</span>
+    <span class="n">sensor</span><span class="o">.</span><span class="n">q_type</span> <span class="o">=</span> <span class="s1">&#39;madgwick&#39;</span>
+    <span class="n">q_Madgwick</span> <span class="o">=</span> <span class="n">sensor</span><span class="o">.</span><span class="n">quat</span>
+
+    <span class="n">sensor</span><span class="o">.</span><span class="n">q_type</span> <span class="o">=</span> <span class="s1">&#39;kalman&#39;</span>
+    <span class="n">q_Kalman</span> <span class="o">=</span> <span class="n">sensor</span><span class="o">.</span><span class="n">quat</span>
+
+    <span class="k">def</span> <span class="nf">show_result</span><span class="p">(</span><span class="n">imu_data</span><span class="p">):</span>
+        <span class="n">fig</span><span class="p">,</span> <span class="n">axs</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">axs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">imu_data</span><span class="o">.</span><span class="n">omega</span><span class="p">)</span>
+        <span class="n">axs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s1">&#39;Omega&#39;</span><span class="p">)</span>
+        <span class="n">axs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="n">imu_data</span><span class="o">.</span><span class="n">q_type</span><span class="p">)</span>
+        <span class="n">axs</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">imu_data</span><span class="o">.</span><span class="n">acc</span><span class="p">)</span>
+        <span class="n">axs</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s1">&#39;Acc&#39;</span><span class="p">)</span>
+        <span class="n">axs</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">imu_data</span><span class="o">.</span><span class="n">quat</span><span class="p">[:,</span><span class="mi">1</span><span class="p">:])</span>
+        <span class="n">axs</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s1">&#39;Quat&#39;</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+
+    <span class="n">show_result</span><span class="p">(</span><span class="n">sensor</span><span class="p">)</span>
+
+    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Done&#39;</span><span class="p">)</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="../index.html">
+              <img class="logo" src="../_static/skinematics.png" alt="Logo"/>
+            </a></p>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../index.html">skinematics 0.7.4 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="index.html" >Module code</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2018, thomas haslwanter.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.5.
+    </div>
+  </body>
+</html>

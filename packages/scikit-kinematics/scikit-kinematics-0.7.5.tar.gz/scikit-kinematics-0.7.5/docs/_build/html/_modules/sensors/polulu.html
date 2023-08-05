@@ -1,0 +1,195 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>sensors.polulu &#8212; skinematics 0.7.4 documentation</title>
+    <link rel="stylesheet" href="../../_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '0.7.4',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="shortcut icon" href="../../_static/skinematics.ico"/>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+  </head>
+  <body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">skinematics 0.7.4 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" accesskey="U">Module code</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for sensors.polulu</h1><div class="highlight"><pre>
+<span></span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">Import data saved with polulu-sensors, through subclassing &quot;IMU_Base&quot;</span>
+
+<span class="sd">https://www.pololu.com/product/2738</span>
+<span class="sd">These are low-cost IMUS (&lt;20 US$), where acceleration/gyroscope data are not</span>
+<span class="sd">sampled at the same time as the magnetic field data (just over 100 Hz).</span>
+<span class="sd">As a result, the interpolated sampling rate has to be set by hand.</span>
+<span class="sd">&#39;&#39;&#39;</span>
+
+<span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">Author: Thomas Haslwanter</span>
+<span class="sd">&#39;&#39;&#39;</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
+
+<span class="kn">import</span> <span class="nn">abc</span>
+
+<span class="c1"># To ensure that the relative path works</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+
+<span class="n">parent_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="vm">__file__</span><span class="p">),</span> <span class="s1">&#39;..&#39;</span> <span class="p">))</span>
+<span class="k">if</span> <span class="n">parent_dir</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="p">:</span>
+    <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">parent_dir</span><span class="p">)</span>
+
+<span class="kn">from</span> <span class="nn">imus</span> <span class="k">import</span> <span class="n">IMU_Base</span>
+
+<div class="viewcode-block" id="Polulu"><a class="viewcode-back" href="../../imus.html#sensors.polulu.Polulu">[docs]</a><span class="k">class</span> <span class="nc">Polulu</span><span class="p">(</span><span class="n">IMU_Base</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Concrete class based on abstract base class IMU_Base &quot;&quot;&quot;</span>    
+    
+<div class="viewcode-block" id="Polulu.get_data"><a class="viewcode-back" href="../../imus.html#sensors.polulu.Polulu.get_data">[docs]</a>    <span class="k">def</span> <span class="nf">get_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">in_file</span><span class="p">,</span> <span class="n">in_data</span><span class="o">=</span><span class="mi">125</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Get the sampling rate, as well as the recorded data,</span>
+<span class="sd">        and assign them to the corresponding attributes of &quot;self&quot;.</span>
+<span class="sd">        </span>
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        in_file : string</span>
+<span class="sd">                Filename of the data-file</span>
+<span class="sd">        in_data : float</span>
+<span class="sd">                Sampling rate (has to be provided!!)</span>
+<span class="sd">        </span>
+<span class="sd">        Assigns</span>
+<span class="sd">        -------</span>
+<span class="sd">        - rate : rate</span>
+<span class="sd">        - acc : acceleration</span>
+<span class="sd">        - omega : angular_velocity</span>
+<span class="sd">        - mag : mag_field_direction</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        
+        <span class="k">try</span><span class="p">:</span>
+            <span class="c1"># The sampling rate has to be provided externally</span>
+            <span class="n">rate</span> <span class="o">=</span> <span class="n">in_data</span><span class="p">[</span><span class="s1">&#39;rate&#39;</span><span class="p">]</span>
+            
+            <span class="c1"># Get the data, and label them</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="n">in_file</span><span class="p">,</span> <span class="n">header</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">sep</span><span class="o">=</span><span class="s1">&#39;[ ]*&#39;</span><span class="p">,</span> <span class="n">engine</span><span class="o">=</span><span class="s1">&#39;python&#39;</span><span class="p">)</span>
+            <span class="n">data</span><span class="o">.</span><span class="n">columns</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;acc_x&#39;</span><span class="p">,</span> <span class="s1">&#39;acc_y&#39;</span><span class="p">,</span> <span class="s1">&#39;acc_z&#39;</span><span class="p">,</span> <span class="s1">&#39;gyr_x&#39;</span><span class="p">,</span> <span class="s1">&#39;gyr_y&#39;</span><span class="p">,</span> <span class="s1">&#39;gyr_z&#39;</span><span class="p">,</span> <span class="s1">&#39;mag_x&#39;</span><span class="p">,</span> <span class="s1">&#39;mag_y&#39;</span><span class="p">,</span> <span class="s1">&#39;mag_z&#39;</span><span class="p">,</span> <span class="s1">&#39;taccgyr&#39;</span><span class="p">,</span> <span class="s1">&#39;tmag&#39;</span><span class="p">]</span>
+            
+            <span class="c1"># interpolate with a manually set rate. Note that this sensor acquires exactly 25 seconds!</span>
+            <span class="n">dt</span> <span class="o">=</span> <span class="mi">1</span><span class="o">/</span><span class="n">np</span><span class="o">.</span><span class="n">float</span><span class="p">(</span><span class="n">rate</span><span class="p">)</span>
+            <span class="n">t_lin</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">25</span><span class="p">,</span> <span class="n">dt</span><span class="p">)</span>
+    
+            <span class="n">data_interp</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">()</span>
+            <span class="c1"># Different sampling times for acc/gyr and for mag!</span>
+            <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">6</span><span class="p">):</span>
+                <span class="n">data_interp</span><span class="p">[</span><span class="n">data</span><span class="o">.</span><span class="n">keys</span><span class="p">()[</span><span class="n">ii</span><span class="p">]]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">interp</span><span class="p">(</span><span class="n">t_lin</span><span class="o">*</span><span class="mi">1000</span><span class="p">,</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;taccgyr&#39;</span><span class="p">],</span> <span class="n">data</span><span class="o">.</span><span class="n">ix</span><span class="p">[:,</span><span class="n">ii</span><span class="p">])</span>
+            <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">6</span><span class="p">,</span><span class="mi">9</span><span class="p">):</span>
+                <span class="n">data_interp</span><span class="p">[</span><span class="n">data</span><span class="o">.</span><span class="n">keys</span><span class="p">()[</span><span class="n">ii</span><span class="p">]]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">interp</span><span class="p">(</span><span class="n">t_lin</span><span class="o">*</span><span class="mi">1000</span><span class="p">,</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;tmag&#39;</span><span class="p">],</span> <span class="n">data</span><span class="o">.</span><span class="n">ix</span><span class="p">[:,</span><span class="n">ii</span><span class="p">])</span>
+            <span class="n">data_interp</span><span class="p">[</span><span class="s1">&#39;time&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">t_lin</span>
+            
+            <span class="c1"># Set the conversion factors by hand, and apply them</span>
+            <span class="n">conversions</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="n">conversions</span><span class="p">[</span><span class="s1">&#39;mag&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span><span class="o">/</span><span class="mi">6842</span>
+            <span class="n">conversions</span><span class="p">[</span><span class="s1">&#39;acc&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.061</span><span class="o">/</span><span class="mi">1000</span>
+            <span class="n">conversions</span><span class="p">[</span><span class="s1">&#39;gyr&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mf">4.375</span><span class="o">/</span><span class="mi">1000</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="o">/</span><span class="mi">180</span>
+            
+            <span class="n">data_interp</span><span class="o">.</span><span class="n">iloc</span><span class="p">[:,:</span><span class="mi">3</span><span class="p">]</span> <span class="o">*=</span> <span class="n">conversions</span><span class="p">[</span><span class="s1">&#39;acc&#39;</span><span class="p">]</span>
+            <span class="n">data_interp</span><span class="o">.</span><span class="n">iloc</span><span class="p">[:,</span><span class="mi">3</span><span class="p">:</span><span class="mi">6</span><span class="p">]</span> <span class="o">*=</span> <span class="n">conversions</span><span class="p">[</span><span class="s1">&#39;gyr&#39;</span><span class="p">]</span>
+            <span class="n">data_interp</span><span class="o">.</span><span class="n">iloc</span><span class="p">[:,</span><span class="mi">6</span><span class="p">:</span><span class="mi">9</span><span class="p">]</span> <span class="o">*=</span> <span class="n">conversions</span><span class="p">[</span><span class="s1">&#39;mag&#39;</span><span class="p">]</span>
+            
+        <span class="k">except</span> <span class="ne">FileNotFoundError</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">{0}</span><span class="s1"> does not exist!&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">in_file</span><span class="p">))</span>
+            <span class="k">return</span> <span class="o">-</span><span class="mi">1</span>
+    
+        <span class="c1"># Extract the columns that you want, and pass them on</span>
+        <span class="n">in_data</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;rate&#39;</span><span class="p">:</span><span class="n">rate</span><span class="p">,</span>
+               <span class="s1">&#39;acc&#39;</span><span class="p">:</span>   <span class="n">data_interp</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">regex</span><span class="o">=</span><span class="s1">&#39;acc&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
+               <span class="s1">&#39;omega&#39;</span><span class="p">:</span> <span class="n">data_interp</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">regex</span><span class="o">=</span><span class="s1">&#39;gyr&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
+               <span class="s1">&#39;mag&#39;</span><span class="p">:</span>   <span class="n">data_interp</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">regex</span><span class="o">=</span><span class="s1">&#39;mag&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">values</span><span class="p">}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_set_data</span><span class="p">(</span><span class="n">in_data</span><span class="p">)</span></div></div>
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>
+    <span class="n">inFile</span> <span class="o">=</span> <span class="sa">r</span><span class="s1">&#39;..\tests\data\data_polulu.txt&#39;</span>
+    <span class="n">in_data</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;rate&#39;</span><span class="p">:</span><span class="mi">125</span><span class="p">}</span>
+    <span class="n">my_sensor</span> <span class="o">=</span> <span class="n">Polulu</span><span class="p">(</span><span class="n">in_file</span><span class="o">=</span><span class="n">inFile</span><span class="p">,</span> <span class="n">in_data</span><span class="o">=</span><span class="n">in_data</span><span class="p">)</span>
+    
+    <span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>    
+    
+    <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">my_sensor</span><span class="o">.</span><span class="n">acc</span><span class="p">)</span>    
+    <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">my_sensor</span><span class="o">.</span><span class="n">rate</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Done&#39;</span><span class="p">)</span>
+    
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="../../index.html">
+              <img class="logo" src="../../_static/skinematics.png" alt="Logo"/>
+            </a></p>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">skinematics 0.7.4 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" >Module code</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2018, thomas haslwanter.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.5.
+    </div>
+  </body>
+</html>

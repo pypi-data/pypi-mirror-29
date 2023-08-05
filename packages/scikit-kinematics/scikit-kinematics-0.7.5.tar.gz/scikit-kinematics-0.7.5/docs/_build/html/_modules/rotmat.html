@@ -1,0 +1,743 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>rotmat &#8212; skinematics 0.7.4 documentation</title>
+    <link rel="stylesheet" href="../_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '0.7.4',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="shortcut icon" href="../_static/skinematics.ico"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" /> 
+  </head>
+  <body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../index.html">skinematics 0.7.4 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="index.html" accesskey="U">Module code</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for rotmat</h1><div class="highlight"><pre>
+<span></span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">Routines for working with rotation matrices</span>
+<span class="sd">&#39;&#39;&#39;</span>
+ 
+<span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">comment</span>
+<span class="sd">author :  Thomas Haslwanter</span>
+<span class="sd">date :    June-2017</span>
+<span class="sd">&#39;&#39;&#39;</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">sympy</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">namedtuple</span>
+
+<span class="c1"># The following construct is required since I want to run the module as a script</span>
+<span class="c1"># inside the skinematics-directory</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+
+<span class="n">file_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span>
+<span class="k">if</span> <span class="n">file_dir</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="p">:</span>
+    <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">file_dir</span><span class="p">)</span>
+    
+<span class="kn">import</span> <span class="nn">quat</span>
+
+<span class="c1"># For deprecation warnings</span>
+<span class="c1">#import deprecation</span>
+<span class="c1">#import warnings</span>
+<span class="c1">#warnings.simplefilter(&#39;always&#39;, DeprecationWarning)</span>
+
+<div class="viewcode-block" id="stm"><a class="viewcode-back" href="../rotmat.html#rotmat.stm">[docs]</a><span class="k">def</span> <span class="nf">stm</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">angle</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">translation</span><span class="o">=</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]):</span>
+    <span class="sd">&quot;&quot;&quot;Spatial Transformation Matrix</span>
+<span class="sd">    </span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    axis : skalar</span>
+<span class="sd">            Axis of rotation, has to be 0, 1, or 2</span>
+<span class="sd">    angle : float</span>
+<span class="sd">            rotation angle [deg]</span>
+<span class="sd">    translation : 3x1 ndarray</span>
+<span class="sd">            3D-translation vector</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    STM : 4x4 ndarray</span>
+<span class="sd">        spatial transformation matrix, for rotation about the specified axis,</span>
+<span class="sd">        and translation by the given vector</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; rotmat.stm(axis=0, angle=45, translation=[1,2,3.3])</span>
+<span class="sd">    array([[ 1.        ,  0.        ,  0.        ,  1.        ],</span>
+<span class="sd">           [ 0.        ,  0.70710678, -0.70710678,  2.        ],</span>
+<span class="sd">           [ 0.        ,  0.70710678,  0.70710678,  3.3       ],</span>
+<span class="sd">           [ 0.        ,  0.        ,  0.        ,  1.        ]])</span>
+<span class="sd">    &gt;&gt;&gt; R_z = rotmat.stm(axis=2, angle=30)</span>
+<span class="sd">    &gt;&gt;&gt; T_y = rotmat.stm(translation=[0, 10, 0)</span>
+<span class="sd">    </span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">stm</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="mi">4</span><span class="p">)</span>
+    <span class="n">stm</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">,:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">R</span><span class="p">(</span><span class="n">axis</span><span class="p">,</span> <span class="n">angle</span><span class="p">)</span>
+    <span class="n">stm</span><span class="p">[:</span><span class="mi">3</span><span class="p">,</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">translation</span>
+    <span class="k">return</span> <span class="n">stm</span></div>
+
+<div class="viewcode-block" id="stm_s"><a class="viewcode-back" href="../rotmat.html#rotmat.stm_s">[docs]</a><span class="k">def</span> <span class="nf">stm_s</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">angle</span><span class="o">=</span><span class="s1">&#39;0&#39;</span><span class="p">,</span> <span class="n">transl</span><span class="o">=</span><span class="s1">&#39;0,0,0&#39;</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Symbolic spatial transformation matrix about the given axis, by an angle with</span>
+<span class="sd">    the given name, and translation by the given distances.</span>
+<span class="sd">    </span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    axis : skalar</span>
+<span class="sd">            Axis of rotation, has to be 0, 1, or 2.</span>
+<span class="sd">    alpha : string</span>
+<span class="sd">            Name of rotation angle, or &#39;0&#39; for no rotation,</span>
+<span class="sd">            &#39;alpha&#39;, &#39;theta&#39;, etc. for a symbolic rotation.</span>
+<span class="sd">    transl : string</span>
+<span class="sd">            Has to contain three names, for the three translation distances.</span>
+<span class="sd">            &#39;0,0,0&#39; would correspond to no translation, and</span>
+<span class="sd">            &#39;x,y,z&#39; to an arbitrary translation.</span>
+
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">        STM_symbolic : corresponding symbolic spatial transformation matrix </span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+
+<span class="sd">    &gt;&gt;&gt; Rz_s = STM_s(axis=2, angle=&#39;theta&#39;, transl=&#39;0,0,0&#39;)</span>
+<span class="sd">    </span>
+<span class="sd">    &gt;&gt;&gt; Tz_s = STM_s(axis=0, angle=&#39;0&#39;, transl=&#39;0,0,z&#39;)</span>
+
+<span class="sd">    &#39;&#39;&#39;</span>
+    
+    <span class="c1"># Default is the unit matrix</span>
+    <span class="n">STM_s</span> <span class="o">=</span> <span class="n">sympy</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="mi">4</span><span class="p">)</span>
+    
+    <span class="k">if</span> <span class="n">angle</span> <span class="o">!=</span> <span class="s1">&#39;0&#39;</span><span class="p">:</span>
+        <span class="n">STM_s</span><span class="p">[:</span><span class="mi">3</span><span class="p">,:</span><span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="n">R_s</span><span class="p">(</span><span class="n">axis</span><span class="p">,</span> <span class="n">angle</span><span class="p">)</span>
+        
+    <span class="n">transl</span> <span class="o">=</span> <span class="n">transl</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39; &#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">transl</span><span class="o">==</span><span class="p">(</span><span class="s1">&#39;0,0,0&#39;</span><span class="p">):</span>
+        <span class="n">trans_dir</span> <span class="o">=</span> <span class="n">transl</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="p">)</span>
+        <span class="k">assert</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">trans_dir</span><span class="p">)</span><span class="o">==</span><span class="mi">3</span><span class="p">)</span>
+        <span class="k">for</span> <span class="p">(</span><span class="n">ii</span><span class="p">,</span> <span class="n">magnitude</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">trans_dir</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">magnitude</span> <span class="o">!=</span> <span class="s1">&#39;0&#39;</span><span class="p">:</span>
+                <span class="n">symbol</span> <span class="o">=</span> <span class="n">sympy</span><span class="o">.</span><span class="n">Symbol</span><span class="p">(</span><span class="n">magnitude</span><span class="p">)</span>
+                <span class="n">STM_s</span><span class="p">[</span><span class="n">ii</span><span class="p">,</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">symbol</span>
+            
+    <span class="k">return</span> <span class="n">STM_s</span>        </div>
+        
+    
+<div class="viewcode-block" id="R"><a class="viewcode-back" href="../rotmat.html#rotmat.R">[docs]</a><span class="k">def</span> <span class="nf">R</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">angle</span><span class="o">=</span><span class="mi">90</span><span class="p">)</span> <span class="p">:</span>
+    <span class="sd">&#39;&#39;&#39;Rotation matrix for rotation about a cardinal axis.</span>
+<span class="sd">    The argument is entered in degree.</span>
+<span class="sd">    </span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    axis : skalar</span>
+<span class="sd">            Axis of rotation, has to be 0, 1, or 2</span>
+<span class="sd">    alpha : float</span>
+<span class="sd">            rotation angle [deg]</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    R : rotation matrix, for rotation about the specified axis</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; rotmat.R(axis=0, alpha=45)</span>
+<span class="sd">    array([[ 1.        ,  0.        ,  0.        ],</span>
+<span class="sd">           [ 0.        ,  0.70710678, -0.70710678],</span>
+<span class="sd">           [ 0.        ,  0.70710678,  0.70710678]])</span>
+<span class="sd">    </span>
+<span class="sd">    &gt;&gt;&gt; rotmat.R(axis=0)</span>
+<span class="sd">    array([[ 1.        ,  0.        ,  0.        ],</span>
+<span class="sd">           [ 0.        ,  0.        , -1.        ],</span>
+<span class="sd">           [ 0.        ,  1.        ,  0.       ]])</span>
+<span class="sd">    </span>
+<span class="sd">    &gt;&gt;&gt; rotmat.R(1, 45)</span>
+<span class="sd">    array([[ 0.70710678,  0.        ,  0.70710678],</span>
+<span class="sd">           [ 0.        ,  1.        ,  0.        ],</span>
+<span class="sd">           [-0.70710678,  0.        ,  0.70710678]])</span>
+<span class="sd">    </span>
+<span class="sd">    &gt;&gt;&gt; rotmat.R(axis=2, alpha=45)</span>
+<span class="sd">    array([[ 0.70710678, -0.70710678,  0.        ],</span>
+<span class="sd">           [ 0.70710678,  0.70710678,  0.        ],</span>
+<span class="sd">           [ 0.        ,  0.        ,  1.        ]])</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    
+    <span class="c1"># convert from degrees into radian:</span>
+    <span class="n">a_rad</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">deg2rad</span><span class="p">(</span><span class="n">angle</span><span class="p">)</span>
+    
+    <span class="k">if</span> <span class="n">axis</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">R</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mi">1</span><span class="p">,</span>             <span class="mi">0</span><span class="p">,</span>            <span class="mi">0</span><span class="p">],</span>
+                      <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">a_rad</span><span class="p">),</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">a_rad</span><span class="p">)],</span>
+                      <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">a_rad</span><span class="p">),</span>  <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">a_rad</span><span class="p">)]])</span>
+        
+    <span class="k">elif</span> <span class="n">axis</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">R</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">a_rad</span><span class="p">),</span> <span class="mi">0</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">a_rad</span><span class="p">)</span> <span class="p">],</span>
+                      <span class="p">[</span>            <span class="mi">0</span><span class="p">,</span>  <span class="mi">1</span><span class="p">,</span>             <span class="mi">0</span> <span class="p">],</span>
+                      <span class="p">[</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">a_rad</span><span class="p">),</span> <span class="mi">0</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">a_rad</span><span class="p">)</span> <span class="p">]])</span>
+        
+    <span class="k">elif</span> <span class="n">axis</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="n">R</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">a_rad</span><span class="p">),</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">a_rad</span><span class="p">),</span> <span class="mi">0</span><span class="p">],</span>
+                      <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">a_rad</span><span class="p">),</span>  <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">a_rad</span><span class="p">),</span> <span class="mi">0</span><span class="p">],</span>
+                      <span class="p">[</span>            <span class="mi">0</span><span class="p">,</span>             <span class="mi">0</span><span class="p">,</span>  <span class="mi">1</span><span class="p">]])</span>
+    
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">IOError</span><span class="p">(</span><span class="s1">&#39;&quot;axis&quot; has to be 0, 1, or 2&#39;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">R</span></div>
+
+<div class="viewcode-block" id="R_s"><a class="viewcode-back" href="../rotmat.html#rotmat.R_s">[docs]</a><span class="k">def</span> <span class="nf">R_s</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">angle</span><span class="o">=</span><span class="s1">&#39;alpha&#39;</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Symbolic rotation matrix about the given axis, by an angle with the given name </span>
+<span class="sd">    </span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    axis : skalar</span>
+<span class="sd">            Axis of rotation, has to be 0, 1, or 2</span>
+<span class="sd">    alpha : string</span>
+<span class="sd">            name of rotation angle</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">        R_symbolic : symbolic matrix for rotation about the given axis</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+
+<span class="sd">    &gt;&gt;&gt; R_yaw = R_s(axis=2, angle=&#39;theta&#39;)</span>
+<span class="sd">    </span>
+<span class="sd">    &gt;&gt;&gt; R_nautical = R_s(2) * R_s(1) * R_s(0)</span>
+
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="n">alpha</span> <span class="o">=</span> <span class="n">sympy</span><span class="o">.</span><span class="n">Symbol</span><span class="p">(</span><span class="n">angle</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">axis</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">R_s</span> <span class="o">=</span>  <span class="n">sympy</span><span class="o">.</span><span class="n">Matrix</span><span class="p">([[</span><span class="mi">1</span><span class="p">,</span>                <span class="mi">0</span><span class="p">,</span>                 <span class="mi">0</span><span class="p">],</span>
+                         <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="n">sympy</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">alpha</span><span class="p">),</span> <span class="o">-</span><span class="n">sympy</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">alpha</span><span class="p">)],</span>
+                         <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="n">sympy</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">alpha</span><span class="p">),</span>  <span class="n">sympy</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">alpha</span><span class="p">)]])</span>
+        
+    <span class="k">elif</span> <span class="n">axis</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">R_s</span> <span class="o">=</span> <span class="n">sympy</span><span class="o">.</span><span class="n">Matrix</span><span class="p">([[</span><span class="n">sympy</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">alpha</span><span class="p">),</span><span class="mi">0</span><span class="p">,</span> <span class="n">sympy</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">alpha</span><span class="p">)],</span>
+                         <span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">],</span>
+                         <span class="p">[</span><span class="o">-</span><span class="n">sympy</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">alpha</span><span class="p">),</span> <span class="mi">0</span><span class="p">,</span> <span class="n">sympy</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">alpha</span><span class="p">)]])</span>
+        
+    <span class="k">elif</span> <span class="n">axis</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="n">R_s</span> <span class="o">=</span> <span class="n">sympy</span><span class="o">.</span><span class="n">Matrix</span><span class="p">([[</span><span class="n">sympy</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">alpha</span><span class="p">),</span> <span class="o">-</span><span class="n">sympy</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">alpha</span><span class="p">),</span> <span class="mi">0</span><span class="p">],</span>
+                         <span class="p">[</span><span class="n">sympy</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">alpha</span><span class="p">),</span> <span class="n">sympy</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">alpha</span><span class="p">),</span> <span class="mi">0</span><span class="p">],</span>
+                         <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]])</span>
+    
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">IOError</span><span class="p">(</span><span class="s1">&#39;&quot;axis&quot; has to be 0, 1, or 2&#39;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">R_s</span></div>
+
+<div class="viewcode-block" id="sequence"><a class="viewcode-back" href="../rotmat.html#rotmat.sequence">[docs]</a><span class="k">def</span> <span class="nf">sequence</span><span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="n">to</span> <span class="o">=</span><span class="s1">&#39;Euler&#39;</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    This function takes a rotation matrix, and calculates</span>
+<span class="sd">    the corresponding angles for sequential rotations. </span>
+<span class="sd">    </span>
+<span class="sd">    R_Euler = R3(gamma) * R1(beta) * R3(alpha)</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    R : ndarray, 3x3</span>
+<span class="sd">        rotation matrix</span>
+<span class="sd">    to : string</span>
+<span class="sd">        Has to be one the following:</span>
+<span class="sd">        </span>
+<span class="sd">        - Euler ... Rz * Rx * Rz</span>
+<span class="sd">        - Fick ... Rz * Ry * Rx</span>
+<span class="sd">        - nautical ... same as &quot;Fick&quot;</span>
+<span class="sd">        - Helmholtz ... Ry * Rz * Rx</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    gamma : third rotation (left-most matrix)</span>
+<span class="sd">    beta : second rotation </span>
+<span class="sd">    alpha : first rotation(right-most matrix)</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    The following formulas are used:</span>
+
+<span class="sd">    Euler:</span>
+<span class="sd">    </span>
+<span class="sd">    .. math::</span>
+<span class="sd">        \\beta   = -arcsin(\\sqrt{ R_{xz}^2 + R_{yz}^2 }) * sign(R_{yz})</span>
+
+<span class="sd">        \\gamma = arcsin(\\frac{R_{xz}}{sin\\beta})</span>
+
+<span class="sd">        \\alpha   = arcsin(\\frac{R_{zx}}{sin\\beta})</span>
+<span class="sd">    </span>
+<span class="sd">    nautical / Fick:</span>
+<span class="sd">    </span>
+<span class="sd">    .. math::</span>
+
+<span class="sd">        \\theta   = arctan(\\frac{R_{yx}}{R_{xx}})</span>
+
+<span class="sd">       \\phi = arcsin(R_{zx})</span>
+
+<span class="sd">        \\psi   = arctan(\\frac{R_{zy}}{R_{zz}})</span>
+
+<span class="sd">    Note that it is assumed that psi &lt; pi !</span>
+<span class="sd">    </span>
+<span class="sd">    Helmholtz: </span>
+<span class="sd">    </span>
+<span class="sd">    .. math::</span>
+<span class="sd">        \\theta = arcsin(R_{yx})</span>
+
+<span class="sd">        \\phi = -arcsin(\\frac{R_{zx}}{cos\\theta})</span>
+
+<span class="sd">        \\psi = -arcsin(\\frac{R_{yz}}{cos\\theta})</span>
+
+
+<span class="sd">    Note that it is assumed that psi &lt; pi</span>
+<span class="sd">    </span>
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="c1"># Reshape the input such that I can use the standard matrix indices</span>
+    <span class="c1"># For a simple (3,3) matrix, a superfluous first index is added.</span>
+    <span class="n">Rs</span> <span class="o">=</span> <span class="n">R</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="mi">3</span><span class="p">,</span><span class="mi">3</span><span class="p">),</span> <span class="n">order</span><span class="o">=</span><span class="s1">&#39;C&#39;</span><span class="p">)</span>
+    
+    <span class="k">if</span> <span class="n">to</span><span class="o">==</span><span class="s1">&#39;Fick&#39;</span> <span class="ow">or</span> <span class="n">to</span><span class="o">==</span><span class="s1">&#39;nautical&#39;</span><span class="p">:</span>
+        <span class="n">gamma</span> <span class="o">=</span>  <span class="n">np</span><span class="o">.</span><span class="n">arctan2</span><span class="p">(</span><span class="n">Rs</span><span class="p">[:,</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">],</span> <span class="n">Rs</span><span class="p">[:,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">])</span>
+        <span class="n">alpha</span> <span class="o">=</span>  <span class="n">np</span><span class="o">.</span><span class="n">arctan2</span><span class="p">(</span><span class="n">Rs</span><span class="p">[:,</span><span class="mi">2</span><span class="p">,</span><span class="mi">1</span><span class="p">],</span> <span class="n">Rs</span><span class="p">[:,</span><span class="mi">2</span><span class="p">,</span><span class="mi">2</span><span class="p">])</span>
+        <span class="n">beta</span>  <span class="o">=</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">arcsin</span><span class="p">(</span><span class="n">Rs</span><span class="p">[:,</span><span class="mi">2</span><span class="p">,</span><span class="mi">0</span><span class="p">])</span>
+    
+    <span class="k">elif</span> <span class="n">to</span> <span class="o">==</span> <span class="s1">&#39;Helmholtz&#39;</span><span class="p">:</span>
+        <span class="n">gamma</span> <span class="o">=</span>  <span class="n">np</span><span class="o">.</span><span class="n">arcsin</span><span class="p">(</span> <span class="n">Rs</span><span class="p">[:,</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">]</span> <span class="p">)</span>
+        <span class="n">beta</span>  <span class="o">=</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">arcsin</span><span class="p">(</span> <span class="n">Rs</span><span class="p">[:,</span><span class="mi">2</span><span class="p">,</span><span class="mi">0</span><span class="p">]</span><span class="o">/</span><span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">gamma</span><span class="p">)</span> <span class="p">)</span>
+        <span class="n">alpha</span> <span class="o">=</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">arcsin</span><span class="p">(</span> <span class="n">Rs</span><span class="p">[:,</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">]</span><span class="o">/</span><span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">gamma</span><span class="p">)</span> <span class="p">)</span>
+        
+    <span class="k">elif</span> <span class="n">to</span> <span class="o">==</span> <span class="s1">&#39;Euler&#39;</span><span class="p">:</span>
+        <span class="n">epsilon</span> <span class="o">=</span> <span class="mf">1e-6</span>
+        <span class="n">beta</span> <span class="o">=</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">arcsin</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">Rs</span><span class="p">[:,</span><span class="mi">0</span><span class="p">,</span><span class="mi">2</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="n">Rs</span><span class="p">[:,</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">Rs</span><span class="p">[:,</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">])</span>
+        <span class="n">small_indices</span> <span class="o">=</span>  <span class="n">beta</span> <span class="o">&lt;</span> <span class="n">epsilon</span>
+        
+        <span class="c1"># Assign memory for alpha and gamma</span>
+        <span class="n">alpha</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">beta</span><span class="p">)</span>
+        <span class="n">gamma</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">beta</span><span class="p">)</span>
+        
+        <span class="c1"># For small beta</span>
+        <span class="n">beta</span><span class="p">[</span><span class="n">small_indices</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">gamma</span><span class="p">[</span><span class="n">small_indices</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">alpha</span><span class="p">[</span><span class="n">small_indices</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arcsin</span><span class="p">(</span><span class="n">Rs</span><span class="p">[</span><span class="n">small_indices</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">])</span>
+        
+        <span class="c1"># for the rest</span>
+        <span class="n">gamma</span><span class="p">[</span><span class="o">~</span><span class="n">small_indices</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arcsin</span><span class="p">(</span> <span class="n">Rs</span><span class="p">[</span><span class="o">~</span><span class="n">small_indices</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">2</span><span class="p">]</span><span class="o">/</span><span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">beta</span><span class="p">)</span> <span class="p">)</span>
+        <span class="n">alpha</span><span class="p">[</span><span class="o">~</span><span class="n">small_indices</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arcsin</span><span class="p">(</span> <span class="n">Rs</span><span class="p">[</span><span class="o">~</span><span class="n">small_indices</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">0</span><span class="p">]</span><span class="o">/</span><span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">beta</span><span class="p">)</span> <span class="p">)</span>
+            
+    <span class="k">else</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">Sorry, only know: </span><span class="se">\n</span><span class="s1">nautical, </span><span class="se">\n</span><span class="s1">Fick, </span><span class="se">\n</span><span class="s1">Helmholtz, </span><span class="se">\n</span><span class="s1">Euler.</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">IOError</span>
+        
+    <span class="c1"># Return the parameter-angles</span>
+    <span class="k">if</span> <span class="n">R</span><span class="o">.</span><span class="n">size</span> <span class="o">==</span> <span class="mi">9</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">r_</span><span class="p">[</span><span class="n">gamma</span><span class="p">,</span> <span class="n">beta</span><span class="p">,</span> <span class="n">alpha</span><span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">column_stack</span><span class="p">(</span> <span class="p">(</span><span class="n">gamma</span><span class="p">,</span> <span class="n">beta</span><span class="p">,</span> <span class="n">alpha</span><span class="p">)</span> <span class="p">)</span></div>
+
+    
+<div class="viewcode-block" id="dh"><a class="viewcode-back" href="../rotmat.html#rotmat.dh">[docs]</a><span class="k">def</span> <span class="nf">dh</span><span class="p">(</span><span class="n">theta</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">d</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">r</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Denavit Hartenberg transformation and rotation matrix.</span>
+
+<span class="sd">    .. math::</span>
+<span class="sd">        T_n^{n - 1}= {Trans}_{z_{n - 1}}(d_n)</span>
+<span class="sd">        \\cdot {Rot}_{z_{n - 1}}(\\theta_n) \\cdot {Trans}_{x_n}(r_n) \\cdot {Rot}_{x_n}(\\alpha_n)</span>
+
+
+<span class="sd">    .. math::</span>
+<span class="sd">        T_n=\\left[\\begin{array}{ccc|c}</span>
+<span class="sd">        \\cos\\theta_n &amp; -\\sin\\theta_n \\cos\\alpha_n &amp; \\sin\\theta_n \\sin\\alpha_n &amp; r_n\\cos\\theta_n \\\\</span>
+<span class="sd">        \\sin\\theta_n &amp; \\cos\\theta_n \\cos\\alpha_n &amp; -\\cos\\theta_n \\sin\\alpha_n &amp; r_n \\sin\\theta_n \\\\</span>
+<span class="sd">        0 &amp; \\sin\\alpha_n &amp; \\cos\\alpha_n &amp; d_n \\\\</span>
+<span class="sd">        \\hline</span>
+<span class="sd">        0 &amp; 0 &amp; 0 &amp; 1</span>
+<span class="sd">        \\end{array}</span>
+<span class="sd">        \\right] =\\left[\\begin{array}{ccc|c}</span>
+<span class="sd">        &amp; &amp; &amp; \\\\</span>
+<span class="sd">        &amp; R &amp; &amp; T \\\\</span>
+<span class="sd">        &amp; &amp; &amp; \\\\</span>
+<span class="sd">        \\hline</span>
+<span class="sd">        0 &amp; 0 &amp; 0 &amp; 1</span>
+<span class="sd">        \\end{array}\\right]</span>
+
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+
+<span class="sd">    &gt;&gt;&gt; theta_1=90.0</span>
+<span class="sd">    &gt;&gt;&gt; theta_2=90.0</span>
+<span class="sd">    &gt;&gt;&gt; theta_2=0.</span>
+<span class="sd">    &gt;&gt;&gt; dh(theta_1,60,0,0)*dh(0,88,71,90)*dh(theta_2,15,0,0)*dh(0,0,174,-180)*dh(theta_3,15,0,0)</span>
+<span class="sd">    [[-6.12323400e-17 -6.12323400e-17 -1.00000000e+00 -7.10542736e-15],</span>
+<span class="sd">    [ 6.12323400e-17  1.00000000e+00 -6.12323400e-17  7.10000000e+01],</span>
+<span class="sd">    [  1.00000000e+00 -6.12323400e-17 -6.12323400e-17  3.22000000e+02],</span>
+<span class="sd">    [ 0.00000000e+00  0.00000000e+00  0.00000000e+00  1.00000000e+00]]</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    theta : float</span>
+<span class="sd">        rotation angle z axis [deg]</span>
+
+<span class="sd">    d : float</span>
+<span class="sd">        transformation along the z-axis</span>
+
+<span class="sd">    alpha : float</span>
+<span class="sd">        rotation angle x axis [deg]</span>
+
+<span class="sd">    r : float</span>
+<span class="sd">        transformation along the x-axis</span>
+
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    dh : ndarray(4x4)</span>
+<span class="sd">        Denavit Hartenberg transformation matrix.</span>
+
+<span class="sd">    &#39;&#39;&#39;</span>
+    
+    <span class="c1"># Calculate Denavit-Hartenberg transformation matrix</span>
+    <span class="n">Rx</span> <span class="o">=</span> <span class="n">stm</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">angle</span><span class="o">=</span><span class="n">alpha</span><span class="p">)</span>
+    <span class="n">Tx</span> <span class="o">=</span> <span class="n">stm</span><span class="p">(</span><span class="n">translation</span><span class="o">=</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">])</span>
+    <span class="n">Rz</span> <span class="o">=</span> <span class="n">stm</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">angle</span><span class="o">=</span><span class="n">theta</span><span class="p">)</span>
+    <span class="n">Tz</span> <span class="o">=</span> <span class="n">stm</span><span class="p">(</span><span class="n">translation</span><span class="o">=</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">d</span><span class="p">])</span>
+    
+<div class="viewcode-block" id="dh_s"><a class="viewcode-back" href="../rotmat.html#rotmat.dh_s">[docs]</a>    <span class="n">t_dh</span> <span class="o">=</span> <span class="n">Tz</span> <span class="o">@</span> <span class="n">Rz</span> <span class="o">@</span> <span class="n">Tx</span> <span class="o">@</span> <span class="n">Rx</span>    
+    
+    <span class="k">return</span><span class="p">(</span><span class="n">t_dh</span><span class="p">)</span></div>
+
+<span class="k">def</span> <span class="nf">dh_s</span><span class="p">(</span><span class="n">theta</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">d</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">r</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Symbolic Denavit Hartenberg transformation and rotation matrix.</span>
+
+
+<span class="sd">    &gt;&gt;&gt; dh_s(&#39;theta_1&#39;,60,0,0)*dh_s(0,88,71,90)*dh_s(&#39;theta_2&#39;,15,0,0)*dh_s(0,0,174,-180)*dh_s(&#39;theta_3&#39;,15,0,0)</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    R : Symbolic rotation and transformation  matrix 4x4</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    
+    <span class="c1"># Force the correct input type</span>
+    <span class="n">theta_s</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">theta</span><span class="p">)</span>
+    <span class="n">d_s</span>     <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">d</span><span class="p">)</span>
+    <span class="n">r_s</span>     <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">r</span><span class="p">)</span>
+    <span class="n">alpha_s</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">alpha</span><span class="p">)</span>
+        
+    <span class="c1"># Calculate Denavit-Hartenberg transformation matrix</span>
+    <span class="n">Rx</span> <span class="o">=</span> <span class="n">stm_s</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">angle</span> <span class="o">=</span> <span class="n">alpha_s</span><span class="p">)</span>
+    <span class="n">Tx</span> <span class="o">=</span> <span class="n">stm_s</span><span class="p">(</span><span class="n">transl</span> <span class="o">=</span> <span class="n">r_s</span> <span class="o">+</span> <span class="s1">&#39;,0,0&#39;</span><span class="p">)</span>
+    <span class="n">Rz</span> <span class="o">=</span> <span class="n">stm_s</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">angle</span> <span class="o">=</span> <span class="n">theta_s</span><span class="p">)</span>
+    <span class="n">Tz</span> <span class="o">=</span> <span class="n">stm_s</span><span class="p">(</span><span class="n">transl</span><span class="o">=</span><span class="s1">&#39;0,0,&#39;</span> <span class="o">+</span> <span class="n">d_s</span><span class="p">)</span>
+    
+    <span class="n">t_dh</span> <span class="o">=</span> <span class="n">Tz</span> <span class="o">*</span> <span class="n">Rz</span> <span class="o">*</span> <span class="n">Tx</span> <span class="o">*</span> <span class="n">Rx</span>    
+    
+    <span class="k">return</span><span class="p">(</span><span class="n">t_dh</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="convert"><a class="viewcode-back" href="../rotmat.html#rotmat.convert">[docs]</a><span class="k">def</span> <span class="nf">convert</span><span class="p">(</span><span class="n">rMat</span><span class="p">,</span> <span class="n">to</span> <span class="o">=</span><span class="s1">&#39;quat&#39;</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Converts a rotation matrix to the corresponding quaternion.</span>
+<span class="sd">    Assumes that R has the shape (3,3), or the matrix elements in columns</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    rMat : array, shape (3,3) or (N,9)</span>
+<span class="sd">        single rotation matrix, or matrix with rotation-matrix elements.</span>
+<span class="sd">    to : string</span>
+<span class="sd">        Currently, only &#39;quat&#39; is supported</span>
+<span class="sd">    </span>
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    outQuat : array, shape (4,) or (N,4)</span>
+<span class="sd">        corresponding quaternion vector(s)</span>
+<span class="sd">    </span>
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+
+<span class="sd">    .. math::</span>
+<span class="sd">         \\vec q = 0.5*copysign\\left( {\\begin{array}{*{20}{c}}</span>
+<span class="sd">        {\\sqrt {1 + {R_{xx}} - {R_{yy}} - {R_{zz}}} ,}\\\\</span>
+<span class="sd">        {\\sqrt {1 - {R_{xx}} + {R_{yy}} - {R_{zz}}} ,}\\\\</span>
+<span class="sd">        {\\sqrt {1 - {R_{xx}} - {R_{yy}} + {R_{zz}}} ,}</span>
+<span class="sd">        \\end{array}\\begin{array}{*{20}{c}}</span>
+<span class="sd">        {{R_{zy}} - {R_{yz}}}\\\\</span>
+<span class="sd">        {{R_{xz}} - {R_{zx}}}\\\\</span>
+<span class="sd">        {{R_{yx}} - {R_{xy}}}</span>
+<span class="sd">        \\end{array}} \\right) </span>
+<span class="sd">    </span>
+<span class="sd">    More info under </span>
+<span class="sd">    http://en.wikipedia.org/wiki/Quaternion</span>
+<span class="sd">    </span>
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    </span>
+<span class="sd">    &gt;&gt;&gt; rotMat = array([[cos(alpha), -sin(alpha), 0],</span>
+<span class="sd">    &gt;&gt;&gt;    [sin(alpha), cos(alpha), 0],</span>
+<span class="sd">    &gt;&gt;&gt;    [0, 0, 1]])</span>
+<span class="sd">    &gt;&gt;&gt; rotmat.convert(rotMat, &#39;quat&#39;)</span>
+<span class="sd">    array([[ 0.99500417,  0.        ,  0.        ,  0.09983342]])</span>
+<span class="sd">    </span>
+<span class="sd">    &#39;&#39;&#39;</span>    
+    
+    <span class="k">if</span> <span class="n">to</span> <span class="o">!=</span> <span class="s1">&#39;quat&#39;</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">IOError</span><span class="p">(</span><span class="s1">&#39;Only know &quot;quat&quot;!&#39;</span><span class="p">)</span>
+    
+    <span class="k">if</span> <span class="n">rMat</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="p">(</span><span class="mi">3</span><span class="p">,</span><span class="mi">3</span><span class="p">)</span> <span class="ow">or</span> <span class="n">rMat</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="p">(</span><span class="mi">9</span><span class="p">,):</span>
+        <span class="n">rMat</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">atleast_2d</span><span class="p">(</span><span class="n">rMat</span><span class="o">.</span><span class="n">ravel</span><span class="p">())</span><span class="o">.</span><span class="n">T</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">rMat</span> <span class="o">=</span> <span class="n">rMat</span><span class="o">.</span><span class="n">T</span>
+    <span class="n">q</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">4</span><span class="p">,</span> <span class="n">rMat</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
+    
+    <span class="n">R11</span> <span class="o">=</span> <span class="n">rMat</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">R12</span> <span class="o">=</span> <span class="n">rMat</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">R13</span> <span class="o">=</span> <span class="n">rMat</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+    <span class="n">R21</span> <span class="o">=</span> <span class="n">rMat</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span>
+    <span class="n">R22</span> <span class="o">=</span> <span class="n">rMat</span><span class="p">[</span><span class="mi">4</span><span class="p">]</span>
+    <span class="n">R23</span> <span class="o">=</span> <span class="n">rMat</span><span class="p">[</span><span class="mi">5</span><span class="p">]</span>
+    <span class="n">R31</span> <span class="o">=</span> <span class="n">rMat</span><span class="p">[</span><span class="mi">6</span><span class="p">]</span>
+    <span class="n">R32</span> <span class="o">=</span> <span class="n">rMat</span><span class="p">[</span><span class="mi">7</span><span class="p">]</span>
+    <span class="n">R33</span> <span class="o">=</span> <span class="n">rMat</span><span class="p">[</span><span class="mi">8</span><span class="p">]</span>
+    
+    <span class="n">q</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">copysign</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">1</span><span class="o">+</span><span class="n">R11</span><span class="o">-</span><span class="n">R22</span><span class="o">-</span><span class="n">R33</span><span class="p">),</span> <span class="n">R32</span><span class="o">-</span><span class="n">R23</span><span class="p">)</span>
+    <span class="n">q</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">copysign</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="n">R11</span><span class="o">+</span><span class="n">R22</span><span class="o">-</span><span class="n">R33</span><span class="p">),</span> <span class="n">R13</span><span class="o">-</span><span class="n">R31</span><span class="p">)</span>
+    <span class="n">q</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">copysign</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="n">R11</span><span class="o">-</span><span class="n">R22</span><span class="o">+</span><span class="n">R33</span><span class="p">),</span> <span class="n">R21</span><span class="o">-</span><span class="n">R12</span><span class="p">)</span>
+    <span class="n">q</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="p">(</span><span class="n">q</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span><span class="o">+</span><span class="n">q</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span><span class="o">+</span><span class="n">q</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span>
+    
+    <span class="k">return</span> <span class="n">q</span><span class="o">.</span><span class="n">T</span></div>
+    
+
+<div class="viewcode-block" id="seq2quat"><a class="viewcode-back" href="../rotmat.html#rotmat.seq2quat">[docs]</a><span class="k">def</span> <span class="nf">seq2quat</span><span class="p">(</span><span class="n">rot_angles</span><span class="p">,</span> <span class="n">seq</span><span class="o">=</span><span class="s1">&#39;nautical&#39;</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    This function takes a angles from sequenctial rotations  and calculates</span>
+<span class="sd">    the corresponding quaternions.</span>
+<span class="sd">    </span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    rot_angles : ndarray, nx3</span>
+<span class="sd">        sequential rotation angles [deg]</span>
+<span class="sd">    seq : string</span>
+<span class="sd">        Has to be one the following:</span>
+<span class="sd">        </span>
+<span class="sd">        - Euler ... Rz * Rx * Rz</span>
+<span class="sd">        - Fick ... Rz * Ry * Rx</span>
+<span class="sd">        - nautical ... same as &quot;Fick&quot;</span>
+<span class="sd">        - Helmholtz ... Ry * Rz * Rx</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    quats : ndarray, nx4</span>
+<span class="sd">        corresponding quaternions</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; skin.rotmat.seq2quat([90, 23.074, -90], seq=&#39;Euler&#39;)</span>
+<span class="sd">    array([[ 0.97979575,  0.        ,  0.2000007 ,  0.        ]])</span>
+<span class="sd">    </span>
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    The equations are longish, and can be found in 3D-Kinematics, 4.1.5 &quot;Relation to Sequential Rotations&quot;</span>
+
+<span class="sd">    &#39;&#39;&#39;</span>
+    
+    <span class="n">rot_angles</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">atleast_2d</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">deg2rad</span><span class="p">(</span><span class="n">rot_angles</span><span class="p">))</span>
+    
+    <span class="n">quats</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span> <span class="p">[</span><span class="n">rot_angles</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mi">4</span><span class="p">]</span> <span class="p">)</span>
+    
+    <span class="k">if</span> <span class="n">seq</span> <span class="o">==</span><span class="s1">&#39;Fick&#39;</span> <span class="ow">or</span> <span class="n">seq</span> <span class="o">==</span><span class="s1">&#39;nautical&#39;</span><span class="p">:</span>
+        <span class="n">theta</span> <span class="o">=</span> <span class="n">rot_angles</span><span class="p">[:,</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">phi</span> <span class="o">=</span> <span class="n">rot_angles</span><span class="p">[:,</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">psi</span> <span class="o">=</span> <span class="n">rot_angles</span><span class="p">[:,</span><span class="mi">2</span><span class="p">]</span>
+        
+        <span class="n">c_th</span><span class="p">,</span> <span class="n">s_th</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">theta</span><span class="o">/</span><span class="mi">2</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">theta</span><span class="o">/</span><span class="mi">2</span><span class="p">)</span>
+        <span class="n">c_ph</span><span class="p">,</span> <span class="n">s_ph</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">phi</span><span class="o">/</span><span class="mi">2</span><span class="p">),</span>   <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">phi</span><span class="o">/</span><span class="mi">2</span><span class="p">)</span>
+        <span class="n">c_ps</span><span class="p">,</span> <span class="n">s_ps</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">psi</span><span class="o">/</span><span class="mi">2</span><span class="p">),</span>   <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">psi</span><span class="o">/</span><span class="mi">2</span><span class="p">)</span>
+        
+        <span class="n">quats</span><span class="p">[:,</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">c_th</span><span class="o">*</span><span class="n">c_ph</span><span class="o">*</span><span class="n">c_ps</span> <span class="o">+</span> <span class="n">s_th</span><span class="o">*</span><span class="n">s_ph</span><span class="o">*</span><span class="n">s_ps</span>
+        <span class="n">quats</span><span class="p">[:,</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">c_th</span><span class="o">*</span><span class="n">c_ph</span><span class="o">*</span><span class="n">s_ps</span> <span class="o">-</span> <span class="n">s_th</span><span class="o">*</span><span class="n">s_ph</span><span class="o">*</span><span class="n">c_ps</span>
+        <span class="n">quats</span><span class="p">[:,</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="n">c_th</span><span class="o">*</span><span class="n">s_ph</span><span class="o">*</span><span class="n">c_ps</span> <span class="o">+</span> <span class="n">s_th</span><span class="o">*</span><span class="n">c_ph</span><span class="o">*</span><span class="n">s_ps</span>
+        <span class="n">quats</span><span class="p">[:,</span><span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="n">s_th</span><span class="o">*</span><span class="n">c_ph</span><span class="o">*</span><span class="n">c_ps</span> <span class="o">-</span> <span class="n">c_th</span><span class="o">*</span><span class="n">s_ph</span><span class="o">*</span><span class="n">s_ps</span>
+        
+    <span class="k">elif</span> <span class="n">seq</span> <span class="o">==</span> <span class="s1">&#39;Helmholtz&#39;</span><span class="p">:</span>
+        <span class="n">phi</span> <span class="o">=</span> <span class="n">rot_angles</span><span class="p">[:,</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">theta</span> <span class="o">=</span> <span class="n">rot_angles</span><span class="p">[:,</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">psi</span> <span class="o">=</span> <span class="n">rot_angles</span><span class="p">[:,</span><span class="mi">2</span><span class="p">]</span>
+        
+        <span class="n">c_th</span><span class="p">,</span> <span class="n">s_th</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">theta</span><span class="o">/</span><span class="mi">2</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">theta</span><span class="o">/</span><span class="mi">2</span><span class="p">)</span>
+        <span class="n">c_ph</span><span class="p">,</span> <span class="n">s_ph</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">phi</span><span class="o">/</span><span class="mi">2</span><span class="p">),</span>   <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">phi</span><span class="o">/</span><span class="mi">2</span><span class="p">)</span>
+        <span class="n">c_ps</span><span class="p">,</span> <span class="n">s_ps</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">psi</span><span class="o">/</span><span class="mi">2</span><span class="p">),</span>   <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">psi</span><span class="o">/</span><span class="mi">2</span><span class="p">)</span>
+        
+        <span class="n">quats</span><span class="p">[:,</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">c_th</span><span class="o">*</span><span class="n">c_ph</span><span class="o">*</span><span class="n">c_ps</span> <span class="o">-</span> <span class="n">s_th</span><span class="o">*</span><span class="n">s_ph</span><span class="o">*</span><span class="n">s_ps</span>
+        <span class="n">quats</span><span class="p">[:,</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">c_th</span><span class="o">*</span><span class="n">c_ph</span><span class="o">*</span><span class="n">s_ps</span> <span class="o">+</span> <span class="n">s_th</span><span class="o">*</span><span class="n">s_ph</span><span class="o">*</span><span class="n">c_ps</span>
+        <span class="n">quats</span><span class="p">[:,</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="n">c_th</span><span class="o">*</span><span class="n">s_ph</span><span class="o">*</span><span class="n">c_ps</span> <span class="o">+</span> <span class="n">s_th</span><span class="o">*</span><span class="n">c_ph</span><span class="o">*</span><span class="n">s_ps</span>
+        <span class="n">quats</span><span class="p">[:,</span><span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="n">s_th</span><span class="o">*</span><span class="n">c_ph</span><span class="o">*</span><span class="n">c_ps</span> <span class="o">-</span> <span class="n">c_th</span><span class="o">*</span><span class="n">s_ph</span><span class="o">*</span><span class="n">s_ps</span>
+        
+    <span class="k">elif</span> <span class="n">seq</span> <span class="o">==</span> <span class="s1">&#39;Euler&#39;</span><span class="p">:</span>
+        <span class="n">alpha</span> <span class="o">=</span> <span class="n">rot_angles</span><span class="p">[:,</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">beta</span> <span class="o">=</span> <span class="n">rot_angles</span><span class="p">[:,</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">gamma</span> <span class="o">=</span> <span class="n">rot_angles</span><span class="p">[:,</span><span class="mi">2</span><span class="p">]</span>
+        
+        <span class="n">c_al</span><span class="p">,</span> <span class="n">s_al</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">alpha</span><span class="o">/</span><span class="mi">2</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">alpha</span><span class="o">/</span><span class="mi">2</span><span class="p">)</span>
+        <span class="n">c_be</span><span class="p">,</span> <span class="n">s_be</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">beta</span><span class="o">/</span><span class="mi">2</span><span class="p">),</span>  <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">beta</span><span class="o">/</span><span class="mi">2</span><span class="p">)</span>
+        <span class="n">c_ga</span><span class="p">,</span> <span class="n">s_ga</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">gamma</span><span class="o">/</span><span class="mi">2</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">gamma</span><span class="o">/</span><span class="mi">2</span><span class="p">)</span>
+        
+        <span class="n">quats</span><span class="p">[:,</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">c_al</span><span class="o">*</span><span class="n">c_be</span><span class="o">*</span><span class="n">c_ga</span> <span class="o">-</span> <span class="n">s_al</span><span class="o">*</span><span class="n">c_be</span><span class="o">*</span><span class="n">s_ga</span>
+        <span class="n">quats</span><span class="p">[:,</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">c_al</span><span class="o">*</span><span class="n">s_be</span><span class="o">*</span><span class="n">c_ga</span> <span class="o">+</span> <span class="n">s_al</span><span class="o">*</span><span class="n">s_be</span><span class="o">*</span><span class="n">s_ga</span>
+        <span class="n">quats</span><span class="p">[:,</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="n">s_al</span><span class="o">*</span><span class="n">s_be</span><span class="o">*</span><span class="n">c_ga</span> <span class="o">-</span> <span class="n">c_al</span><span class="o">*</span><span class="n">s_be</span><span class="o">*</span><span class="n">s_ga</span>
+        <span class="n">quats</span><span class="p">[:,</span><span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="n">c_al</span><span class="o">*</span><span class="n">c_be</span><span class="o">*</span><span class="n">s_ga</span> <span class="o">+</span> <span class="n">s_al</span><span class="o">*</span><span class="n">c_be</span><span class="o">*</span><span class="n">c_ga</span>
+        
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Input parameter </span><span class="si">{0}</span><span class="s1"> not known&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">seq</span><span class="p">))</span>
+    
+    <span class="k">return</span> <span class="n">quats</span></div>
+        
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>
+    <span class="kn">from</span> <span class="nn">pprint</span> <span class="k">import</span> <span class="n">pprint</span>
+    
+    <span class="n">STM</span> <span class="o">=</span> <span class="n">stm</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">angle</span><span class="o">=</span><span class="mi">45</span><span class="p">,</span> <span class="n">translation</span><span class="o">=</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mf">3.3</span><span class="p">])</span>
+    <span class="n">R_z</span> <span class="o">=</span> <span class="n">stm</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">angle</span><span class="o">=</span><span class="mi">30</span><span class="p">)</span>
+    <span class="n">T_y</span> <span class="o">=</span> <span class="n">stm</span><span class="p">(</span><span class="n">translation</span><span class="o">=</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mf">10.</span><span class="p">,</span> <span class="mi">0</span><span class="p">])</span>
+    
+    <span class="n">pprint</span><span class="p">(</span><span class="n">STM</span><span class="p">)</span>
+    <span class="n">pprint</span><span class="p">(</span><span class="n">R_z</span><span class="p">)</span>
+    <span class="n">pprint</span><span class="p">(</span><span class="n">T_y</span><span class="p">)</span>
+    
+    <span class="n">out_s</span> <span class="o">=</span> <span class="n">stm_s</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">angle</span><span class="o">=</span><span class="s1">&#39;0&#39;</span><span class="p">,</span> <span class="n">transl</span><span class="o">=</span><span class="s1">&#39;x,0,z&#39;</span><span class="p">)</span>
+    <span class="n">pprint</span><span class="p">(</span><span class="n">out_s</span><span class="p">)</span>
+    <span class="n">Rx</span> <span class="o">=</span> <span class="n">stm_s</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">angle</span><span class="o">=</span><span class="s1">&#39;alpha&#39;</span><span class="p">)</span>
+    <span class="n">Tx</span> <span class="o">=</span> <span class="n">stm_s</span><span class="p">(</span><span class="n">transl</span><span class="o">=</span><span class="s1">&#39;r,0,0&#39;</span><span class="p">)</span>
+    <span class="n">Rz</span> <span class="o">=</span> <span class="n">stm_s</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">angle</span><span class="o">=</span><span class="s1">&#39;theta&#39;</span><span class="p">)</span>
+    <span class="n">Tz</span> <span class="o">=</span> <span class="n">stm_s</span><span class="p">(</span><span class="n">transl</span><span class="o">=</span><span class="s1">&#39;0,0,d&#39;</span><span class="p">)</span>
+    <span class="n">dh_mat</span> <span class="o">=</span> <span class="n">Tz</span> <span class="o">*</span> <span class="n">Rz</span> <span class="o">*</span> <span class="n">Tx</span> <span class="o">*</span> <span class="n">Rx</span>
+    <span class="n">pprint</span><span class="p">(</span><span class="n">Rx</span><span class="p">)</span>
+    <span class="n">pprint</span><span class="p">(</span><span class="n">Tx</span><span class="p">)</span>
+    <span class="n">pprint</span><span class="p">(</span><span class="n">Rz</span><span class="p">)</span>
+    <span class="n">pprint</span><span class="p">(</span><span class="n">Tz</span><span class="p">)</span>
+    <span class="n">pprint</span><span class="p">(</span><span class="n">dh_mat</span><span class="p">)</span>
+    
+    
+    <span class="n">Rx</span> <span class="o">=</span> <span class="n">stm_s</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">angle</span><span class="o">=</span><span class="s1">&#39;0&#39;</span><span class="p">)</span>
+    <span class="n">Tx</span> <span class="o">=</span> <span class="n">stm_s</span><span class="p">(</span><span class="n">transl</span><span class="o">=</span><span class="s1">&#39;0,0,0&#39;</span><span class="p">)</span>
+    <span class="n">Rz</span> <span class="o">=</span> <span class="n">stm_s</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">angle</span><span class="o">=</span><span class="s1">&#39;theta&#39;</span><span class="p">)</span>
+    <span class="n">Tz</span> <span class="o">=</span> <span class="n">stm_s</span><span class="p">(</span><span class="n">transl</span><span class="o">=</span><span class="s1">&#39;0,0,15&#39;</span><span class="p">)</span>
+    <span class="n">dh2</span> <span class="o">=</span> <span class="n">Tz</span> <span class="o">*</span> <span class="n">Rz</span> <span class="o">*</span> <span class="n">Tx</span> <span class="o">*</span> <span class="n">Rx</span>    
+    <span class="n">pprint</span><span class="p">(</span><span class="n">dh2</span><span class="p">)</span>
+    
+    <span class="n">pprint</span><span class="p">(</span><span class="n">dh_s</span><span class="p">(</span><span class="s1">&#39;theta&#39;</span><span class="p">,</span> <span class="mi">15</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span>
+    
+    <span class="n">t_dh</span> <span class="o">=</span> <span class="n">dh</span><span class="p">(</span><span class="mi">60</span><span class="p">,</span><span class="mi">15</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">t_dh</span><span class="p">)</span>
+    
+    
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    angles = np.r_[20, 0, 0]</span>
+<span class="sd">    quat = seq2quat(angles)</span>
+<span class="sd">    print(quat)</span>
+<span class="sd">    testmat = np.array([[np.sqrt(2)/2, -np.sqrt(2)/2, 0],</span>
+<span class="sd">                   [np.sqrt(2)/2,  np.sqrt(2)/2, 0],</span>
+<span class="sd">                   [0, 0, 1]])</span>
+<span class="sd">    </span>
+<span class="sd">    angles = sequence(testmat, to=&#39;nautical&#39;)</span>
+<span class="sd">    print(angles)</span>
+<span class="sd">    </span>
+<span class="sd">    testmat2 = np.tile(np.reshape(testmat, (1,-1)), (2,1))</span>
+<span class="sd">    angles = sequence(testmat2, to=&#39;nautical&#39;)</span>
+<span class="sd">    print(angles)</span>
+<span class="sd">    </span>
+<span class="sd">    print(&#39;Done testing&#39;)</span>
+<span class="sd">    correct = np.r_[[0,0,np.pi/4]]</span>
+<span class="sd">    print(R())</span>
+<span class="sd">    print(R1(45))</span>
+<span class="sd">    from pprint import pprint</span>
+<span class="sd">    pprint(R_s(axis=0))</span>
+<span class="sd">    pprint(R_s(axis=1, angle=&#39;phi&#39;))</span>
+<span class="sd">    </span>
+<span class="sd">    print(R(1,45))</span>
+<span class="sd">    print(R_s(1, &#39;gamma&#39;))</span>
+<span class="sd">    </span>
+<span class="sd">    R2(30)</span>
+<span class="sd">    print(R1(40))</span>
+<span class="sd">    a = np.r_[np.cos(0.1), 0,0,np.sin(0.1)]</span>
+<span class="sd">    print(&#39;The inverse of {0} is {1}&#39;.format(a, quat.q_inv(a)))</span>
+<span class="sd">    </span>
+<span class="sd">    &#39;&#39;&#39;</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="../index.html">
+              <img class="logo" src="../_static/skinematics.png" alt="Logo"/>
+            </a></p>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../index.html">skinematics 0.7.4 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="index.html" >Module code</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2018, thomas haslwanter.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.5.
+    </div>
+  </body>
+</html>
