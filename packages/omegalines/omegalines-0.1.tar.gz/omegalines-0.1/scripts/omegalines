@@ -1,0 +1,148 @@
+#!/usr/bin/env python
+
+import datetime
+import dateutil.parser
+import dateutil.tz
+import json
+import os
+import time
+import urllib2
+import yaml
+from OmegaExpansion import oledExp
+
+OLED_DISPLAY_WIDTH = 21
+WIENER_LINIEN_DEFAULT_UPDATE_INTERVAL_SECONDS = 10
+
+
+def datetime_now_local():
+    return datetime.datetime.now(dateutil.tz.tzlocal())
+
+
+def format_timedelta(timedelta):
+    total_seconds = timedelta.total_seconds()
+    return '%s%d:%02d' % (
+        '-' if total_seconds < 0 else '',
+        int(abs(total_seconds) / 60),
+        abs(total_seconds) % 60,
+    )
+
+assert "0:20" == format_timedelta(datetime.timedelta(seconds=20))
+assert "1:20" == format_timedelta(datetime.timedelta(seconds=80))
+assert "2:00" == format_timedelta(datetime.timedelta(seconds=120))
+assert "-0:20" == format_timedelta(datetime.timedelta(seconds=-20))
+assert "-1:20" == format_timedelta(datetime.timedelta(seconds=-80))
+assert "-2:00" == format_timedelta(datetime.timedelta(seconds=-120))
+
+
+def oled_write_line(line):
+    oledExp.write(line.ljust(OLED_DISPLAY_WIDTH, ' '))
+
+
+class Departure:
+
+    def __init__(self, line, towards, predicted_time):
+        self.line = line
+        self.towards = towards
+        self.predicted_time = predicted_time
+
+    @property
+    def predicted_timedelta(self):
+        return self.predicted_time - datetime_now_local()
+
+
+def request_wiener_linien_departures(api_key, rbl):
+    req = urllib2.Request(
+        "https://www.wienerlinien.at/ogd_realtime/monitor?sender=%s&rbl=%s"
+            % (api_key, rbl),
+    )
+    req.add_header("Accept", "application/json")
+    req.add_header("Content-Type", "application/json")
+    req_time = datetime_now_local()
+    resp = urllib2.urlopen(req)
+    resp_data = json.loads(resp.read())
+    # datetime.datetime.strptime:
+    # ValueError: 'z' is a bad directive in format
+    # '%Y-%m-%dT%H:%M:%S.%f%z'
+    server_time_delta = req_time - \
+        dateutil.parser.parse(resp_data['message']['serverTime'])
+    monitors_data = resp_data['data']['monitors']
+    assert 1 == len(monitors_data)
+    departures = []
+    for line_data in monitors_data[0]['lines']:
+        assert 1 == len(line_data['departures'])
+        for departure_data in line_data['departures']['departure']:
+            try:
+                predicted_time_server = dateutil.parser.parse(
+                    departure_data['departureTime']['timeReal'],
+                )
+            except KeyError as e:
+                print(e)
+                predicted_time_server = None
+            if predicted_time_server:
+                departures.append(Departure(
+                    line=departure_data['vehicle']['name']
+                        if 'vehicle' in departure_data else line_data['name'],
+                    towards=departure_data['vehicle']['towards']
+                        if 'vehicle' in departure_data else line_data['towards'],
+                    predicted_time=predicted_time_server - server_time_delta,
+                ))
+    return departures
+
+
+def run(config_path):
+    with open(config_path, 'r') as config_file:
+        config = yaml.load(config_file.read())
+    if not 'update_interval_seconds' in config['wiener_linien']:
+        config['wiener_linien']['update_interval_seconds'] = \
+            WIENER_LINIEN_DEFAULT_UPDATE_INTERVAL_SECONDS
+    assert not oledExp.driverInit()
+    assert not oledExp.setDisplayPower(1)
+    departures = []
+    wiener_linien_last_update_time = None
+    while True:
+        if wiener_linien_last_update_time is None \
+                or time.time() - wiener_linien_last_update_time \
+                    > config['wiener_linien']['update_interval_seconds']:
+            print('update wiener linien')
+            try:
+                departures = request_wiener_linien_departures(
+                    api_key=config['wiener_linien']['api_key'],
+                    rbl=4648,
+                )
+                wiener_linien_last_update_time = time.time()
+            except urllib2.HTTPError as e:
+                print(e)
+        oledExp.setCursor(0, 0)
+        oledExp.write(datetime_now_local().strftime("%Y-%m-%d %H:%M:%S"))
+        for departure_idx, departure in enumerate(departures):
+            oledExp.setCursor(1 + departure_idx, 0)
+            oled_write_line("%s %s %s" % (
+                format_timedelta(departure.predicted_timedelta),
+                departure.line,
+                departure.towards,
+            ))
+        time.sleep(0.1)
+
+
+def _init_argparser():
+    import argparse
+    argparser = argparse.ArgumentParser()
+    argparser.add_argument(
+        '-c', '--config-path',
+        dest='config_path',
+        type=str,
+        default=os.path.join(os.path.expanduser('~'), '.omegalines'),
+        help='default: %(default)s',
+    )
+    return argparser
+
+
+def main(argv):
+    argparser = _init_argparser()
+    args = argparser.parse_args(argv)
+    run(**vars(args))
+    return 0
+
+if __name__ == "__main__":
+    import sys
+    sys.exit(main(sys.argv[1:]))
