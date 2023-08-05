@@ -1,0 +1,56 @@
+language: python
+sudo: required
+python:
+  - '3.5'
+
+env:
+  global:
+    - COB_FORCE_CURRENT_INTERPRETER=1
+    - DOCKER_COMPOSE_VERSION=1.11.2
+    - DOCKER_HOST=tcp://127.0.0.1:2375
+
+services:
+  - docker
+
+before_install:
+
+  # fix pip
+  - sudo apt-get purge -y python-pip
+  - wget https://bootstrap.pypa.io/get-pip.py
+  - sudo $(which python) ./get-pip.py
+  - sudo $(which python) -m pip install -U pip setuptools virtualenv
+
+
+  # fix docker-compose version
+  - sudo rm /usr/local/bin/docker-compose
+  - curl -L https://github.com/docker/compose/releases/download/${DOCKER_COMPOSE_VERSION}/docker-compose-`uname -s`-`uname -m` > docker-compose
+  - chmod +x docker-compose
+  - sudo mv docker-compose /usr/local/bin
+  - docker-compose --version
+
+  # update to Docker 1.13
+  - sudo sh -c 'echo "deb https://apt.dockerproject.org/repo ubuntu-$(lsb_release -cs) main" > /etc/apt/sources.list.d/docker.list'
+  - curl -fsSL https://apt.dockerproject.org/gpg | sudo apt-key add -
+  - sudo apt-key fingerprint 58118E89F3A912897C070ADBF76221572C52609D
+  - sudo apt-get update
+  - sudo apt-get -y install "docker-engine=1.13.1-0~ubuntu-$(lsb_release -cs)"
+
+
+install:
+  - pip install -e .
+  - pip install -r test_requirements.txt
+  - pip install pylint
+
+script:
+  - py.test tests
+  - pylint --rcfile=.pylintrc cob
+
+deploy:
+  provider: pypi
+  user: vmalloc
+  password:
+    secure: lPRJIhiuniYyIyV2jHHvK3IiQIckld92yYY2rfIutqa3wsdlSTXPGO1snBH0fxvhvfwudWrj1h4l3Ru8SN+s7AQwzMSFVSouU9HLtlxqzyYuL98iCDZa1YI2NNOU+OBByZNgbgldeuWPcIM+loIpte5yaMuW+90lbrYYjO7DFZaXjPhumE+rHfc+hXnRg8j0dnlpXtsVewDHF+6GMNtvG+rxG36ka9WF7JQvM28+1VltbmKQemuwgtBLAasNSaViQo3O3EI/vbWFmB9Rnv9rTV2DTfpWUvqQDtxcOokFi+DVFaEKaUb0gUA8RDUgYm7vdFeg8SiUW/uvjEzRHogPvGgbIHqpmgqKVtpxXTVVSNrp8gU6ElIm/fR/b5716YdWTlBBX840LjazCUcR4RUPHkw8VDIItTmcgYscQcSdX1xfmrc09EY/QcUBuhFNizCJZVvUsjBMr2zeAElQgWeWC5gtEDx4JGVRggcu9wotAArG4krDMo3SOqspE7i+SPkE7QZH8D4M6X8v0qUW4y1Vps5TnoLxe3ffuKD24huyI6KjmFdPfaDVXTGi3YL/98aPnK9y5juf5qjU05SHn7ldTPDxxHqkrziuztHun6OOx3PQna41lYisUww3gg+6Ch3SucUZVWd81278ulFGqrPYgJPlSawBHXa2bxD1dRr6edM=
+  on:
+    tags: true
+    repo: getweber/cob
+    branch: develop
