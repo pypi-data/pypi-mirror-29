@@ -1,0 +1,887 @@
+Metadata-Version: 1.1
+Name: eea.pdf
+Version: 8.5
+Summary: Download as PDF
+Home-page: https://github.com/collective/eea.pdf
+Author: European Environment Agency: IDM2 A-Team
+Author-email: eea-edw-a-team-alerts@googlegroups.com
+License: GPL version 2
+Description: =======
+        EEA PDF
+        =======
+        .. image:: http://ci.eionet.europa.eu/job/eea/job/eea.pdf/job/master/badge/icon
+          :target: http://ci.eionet.europa.eu/job/eea/job/eea.pdf/job/master/display/redirect
+        
+        This package allows your users to download Plone content as PDF files. As admin
+        you can define specific PDF themes per content-type.
+        
+        .. note ::
+        
+          Requires `wkhtmltopdf`_ system-package installed on your server.
+          See `eea.converter`_ documentation for more details.
+        
+        
+        Contents
+        ========
+        
+        .. contents::
+        
+        
+        Main features
+        =============
+        
+        1. Adds download as PDF action at the bottom of the page
+        2. Possibility to define custom PDF themes per content-type
+        3. Asynchronously generate PDF files and notify users by email when PDF is ready
+        4. Possibility to temporarily disable dynamic PDF creation by adding an item
+           called 'action-download-pdf' within context
+        
+        
+        Install
+        =======
+        
+        - Add eea.pdf to your **eggs** and **zcml** section in your buildout
+          and re-run buildout.
+          You can download a sample buildout from
+          https://github.com/eea/eea.pdf/tree/master/buildouts/plone4
+        - Install eea.pdf within Site Setup > Add-ons
+        
+        ::
+        
+            [instance]
+            eggs =
+                ...
+                eea.pdf
+        
+            zcml =
+                ...
+                eea.pdf
+        
+        
+        External PDF generator tools
+        ----------------------------
+        Ensure that you have installed `wkhtmltopdf`_ on your machine. You
+        can also install `wkhtmltopdf`_ from buildout::
+        
+            [buildout]
+        
+            parts +=
+                wkhtmltopdf
+        
+            [wkhtmltopdf]
+            recipe = hexagonit.recipe.download
+            url = http://eggrepo.apps.eea.europa.eu/pypi/wkhtmltopdf/wkhtmltopdf-0.12.1.tgz
+        
+            [instance]
+            environment-vars +=
+                WKHTMLTOPDF_PATH ${wkhtmltopdf:location}/wkhtmltopdf
+        
+        Asynchronous setup
+        ------------------
+        By default all PDFs are generated asynchronous, therefore some extra config is
+        needed within your buildout in order for this to work properly.
+        
+        First of all you'll need a folder were to store generated PDF files. For this
+        you can create it manually within buildout:directory/var/ or you can let buildout
+        handle it::
+        
+            [buildout]
+        
+            parts +=
+                media-downloads
+                media-downloads-temp
+        
+        
+            media-downloads-path = ${buildout:directory}/var/downloads/pdf
+            media-downloads-temp = ${buildout:directory}/var/downloads/tmp
+        
+            [media-downloads]
+            recipe = ore.recipe.fs:mkdir
+            path = ${buildout:media-downloads-path}
+            mode = 0700
+            createpath = true
+        
+            [media-downloads-temp]
+            recipe = ore.recipe.fs:mkdir
+            path = ${buildout:media-downloads-temp}
+            mode = 0700
+            createpath = true
+        
+        This will create a folder named **downloads** within buildout:directory/var/
+        
+        Next, in order for this folder to be visible from your website and your users to
+        be able to download generated PDFs you'll need to tell to your zope instances
+        about it::
+        
+            [buildout]
+        
+            media-downloads-name = downloads
+            media-downloads-path = ${buildout:directory}/var/downloads/pdf
+            media-downloads-temp = ${buildout:directory}/var/downloads/tmp
+        
+            [instance]
+        
+            environment-vars +=
+                EEADOWNLOADS_NAME ${buildout:media-downloads-name}
+                EEADOWNLOADS_PATH ${buildout:media-downloads-path}
+                EEACONVERTER_TEMP ${buildout:media-downloads-temp}
+        
+        Also, don't forget to setup `plone.app.async`_
+        
+        ::
+        
+            [buildout]
+        
+            [instance]
+            eggs +=
+                plone.app.async
+            zcml +=
+                plone.app.async-single_db_worker
+        
+        Getting started
+        ===============
+        
+        1. Go to Site Setup > PDF Settings
+        2. Customize an existing PDF theme or add a new one
+        3. Go to Home page and click on download as pdf icon at the bottom of the page
+           or directly access http://localhost:8080/Plone/front-page/download.pdf
+        
+        
+        PDF Theme options
+        =================
+        For more information about wkhtmltopdf options like Table of contents XSL file,
+        header and footer parameters, etc. see `wkhtmltopdf`_ documentation.
+        
+        Cover
+        -----
+        A page template to be used for PDF Cover. Leave empty to disable it.
+        Default: pdf.cover
+        
+        Disclaimer
+        ----------
+        A page template containing copyright and author information. This page will be
+        placed between cover and PDF body. Leave empty to skip it.
+        Default: pdf.disclaimer
+        
+        Body
+        ----
+        A page template to be used for PDF body. An empty value will skip PDF body.
+        Default: pdf.body
+        
+        Back Cover
+        ----------
+        A page template to be used for back cover. Leave empty to disable back cover.
+        Default: pdf.cover.back
+        
+        Header
+        ------
+        A page template to be used as PDF body header. This will not appear on cover,
+        disclaimer or back cover. Leave empty for no header.
+        Default: pdf.header
+        
+        Footer
+        ------
+        A page template to be used as PDF body footer. This will not appear on cover,
+        disclaimer or back.cover. Leave empty for no footer.
+        Default: pdf.footer
+        
+        Table of contents
+        -----------------
+        An XSL page template to be used for PDF Table of contents. See `wkhtmltopdf`_
+        documentation for more information about XSL format. Leave empty to disable
+        Table of contents.
+        Default: pdf.toc
+        
+        Table of contents links
+        -----------------------
+        Enable or disable Table of Contents internal links and also
+        PDF bookmarks (outline)
+        Default: False
+        
+        JavaScript
+        ----------
+        Enable or disable javascript.
+        Default: True
+        
+        JavaScript Delay
+        ----------------
+        Wait some seconds for javascript to finish
+        Default: 0
+        
+        Timeout
+        -------
+        Abort PDF conversion after this number of seconds
+        Default: 3600
+        
+        Asynchronous
+        ------------
+        Generate PDF asynchronously and send an email to the user when it's done
+        Default: True
+        
+        Offset
+        ------
+        Start counting pages within PDF Body from this number. Usefull when cover and/or
+        disclaimer are enabled.
+        Default: 0
+        
+        Maximum depth
+        -------------
+        This option defines the maximum depth a folderish item can go while recursively
+        includes it's children within PDF.
+        Default: 1 (include only direct children, non-folderish ones)
+        
+        Maximum breadth
+        ---------------
+        This options limit the number of direct children a folderish item can include
+        within PDF.
+        Default: 100
+        
+        Maximum items
+        -------------
+        The total items to be included within PDF export for a folderish item, including
+        depth and breadth.
+        Default: 1000
+        
+        Portal types
+        ------------
+        Apply this theme to selected portal types.
+        Default:
+        
+        
+        Custom permissions
+        ==================
+        Custom permissions added by this package
+        
+        Can download PDF (eea.pdf.download)
+        -----------------------------------
+        Assign this permission to roles that you want to be able to download content as PDF
+        Default: Owner, Manager, Editor
+        
+        Can customize PDF (eea.pdf.customize)
+        -------------------------------------
+        Assign this permission to roles that you want to be able to contextually customize
+        the output PDF look and feel
+        Default: Manager, Site Administrator
+        
+        Content rules
+        =============
+        This package uses Plone Content-rules to notify users by email when an asynchronous
+        PDF job is done. Thus 3 custom content-rules will be added within
+        Plone > Site Setup > Content-rules
+        
+        .. warning ::
+        
+          As these content-rules are triggered by an asynchronous job, while
+          you customize the email template for these content-rules,
+          please **DO NOT USE OTHER** string substitutions **that the ones** that start
+          with **$download_** as you'll break the download chain.
+          Also if you disable these content-rules the users will never know when the
+          PDF is ready and what is the link where they can download the output PDF.
+        
+        Export succeeded
+        ----------------
+        Notify the person who requested a PDF export that the PDF successfully exported
+        and provide a link to the downloadable PDF
+        
+        Export failed
+        -------------
+        Notify the person who requested a PDF export that the PDF export failed.
+        
+        Export failed (admin)
+        ---------------------
+        Notify admin that there were issues while exporting PDF
+        
+        
+        Content rules email string substitution
+        =======================================
+        In order to be able to easily customize emails sent by this package the following
+        custom email template string substitutions can be made
+        
+        
+        ${download_came_from_url}
+        -------------------------
+        The absolute URL of the Plone object which is downloaded as PDF
+        
+        ${download_email}
+        -----------------
+        Email address of the user that triggered the download as PDF action
+        
+        ${download_error}
+        -----------------
+        Error traceback when download as PDF job fails
+        
+        ${download_from_email}
+        ----------------------
+        Site Admin email address customizable via Plone > Site Setup > Mail
+        
+        ${download_from_name}
+        ---------------------
+        Site Admin name customizable via Plone > Site Setup > Mail
+        
+        ${download_title}
+        -----------------
+        Title of the Plone object which is downloaded as PDF
+        
+        ${download_url}
+        ---------------
+        The absolute URL where the generated output PDF can be downloaded
+        
+        ${download_type}
+        ----------------
+        Download type. Default to PDF for this package. It is package specific and it
+        can be PDF, EPUB, etc.
+        
+        
+        Disable PDF export
+        ==================
+        You have the possibility to temporarily disable dynamic PDF export contextually
+        by adding a static PDF file (or a Python Script, Page Template, etc)
+        within context called **action-download-pdf**. This way /download.pdf will
+        return this file instead of generating one based on context data.
+        
+        .. note::
+        
+          This works only with folderish items.
+        
+        Troubleshooting
+        ===============
+        PDFs are generated asynchronously using a parallel zc.async queue.quota.
+        The number of workers that will generate PDFs in parallel is automatically
+        calculated based on the number of zeo-clients registered with
+        **plone.app.async-*_db_worker**.
+        
+        As every **db_worker** can handle simultaneously **maximum 3 jobs** (hard-coded in zc.async Agent),
+        if you have **2 workers** then the maximum number of PDFs that will be generated
+        at the same time will be **6** (2 workers * 3). Same if you have **5**, you'll get
+        **15 PDFs** generated at the same time.
+        
+        If for any reason you don't want them to be generated simultaneously you can set
+        environment variable **EEAPDF_ASYNC_THREADS** to **1** within buildout::
+        
+            [buildout]
+        
+            ...
+        
+            [instance]
+        
+            ...
+        
+            environment-vars +=
+                EEAPDF_ASYNC_THREADS 1
+        
+        
+        Also, if you experience issues by having too many simultaneously PDF jobs, you
+        can limit them in the same way as above.
+        
+        
+        Dependencies
+        ============
+        
+        1. `eea.converter`_
+        2. `eea.downloads`_
+        3. `wkhtmltopdf`_
+        4. `plone.app.async`_
+        5. `eea.cache`_ (optional)
+        
+        Source code
+        ===========
+        
+        - Latest source code (Plone 4 compatible):
+          https://github.com/collective/eea.pdf
+        
+        
+        Copyright and license
+        =====================
+        The Initial Owner of the Original Code is European Environment Agency (EEA).
+        All Rights Reserved.
+        
+        The EEA PDF (the Original Code) is free software;
+        you can redistribute it and/or modify it under the terms of the GNU
+        General Public License as published by the Free Software Foundation;
+        either version 2 of the License, or (at your option) any later
+        version.
+        
+        More details under docs/License.txt
+        
+        
+        Funding
+        =======
+        
+        EEA_ - European Environment Agency (EU)
+        
+        .. _EEA: http://www.eea.europa.eu/
+        .. _eea.converter: http://eea.github.com/docs/eea.converter
+        .. _eea.downloads: http://eea.github.com/docs/eea.downloads
+        .. _wkhtmltopdf: http://wkhtmltopdf.org
+        .. _eea.cache: http://eea.github.com/docs/eea.cache
+        .. _plone.app.async: https://github.com/plone/plone.app.async#ploneappasync
+        
+        Changelog
+        =========
+        
+        8.5 - (2018-01-08)
+        ------------------
+        * Change: updated pdf.print.css with changes from custom
+          [ichim-david refs #90180]
+        
+        8.4 - (2017-12-12)
+        ------------------
+        * Change: Replace eeacms/zptlint with eeacms/plone-test:4 zptlint
+          [avoinea refs #90415]
+        
+        8.3 - (2017-11-07)
+        ------------------
+        * Change: Remove Sphinx generated documentation
+          [petchesi-iulian refs #88212]
+        
+        8.2 - (2017-07-10)
+        ------------------
+        * Change: can_download now checks also zope2.View permission on context.
+          This avoids a situation where you cannot view the context but you can
+          trigger a pdf download
+          [ichim-david refs #86581]
+        
+        8.1 - (2017-06-23)
+        ------------------
+        * Bug fix: return None if the attribute is not found
+          [iulianpetchesi #86181]
+        
+        8.0 - (2017-05-22)
+        ------------------
+        * Change: fixed PyLint warnings and errors
+          [valipod refs #84949]
+        
+        7.9 - (2017-05-15)
+        ------------------
+        * Change: fixed PyLint warnings and errors
+          [eduard-fironda refs #84949]
+        
+        7.8 - (2017-04-24)
+        ------------------
+        * Change: updated package information
+          [eduard-fironda]
+        
+        7.7 - (2017-04-19)
+        ------------------
+        * Bug fix: safely check for cover subtitle
+          [ichim-david refs #83520]
+        
+        7.6 - (2017-04-13)
+        ------------------
+        * Feature: added ability to disable cover subtitle per theme
+          [ichim-david refs #83520]
+        
+        7.5 - (2017-03-02)
+        ------------------
+        * Bugfix: fix wkhtmltopdf segmentation fault by setting 100% height
+          on img which have page-break-inside avoid
+          [ichim-david refs #80861]
+        
+        7.4 - (2017-02-21)
+        ------------------
+        * Change: Update pdf.print CSS and JS with more elements to be hidden
+          [avoinea refs #81054]
+        
+        7.3 - (2016-12-05)
+        ------------------
+        * Feature: added translations
+          [irina-botez]
+        
+        7.2 - (2016-11-14)
+        ------------------
+        * Change: word break external-link avoiding thus having a smaller
+          pdf render
+          [ichim-david refs #78802]
+        
+        7.1 - (2016-11-07)
+        ------------------
+        * Feature: added css classes for cover-header types
+          [ichim-david refs #78802]
+        * Bug fix: fixed figures hidden when placed after featureHeading
+          [ichim-david refs #78802]
+        
+        7.0 - (2016-10-31)
+        ------------------
+        * Bug fix: fixed pdf output of collection pdf theme where title
+          and page had a lot of empty space
+          [ichim-david refs #77970]
+        * Bug fix: fixed figure heading from being disconnected from the
+          figure charts that follow them
+          [ichim-david refs #77970]
+        
+        6.9 - (2016-10-14)
+        ------------------
+        * Feature: book theme now shows folder title within toc and content
+          [ichim-david refs #77476]
+        * Bug fix: Remove image property from profile exporting
+          [ZuluPro refs #76260]
+        
+        6.8 - (2016-10-03)
+        ------------------
+        * Change: Updated to use plone.stringinterp IContextWrapper adapter
+          [avoinea]
+        * Bug fix: include children of the folders when generate pdf
+          [catalin refs #75057]
+        
+        6.7 - (2016-09-05)
+        ------------------
+        * Change: PDFTheme now uses a blob image field
+          [ichim-david refs #75045]
+        
+        6.6 - (2016-02-15)
+        ------------------
+        * Change: fixed pdf disclaimer qrbox margins placement
+          [ichimdav refs #69095]
+        
+        6.5 - (2015-12-08)
+        ------------------
+        * Change: Use Open sans for figure titles and googlecharts-notes of
+          inline charts that are part of indicators
+          [ichimdav refs #30473]
+        
+        6.4 - (2015-12-07)
+        ------------------
+        * Change: content table is now of display table instead of block
+          in order to strech tables to 100% of viewable space
+          [ichimdav refs #30473]
+        
+        6.3 - (2015-11-16)
+        ------------------
+        * Change: box-classification is now visible in the pdf output
+          [ichimdav refs #30421]
+        
+        6.2 - (2015-10-22)
+        ------------------
+        * Bug fix: pdf segmentation fault
+          [lucas refs #28298]
+        * Feature: Possibility to bulk invalidate PDFs per theme
+          [chiridra refs #28517]
+        
+        6.1 - (2015-10-05)
+        ------------------
+        * Bug fix: avoid a page break immediately after a header
+          [lucas refs #28588]
+        
+        6.0 - (2015-09-10)
+        ------------------
+        * Change: Drop pdftk dependency and use pure Python PyPDF2 package
+          [voineali refs #28522]
+        
+        5.9 - (2015-09-04)
+        ------------------
+        * Change: removed indicator-figure styling for pdf.print.css, any fixes to the
+          indicator pdf sizes can be added in other eea packages
+          [ichimdav refs #28278]
+        
+        5.8 - (2015-08-18)
+        ------------------
+        * Feature: Switched to dedicated zc.async queue quota for PDF jobs which allows
+          multiple jobs to run in parallel. This will speed up PDF generation by using
+          all plone.app.async worker instances at the same time.
+          [voineali refs #28019]
+        * Bug fix: take into consideration that download.pdf could be found
+          even though the eea.pdf viewlet is missing because of templates
+          customizing main instead of content-core
+          [ichimdav refs #27958]
+        * Change: qrbox is now cleared avoiding the qrbox from being floated
+          [ichimdav refs #27537]
+        * Change: Added themes for PloneHelpCenter Leaf page, Section, Manual.
+          [ghitab refs #27615]
+        * Upgrade step: Within "Plone > Site setup > Add-ons" click on
+          upgrade button available for EEA PDF
+        * Bug fix: avoid a page break immediately after a header
+          [lucas refs #27657]
+        * Feature: implement the random selection of the pdf cover image
+          [lucas refs #27603]
+        
+        5.7 - (2015-07-28)
+        ------------------
+        * Change: append a pdf limit page when a pdf limit is reached with the book
+          theme giving a visual warning on the missing pages
+          [ichimdav refs #27539]
+        * Change: reverted change added in egg 5.6 regarding the can_download logic
+          [ichimdav refs #27539]
+        
+        5.6 - (2015-07-28)
+        ------------------
+        * Change: can_download now returns false when you have a folder with folder
+          or collections, avoiding thus a master pdf with empty pages
+          [ichimdav refs #27539]
+        * Bug fix: fixed retrieval of toc when using the setTemplate method
+          [ichimdav refs #27475]
+        * Bug fix: removed overblown cover image, span it 100% instead
+          [ichimdav refs #27479]
+        
+        5.5 - (2015-05-26)
+        ------------------
+        * Bug fix: Keep async.py module for backward compatibility
+          [voineali refs #25755]
+        
+        5.4 - (2015-05-05)
+        ------------------
+        * Feature: added a new option to themes to allow the serving of static footer
+          and header templates for situations where wkhtmltopdf would crash when pdf
+          output is over 200 pages. This option will render the templates once and then
+          serve them going forward. If this is enabled you should avoid tal conditions
+          that change from page to page.
+          [ichimdav refs #23904]
+        
+        5.3 - (2015-04-02)
+        ------------------
+        * Feature: added toc depth option which configures per context which header tags
+          are found within the toc page, as well as having the ability to disable the toc
+          per context
+          [ichimdav refs #24351]
+        * Change: added change for disclaimer Browser View to use the macro from
+          pdfdisclaimer.pt
+          [ichimdav refs #23322]
+        
+        5.2 - (2015-03-17)
+        ------------------
+        * Change: added archiveMessage class to the list of items to hide within print
+          [ichim-david refs #23017]
+        * Change: Switched to curl in the jenkins build install script
+          [olimpiurob refs #22402]
+        * Change: Changed fetch url for jenkins build install script to the install
+          script from the main EEA CPB repository
+          [olimpiurob refs #22402]
+        * Bug fix: Added a way to know if the PDF is being generated even if the
+          async worker is down or the queue is too busy.
+          [voineali refs #23411]
+        
+        5.1 - (2015-02-26)
+        ------------------
+        * Change: removed icons from disclaimer added in previous egg release since
+          they didn't pdf print correctly
+          [ichimdav refs #23322]
+        * Feature: added pdfdisclaimer.pt with logic that goes into the disclaimer
+          browser page in order for the contents of it to easily be modifiable
+          [ichimdav refs #23322]
+        
+        5.0 - (2015-02-25)
+        ------------------
+        * Bug fix: Fixed PDF memcache when called with/without ajax_load
+          [voineali refs #23103]
+        * Bug fix: Fixed UnicodeDecodeError within download.pdf template
+          [voineali refs #23338]
+        * Bug fix: Fixed download as PDF actions permissions
+          [avoinea]
+        * Bug fix: Fixed viewlet name
+          [avoinea]
+        * Bug fix: Fixed download link when fallback PDF is provided within parent
+          [voineali refs #23291]
+        * Change: Moved async API to eea.converter in order to reuse it for other
+          async jobs (e.g. eea.epub)
+          [voineali refs #22971
+        
+        4.9 - (2015-02-16)
+        ------------------
+        * Feature: Added possibility to add a fallback PDF file within context called
+          **action-download-pdf** in order to temporarily stop dynamic PDF
+          generation and statically return this item.
+          [voineali refs #22970]
+        * Change: Do not merge pdf.print.css in order to easily reuse it within epub export
+          [voineali refs #22686]
+        * Change: Added timestamp and print notice on pdf disclaimer page
+          [ichimdav refs #22442]
+        * Change: removed publishing house copyright notice from the pdf disclaimer page
+          [ichimdav refs #22442]
+        * Feature: Added possibility to use specific ZPT macro while exporting collection PDF body
+          [voineali refs #22686]
+        * i18n: Add Italian translation
+          [cekk]
+        
+        4.8 - (2015-02-03)
+        ------------------
+        * Feature: Added "Download as PDF" action also within export_actions category
+          [voineali refs #22686]
+        
+        4.7 - (2014-12-23)
+        ------------------
+        * Bug fix: Use *with* statement with temporary files in order to ensure that they
+          are safely closed before exit
+          [voineali refs #22080]
+        
+        4.6 - (2014-12-02)
+        ------------------
+        * Bug fix: Use shared temporary directory defined by eea.converter 8.5+
+          in order to avoid surprises while using together with zc.async
+          [voineali refs #21958]
+        
+        4.5 - (2014-11-20)
+        ------------------
+        * Change: new egg release to include documentation folder
+          [ghicaale refs #21453]
+        
+        4.4 - (2014-11-20)
+        ------------------
+        * Feature: Extend eea.cache invalidation form with PDF option in order to be
+          able to manually invalidate latest generated PDF within Cache tab
+          [voineali refs #21630]
+        * Change: cover images are enhanced if eea.depiction is installed
+          by using the image named image within the folder instead of
+          needing to add the image to the coverImage field
+          [ichim-david refs #21637]
+        * Feature: added coverImage field to folderish content which allows
+          you to set custom images for the cover page
+          [ichimd-david refs #21637]
+        * Change: Refactoring default themes: page for simple items and
+          book for collections and folderish items
+          [avoinea]
+        * Bug fix: Fix letter spacing within headers
+          [avoinea]
+        * Feature: Update documentation
+          [avoinea]
+        
+        4.3 - (2014-10-15)
+        ------------------
+        * Change: Bring several improvements to the PDF output from custom.
+          use Palatino by default. better margins for certain elements.
+          moved some css to standard print.css
+          [demarant]
+        
+        4.2 - (2014-10-01)
+        ------------------
+        * Bug fix: Cleanup temporary files in all cases generated by this package
+          [voineali refs #21149]
+        * Change: Prefix temporary files with package name: eea.pdf.
+          [voineali refs #21149]
+        * Bug fix: Avoid collision when multiple async workers generate the same file
+          [voineali refs #21149]
+        * Feature: Added "javascript-delay" option per theme in order to wait for
+          javascript to execute
+          [voineali refs #21068]
+        * Bug fix: Safely get title_or_id with PDF content-rules
+          [voineali refs #21068]
+        * Feature: mark the beginning of the convertion by creating a .tmp files
+          [ghicaale refs #20972]
+        
+        4.1 - (2014-09-16)
+        ------------------
+        * Bug fix: Fixed 'AttributeError: async' within PDF Settings control panel
+          [avoinea]
+        
+        4.0 - (2014-09-15)
+        ------------------
+        * Upgrade step: (optional) Within Plone > Site setup > PDF Settings ensure that
+          all PDF themes have Asynchronous property checked and increase timeout to 3600
+          [voineali refs #20845]
+        * Upgrade step: (optional) Within Plone > Site setup > Content-rules review all
+          PDF related content-rules.
+          As these rules are triggered by an async job **DO NOT USE** other string
+          substitutions while sending emails than the ones the start with **$download_**
+          [voineali refs #20845]
+        * Upgrade step: (optional) On server machine add a cleanup cron to remove generated
+          PDF files older than 7 days (or more, depending on your storage size)
+          [voineali refs #20845]
+        * Upgrade step: Within "Plone > Site setup > Add-ons" click on
+          upgrade button available for EEA PDF
+        * Feature: Ask for email when user tries to asynchronously export PDF if the
+          system can't get it from current user's profile
+          [voineali refs #20846]
+        * Feature: Generate PDFs asynchronously with plone.app.async.
+          Enabled by default with this version. It can be manually disabled from
+          Site Setup > PDF Settings > Theme
+          [voineali refs #20843]
+        
+        3.2 - (2014-09-07)
+        ------------------
+        * Bug fix: Re-release broken version 3.1
+          [avoinea]
+        
+        3.1 - (2014-08-27)
+        ------------------
+        * Feature: Speed-up PDF export by caching pdf.body method using memcached
+          if eea.cache is present
+          [voineali refs #20678]
+        * Feature: Added print CSS for embeded daviz charts
+          [voineali refs #20523]
+        
+        3.0 - (2014-08-12)
+        ------------------
+        * Upgrade step: Assign "Can download PDF" permission to
+          CommonEditor
+        * Upgrade step: Within "Plone > Site setup > Add-ons" click on
+          upgrade button available for EEA PDF
+        * Change: Added i18n translations
+          [voineali refs #20431]
+        * Bug fix: Hide some indicators boxes within PDF export
+          [voineali refs #20454]
+        * Bug fix: Fixed spacing for key messages and related items
+          [voineali refs #20457]
+        * Bug fix: Fixed CSS used for tables within PDF export
+          [voineali refs #20462]
+        * Change: Skip description within PDF cover if length of first sentence is
+          greather that 80 characters
+          [voineali refs #20456]
+        * Feature: Include iframes and interpret javascript. Also added option to
+          disable javascript per theme.
+          [voineali refs #20459]
+        * Cleanup: Removed beautifulsoup4 dependency and cleanup all fixes made with
+          this tool
+          [voineali refs #20459]
+        * Feature: Added global and local PDF settings for collection and folderish
+          content-types: Max depth, Max breadth and Total Max Items
+          [voineali refs #20436]
+        * Feature: Added possibility to locally override PDF Theme to use
+          within PDF export
+          [voineali refs #20436]
+        * Feature: Added possibility to locally disable PDF export
+          [voineali refs #20436]
+        * Feature: Added IPDFAware marker interface in order to easily support
+          PDF export. Added Dexterity support, also.
+          [voineali refs #20436]
+        * Feature: Added "Can download PDF" and "Can customize PDF" permissions
+          [voineali refs #20436]
+        * Change: Removed default PDF theme concept. If there is no PDF Theme assigned
+          for a content-type, PDF can't be downloaded
+          [voineali refs #20436]
+        
+        2.0 - (2014-07-16)
+        ------------------
+        * Feature: added style for excluding certain parts from PDF.
+          [demarant #20255]
+        * Upgrade step: Within "Plone > Site setup > Add-ons" click on
+          upgrade button available for EEA PDF
+        * Upgrade step: Within "Plone > Site setup > Add-ons" uninstall
+          collective.sendaspdf
+        * Feature: Added table of contents support
+          [voineali refs #20268]
+        * Feature: Added custom pdf.body for Topic and Collection content-types that
+          is an aggregated page based on query results pdf.body
+          [voineali refs #20267]
+        * Feature: Added custom pdf.body for Plone Folder ctype that is an aggregated
+          page based on children pdf.body
+          [voineali refs #20267]
+        * Cleanup: Remove collective.sendaspdf dependency
+          [voineali refs #20268]
+        
+        1.1 - (2014-06-30)
+        ------------------
+        * Bug fix: fixed condition for print css which failed when using
+          collective.sendaspdf to download a pdf
+          [ichimdav refs #19880]
+        * Bug fix: use plone.app.vocabularies.ReallyUserFriendlyTypes for better
+          portal types matching
+          [ichim-david refs #19880]
+        
+        1.0 - (2014-06-06)
+        ------------------
+        * Upgrade step: Within "Plone > Site setup > Add-ons" install "EEA PDF"
+          [voineali refs #19761]
+        * Initial release
+        
+        
+Keywords: EEA Add-ons Plone Zope
+Platform: UNKNOWN
+Classifier: Framework :: Zope2
+Classifier: Framework :: Plone
+Classifier: Framework :: Plone :: 4.0
+Classifier: Framework :: Plone :: 4.1
+Classifier: Framework :: Plone :: 4.2
+Classifier: Framework :: Plone :: 4.3
+Classifier: Programming Language :: Zope
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 2.7
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: License :: OSI Approved :: GNU General Public License (GPL)
