@@ -1,0 +1,513 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>colour.models.rgb.derivation &mdash; Colour 0.3.11 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+    <link rel="stylesheet" href="../../../../_static/custom.css" type="text/css" />
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../../search.html"/>
+    <link rel="top" title="Colour 0.3.11 documentation" href="../../../../index.html"/>
+        <link rel="up" title="Module code" href="../../../index.html"/> 
+
+  
+  <script src="../../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../../index.html" class="icon icon-home"> Colour
+          
+
+          
+            
+            <img src="../../../../_static/Logo_Small_001.png" class="logo" />
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.3
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../manual.html">Colour Manual</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../index.html">Colour</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../../index.html">Module code</a> &raquo;</li>
+        
+      <li>colour.models.rgb.derivation</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for colour.models.rgb.derivation</h1><div class="highlight"><pre>
+<span></span><span class="c1"># -*- coding: utf-8 -*-</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">RGB Colourspace Derivation</span>
+<span class="sd">==========================</span>
+
+<span class="sd">Defines objects related to *RGB* colourspace derivation, essentially</span>
+<span class="sd">calculating the normalised primary matrix for given *RGB* colourspace primaries</span>
+<span class="sd">and whitepoint:</span>
+
+<span class="sd">-   :func:`colour.normalised_primary_matrix`</span>
+<span class="sd">-   :func:`colour.chromatically_adapted_primaries`</span>
+<span class="sd">-   :func:`colour.primaries_whitepoint`</span>
+<span class="sd">-   :func:`colour.RGB_luminance_equation`</span>
+<span class="sd">-   :func:`colour.RGB_luminance`</span>
+
+<span class="sd">See Also</span>
+<span class="sd">--------</span>
+<span class="sd">`RGB Colourspaces Jupyter Notebook</span>
+<span class="sd">&lt;http://nbviewer.jupyter.org/github/colour-science/colour-notebooks/\</span>
+<span class="sd">blob/master/notebooks/models/rgb.ipynb&gt;`_</span>
+
+<span class="sd">References</span>
+<span class="sd">----------</span>
+<span class="sd">-   :cite:`SocietyofMotionPictureandTelevisionEngineers1993a` : Society of</span>
+<span class="sd">    Motion Picture and Television Engineers. (1993). RP 177:1993 : Derivation</span>
+<span class="sd">    of Basic Television Color Equations. RP 177:1993 (Vol. RP 177:199). The</span>
+<span class="sd">    Society of Motion Picture and Television Engineers.</span>
+<span class="sd">    doi:10.5594/S9781614821915</span>
+<span class="sd">-   :cite:`Trieu2015a` : Trieu, T. (2015). Private Discussion with</span>
+<span class="sd">    Mansencal, T.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">division</span><span class="p">,</span> <span class="n">unicode_literals</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<span class="kn">from</span> <span class="nn">colour.adaptation</span> <span class="k">import</span> <span class="n">chromatic_adaptation_VonKries</span>
+<span class="kn">from</span> <span class="nn">colour.models</span> <span class="k">import</span> <span class="n">XYZ_to_xy</span><span class="p">,</span> <span class="n">XYZ_to_xyY</span><span class="p">,</span> <span class="n">xy_to_XYZ</span>
+<span class="kn">from</span> <span class="nn">colour.utilities</span> <span class="k">import</span> <span class="n">tsplit</span>
+
+<span class="n">__author__</span> <span class="o">=</span> <span class="s1">&#39;Colour Developers&#39;</span>
+<span class="n">__copyright__</span> <span class="o">=</span> <span class="s1">&#39;Copyright (C) 2013-2018 - Colour Developers&#39;</span>
+<span class="n">__license__</span> <span class="o">=</span> <span class="s1">&#39;New BSD License - http://opensource.org/licenses/BSD-3-Clause&#39;</span>
+<span class="n">__maintainer__</span> <span class="o">=</span> <span class="s1">&#39;Colour Developers&#39;</span>
+<span class="n">__email__</span> <span class="o">=</span> <span class="s1">&#39;colour-science@googlegroups.com&#39;</span>
+<span class="n">__status__</span> <span class="o">=</span> <span class="s1">&#39;Production&#39;</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s1">&#39;xy_to_z&#39;</span><span class="p">,</span> <span class="s1">&#39;normalised_primary_matrix&#39;</span><span class="p">,</span> <span class="s1">&#39;chromatically_adapted_primaries&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;primaries_whitepoint&#39;</span><span class="p">,</span> <span class="s1">&#39;RGB_luminance_equation&#39;</span><span class="p">,</span> <span class="s1">&#39;RGB_luminance&#39;</span>
+<span class="p">]</span>
+
+
+<span class="k">def</span> <span class="nf">xy_to_z</span><span class="p">(</span><span class="n">xy</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns the *z* coordinate using given :math:`xy` chromaticity coordinates.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    xy : array_like</span>
+<span class="sd">        :math:`xy` chromaticity coordinates.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    numeric</span>
+<span class="sd">        *z* coordinate.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; xy_to_z(np.array([0.25, 0.25]))</span>
+<span class="sd">    0.5</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">tsplit</span><span class="p">(</span><span class="n">xy</span><span class="p">)</span>
+
+    <span class="n">z</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">-</span> <span class="n">x</span> <span class="o">-</span> <span class="n">y</span>
+
+    <span class="k">return</span> <span class="n">z</span>
+
+
+<div class="viewcode-block" id="normalised_primary_matrix"><a class="viewcode-back" href="../../../../generated/colour.normalised_primary_matrix.html#colour.normalised_primary_matrix">[docs]</a><span class="k">def</span> <span class="nf">normalised_primary_matrix</span><span class="p">(</span><span class="n">primaries</span><span class="p">,</span> <span class="n">whitepoint</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns the *normalised primary matrix* using given *primaries* and</span>
+<span class="sd">    *whitepoint* :math:`xy` chromaticity coordinates.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    primaries : array_like, (3, 2)</span>
+<span class="sd">        Primaries :math:`xy` chromaticity coordinates.</span>
+<span class="sd">    whitepoint : array_like</span>
+<span class="sd">        Illuminant / whitepoint :math:`xy` chromaticity coordinates.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    ndarray, (3, 3)</span>
+<span class="sd">        *Normalised primary matrix*.</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    -   :cite:`SocietyofMotionPictureandTelevisionEngineers1993a`</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; p = np.array([0.73470, 0.26530, 0.00000, 1.00000, 0.00010, -0.07700])</span>
+<span class="sd">    &gt;&gt;&gt; w = np.array([0.32168, 0.33767])</span>
+<span class="sd">    &gt;&gt;&gt; normalised_primary_matrix(p, w)  # doctest: +ELLIPSIS</span>
+<span class="sd">    array([[  9.5255239...e-01,   0.0000000...e+00,   9.3678631...e-05],</span>
+<span class="sd">           [  3.4396645...e-01,   7.2816609...e-01,  -7.2132546...e-02],</span>
+<span class="sd">           [  0.0000000...e+00,   0.0000000...e+00,   1.0088251...e+00]])</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">primaries</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">primaries</span><span class="p">,</span> <span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>
+
+    <span class="n">z</span> <span class="o">=</span> <span class="n">xy_to_z</span><span class="p">(</span><span class="n">primaries</span><span class="p">)[</span><span class="o">...</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span>
+    <span class="n">primaries</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span><span class="n">primaries</span><span class="p">,</span> <span class="n">z</span><span class="p">)))</span>
+
+    <span class="n">whitepoint</span> <span class="o">=</span> <span class="n">xy_to_XYZ</span><span class="p">(</span><span class="n">whitepoint</span><span class="p">)</span>
+
+    <span class="n">coefficients</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">inv</span><span class="p">(</span><span class="n">primaries</span><span class="p">),</span> <span class="n">whitepoint</span><span class="p">)</span>
+    <span class="n">coefficients</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">diagflat</span><span class="p">(</span><span class="n">coefficients</span><span class="p">)</span>
+
+    <span class="n">npm</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">primaries</span><span class="p">,</span> <span class="n">coefficients</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">npm</span></div>
+
+
+<div class="viewcode-block" id="chromatically_adapted_primaries"><a class="viewcode-back" href="../../../../generated/colour.chromatically_adapted_primaries.html#colour.chromatically_adapted_primaries">[docs]</a><span class="k">def</span> <span class="nf">chromatically_adapted_primaries</span><span class="p">(</span><span class="n">primaries</span><span class="p">,</span>
+                                    <span class="n">whitepoint_t</span><span class="p">,</span>
+                                    <span class="n">whitepoint_r</span><span class="p">,</span>
+                                    <span class="n">chromatic_adaptation_transform</span><span class="o">=</span><span class="s1">&#39;CAT02&#39;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Chromatically adapts given *primaries* :math:`xy` chromaticity coordinates</span>
+<span class="sd">    from test ``whitepoint_t`` to reference ``whitepoint_r``.</span>
+
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    primaries : array_like, (3, 2)</span>
+<span class="sd">        Primaries :math:`xy` chromaticity coordinates.</span>
+<span class="sd">    whitepoint_t : array_like</span>
+<span class="sd">        Test illuminant / whitepoint :math:`xy` chromaticity coordinates.</span>
+<span class="sd">    whitepoint_r : array_like</span>
+<span class="sd">        Reference illuminant / whitepoint :math:`xy` chromaticity coordinates.</span>
+<span class="sd">    chromatic_adaptation_transform : unicode, optional</span>
+<span class="sd">        **{&#39;CAT02&#39;, &#39;XYZ Scaling&#39;, &#39;Von Kries&#39;, &#39;Bradford&#39;, &#39;Sharp&#39;,</span>
+<span class="sd">        &#39;Fairchild&#39;, &#39;CMCCAT97&#39;, &#39;CMCCAT2000&#39;, &#39;CAT02_BRILL_CAT&#39;, &#39;Bianco&#39;,</span>
+<span class="sd">        &#39;Bianco PC&#39;}**,</span>
+<span class="sd">        *Chromatic adaptation* transform.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    ndarray</span>
+<span class="sd">        Chromatically adapted primaries :math:`xy` chromaticity coordinates.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; p = np.array([0.64, 0.33, 0.30, 0.60, 0.15, 0.06])</span>
+<span class="sd">    &gt;&gt;&gt; w_t = np.array([0.31270, 0.32900])</span>
+<span class="sd">    &gt;&gt;&gt; w_r = np.array([0.34570, 0.35850])</span>
+<span class="sd">    &gt;&gt;&gt; chromatic_adaptation_transform = &#39;Bradford&#39;</span>
+<span class="sd">    &gt;&gt;&gt; chromatically_adapted_primaries(p, w_t, w_r,</span>
+<span class="sd">    ...                                 chromatic_adaptation_transform)</span>
+<span class="sd">    ... # doctest: +ELLIPSIS</span>
+<span class="sd">    array([[ 0.6484414...,  0.3308533...],</span>
+<span class="sd">           [ 0.3211951...,  0.5978443...],</span>
+<span class="sd">           [ 0.1558932...,  0.0660492...]])</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">primaries</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">primaries</span><span class="p">,</span> <span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>
+
+    <span class="n">XYZ_a</span> <span class="o">=</span> <span class="n">chromatic_adaptation_VonKries</span><span class="p">(</span>
+        <span class="n">xy_to_XYZ</span><span class="p">(</span><span class="n">primaries</span><span class="p">),</span>
+        <span class="n">xy_to_XYZ</span><span class="p">(</span><span class="n">whitepoint_t</span><span class="p">),</span>
+        <span class="n">xy_to_XYZ</span><span class="p">(</span><span class="n">whitepoint_r</span><span class="p">),</span> <span class="n">chromatic_adaptation_transform</span><span class="p">)</span>
+
+    <span class="n">P_a</span> <span class="o">=</span> <span class="n">XYZ_to_xyY</span><span class="p">(</span><span class="n">XYZ_a</span><span class="p">)[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">2</span><span class="p">]</span>
+
+    <span class="k">return</span> <span class="n">P_a</span></div>
+
+
+<div class="viewcode-block" id="primaries_whitepoint"><a class="viewcode-back" href="../../../../generated/colour.primaries_whitepoint.html#colour.primaries_whitepoint">[docs]</a><span class="k">def</span> <span class="nf">primaries_whitepoint</span><span class="p">(</span><span class="n">npm</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns the *primaries* and *whitepoint* :math:`xy` chromaticity</span>
+<span class="sd">    coordinates using given *normalised primary matrix*.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    npm : array_like, (3, 3)</span>
+<span class="sd">        *Normalised primary matrix*.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    tuple</span>
+<span class="sd">        *Primaries* and *whitepoint* :math:`xy` chromaticity coordinates.</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    -   :cite:`Trieu2015a`</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; npm = np.array([[9.52552396e-01, 0.00000000e+00, 9.36786317e-05],</span>
+<span class="sd">    ...                 [3.43966450e-01, 7.28166097e-01, -7.21325464e-02],</span>
+<span class="sd">    ...                 [0.00000000e+00, 0.00000000e+00, 1.00882518e+00]])</span>
+<span class="sd">    &gt;&gt;&gt; p, w = primaries_whitepoint(npm)</span>
+<span class="sd">    &gt;&gt;&gt; p  # doctest: +ELLIPSIS</span>
+<span class="sd">    array([[  7.3470000...e-01,   2.6530000...e-01],</span>
+<span class="sd">           [  0.0000000...e+00,   1.0000000...e+00],</span>
+<span class="sd">           [  1.0000000...e-04,  -7.7000000...e-02]])</span>
+<span class="sd">    &gt;&gt;&gt; w # doctest: +ELLIPSIS</span>
+<span class="sd">    array([ 0.32168,  0.33767])</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">npm</span> <span class="o">=</span> <span class="n">npm</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
+
+    <span class="n">primaries</span> <span class="o">=</span> <span class="n">XYZ_to_xy</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">npm</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">identity</span><span class="p">(</span><span class="mi">3</span><span class="p">))))</span>
+    <span class="n">whitepoint</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">squeeze</span><span class="p">(</span>
+        <span class="n">XYZ_to_xy</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">npm</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">))))))</span>
+
+    <span class="c1"># TODO: Investigate if we return an ndarray here with primaries and</span>
+    <span class="c1"># whitepoint stacked together.</span>
+    <span class="k">return</span> <span class="n">primaries</span><span class="p">,</span> <span class="n">whitepoint</span></div>
+
+
+<div class="viewcode-block" id="RGB_luminance_equation"><a class="viewcode-back" href="../../../../generated/colour.RGB_luminance_equation.html#colour.RGB_luminance_equation">[docs]</a><span class="k">def</span> <span class="nf">RGB_luminance_equation</span><span class="p">(</span><span class="n">primaries</span><span class="p">,</span> <span class="n">whitepoint</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns the *luminance equation* from given *primaries* and *whitepoint*.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    primaries : array_like, (3, 2)</span>
+<span class="sd">        Primaries chromaticity coordinates.</span>
+<span class="sd">    whitepoint : array_like</span>
+<span class="sd">        Illuminant / whitepoint chromaticity coordinates.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    unicode</span>
+<span class="sd">        *Luminance* equation.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; p = np.array([0.73470, 0.26530, 0.00000, 1.00000, 0.00010, -0.07700])</span>
+<span class="sd">    &gt;&gt;&gt; whitepoint = np.array([0.32168, 0.33767])</span>
+<span class="sd">    &gt;&gt;&gt; # Doctests skip for Python 2.x compatibility.</span>
+<span class="sd">    &gt;&gt;&gt; RGB_luminance_equation(p, whitepoint)  # doctest: +SKIP</span>
+<span class="sd">    &#39;Y = 0.3439664...(R) + 0.7281660...(G) + -0.0721325...(B)&#39;</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">return</span> <span class="s1">&#39;Y = </span><span class="si">{0}</span><span class="s1">(R) + </span><span class="si">{1}</span><span class="s1">(G) + </span><span class="si">{2}</span><span class="s1">(B)&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+        <span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">ravel</span><span class="p">(</span><span class="n">normalised_primary_matrix</span><span class="p">(</span><span class="n">primaries</span><span class="p">,</span> <span class="n">whitepoint</span><span class="p">))[</span><span class="mi">3</span><span class="p">:</span><span class="mi">6</span><span class="p">])</span></div>
+
+
+<div class="viewcode-block" id="RGB_luminance"><a class="viewcode-back" href="../../../../generated/colour.RGB_luminance.html#colour.RGB_luminance">[docs]</a><span class="k">def</span> <span class="nf">RGB_luminance</span><span class="p">(</span><span class="n">RGB</span><span class="p">,</span> <span class="n">primaries</span><span class="p">,</span> <span class="n">whitepoint</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns the *luminance* :math:`Y` of given *RGB* components from given</span>
+<span class="sd">    *primaries* and *whitepoint*.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    RGB : array_like</span>
+<span class="sd">        *RGB* chromaticity coordinate matrix.</span>
+<span class="sd">    primaries : array_like, (3, 2)</span>
+<span class="sd">        Primaries chromaticity coordinate matrix.</span>
+<span class="sd">    whitepoint : array_like</span>
+<span class="sd">        Illuminant / whitepoint chromaticity coordinates.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    numeric or ndarray</span>
+<span class="sd">        *Luminance* :math:`Y`.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; RGB = np.array([40.6, 4.2, 67.4])</span>
+<span class="sd">    &gt;&gt;&gt; p = np.array([0.73470, 0.26530, 0.00000, 1.00000, 0.00010, -0.07700])</span>
+<span class="sd">    &gt;&gt;&gt; whitepoint = np.array([0.32168, 0.33767])</span>
+<span class="sd">    &gt;&gt;&gt; RGB_luminance(RGB, p, whitepoint)  # doctest: +ELLIPSIS</span>
+<span class="sd">    12.1616018...</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">Y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span>
+        <span class="n">normalised_primary_matrix</span><span class="p">(</span><span class="n">primaries</span><span class="p">,</span> <span class="n">whitepoint</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">RGB</span><span class="p">,</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">Y</span></div>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright  2013-2018 - Colour Developers.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../../',
+            VERSION:'0.3.11',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

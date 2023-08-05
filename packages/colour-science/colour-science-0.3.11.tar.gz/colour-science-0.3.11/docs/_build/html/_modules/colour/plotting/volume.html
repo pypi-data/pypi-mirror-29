@@ -1,0 +1,910 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>colour.plotting.volume &mdash; Colour 0.3.11 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+    <link rel="stylesheet" href="../../../_static/custom.css" type="text/css" />
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../search.html"/>
+    <link rel="top" title="Colour 0.3.11 documentation" href="../../../index.html"/>
+        <link rel="up" title="Module code" href="../../index.html"/> 
+
+  
+  <script src="../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home"> Colour
+          
+
+          
+            
+            <img src="../../../_static/Logo_Small_001.png" class="logo" />
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.3
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../manual.html">Colour Manual</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Colour</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+      <li>colour.plotting.volume</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for colour.plotting.volume</h1><div class="highlight"><pre>
+<span></span><span class="c1"># -*- coding: utf-8 -*-</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Colour Models Volume Plotting</span>
+<span class="sd">=============================</span>
+
+<span class="sd">Defines colour models volume and gamut plotting objects:</span>
+
+<span class="sd">-   :func:`colour.plotting.RGB_colourspaces_gamuts_plot`</span>
+<span class="sd">-   :func:`colour.plotting.RGB_scatter_plot`</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">division</span>
+
+<span class="kn">import</span> <span class="nn">matplotlib</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">pylab</span>
+<span class="kn">from</span> <span class="nn">mpl_toolkits.mplot3d.art3d</span> <span class="k">import</span> <span class="n">Poly3DCollection</span>
+
+<span class="kn">from</span> <span class="nn">colour.constants</span> <span class="k">import</span> <span class="n">DEFAULT_FLOAT_DTYPE</span>
+<span class="kn">from</span> <span class="nn">colour.models</span> <span class="k">import</span> <span class="n">RGB_to_XYZ</span>
+<span class="kn">from</span> <span class="nn">colour.models.common</span> <span class="k">import</span> <span class="p">(</span><span class="n">COLOURSPACE_MODELS_LABELS</span><span class="p">,</span>
+                                  <span class="n">XYZ_to_colourspace_model</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">colour.plotting</span> <span class="k">import</span> <span class="p">(</span><span class="n">DEFAULT_PLOTTING_ILLUMINANT</span><span class="p">,</span> <span class="n">cube</span><span class="p">,</span>
+                             <span class="n">get_RGB_colourspace</span><span class="p">,</span> <span class="n">get_cmfs</span><span class="p">,</span> <span class="n">grid</span><span class="p">,</span> <span class="n">render</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">colour.utilities</span> <span class="k">import</span> <span class="n">Structure</span><span class="p">,</span> <span class="n">tsplit</span><span class="p">,</span> <span class="n">tstack</span>
+
+<span class="n">__author__</span> <span class="o">=</span> <span class="s1">&#39;Colour Developers&#39;</span>
+<span class="n">__copyright__</span> <span class="o">=</span> <span class="s1">&#39;Copyright (C) 2013-2018 - Colour Developers&#39;</span>
+<span class="n">__license__</span> <span class="o">=</span> <span class="s1">&#39;New BSD License - http://opensource.org/licenses/BSD-3-Clause&#39;</span>
+<span class="n">__maintainer__</span> <span class="o">=</span> <span class="s1">&#39;Colour Developers&#39;</span>
+<span class="n">__email__</span> <span class="o">=</span> <span class="s1">&#39;colour-science@googlegroups.com&#39;</span>
+<span class="n">__status__</span> <span class="o">=</span> <span class="s1">&#39;Production&#39;</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s1">&#39;common_colourspace_model_axis_reorder&#39;</span><span class="p">,</span> <span class="s1">&#39;nadir_grid&#39;</span><span class="p">,</span> <span class="s1">&#39;RGB_identity_cube&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;RGB_colourspaces_gamuts_plot&#39;</span><span class="p">,</span> <span class="s1">&#39;RGB_scatter_plot&#39;</span>
+<span class="p">]</span>
+
+
+<span class="k">def</span> <span class="nf">common_colourspace_model_axis_reorder</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Reorder axis of given colourspace model :math:`a` values according to its</span>
+<span class="sd">    most common volume plotting axis order.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    a : array_like</span>
+<span class="sd">        Colourspace model values :math:`a`.</span>
+<span class="sd">    model : unicode, optional</span>
+<span class="sd">        **{&#39;CIE XYZ&#39;, &#39;CIE xyY&#39;, &#39;CIE Lab&#39;, &#39;CIE Luv&#39;, &#39;CIE UCS&#39;, &#39;CIE UVW&#39;,</span>
+<span class="sd">        &#39;IPT&#39;, &#39;Hunter Lab&#39;, &#39;Hunter Rdab&#39;}**</span>
+<span class="sd">        Colourspace model.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Figure</span>
+<span class="sd">        Reordered colourspace model values.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; a = np.array([0, 1, 2])</span>
+<span class="sd">    &gt;&gt;&gt; common_colourspace_model_axis_reorder(a)</span>
+<span class="sd">    array([0, 1, 2])</span>
+<span class="sd">    &gt;&gt;&gt; common_colourspace_model_axis_reorder(a, &#39;CIE Lab&#39;)</span>
+<span class="sd">    array([1, 2, 0])</span>
+<span class="sd">    &gt;&gt;&gt; common_colourspace_model_axis_reorder(a, &#39;CIE LCHab&#39;)</span>
+<span class="sd">    array([1, 2, 0])</span>
+<span class="sd">    &gt;&gt;&gt; common_colourspace_model_axis_reorder(a, &#39;CIE Luv&#39;)</span>
+<span class="sd">    array([1, 2, 0])</span>
+<span class="sd">    &gt;&gt;&gt; common_colourspace_model_axis_reorder(a, &#39;CIE LCHab&#39;)</span>
+<span class="sd">    array([1, 2, 0])</span>
+<span class="sd">    &gt;&gt;&gt; common_colourspace_model_axis_reorder(a, &#39;IPT&#39;)</span>
+<span class="sd">    array([1, 2, 0])</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="n">model</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;CIE Lab&#39;</span><span class="p">,</span> <span class="s1">&#39;CIE LCHab&#39;</span><span class="p">,</span> <span class="s1">&#39;CIE Luv&#39;</span><span class="p">,</span> <span class="s1">&#39;CIE LCHuv&#39;</span><span class="p">,</span> <span class="s1">&#39;IPT&#39;</span><span class="p">,</span>
+                 <span class="s1">&#39;Hunter Lab&#39;</span><span class="p">,</span> <span class="s1">&#39;Hunter Rdab&#39;</span><span class="p">):</span>
+        <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">,</span> <span class="n">k</span> <span class="o">=</span> <span class="n">tsplit</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+        <span class="n">a</span> <span class="o">=</span> <span class="n">tstack</span><span class="p">((</span><span class="n">j</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">i</span><span class="p">))</span>
+
+    <span class="k">return</span> <span class="n">a</span>
+
+
+<span class="k">def</span> <span class="nf">nadir_grid</span><span class="p">(</span><span class="n">limits</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">segments</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">labels</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">axes</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns a grid on *xy* plane made of quad geometric elements and its</span>
+<span class="sd">    associated faces and edges colours. Ticks and labels are added to the</span>
+<span class="sd">    given axes according to the extended grid settings.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    limits : array_like, optional</span>
+<span class="sd">        Extended grid limits.</span>
+<span class="sd">    segments : int, optional</span>
+<span class="sd">        Edge segments count for the extended grid.</span>
+<span class="sd">    labels : array_like, optional</span>
+<span class="sd">        Axis labels.</span>
+<span class="sd">    axes : matplotlib.axes.Axes, optional</span>
+<span class="sd">        Axes to add the grid.</span>
+
+<span class="sd">    Other Parameters</span>
+<span class="sd">    ----------------</span>
+<span class="sd">    grid_face_colours : array_like, optional</span>
+<span class="sd">        Grid face colours array such as</span>
+<span class="sd">        `grid_face_colours = (0.25, 0.25, 0.25)`.</span>
+<span class="sd">    grid_edge_colours : array_like, optional</span>
+<span class="sd">        Grid edge colours array such as</span>
+<span class="sd">        `grid_edge_colours = (0.25, 0.25, 0.25)`.</span>
+<span class="sd">    grid_face_alpha : numeric, optional</span>
+<span class="sd">        Grid face opacity value such as `grid_face_alpha = 0.1`.</span>
+<span class="sd">    grid_edge_alpha : numeric, optional</span>
+<span class="sd">        Grid edge opacity value such as `grid_edge_alpha = 0.5`.</span>
+<span class="sd">    x_axis_colour : array_like, optional</span>
+<span class="sd">        *X* axis colour array such as `x_axis_colour = (0.0, 0.0, 0.0, 1.0)`.</span>
+<span class="sd">    y_axis_colour : array_like, optional</span>
+<span class="sd">        *Y* axis colour array such as `y_axis_colour = (0.0, 0.0, 0.0, 1.0)`.</span>
+<span class="sd">    x_ticks_colour : array_like, optional</span>
+<span class="sd">        *X* axis ticks colour array such as</span>
+<span class="sd">        `x_ticks_colour = (0.0, 0.0, 0.0, 0.85)`.</span>
+<span class="sd">    y_ticks_colour : array_like, optional</span>
+<span class="sd">        *Y* axis ticks colour array such as</span>
+<span class="sd">        `y_ticks_colour = (0.0, 0.0, 0.0, 0.85)`.</span>
+<span class="sd">    x_label_colour : array_like, optional</span>
+<span class="sd">        *X* axis label colour array such as</span>
+<span class="sd">        `x_label_colour = (0.0, 0.0, 0.0, 0.85)`.</span>
+<span class="sd">    y_label_colour : array_like, optional</span>
+<span class="sd">        *Y* axis label colour array such as</span>
+<span class="sd">        `y_label_colour = (0.0, 0.0, 0.0, 0.85)`.</span>
+<span class="sd">    ticks_and_label_location : array_like, optional</span>
+<span class="sd">        Location of the *X* and *Y* axis ticks and labels such as</span>
+<span class="sd">        `ticks_and_label_location = (&#39;-x&#39;, &#39;-y&#39;)`.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    tuple</span>
+<span class="sd">        Grid quads, faces colours, edges colours.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; nadir_grid(segments=1)</span>
+<span class="sd">    (array([[[-1.   , -1.   ,  0.   ],</span>
+<span class="sd">            [ 1.   , -1.   ,  0.   ],</span>
+<span class="sd">            [ 1.   ,  1.   ,  0.   ],</span>
+<span class="sd">            [-1.   ,  1.   ,  0.   ]],</span>
+<span class="sd">    &lt;BLANKLINE&gt;</span>
+<span class="sd">           [[-1.   , -1.   ,  0.   ],</span>
+<span class="sd">            [ 0.   , -1.   ,  0.   ],</span>
+<span class="sd">            [ 0.   ,  0.   ,  0.   ],</span>
+<span class="sd">            [-1.   ,  0.   ,  0.   ]],</span>
+<span class="sd">    &lt;BLANKLINE&gt;</span>
+<span class="sd">           [[-1.   ,  0.   ,  0.   ],</span>
+<span class="sd">            [ 0.   ,  0.   ,  0.   ],</span>
+<span class="sd">            [ 0.   ,  1.   ,  0.   ],</span>
+<span class="sd">            [-1.   ,  1.   ,  0.   ]],</span>
+<span class="sd">    &lt;BLANKLINE&gt;</span>
+<span class="sd">           [[ 0.   , -1.   ,  0.   ],</span>
+<span class="sd">            [ 1.   , -1.   ,  0.   ],</span>
+<span class="sd">            [ 1.   ,  0.   ,  0.   ],</span>
+<span class="sd">            [ 0.   ,  0.   ,  0.   ]],</span>
+<span class="sd">    &lt;BLANKLINE&gt;</span>
+<span class="sd">           [[ 0.   ,  0.   ,  0.   ],</span>
+<span class="sd">            [ 1.   ,  0.   ,  0.   ],</span>
+<span class="sd">            [ 1.   ,  1.   ,  0.   ],</span>
+<span class="sd">            [ 0.   ,  1.   ,  0.   ]],</span>
+<span class="sd">    &lt;BLANKLINE&gt;</span>
+<span class="sd">           [[-1.   , -0.001,  0.   ],</span>
+<span class="sd">            [ 1.   , -0.001,  0.   ],</span>
+<span class="sd">            [ 1.   ,  0.001,  0.   ],</span>
+<span class="sd">            [-1.   ,  0.001,  0.   ]],</span>
+<span class="sd">    &lt;BLANKLINE&gt;</span>
+<span class="sd">           [[-0.001, -1.   ,  0.   ],</span>
+<span class="sd">            [ 0.001, -1.   ,  0.   ],</span>
+<span class="sd">            [ 0.001,  1.   ,  0.   ],</span>
+<span class="sd">            [-0.001,  1.   ,  0.   ]]]), array([[ 0.25,  0.25,  0.25,  0.1 ],</span>
+<span class="sd">           [ 0.  ,  0.  ,  0.  ,  0.  ],</span>
+<span class="sd">           [ 0.  ,  0.  ,  0.  ,  0.  ],</span>
+<span class="sd">           [ 0.  ,  0.  ,  0.  ,  0.  ],</span>
+<span class="sd">           [ 0.  ,  0.  ,  0.  ,  0.  ],</span>
+<span class="sd">           [ 0.  ,  0.  ,  0.  ,  1.  ],</span>
+<span class="sd">           [ 0.  ,  0.  ,  0.  ,  1.  ]]), array([[ 0.5 ,  0.5 ,  0.5 ,  0.5 ],</span>
+<span class="sd">           [ 0.75,  0.75,  0.75,  0.25],</span>
+<span class="sd">           [ 0.75,  0.75,  0.75,  0.25],</span>
+<span class="sd">           [ 0.75,  0.75,  0.75,  0.25],</span>
+<span class="sd">           [ 0.75,  0.75,  0.75,  0.25],</span>
+<span class="sd">           [ 0.  ,  0.  ,  0.  ,  1.  ],</span>
+<span class="sd">           [ 0.  ,  0.  ,  0.  ,  1.  ]]))</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="n">limits</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">limits</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">]])</span>
+
+    <span class="k">if</span> <span class="n">labels</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">labels</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;x&#39;</span><span class="p">,</span> <span class="s1">&#39;y&#39;</span><span class="p">)</span>
+
+    <span class="n">extent</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">limits</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">limits</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]))</span>
+
+    <span class="n">settings</span> <span class="o">=</span> <span class="n">Structure</span><span class="p">(</span><span class="o">**</span><span class="p">{</span>
+        <span class="s1">&#39;grid_face_colours&#39;</span><span class="p">:</span> <span class="p">(</span><span class="mf">0.25</span><span class="p">,</span> <span class="mf">0.25</span><span class="p">,</span> <span class="mf">0.25</span><span class="p">),</span>
+        <span class="s1">&#39;grid_edge_colours&#39;</span><span class="p">:</span> <span class="p">(</span><span class="mf">0.50</span><span class="p">,</span> <span class="mf">0.50</span><span class="p">,</span> <span class="mf">0.50</span><span class="p">),</span>
+        <span class="s1">&#39;grid_face_alpha&#39;</span><span class="p">:</span> <span class="mf">0.1</span><span class="p">,</span>
+        <span class="s1">&#39;grid_edge_alpha&#39;</span><span class="p">:</span> <span class="mf">0.5</span><span class="p">,</span>
+        <span class="s1">&#39;x_axis_colour&#39;</span><span class="p">:</span> <span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">),</span>
+        <span class="s1">&#39;y_axis_colour&#39;</span><span class="p">:</span> <span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">),</span>
+        <span class="s1">&#39;x_ticks_colour&#39;</span><span class="p">:</span> <span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.85</span><span class="p">),</span>
+        <span class="s1">&#39;y_ticks_colour&#39;</span><span class="p">:</span> <span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.85</span><span class="p">),</span>
+        <span class="s1">&#39;x_label_colour&#39;</span><span class="p">:</span> <span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.85</span><span class="p">),</span>
+        <span class="s1">&#39;y_label_colour&#39;</span><span class="p">:</span> <span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.85</span><span class="p">),</span>
+        <span class="s1">&#39;ticks_and_label_location&#39;</span><span class="p">:</span> <span class="p">(</span><span class="s1">&#39;-x&#39;</span><span class="p">,</span> <span class="s1">&#39;-y&#39;</span><span class="p">)</span>
+    <span class="p">})</span>
+    <span class="n">settings</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="c1"># Outer grid.</span>
+    <span class="n">quads_g</span> <span class="o">=</span> <span class="n">grid</span><span class="p">(</span>
+        <span class="n">origin</span><span class="o">=</span><span class="p">(</span><span class="o">-</span><span class="n">extent</span> <span class="o">/</span> <span class="mi">2</span><span class="p">,</span> <span class="o">-</span><span class="n">extent</span> <span class="o">/</span> <span class="mi">2</span><span class="p">),</span>
+        <span class="n">width</span><span class="o">=</span><span class="n">extent</span><span class="p">,</span>
+        <span class="n">height</span><span class="o">=</span><span class="n">extent</span><span class="p">,</span>
+        <span class="n">height_segments</span><span class="o">=</span><span class="n">segments</span><span class="p">,</span>
+        <span class="n">width_segments</span><span class="o">=</span><span class="n">segments</span><span class="p">)</span>
+
+    <span class="n">RGB_g</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="n">quads_g</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">quads_g</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]))</span>
+    <span class="n">RGB_gf</span> <span class="o">=</span> <span class="n">RGB_g</span> <span class="o">*</span> <span class="n">settings</span><span class="o">.</span><span class="n">grid_face_colours</span>
+    <span class="n">RGB_gf</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span><span class="n">RGB_gf</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span>
+        <span class="p">(</span><span class="n">RGB_gf</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mi">1</span><span class="p">),</span> <span class="n">settings</span><span class="o">.</span><span class="n">grid_face_alpha</span><span class="p">,</span> <span class="n">DEFAULT_FLOAT_DTYPE</span><span class="p">)))</span>
+    <span class="n">RGB_ge</span> <span class="o">=</span> <span class="n">RGB_g</span> <span class="o">*</span> <span class="n">settings</span><span class="o">.</span><span class="n">grid_edge_colours</span>
+    <span class="n">RGB_ge</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span><span class="n">RGB_ge</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span>
+        <span class="p">(</span><span class="n">RGB_ge</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mi">1</span><span class="p">),</span> <span class="n">settings</span><span class="o">.</span><span class="n">grid_edge_alpha</span><span class="p">,</span> <span class="n">DEFAULT_FLOAT_DTYPE</span><span class="p">)))</span>
+
+    <span class="c1"># Inner grid.</span>
+    <span class="n">quads_gs</span> <span class="o">=</span> <span class="n">grid</span><span class="p">(</span>
+        <span class="n">origin</span><span class="o">=</span><span class="p">(</span><span class="o">-</span><span class="n">extent</span> <span class="o">/</span> <span class="mi">2</span><span class="p">,</span> <span class="o">-</span><span class="n">extent</span> <span class="o">/</span> <span class="mi">2</span><span class="p">),</span>
+        <span class="n">width</span><span class="o">=</span><span class="n">extent</span><span class="p">,</span>
+        <span class="n">height</span><span class="o">=</span><span class="n">extent</span><span class="p">,</span>
+        <span class="n">height_segments</span><span class="o">=</span><span class="n">segments</span> <span class="o">*</span> <span class="mi">2</span><span class="p">,</span>
+        <span class="n">width_segments</span><span class="o">=</span><span class="n">segments</span> <span class="o">*</span> <span class="mi">2</span><span class="p">)</span>
+
+    <span class="n">RGB_gs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="n">quads_gs</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">quads_gs</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]))</span>
+    <span class="n">RGB_gsf</span> <span class="o">=</span> <span class="n">RGB_gs</span> <span class="o">*</span> <span class="mi">0</span>
+    <span class="n">RGB_gsf</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span><span class="n">RGB_gsf</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">((</span><span class="n">RGB_gsf</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mi">1</span><span class="p">),</span> <span class="mi">0</span><span class="p">,</span>
+                                          <span class="n">DEFAULT_FLOAT_DTYPE</span><span class="p">)))</span>
+    <span class="n">RGB_gse</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="n">RGB_gs</span> <span class="o">*</span> <span class="n">settings</span><span class="o">.</span><span class="n">grid_edge_colours</span> <span class="o">*</span> <span class="mf">1.5</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">RGB_gse</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span><span class="n">RGB_gse</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">((</span><span class="n">RGB_gse</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+                                           <span class="mi">1</span><span class="p">),</span> <span class="n">settings</span><span class="o">.</span><span class="n">grid_edge_alpha</span> <span class="o">/</span> <span class="mi">2</span><span class="p">,</span>
+                                          <span class="n">DEFAULT_FLOAT_DTYPE</span><span class="p">)))</span>
+
+    <span class="c1"># Axis.</span>
+    <span class="n">thickness</span> <span class="o">=</span> <span class="n">extent</span> <span class="o">/</span> <span class="mi">1000</span>
+    <span class="n">quad_x</span> <span class="o">=</span> <span class="n">grid</span><span class="p">(</span>
+        <span class="n">origin</span><span class="o">=</span><span class="p">(</span><span class="n">limits</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span> <span class="o">-</span><span class="n">thickness</span> <span class="o">/</span> <span class="mi">2</span><span class="p">),</span> <span class="n">width</span><span class="o">=</span><span class="n">extent</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="n">thickness</span><span class="p">)</span>
+    <span class="n">RGB_x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="n">quad_x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">quad_x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>
+    <span class="n">RGB_x</span> <span class="o">=</span> <span class="n">RGB_x</span> <span class="o">*</span> <span class="n">settings</span><span class="o">.</span><span class="n">x_axis_colour</span>
+
+    <span class="n">quad_y</span> <span class="o">=</span> <span class="n">grid</span><span class="p">(</span>
+        <span class="n">origin</span><span class="o">=</span><span class="p">(</span><span class="o">-</span><span class="n">thickness</span> <span class="o">/</span> <span class="mi">2</span><span class="p">,</span> <span class="n">limits</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">]),</span> <span class="n">width</span><span class="o">=</span><span class="n">thickness</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="n">extent</span><span class="p">)</span>
+    <span class="n">RGB_y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="n">quad_y</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">quad_y</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>
+    <span class="n">RGB_y</span> <span class="o">=</span> <span class="n">RGB_y</span> <span class="o">*</span> <span class="n">settings</span><span class="o">.</span><span class="n">y_axis_colour</span>
+
+    <span class="k">if</span> <span class="n">axes</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="c1"># Ticks.</span>
+        <span class="n">x_s</span> <span class="o">=</span> <span class="mi">1</span> <span class="k">if</span> <span class="s1">&#39;+x&#39;</span> <span class="ow">in</span> <span class="n">settings</span><span class="o">.</span><span class="n">ticks_and_label_location</span> <span class="k">else</span> <span class="o">-</span><span class="mi">1</span>
+        <span class="n">y_s</span> <span class="o">=</span> <span class="mi">1</span> <span class="k">if</span> <span class="s1">&#39;+y&#39;</span> <span class="ow">in</span> <span class="n">settings</span><span class="o">.</span><span class="n">ticks_and_label_location</span> <span class="k">else</span> <span class="o">-</span><span class="mi">1</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">axis</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="s1">&#39;xy&#39;</span><span class="p">):</span>
+            <span class="n">h_a</span> <span class="o">=</span> <span class="s1">&#39;center&#39;</span> <span class="k">if</span> <span class="n">axis</span> <span class="o">==</span> <span class="s1">&#39;x&#39;</span> <span class="k">else</span> <span class="s1">&#39;left&#39;</span> <span class="k">if</span> <span class="n">x_s</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">else</span> <span class="s1">&#39;right&#39;</span>
+            <span class="n">v_a</span> <span class="o">=</span> <span class="s1">&#39;center&#39;</span>
+
+            <span class="n">ticks</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">quads_g</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">i</span><span class="p">])))</span>
+            <span class="n">ticks</span> <span class="o">+=</span> <span class="p">[</span><span class="n">ticks</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">ticks</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">ticks</span><span class="p">[</span><span class="o">-</span><span class="mi">2</span><span class="p">]]</span>
+            <span class="k">for</span> <span class="n">tick</span> <span class="ow">in</span> <span class="n">ticks</span><span class="p">:</span>
+                <span class="n">x</span> <span class="o">=</span> <span class="p">(</span><span class="n">limits</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span> <span class="k">if</span> <span class="n">x_s</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">else</span> <span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="p">(</span><span class="n">x_s</span> <span class="o">*</span> <span class="n">extent</span> <span class="o">/</span> <span class="mi">25</span><span class="p">)</span>
+                     <span class="k">if</span> <span class="n">i</span> <span class="k">else</span> <span class="n">tick</span><span class="p">)</span>
+                <span class="n">y</span> <span class="o">=</span> <span class="p">(</span><span class="n">tick</span> <span class="k">if</span> <span class="n">i</span> <span class="k">else</span>
+                     <span class="n">limits</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span> <span class="k">if</span> <span class="n">y_s</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">else</span> <span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="p">(</span><span class="n">y_s</span> <span class="o">*</span> <span class="n">extent</span> <span class="o">/</span> <span class="mi">25</span><span class="p">))</span>
+
+                <span class="n">tick</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">tick</span><span class="p">)</span> <span class="k">if</span> <span class="n">DEFAULT_FLOAT_DTYPE</span><span class="p">(</span>
+                    <span class="n">tick</span><span class="p">)</span><span class="o">.</span><span class="n">is_integer</span><span class="p">()</span> <span class="k">else</span> <span class="n">tick</span>
+                <span class="n">c</span> <span class="o">=</span> <span class="n">settings</span><span class="p">[</span><span class="s1">&#39;</span><span class="si">{0}</span><span class="s1">_ticks_colour&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">axis</span><span class="p">)]</span>
+
+                <span class="n">axes</span><span class="o">.</span><span class="n">text</span><span class="p">(</span>
+                    <span class="n">x</span><span class="p">,</span>
+                    <span class="n">y</span><span class="p">,</span>
+                    <span class="mi">0</span><span class="p">,</span>
+                    <span class="n">tick</span><span class="p">,</span>
+                    <span class="s1">&#39;x&#39;</span><span class="p">,</span>
+                    <span class="n">horizontalalignment</span><span class="o">=</span><span class="n">h_a</span><span class="p">,</span>
+                    <span class="n">verticalalignment</span><span class="o">=</span><span class="n">v_a</span><span class="p">,</span>
+                    <span class="n">color</span><span class="o">=</span><span class="n">c</span><span class="p">,</span>
+                    <span class="n">clip_on</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="c1"># Labels.</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">axis</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="s1">&#39;xy&#39;</span><span class="p">):</span>
+            <span class="n">h_a</span> <span class="o">=</span> <span class="s1">&#39;center&#39;</span> <span class="k">if</span> <span class="n">axis</span> <span class="o">==</span> <span class="s1">&#39;x&#39;</span> <span class="k">else</span> <span class="s1">&#39;left&#39;</span> <span class="k">if</span> <span class="n">x_s</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">else</span> <span class="s1">&#39;right&#39;</span>
+            <span class="n">v_a</span> <span class="o">=</span> <span class="s1">&#39;center&#39;</span>
+
+            <span class="n">x</span> <span class="o">=</span> <span class="p">(</span><span class="n">limits</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span> <span class="k">if</span> <span class="n">x_s</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">else</span> <span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="p">(</span><span class="n">x_s</span> <span class="o">*</span> <span class="n">extent</span> <span class="o">/</span> <span class="mi">10</span><span class="p">)</span>
+                 <span class="k">if</span> <span class="n">i</span> <span class="k">else</span> <span class="mi">0</span><span class="p">)</span>
+            <span class="n">y</span> <span class="o">=</span> <span class="p">(</span><span class="mi">0</span> <span class="k">if</span> <span class="n">i</span> <span class="k">else</span>
+                 <span class="n">limits</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span> <span class="k">if</span> <span class="n">y_s</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">else</span> <span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="p">(</span><span class="n">y_s</span> <span class="o">*</span> <span class="n">extent</span> <span class="o">/</span> <span class="mi">10</span><span class="p">))</span>
+
+            <span class="n">c</span> <span class="o">=</span> <span class="n">settings</span><span class="p">[</span><span class="s1">&#39;</span><span class="si">{0}</span><span class="s1">_label_colour&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">axis</span><span class="p">)]</span>
+
+            <span class="n">axes</span><span class="o">.</span><span class="n">text</span><span class="p">(</span>
+                <span class="n">x</span><span class="p">,</span>
+                <span class="n">y</span><span class="p">,</span>
+                <span class="mi">0</span><span class="p">,</span>
+                <span class="n">labels</span><span class="p">[</span><span class="n">i</span><span class="p">],</span>
+                <span class="s1">&#39;x&#39;</span><span class="p">,</span>
+                <span class="n">horizontalalignment</span><span class="o">=</span><span class="n">h_a</span><span class="p">,</span>
+                <span class="n">verticalalignment</span><span class="o">=</span><span class="n">v_a</span><span class="p">,</span>
+                <span class="n">color</span><span class="o">=</span><span class="n">c</span><span class="p">,</span>
+                <span class="n">size</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span>
+                <span class="n">clip_on</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="n">quads</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">((</span><span class="n">quads_g</span><span class="p">,</span> <span class="n">quads_gs</span><span class="p">,</span> <span class="n">quad_x</span><span class="p">,</span> <span class="n">quad_y</span><span class="p">))</span>
+    <span class="n">RGB_f</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">((</span><span class="n">RGB_gf</span><span class="p">,</span> <span class="n">RGB_gsf</span><span class="p">,</span> <span class="n">RGB_x</span><span class="p">,</span> <span class="n">RGB_y</span><span class="p">))</span>
+    <span class="n">RGB_e</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">((</span><span class="n">RGB_ge</span><span class="p">,</span> <span class="n">RGB_gse</span><span class="p">,</span> <span class="n">RGB_x</span><span class="p">,</span> <span class="n">RGB_y</span><span class="p">))</span>
+
+    <span class="k">return</span> <span class="n">quads</span><span class="p">,</span> <span class="n">RGB_f</span><span class="p">,</span> <span class="n">RGB_e</span>
+
+
+<span class="k">def</span> <span class="nf">RGB_identity_cube</span><span class="p">(</span><span class="n">plane</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                      <span class="n">width_segments</span><span class="o">=</span><span class="mi">16</span><span class="p">,</span>
+                      <span class="n">height_segments</span><span class="o">=</span><span class="mi">16</span><span class="p">,</span>
+                      <span class="n">depth_segments</span><span class="o">=</span><span class="mi">16</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns an *RGB* identity cube made of quad geometric elements and its</span>
+<span class="sd">    associated *RGB* colours.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    plane : array_like, optional</span>
+<span class="sd">        Any combination of **{&#39;+x&#39;, &#39;-x&#39;, &#39;+y&#39;, &#39;-y&#39;, &#39;+z&#39;, &#39;-z&#39;}**,</span>
+<span class="sd">        Included grids in the cube construction.</span>
+<span class="sd">    width_segments: int, optional</span>
+<span class="sd">        Cube segments, quad counts along the width.</span>
+<span class="sd">    height_segments: int, optional</span>
+<span class="sd">        Cube segments, quad counts along the height.</span>
+<span class="sd">    depth_segments: int, optional</span>
+<span class="sd">        Cube segments, quad counts along the depth.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    tuple</span>
+<span class="sd">        Cube quads, *RGB* colours.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; vertices, RGB = RGB_identity_cube(None, 1, 1, 1)</span>
+<span class="sd">    &gt;&gt;&gt; vertices</span>
+<span class="sd">    array([[[ 0.,  0.,  0.],</span>
+<span class="sd">            [ 1.,  0.,  0.],</span>
+<span class="sd">            [ 1.,  1.,  0.],</span>
+<span class="sd">            [ 0.,  1.,  0.]],</span>
+<span class="sd">    &lt;BLANKLINE&gt;</span>
+<span class="sd">           [[ 0.,  0.,  1.],</span>
+<span class="sd">            [ 1.,  0.,  1.],</span>
+<span class="sd">            [ 1.,  1.,  1.],</span>
+<span class="sd">            [ 0.,  1.,  1.]],</span>
+<span class="sd">    &lt;BLANKLINE&gt;</span>
+<span class="sd">           [[ 0.,  0.,  0.],</span>
+<span class="sd">            [ 1.,  0.,  0.],</span>
+<span class="sd">            [ 1.,  0.,  1.],</span>
+<span class="sd">            [ 0.,  0.,  1.]],</span>
+<span class="sd">    &lt;BLANKLINE&gt;</span>
+<span class="sd">           [[ 0.,  1.,  0.],</span>
+<span class="sd">            [ 1.,  1.,  0.],</span>
+<span class="sd">            [ 1.,  1.,  1.],</span>
+<span class="sd">            [ 0.,  1.,  1.]],</span>
+<span class="sd">    &lt;BLANKLINE&gt;</span>
+<span class="sd">           [[ 0.,  0.,  0.],</span>
+<span class="sd">            [ 0.,  1.,  0.],</span>
+<span class="sd">            [ 0.,  1.,  1.],</span>
+<span class="sd">            [ 0.,  0.,  1.]],</span>
+<span class="sd">    &lt;BLANKLINE&gt;</span>
+<span class="sd">           [[ 1.,  0.,  0.],</span>
+<span class="sd">            [ 1.,  1.,  0.],</span>
+<span class="sd">            [ 1.,  1.,  1.],</span>
+<span class="sd">            [ 1.,  0.,  1.]]])</span>
+<span class="sd">    &gt;&gt;&gt; RGB</span>
+<span class="sd">    array([[ 0.5,  0.5,  0. ],</span>
+<span class="sd">           [ 0.5,  0.5,  1. ],</span>
+<span class="sd">           [ 0.5,  0. ,  0.5],</span>
+<span class="sd">           [ 0.5,  1. ,  0.5],</span>
+<span class="sd">           [ 0. ,  0.5,  0.5],</span>
+<span class="sd">           [ 1. ,  0.5,  0.5]])</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">quads</span> <span class="o">=</span> <span class="n">cube</span><span class="p">(</span>
+        <span class="n">plane</span><span class="o">=</span><span class="n">plane</span><span class="p">,</span>
+        <span class="n">width</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+        <span class="n">height</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+        <span class="n">depth</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+        <span class="n">width_segments</span><span class="o">=</span><span class="n">width_segments</span><span class="p">,</span>
+        <span class="n">height_segments</span><span class="o">=</span><span class="n">height_segments</span><span class="p">,</span>
+        <span class="n">depth_segments</span><span class="o">=</span><span class="n">depth_segments</span><span class="p">)</span>
+    <span class="n">RGB</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">average</span><span class="p">(</span><span class="n">quads</span><span class="p">,</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">2</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">quads</span><span class="p">,</span> <span class="n">RGB</span>
+
+
+<div class="viewcode-block" id="RGB_colourspaces_gamuts_plot"><a class="viewcode-back" href="../../../generated/colour.plotting.RGB_colourspaces_gamuts_plot.html#colour.plotting.RGB_colourspaces_gamuts_plot">[docs]</a><span class="k">def</span> <span class="nf">RGB_colourspaces_gamuts_plot</span><span class="p">(</span><span class="n">colourspaces</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                                 <span class="n">reference_colourspace</span><span class="o">=</span><span class="s1">&#39;CIE xyY&#39;</span><span class="p">,</span>
+                                 <span class="n">segments</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span>
+                                 <span class="n">display_grid</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                                 <span class="n">grid_segments</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
+                                 <span class="n">spectral_locus</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                                 <span class="n">spectral_locus_colour</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                                 <span class="n">cmfs</span><span class="o">=</span><span class="s1">&#39;CIE 1931 2 Degree Standard Observer&#39;</span><span class="p">,</span>
+                                 <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Plots given *RGB* colourspaces gamuts in given reference colourspace.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    colourspaces : array_like, optional</span>
+<span class="sd">        *RGB* colourspaces to plot the gamuts.</span>
+<span class="sd">    reference_colourspace : unicode, optional</span>
+<span class="sd">        **{&#39;CIE XYZ&#39;, &#39;CIE xyY&#39;, &#39;CIE Lab&#39;, &#39;CIE Luv&#39;, &#39;CIE UCS&#39;, &#39;CIE UVW&#39;,</span>
+<span class="sd">        &#39;IPT&#39;, &#39;Hunter Lab&#39;, &#39;Hunter Rdab&#39;}**,</span>
+<span class="sd">        Reference colourspace to plot the gamuts into.</span>
+<span class="sd">    segments : int, optional</span>
+<span class="sd">        Edge segments count for each *RGB* colourspace cubes.</span>
+<span class="sd">    display_grid : bool, optional</span>
+<span class="sd">        Display a grid at the bottom of the *RGB* colourspace cubes.</span>
+<span class="sd">    grid_segments : bool, optional</span>
+<span class="sd">        Edge segments count for the grid.</span>
+<span class="sd">    spectral_locus : bool, optional</span>
+<span class="sd">        Is spectral locus line plotted.</span>
+<span class="sd">    spectral_locus_colour : array_like, optional</span>
+<span class="sd">        Spectral locus line colour.</span>
+<span class="sd">    cmfs : unicode, optional</span>
+<span class="sd">        Standard observer colour matching functions used for spectral locus.</span>
+
+<span class="sd">    Other Parameters</span>
+<span class="sd">    ----------------</span>
+<span class="sd">    \**kwargs : dict, optional</span>
+<span class="sd">        {:func:`colour.plotting.volume.nadir_grid`},</span>
+<span class="sd">        Please refer to the documentation of the previously listed definition.</span>
+<span class="sd">    face_colours : array_like, optional</span>
+<span class="sd">        Face colours array such as `face_colours = (None, (0.5, 0.5, 1.0))`.</span>
+<span class="sd">    edge_colours : array_like, optional</span>
+<span class="sd">        Edge colours array such as `edge_colours = (None, (0.5, 0.5, 1.0))`.</span>
+<span class="sd">    face_alpha : numeric, optional</span>
+<span class="sd">        Face opacity value such as `face_alpha = (0.5, 1.0)`.</span>
+<span class="sd">    edge_alpha : numeric, optional</span>
+<span class="sd">        Edge opacity value such as `edge_alpha = (0.0, 1.0)`.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Figure</span>
+<span class="sd">        Current figure or None.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; c = [&#39;ITU-R BT.709&#39;, &#39;ACEScg&#39;, &#39;S-Gamut&#39;]</span>
+<span class="sd">    &gt;&gt;&gt; RGB_colourspaces_gamuts_plot(c)  # doctest: +SKIP</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="n">colourspaces</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">colourspaces</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;ITU-R BT.709&#39;</span><span class="p">,</span> <span class="s1">&#39;ACEScg&#39;</span><span class="p">)</span>
+
+    <span class="n">count_c</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">colourspaces</span><span class="p">)</span>
+    <span class="n">settings</span> <span class="o">=</span> <span class="n">Structure</span><span class="p">(</span><span class="o">**</span><span class="p">{</span>
+        <span class="s1">&#39;face_colours&#39;</span><span class="p">:</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="n">count_c</span><span class="p">,</span>
+        <span class="s1">&#39;edge_colours&#39;</span><span class="p">:</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="n">count_c</span><span class="p">,</span>
+        <span class="s1">&#39;face_alpha&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">count_c</span><span class="p">,</span>
+        <span class="s1">&#39;edge_alpha&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">count_c</span><span class="p">,</span>
+        <span class="s1">&#39;title&#39;</span><span class="p">:</span>
+            <span class="s1">&#39;</span><span class="si">{0}</span><span class="s1"> - </span><span class="si">{1}</span><span class="s1"> Reference Colourspace&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">colourspaces</span><span class="p">),</span>
+                                                     <span class="n">reference_colourspace</span><span class="p">)</span>
+    <span class="p">})</span>
+    <span class="n">settings</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="n">figure</span> <span class="o">=</span> <span class="n">matplotlib</span><span class="o">.</span><span class="n">pyplot</span><span class="o">.</span><span class="n">figure</span><span class="p">()</span>
+    <span class="n">axes</span> <span class="o">=</span> <span class="n">figure</span><span class="o">.</span><span class="n">add_subplot</span><span class="p">(</span><span class="mi">111</span><span class="p">,</span> <span class="n">projection</span><span class="o">=</span><span class="s1">&#39;3d&#39;</span><span class="p">)</span>
+
+    <span class="n">illuminant</span> <span class="o">=</span> <span class="n">DEFAULT_PLOTTING_ILLUMINANT</span>
+
+    <span class="n">points</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">4</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">spectral_locus</span><span class="p">:</span>
+        <span class="n">cmfs</span> <span class="o">=</span> <span class="n">get_cmfs</span><span class="p">(</span><span class="n">cmfs</span><span class="p">)</span>
+        <span class="n">XYZ</span> <span class="o">=</span> <span class="n">cmfs</span><span class="o">.</span><span class="n">values</span>
+
+        <span class="n">points</span> <span class="o">=</span> <span class="n">common_colourspace_model_axis_reorder</span><span class="p">(</span>
+            <span class="n">XYZ_to_colourspace_model</span><span class="p">(</span><span class="n">XYZ</span><span class="p">,</span> <span class="n">illuminant</span><span class="p">,</span> <span class="n">reference_colourspace</span><span class="p">),</span>
+            <span class="n">reference_colourspace</span><span class="p">)</span>
+
+        <span class="n">points</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">points</span><span class="p">)]</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="n">c</span> <span class="o">=</span> <span class="p">((</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">)</span>
+             <span class="k">if</span> <span class="n">spectral_locus_colour</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">spectral_locus_colour</span><span class="p">)</span>
+
+        <span class="n">pylab</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span>
+            <span class="n">points</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+            <span class="n">points</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span>
+            <span class="n">points</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span>
+            <span class="n">color</span><span class="o">=</span><span class="n">c</span><span class="p">,</span>
+            <span class="n">linewidth</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+            <span class="n">zorder</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">pylab</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span>
+            <span class="p">(</span><span class="n">points</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="n">points</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]),</span> <span class="p">(</span><span class="n">points</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">],</span> <span class="n">points</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">]),</span>
+            <span class="p">(</span><span class="n">points</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">2</span><span class="p">],</span> <span class="n">points</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">2</span><span class="p">]),</span>
+            <span class="n">color</span><span class="o">=</span><span class="n">c</span><span class="p">,</span>
+            <span class="n">linewidth</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+            <span class="n">zorder</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="n">quads</span><span class="p">,</span> <span class="n">RGB_f</span><span class="p">,</span> <span class="n">RGB_e</span> <span class="o">=</span> <span class="p">[],</span> <span class="p">[],</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">colourspace</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">colourspaces</span><span class="p">):</span>
+        <span class="n">colourspace</span> <span class="o">=</span> <span class="n">get_RGB_colourspace</span><span class="p">(</span><span class="n">colourspace</span><span class="p">)</span>
+        <span class="n">quads_c</span><span class="p">,</span> <span class="n">RGB</span> <span class="o">=</span> <span class="n">RGB_identity_cube</span><span class="p">(</span>
+            <span class="n">width_segments</span><span class="o">=</span><span class="n">segments</span><span class="p">,</span>
+            <span class="n">height_segments</span><span class="o">=</span><span class="n">segments</span><span class="p">,</span>
+            <span class="n">depth_segments</span><span class="o">=</span><span class="n">segments</span><span class="p">)</span>
+
+        <span class="n">XYZ</span> <span class="o">=</span> <span class="n">RGB_to_XYZ</span><span class="p">(</span><span class="n">quads_c</span><span class="p">,</span> <span class="n">colourspace</span><span class="o">.</span><span class="n">whitepoint</span><span class="p">,</span>
+                         <span class="n">colourspace</span><span class="o">.</span><span class="n">whitepoint</span><span class="p">,</span> <span class="n">colourspace</span><span class="o">.</span><span class="n">RGB_to_XYZ_matrix</span><span class="p">)</span>
+
+        <span class="n">quads</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span>
+            <span class="n">common_colourspace_model_axis_reorder</span><span class="p">(</span>
+                <span class="n">XYZ_to_colourspace_model</span><span class="p">(</span><span class="n">XYZ</span><span class="p">,</span> <span class="n">colourspace</span><span class="o">.</span><span class="n">whitepoint</span><span class="p">,</span>
+                                         <span class="n">reference_colourspace</span><span class="p">),</span>
+                <span class="n">reference_colourspace</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="n">settings</span><span class="o">.</span><span class="n">face_colours</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">RGB</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">RGB</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">*</span> <span class="n">settings</span><span class="o">.</span><span class="n">face_colours</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+
+        <span class="n">RGB_f</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span><span class="n">RGB</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">((</span><span class="n">RGB</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mi">1</span><span class="p">),</span> <span class="n">settings</span><span class="o">.</span><span class="n">face_alpha</span><span class="p">[</span><span class="n">i</span><span class="p">],</span>
+                                    <span class="n">DEFAULT_FLOAT_DTYPE</span><span class="p">))))</span>
+
+        <span class="k">if</span> <span class="n">settings</span><span class="o">.</span><span class="n">edge_colours</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">RGB</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">RGB</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">*</span> <span class="n">settings</span><span class="o">.</span><span class="n">edge_colours</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+
+        <span class="n">RGB_e</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span><span class="n">RGB</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">((</span><span class="n">RGB</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mi">1</span><span class="p">),</span> <span class="n">settings</span><span class="o">.</span><span class="n">edge_alpha</span><span class="p">[</span><span class="n">i</span><span class="p">],</span>
+                                    <span class="n">DEFAULT_FLOAT_DTYPE</span><span class="p">))))</span>
+
+    <span class="n">quads</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">quads</span><span class="p">)</span>
+    <span class="n">quads</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">quads</span><span class="p">)]</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="k">if</span> <span class="n">quads</span><span class="o">.</span><span class="n">size</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">axis</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="s1">&#39;xyz&#39;</span><span class="p">):</span>
+            <span class="n">min_a</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">((</span><span class="n">quads</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">i</span><span class="p">],</span> <span class="n">points</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">i</span><span class="p">])))</span>
+            <span class="n">max_a</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">((</span><span class="n">quads</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">i</span><span class="p">],</span> <span class="n">points</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">i</span><span class="p">])))</span>
+            <span class="nb">getattr</span><span class="p">(</span><span class="n">axes</span><span class="p">,</span> <span class="s1">&#39;set_</span><span class="si">{}</span><span class="s1">lim&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">axis</span><span class="p">))((</span><span class="n">min_a</span><span class="p">,</span> <span class="n">max_a</span><span class="p">))</span>
+
+    <span class="n">labels</span> <span class="o">=</span> <span class="n">COLOURSPACE_MODELS_LABELS</span><span class="p">[</span><span class="n">reference_colourspace</span><span class="p">]</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">axis</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="s1">&#39;xyz&#39;</span><span class="p">):</span>
+        <span class="nb">getattr</span><span class="p">(</span><span class="n">axes</span><span class="p">,</span> <span class="s1">&#39;set_</span><span class="si">{}</span><span class="s1">label&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">axis</span><span class="p">))(</span><span class="n">labels</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+
+    <span class="k">if</span> <span class="n">display_grid</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">reference_colourspace</span> <span class="o">==</span> <span class="s1">&#39;CIE Lab&#39;</span><span class="p">:</span>
+            <span class="n">limits</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="o">-</span><span class="mi">450</span><span class="p">,</span> <span class="mi">450</span><span class="p">],</span> <span class="p">[</span><span class="o">-</span><span class="mi">450</span><span class="p">,</span> <span class="mi">450</span><span class="p">]])</span>
+        <span class="k">elif</span> <span class="n">reference_colourspace</span> <span class="o">==</span> <span class="s1">&#39;CIE Luv&#39;</span><span class="p">:</span>
+            <span class="n">limits</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="o">-</span><span class="mi">650</span><span class="p">,</span> <span class="mi">650</span><span class="p">],</span> <span class="p">[</span><span class="o">-</span><span class="mi">650</span><span class="p">,</span> <span class="mi">650</span><span class="p">]])</span>
+        <span class="k">elif</span> <span class="n">reference_colourspace</span> <span class="o">==</span> <span class="s1">&#39;CIE UVW&#39;</span><span class="p">:</span>
+            <span class="n">limits</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="o">-</span><span class="mi">850</span><span class="p">,</span> <span class="mi">850</span><span class="p">],</span> <span class="p">[</span><span class="o">-</span><span class="mi">850</span><span class="p">,</span> <span class="mi">850</span><span class="p">]])</span>
+        <span class="k">elif</span> <span class="n">reference_colourspace</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;Hunter Lab&#39;</span><span class="p">,</span> <span class="s1">&#39;Hunter Rdab&#39;</span><span class="p">):</span>
+            <span class="n">limits</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="o">-</span><span class="mi">250</span><span class="p">,</span> <span class="mi">250</span><span class="p">],</span> <span class="p">[</span><span class="o">-</span><span class="mi">250</span><span class="p">,</span> <span class="mi">250</span><span class="p">]])</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">limits</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="o">-</span><span class="mf">1.5</span><span class="p">,</span> <span class="mf">1.5</span><span class="p">],</span> <span class="p">[</span><span class="o">-</span><span class="mf">1.5</span><span class="p">,</span> <span class="mf">1.5</span><span class="p">]])</span>
+
+        <span class="n">quads_g</span><span class="p">,</span> <span class="n">RGB_gf</span><span class="p">,</span> <span class="n">RGB_ge</span> <span class="o">=</span> <span class="n">nadir_grid</span><span class="p">(</span><span class="n">limits</span><span class="p">,</span> <span class="n">grid_segments</span><span class="p">,</span> <span class="n">labels</span><span class="p">,</span>
+                                             <span class="n">axes</span><span class="p">,</span> <span class="o">**</span><span class="n">settings</span><span class="p">)</span>
+        <span class="n">quads</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">((</span><span class="n">quads_g</span><span class="p">,</span> <span class="n">quads</span><span class="p">))</span>
+        <span class="n">RGB_f</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">((</span><span class="n">RGB_gf</span><span class="p">,</span> <span class="n">RGB_f</span><span class="p">))</span>
+        <span class="n">RGB_e</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">((</span><span class="n">RGB_ge</span><span class="p">,</span> <span class="n">RGB_e</span><span class="p">))</span>
+
+    <span class="n">collection</span> <span class="o">=</span> <span class="n">Poly3DCollection</span><span class="p">(</span><span class="n">quads</span><span class="p">)</span>
+    <span class="n">collection</span><span class="o">.</span><span class="n">set_facecolors</span><span class="p">(</span><span class="n">RGB_f</span><span class="p">)</span>
+    <span class="n">collection</span><span class="o">.</span><span class="n">set_edgecolors</span><span class="p">(</span><span class="n">RGB_e</span><span class="p">)</span>
+
+    <span class="n">axes</span><span class="o">.</span><span class="n">add_collection3d</span><span class="p">(</span><span class="n">collection</span><span class="p">)</span>
+
+    <span class="n">settings</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s1">&#39;camera_aspect&#39;</span><span class="p">:</span> <span class="s1">&#39;equal&#39;</span><span class="p">,</span> <span class="s1">&#39;no_axes&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">})</span>
+    <span class="n">settings</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">render</span><span class="p">(</span><span class="o">**</span><span class="n">settings</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="RGB_scatter_plot"><a class="viewcode-back" href="../../../generated/colour.plotting.RGB_scatter_plot.html#colour.plotting.RGB_scatter_plot">[docs]</a><span class="k">def</span> <span class="nf">RGB_scatter_plot</span><span class="p">(</span><span class="n">RGB</span><span class="p">,</span>
+                     <span class="n">colourspace</span><span class="p">,</span>
+                     <span class="n">reference_colourspace</span><span class="o">=</span><span class="s1">&#39;CIE xyY&#39;</span><span class="p">,</span>
+                     <span class="n">colourspaces</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                     <span class="n">segments</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span>
+                     <span class="n">display_grid</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                     <span class="n">grid_segments</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
+                     <span class="n">spectral_locus</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                     <span class="n">spectral_locus_colour</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                     <span class="n">points_size</span><span class="o">=</span><span class="mi">12</span><span class="p">,</span>
+                     <span class="n">cmfs</span><span class="o">=</span><span class="s1">&#39;CIE 1931 2 Degree Standard Observer&#39;</span><span class="p">,</span>
+                     <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Plots given *RGB* colourspace array in a scatter plot.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    RGB : array_like</span>
+<span class="sd">        *RGB* colourspace array.</span>
+<span class="sd">    colourspace : RGB_Colourspace</span>
+<span class="sd">        *RGB* colourspace of the *RGB* array.</span>
+<span class="sd">    reference_colourspace : unicode, optional</span>
+<span class="sd">        **{&#39;CIE XYZ&#39;, &#39;CIE xyY&#39;, &#39;CIE Lab&#39;, &#39;CIE Luv&#39;, &#39;CIE UCS&#39;, &#39;CIE UVW&#39;,</span>
+<span class="sd">        &#39;IPT&#39;, &#39;Hunter Lab&#39;, &#39;Hunter Rdab&#39;}**,</span>
+<span class="sd">        Reference colourspace for colour conversion.</span>
+<span class="sd">    colourspaces : array_like, optional</span>
+<span class="sd">        *RGB* colourspaces to plot the gamuts.</span>
+<span class="sd">    segments : int, optional</span>
+<span class="sd">        Edge segments count for each *RGB* colourspace cubes.</span>
+<span class="sd">    display_grid : bool, optional</span>
+<span class="sd">        Display a grid at the bottom of the *RGB* colourspace cubes.</span>
+<span class="sd">    grid_segments : bool, optional</span>
+<span class="sd">        Edge segments count for the grid.</span>
+<span class="sd">    spectral_locus : bool, optional</span>
+<span class="sd">        Is spectral locus line plotted.</span>
+<span class="sd">    spectral_locus_colour : array_like, optional</span>
+<span class="sd">        Spectral locus line colour.</span>
+<span class="sd">    points_size : numeric, optional</span>
+<span class="sd">        Scatter points size.</span>
+<span class="sd">    cmfs : unicode, optional</span>
+<span class="sd">        Standard observer colour matching functions used for spectral locus.</span>
+
+<span class="sd">    Other Parameters</span>
+<span class="sd">    ----------------</span>
+<span class="sd">    \**kwargs : dict, optional</span>
+<span class="sd">        {:func:`colour.plotting.RGB_colourspaces_gamuts_plot`},</span>
+<span class="sd">        Please refer to the documentation of the previously listed definition.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Figure</span>
+<span class="sd">        Current figure or None.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; c = &#39;ITU-R BT.709&#39;</span>
+<span class="sd">    &gt;&gt;&gt; RGB_scatter_plot(c)  # doctest: +SKIP</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">colourspace</span> <span class="o">=</span> <span class="n">get_RGB_colourspace</span><span class="p">(</span><span class="n">colourspace</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">colourspaces</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">colourspaces</span> <span class="o">=</span> <span class="p">(</span><span class="n">colourspace</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="p">)</span>
+
+    <span class="n">count_c</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">colourspaces</span><span class="p">)</span>
+    <span class="n">settings</span> <span class="o">=</span> <span class="n">Structure</span><span class="p">(</span><span class="o">**</span><span class="p">{</span>
+        <span class="s1">&#39;face_colours&#39;</span><span class="p">:</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="n">count_c</span><span class="p">,</span>
+        <span class="s1">&#39;edge_colours&#39;</span><span class="p">:</span> <span class="p">[(</span><span class="mf">0.25</span><span class="p">,</span> <span class="mf">0.25</span><span class="p">,</span> <span class="mf">0.25</span><span class="p">)]</span> <span class="o">*</span> <span class="n">count_c</span><span class="p">,</span>
+        <span class="s1">&#39;face_alpha&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">]</span> <span class="o">*</span> <span class="n">count_c</span><span class="p">,</span>
+        <span class="s1">&#39;edge_alpha&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mf">0.1</span><span class="p">]</span> <span class="o">*</span> <span class="n">count_c</span><span class="p">,</span>
+        <span class="s1">&#39;standalone&#39;</span><span class="p">:</span> <span class="kc">False</span>
+    <span class="p">})</span>
+    <span class="n">settings</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="n">RGB_colourspaces_gamuts_plot</span><span class="p">(</span>
+        <span class="n">colourspaces</span><span class="o">=</span><span class="n">colourspaces</span><span class="p">,</span>
+        <span class="n">reference_colourspace</span><span class="o">=</span><span class="n">reference_colourspace</span><span class="p">,</span>
+        <span class="n">segments</span><span class="o">=</span><span class="n">segments</span><span class="p">,</span>
+        <span class="n">display_grid</span><span class="o">=</span><span class="n">display_grid</span><span class="p">,</span>
+        <span class="n">grid_segments</span><span class="o">=</span><span class="n">grid_segments</span><span class="p">,</span>
+        <span class="n">spectral_locus</span><span class="o">=</span><span class="n">spectral_locus</span><span class="p">,</span>
+        <span class="n">spectral_locus_colour</span><span class="o">=</span><span class="n">spectral_locus_colour</span><span class="p">,</span>
+        <span class="n">cmfs</span><span class="o">=</span><span class="n">cmfs</span><span class="p">,</span>
+        <span class="o">**</span><span class="n">settings</span><span class="p">)</span>
+
+    <span class="n">XYZ</span> <span class="o">=</span> <span class="n">RGB_to_XYZ</span><span class="p">(</span><span class="n">RGB</span><span class="p">,</span> <span class="n">colourspace</span><span class="o">.</span><span class="n">whitepoint</span><span class="p">,</span> <span class="n">colourspace</span><span class="o">.</span><span class="n">whitepoint</span><span class="p">,</span>
+                     <span class="n">colourspace</span><span class="o">.</span><span class="n">RGB_to_XYZ_matrix</span><span class="p">)</span>
+
+    <span class="n">points</span> <span class="o">=</span> <span class="n">common_colourspace_model_axis_reorder</span><span class="p">(</span>
+        <span class="n">XYZ_to_colourspace_model</span><span class="p">(</span><span class="n">XYZ</span><span class="p">,</span> <span class="n">colourspace</span><span class="o">.</span><span class="n">whitepoint</span><span class="p">,</span>
+                                 <span class="n">reference_colourspace</span><span class="p">),</span> <span class="n">reference_colourspace</span><span class="p">)</span>
+
+    <span class="n">axes</span> <span class="o">=</span> <span class="n">matplotlib</span><span class="o">.</span><span class="n">pyplot</span><span class="o">.</span><span class="n">gca</span><span class="p">()</span>
+    <span class="n">axes</span><span class="o">.</span><span class="n">scatter</span><span class="p">(</span>
+        <span class="n">points</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+        <span class="n">points</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span>
+        <span class="n">points</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span>
+        <span class="n">color</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">RGB</span><span class="p">,</span> <span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">)),</span>
+        <span class="n">s</span><span class="o">=</span><span class="n">points_size</span><span class="p">)</span>
+
+    <span class="n">settings</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s1">&#39;standalone&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">})</span>
+    <span class="n">settings</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">render</span><span class="p">(</span><span class="o">**</span><span class="n">settings</span><span class="p">)</span></div>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright  2013-2018 - Colour Developers.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../',
+            VERSION:'0.3.11',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

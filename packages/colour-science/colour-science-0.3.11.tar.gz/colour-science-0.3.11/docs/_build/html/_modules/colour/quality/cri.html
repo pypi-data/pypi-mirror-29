@@ -1,0 +1,485 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>colour.quality.cri &mdash; Colour 0.3.11 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+    <link rel="stylesheet" href="../../../_static/custom.css" type="text/css" />
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../search.html"/>
+    <link rel="top" title="Colour 0.3.11 documentation" href="../../../index.html"/>
+        <link rel="up" title="Module code" href="../../index.html"/> 
+
+  
+  <script src="../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home"> Colour
+          
+
+          
+            
+            <img src="../../../_static/Logo_Small_001.png" class="logo" />
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.3
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../manual.html">Colour Manual</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Colour</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+      <li>colour.quality.cri</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for colour.quality.cri</h1><div class="highlight"><pre>
+<span></span><span class="c1"># -*- coding: utf-8 -*-</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Colour Rendering Index</span>
+<span class="sd">======================</span>
+
+<span class="sd">Defines *Colour Rendering Index* (CRI) computation objects:</span>
+
+<span class="sd">-   :class:`colour.quality.CRI_Specification`</span>
+<span class="sd">-   :func:`colour.colour_rendering_index`</span>
+
+<span class="sd">See Also</span>
+<span class="sd">--------</span>
+<span class="sd">`Colour Rendering Index Jupyter Notebook</span>
+<span class="sd">&lt;http://nbviewer.jupyter.org/github/colour-science/colour-notebooks/\</span>
+<span class="sd">blob/master/notebooks/quality/cri.ipynb&gt;`_</span>
+
+<span class="sd">References</span>
+<span class="sd">----------</span>
+<span class="sd">-   :cite:`Ohno2008a` : Ohno, Y., &amp; Davis, W. (2008). NIST CQS simulation 7.4.</span>
+<span class="sd">    Retrieved from https://drive.google.com/file/d/\</span>
+<span class="sd">1PsuU6QjUJjCX6tQyCud6ul2Tbs8rYWW9/view?usp=sharing</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">division</span><span class="p">,</span> <span class="n">unicode_literals</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">namedtuple</span>
+
+<span class="kn">from</span> <span class="nn">colour.algebra</span> <span class="k">import</span> <span class="n">euclidean_distance</span>
+<span class="kn">from</span> <span class="nn">colour.colorimetry</span> <span class="k">import</span> <span class="p">(</span>
+    <span class="n">ASTME30815_PRACTISE_SHAPE</span><span class="p">,</span> <span class="n">D_illuminant_relative_spd</span><span class="p">,</span>
+    <span class="n">STANDARD_OBSERVERS_CMFS</span><span class="p">,</span> <span class="n">blackbody_spd</span><span class="p">,</span> <span class="n">spectral_to_XYZ</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">colour.quality.dataset.tcs</span> <span class="k">import</span> <span class="n">TCS_INDEXES_TO_NAMES</span><span class="p">,</span> <span class="n">TCS_SPDS</span>
+<span class="kn">from</span> <span class="nn">colour.models</span> <span class="k">import</span> <span class="n">UCS_to_uv</span><span class="p">,</span> <span class="n">XYZ_to_UCS</span><span class="p">,</span> <span class="n">XYZ_to_xyY</span>
+<span class="kn">from</span> <span class="nn">colour.temperature</span> <span class="k">import</span> <span class="n">CCT_to_xy_CIE_D</span><span class="p">,</span> <span class="n">uv_to_CCT_Robertson1968</span>
+
+<span class="n">__author__</span> <span class="o">=</span> <span class="s1">&#39;Colour Developers&#39;</span>
+<span class="n">__copyright__</span> <span class="o">=</span> <span class="s1">&#39;Copyright (C) 2013-2018 - Colour Developers&#39;</span>
+<span class="n">__license__</span> <span class="o">=</span> <span class="s1">&#39;New BSD License - http://opensource.org/licenses/BSD-3-Clause&#39;</span>
+<span class="n">__maintainer__</span> <span class="o">=</span> <span class="s1">&#39;Colour Developers&#39;</span>
+<span class="n">__email__</span> <span class="o">=</span> <span class="s1">&#39;colour-science@googlegroups.com&#39;</span>
+<span class="n">__status__</span> <span class="o">=</span> <span class="s1">&#39;Production&#39;</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s1">&#39;TCS_ColorimetryData&#39;</span><span class="p">,</span> <span class="s1">&#39;TCS_ColourQualityScaleData&#39;</span><span class="p">,</span> <span class="s1">&#39;CRI_Specification&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;colour_rendering_index&#39;</span><span class="p">,</span> <span class="s1">&#39;tcs_colorimetry_data&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;colour_rendering_indexes&#39;</span>
+<span class="p">]</span>
+
+
+<span class="k">class</span> <span class="nc">TCS_ColorimetryData</span><span class="p">(</span>
+        <span class="n">namedtuple</span><span class="p">(</span><span class="s1">&#39;TCS_ColorimetryData&#39;</span><span class="p">,</span> <span class="p">(</span><span class="s1">&#39;name&#39;</span><span class="p">,</span> <span class="s1">&#39;XYZ&#39;</span><span class="p">,</span> <span class="s1">&#39;uv&#39;</span><span class="p">,</span> <span class="s1">&#39;UVW&#39;</span><span class="p">))):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Defines the the class storing *test colour samples* colorimetry data.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+
+<span class="k">class</span> <span class="nc">TCS_ColourQualityScaleData</span><span class="p">(</span>
+        <span class="n">namedtuple</span><span class="p">(</span><span class="s1">&#39;TCS_ColourQualityScaleData&#39;</span><span class="p">,</span> <span class="p">(</span><span class="s1">&#39;name&#39;</span><span class="p">,</span> <span class="s1">&#39;Q_a&#39;</span><span class="p">))):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Defines the the class storing *test colour samples* colour rendering</span>
+<span class="sd">    index data.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+
+<div class="viewcode-block" id="CRI_Specification"><a class="viewcode-back" href="../../../generated/colour.quality.CRI_Specification.html#colour.CRI_Specification">[docs]</a><span class="k">class</span> <span class="nc">CRI_Specification</span><span class="p">(</span>
+        <span class="n">namedtuple</span><span class="p">(</span><span class="s1">&#39;CRI_Specification&#39;</span><span class="p">,</span> <span class="p">(</span><span class="s1">&#39;name&#39;</span><span class="p">,</span> <span class="s1">&#39;Q_a&#39;</span><span class="p">,</span> <span class="s1">&#39;Q_as&#39;</span><span class="p">,</span>
+                                         <span class="s1">&#39;colorimetry_data&#39;</span><span class="p">))):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Defines the *Colour Rendering Index* (CRI) colour quality specification.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    name : unicode</span>
+<span class="sd">        Name of the test spectral power distribution.</span>
+<span class="sd">    Q_a : numeric</span>
+<span class="sd">        *Colour Rendering Index* (CRI) :math:`Q_a`.</span>
+<span class="sd">    Q_as : dict</span>
+<span class="sd">        Individual *colour rendering indexes* data for each sample.</span>
+<span class="sd">    colorimetry_data : tuple</span>
+<span class="sd">        Colorimetry data for the test and reference computations.</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    -   :cite:`Ohno2008a`</span>
+<span class="sd">    &quot;&quot;&quot;</span></div>
+
+
+<div class="viewcode-block" id="colour_rendering_index"><a class="viewcode-back" href="../../../generated/colour.colour_rendering_index.html#colour.colour_rendering_index">[docs]</a><span class="k">def</span> <span class="nf">colour_rendering_index</span><span class="p">(</span><span class="n">spd_test</span><span class="p">,</span> <span class="n">additional_data</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns the *Colour Rendering Index* (CRI) :math:`Q_a` of given spectral</span>
+<span class="sd">    power distribution.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    spd_test : SpectralPowerDistribution</span>
+<span class="sd">        Test spectral power distribution.</span>
+<span class="sd">    additional_data : bool, optional</span>
+<span class="sd">        Output additional data.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    numeric or CRI_Specification</span>
+<span class="sd">        *Colour Rendering Index* (CRI).</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    -   :cite:`Ohno2008a`</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; from colour import ILLUMINANTS_RELATIVE_SPDS</span>
+<span class="sd">    &gt;&gt;&gt; spd = ILLUMINANTS_RELATIVE_SPDS[&#39;F2&#39;]</span>
+<span class="sd">    &gt;&gt;&gt; colour_rendering_index(spd)  # doctest: +ELLIPSIS</span>
+<span class="sd">    64.1515202...</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">cmfs</span> <span class="o">=</span> <span class="n">STANDARD_OBSERVERS_CMFS</span><span class="p">[</span><span class="s1">&#39;CIE 1931 2 Degree Standard Observer&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span>
+    <span class="p">)</span><span class="o">.</span><span class="n">trim</span><span class="p">(</span><span class="n">ASTME30815_PRACTISE_SHAPE</span><span class="p">)</span>
+
+    <span class="n">shape</span> <span class="o">=</span> <span class="n">cmfs</span><span class="o">.</span><span class="n">shape</span>
+    <span class="n">spd_test</span> <span class="o">=</span> <span class="n">spd_test</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span><span class="o">.</span><span class="n">align</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span>
+    <span class="n">tcs_spds</span> <span class="o">=</span> <span class="p">{</span><span class="n">spd</span><span class="o">.</span><span class="n">name</span><span class="p">:</span> <span class="n">spd</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span><span class="o">.</span><span class="n">align</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span> <span class="k">for</span> <span class="n">spd</span> <span class="ow">in</span> <span class="n">TCS_SPDS</span><span class="o">.</span><span class="n">values</span><span class="p">()}</span>
+
+    <span class="n">XYZ</span> <span class="o">=</span> <span class="n">spectral_to_XYZ</span><span class="p">(</span><span class="n">spd_test</span><span class="p">,</span> <span class="n">cmfs</span><span class="p">)</span>
+    <span class="n">uv</span> <span class="o">=</span> <span class="n">UCS_to_uv</span><span class="p">(</span><span class="n">XYZ_to_UCS</span><span class="p">(</span><span class="n">XYZ</span><span class="p">))</span>
+    <span class="n">CCT</span><span class="p">,</span> <span class="n">_D_uv</span> <span class="o">=</span> <span class="n">uv_to_CCT_Robertson1968</span><span class="p">(</span><span class="n">uv</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">CCT</span> <span class="o">&lt;</span> <span class="mi">5000</span><span class="p">:</span>
+        <span class="n">spd_reference</span> <span class="o">=</span> <span class="n">blackbody_spd</span><span class="p">(</span><span class="n">CCT</span><span class="p">,</span> <span class="n">shape</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">xy</span> <span class="o">=</span> <span class="n">CCT_to_xy_CIE_D</span><span class="p">(</span><span class="n">CCT</span><span class="p">)</span>
+        <span class="n">spd_reference</span> <span class="o">=</span> <span class="n">D_illuminant_relative_spd</span><span class="p">(</span><span class="n">xy</span><span class="p">)</span>
+        <span class="n">spd_reference</span><span class="o">.</span><span class="n">align</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span>
+
+    <span class="n">test_tcs_colorimetry_data</span> <span class="o">=</span> <span class="n">tcs_colorimetry_data</span><span class="p">(</span>
+        <span class="n">spd_test</span><span class="p">,</span> <span class="n">spd_reference</span><span class="p">,</span> <span class="n">tcs_spds</span><span class="p">,</span> <span class="n">cmfs</span><span class="p">,</span> <span class="n">chromatic_adaptation</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="n">reference_tcs_colorimetry_data</span> <span class="o">=</span> <span class="n">tcs_colorimetry_data</span><span class="p">(</span>
+        <span class="n">spd_reference</span><span class="p">,</span> <span class="n">spd_reference</span><span class="p">,</span> <span class="n">tcs_spds</span><span class="p">,</span> <span class="n">cmfs</span><span class="p">)</span>
+
+    <span class="n">Q_as</span> <span class="o">=</span> <span class="n">colour_rendering_indexes</span><span class="p">(</span><span class="n">test_tcs_colorimetry_data</span><span class="p">,</span>
+                                    <span class="n">reference_tcs_colorimetry_data</span><span class="p">)</span>
+
+    <span class="n">Q_a</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">average</span><span class="p">(</span>
+        <span class="p">[</span><span class="n">v</span><span class="o">.</span><span class="n">Q_a</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">Q_as</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">7</span><span class="p">,</span> <span class="mi">8</span><span class="p">)])</span>
+
+    <span class="k">if</span> <span class="n">additional_data</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">CRI_Specification</span><span class="p">(</span><span class="n">spd_test</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">Q_a</span><span class="p">,</span> <span class="n">Q_as</span><span class="p">,</span>
+                                 <span class="p">(</span><span class="n">test_tcs_colorimetry_data</span><span class="p">,</span>
+                                  <span class="n">reference_tcs_colorimetry_data</span><span class="p">))</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">Q_a</span></div>
+
+
+<span class="k">def</span> <span class="nf">tcs_colorimetry_data</span><span class="p">(</span><span class="n">spd_t</span><span class="p">,</span>
+                         <span class="n">spd_r</span><span class="p">,</span>
+                         <span class="n">spds_tcs</span><span class="p">,</span>
+                         <span class="n">cmfs</span><span class="p">,</span>
+                         <span class="n">chromatic_adaptation</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns the *test colour samples* colorimetry data.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    spd_t : SpectralPowerDistribution</span>
+<span class="sd">        Test spectral power distribution.</span>
+<span class="sd">    spd_r : SpectralPowerDistribution</span>
+<span class="sd">        Reference spectral power distribution.</span>
+<span class="sd">    spds_tcs : dict</span>
+<span class="sd">        *Test colour samples* spectral power distributions.</span>
+<span class="sd">    cmfs : XYZ_ColourMatchingFunctions</span>
+<span class="sd">        Standard observer colour matching functions.</span>
+<span class="sd">    chromatic_adaptation : bool, optional</span>
+<span class="sd">        Perform chromatic adaptation.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    list</span>
+<span class="sd">        *Test colour samples* colorimetry data.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">XYZ_t</span> <span class="o">=</span> <span class="n">spectral_to_XYZ</span><span class="p">(</span><span class="n">spd_t</span><span class="p">,</span> <span class="n">cmfs</span><span class="p">)</span>
+    <span class="n">uv_t</span> <span class="o">=</span> <span class="n">UCS_to_uv</span><span class="p">(</span><span class="n">XYZ_to_UCS</span><span class="p">(</span><span class="n">XYZ_t</span><span class="p">))</span>
+    <span class="n">u_t</span><span class="p">,</span> <span class="n">v_t</span> <span class="o">=</span> <span class="n">uv_t</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">uv_t</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="n">XYZ_r</span> <span class="o">=</span> <span class="n">spectral_to_XYZ</span><span class="p">(</span><span class="n">spd_r</span><span class="p">,</span> <span class="n">cmfs</span><span class="p">)</span>
+    <span class="n">uv_r</span> <span class="o">=</span> <span class="n">UCS_to_uv</span><span class="p">(</span><span class="n">XYZ_to_UCS</span><span class="p">(</span><span class="n">XYZ_r</span><span class="p">))</span>
+    <span class="n">u_r</span><span class="p">,</span> <span class="n">v_r</span> <span class="o">=</span> <span class="n">uv_r</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">uv_r</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="n">tcs_data</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">_key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">TCS_INDEXES_TO_NAMES</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
+        <span class="n">spd_tcs</span> <span class="o">=</span> <span class="n">spds_tcs</span><span class="p">[</span><span class="n">value</span><span class="p">]</span>
+        <span class="n">XYZ_tcs</span> <span class="o">=</span> <span class="n">spectral_to_XYZ</span><span class="p">(</span><span class="n">spd_tcs</span><span class="p">,</span> <span class="n">cmfs</span><span class="p">,</span> <span class="n">spd_t</span><span class="p">)</span>
+        <span class="n">xyY_tcs</span> <span class="o">=</span> <span class="n">XYZ_to_xyY</span><span class="p">(</span><span class="n">XYZ_tcs</span><span class="p">)</span>
+        <span class="n">uv_tcs</span> <span class="o">=</span> <span class="n">UCS_to_uv</span><span class="p">(</span><span class="n">XYZ_to_UCS</span><span class="p">(</span><span class="n">XYZ_tcs</span><span class="p">))</span>
+        <span class="n">u_tcs</span><span class="p">,</span> <span class="n">v_tcs</span> <span class="o">=</span> <span class="n">uv_tcs</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">uv_tcs</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="n">chromatic_adaptation</span><span class="p">:</span>
+
+            <span class="k">def</span> <span class="nf">c</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">):</span>
+                <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">                Computes the :math:`c` term.</span>
+<span class="sd">                &quot;&quot;&quot;</span>
+
+                <span class="k">return</span> <span class="p">(</span><span class="mi">4</span> <span class="o">-</span> <span class="n">x</span> <span class="o">-</span> <span class="mi">10</span> <span class="o">*</span> <span class="n">y</span><span class="p">)</span> <span class="o">/</span> <span class="n">y</span>
+
+            <span class="k">def</span> <span class="nf">d</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">):</span>
+                <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">                Computes the :math:`d` term.</span>
+<span class="sd">                &quot;&quot;&quot;</span>
+
+                <span class="k">return</span> <span class="p">(</span><span class="mf">1.708</span> <span class="o">*</span> <span class="n">y</span> <span class="o">+</span> <span class="mf">0.404</span> <span class="o">-</span> <span class="mf">1.481</span> <span class="o">*</span> <span class="n">x</span><span class="p">)</span> <span class="o">/</span> <span class="n">y</span>
+
+            <span class="n">c_t</span><span class="p">,</span> <span class="n">d_t</span> <span class="o">=</span> <span class="n">c</span><span class="p">(</span><span class="n">u_t</span><span class="p">,</span> <span class="n">v_t</span><span class="p">),</span> <span class="n">d</span><span class="p">(</span><span class="n">u_t</span><span class="p">,</span> <span class="n">v_t</span><span class="p">)</span>
+            <span class="n">c_r</span><span class="p">,</span> <span class="n">d_r</span> <span class="o">=</span> <span class="n">c</span><span class="p">(</span><span class="n">u_r</span><span class="p">,</span> <span class="n">v_r</span><span class="p">),</span> <span class="n">d</span><span class="p">(</span><span class="n">u_r</span><span class="p">,</span> <span class="n">v_r</span><span class="p">)</span>
+            <span class="n">tcs_c</span><span class="p">,</span> <span class="n">tcs_d</span> <span class="o">=</span> <span class="n">c</span><span class="p">(</span><span class="n">u_tcs</span><span class="p">,</span> <span class="n">v_tcs</span><span class="p">),</span> <span class="n">d</span><span class="p">(</span><span class="n">u_tcs</span><span class="p">,</span> <span class="n">v_tcs</span><span class="p">)</span>
+            <span class="n">u_tcs</span> <span class="o">=</span> <span class="p">((</span>
+                <span class="mf">10.872</span> <span class="o">+</span> <span class="mf">0.404</span> <span class="o">*</span> <span class="n">c_r</span> <span class="o">/</span> <span class="n">c_t</span> <span class="o">*</span> <span class="n">tcs_c</span> <span class="o">-</span> <span class="mi">4</span> <span class="o">*</span> <span class="n">d_r</span> <span class="o">/</span> <span class="n">d_t</span> <span class="o">*</span> <span class="n">tcs_d</span><span class="p">)</span> <span class="o">/</span>
+                     <span class="p">(</span><span class="mf">16.518</span> <span class="o">+</span> <span class="mf">1.481</span> <span class="o">*</span> <span class="n">c_r</span> <span class="o">/</span> <span class="n">c_t</span> <span class="o">*</span> <span class="n">tcs_c</span> <span class="o">-</span> <span class="n">d_r</span> <span class="o">/</span> <span class="n">d_t</span> <span class="o">*</span> <span class="n">tcs_d</span><span class="p">))</span>
+            <span class="n">v_tcs</span> <span class="o">=</span> <span class="p">(</span><span class="mf">5.52</span> <span class="o">/</span>
+                     <span class="p">(</span><span class="mf">16.518</span> <span class="o">+</span> <span class="mf">1.481</span> <span class="o">*</span> <span class="n">c_r</span> <span class="o">/</span> <span class="n">c_t</span> <span class="o">*</span> <span class="n">tcs_c</span> <span class="o">-</span> <span class="n">d_r</span> <span class="o">/</span> <span class="n">d_t</span> <span class="o">*</span> <span class="n">tcs_d</span><span class="p">))</span>
+
+        <span class="n">W_tcs</span> <span class="o">=</span> <span class="mi">25</span> <span class="o">*</span> <span class="n">xyY_tcs</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">**</span> <span class="p">(</span><span class="mi">1</span> <span class="o">/</span> <span class="mi">3</span><span class="p">)</span> <span class="o">-</span> <span class="mi">17</span>
+        <span class="n">U_tcs</span> <span class="o">=</span> <span class="mi">13</span> <span class="o">*</span> <span class="n">W_tcs</span> <span class="o">*</span> <span class="p">(</span><span class="n">u_tcs</span> <span class="o">-</span> <span class="n">u_r</span><span class="p">)</span>
+        <span class="n">V_tcs</span> <span class="o">=</span> <span class="mi">13</span> <span class="o">*</span> <span class="n">W_tcs</span> <span class="o">*</span> <span class="p">(</span><span class="n">v_tcs</span> <span class="o">-</span> <span class="n">v_r</span><span class="p">)</span>
+
+        <span class="n">tcs_data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+            <span class="n">TCS_ColorimetryData</span><span class="p">(</span><span class="n">spd_tcs</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">XYZ_tcs</span><span class="p">,</span> <span class="n">uv_tcs</span><span class="p">,</span>
+                                <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">U_tcs</span><span class="p">,</span> <span class="n">V_tcs</span><span class="p">,</span> <span class="n">W_tcs</span><span class="p">])))</span>
+
+    <span class="k">return</span> <span class="n">tcs_data</span>
+
+
+<span class="k">def</span> <span class="nf">colour_rendering_indexes</span><span class="p">(</span><span class="n">test_data</span><span class="p">,</span> <span class="n">reference_data</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns the *test colour samples* rendering indexes :math:`Q_a`.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    test_data : list</span>
+<span class="sd">        Test data.</span>
+<span class="sd">    reference_data : list</span>
+<span class="sd">        Reference data.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    dict</span>
+<span class="sd">        *Test colour samples* *Colour Rendering Index* (CRI).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">Q_as</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">test_data</span><span class="p">):</span>
+        <span class="n">Q_as</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">TCS_ColourQualityScaleData</span><span class="p">(</span>
+            <span class="n">test_data</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="mi">100</span> <span class="o">-</span>
+            <span class="mf">4.6</span> <span class="o">*</span> <span class="n">euclidean_distance</span><span class="p">(</span><span class="n">reference_data</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">UVW</span><span class="p">,</span> <span class="n">test_data</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">UVW</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">Q_as</span>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright  2013-2018 - Colour Developers.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../',
+            VERSION:'0.3.11',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

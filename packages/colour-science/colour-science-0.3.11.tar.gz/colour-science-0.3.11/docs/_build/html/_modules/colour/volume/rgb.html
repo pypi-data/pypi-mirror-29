@@ -1,0 +1,626 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>colour.volume.rgb &mdash; Colour 0.3.11 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+    <link rel="stylesheet" href="../../../_static/custom.css" type="text/css" />
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../search.html"/>
+    <link rel="top" title="Colour 0.3.11 documentation" href="../../../index.html"/>
+        <link rel="up" title="Module code" href="../../index.html"/> 
+
+  
+  <script src="../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home"> Colour
+          
+
+          
+            
+            <img src="../../../_static/Logo_Small_001.png" class="logo" />
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.3
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../manual.html">Colour Manual</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Colour</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+      <li>colour.volume.rgb</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for colour.volume.rgb</h1><div class="highlight"><pre>
+<span></span><span class="c1"># -*- coding: utf-8 -*-</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">RGB Colourspace Volume Computation</span>
+<span class="sd">==================================</span>
+
+<span class="sd">Defines various RGB colourspace volume computation objects:</span>
+
+<span class="sd">-   :func:`colour.RGB_colourspace_limits`</span>
+<span class="sd">-   :func:`colour.RGB_colourspace_volume_MonteCarlo`</span>
+<span class="sd">-   :func:`colour.RGB_colourspace_volume_coverage_MonteCarlo`</span>
+<span class="sd">-   :func:`colour.RGB_colourspace_pointer_gamut_coverage_MonteCarlo`</span>
+<span class="sd">-   :func:`colour.RGB_colourspace_visible_spectrum_coverage_MonteCarlo`</span>
+
+<span class="sd">See Also</span>
+<span class="sd">--------</span>
+<span class="sd">`RGB Colourspace Volume Computation Jupyter Notebook</span>
+<span class="sd">&lt;http://nbviewer.jupyter.org/github/colour-science/colour-notebooks/\</span>
+<span class="sd">blob/master/notebooks/volume/rgb.ipynb&gt;`_</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">division</span><span class="p">,</span> <span class="n">unicode_literals</span>
+
+<span class="kn">import</span> <span class="nn">itertools</span>
+<span class="kn">import</span> <span class="nn">multiprocessing</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<span class="kn">from</span> <span class="nn">colour.algebra</span> <span class="k">import</span> <span class="n">random_triplet_generator</span>
+<span class="kn">from</span> <span class="nn">colour.colorimetry</span> <span class="k">import</span> <span class="n">ILLUMINANTS</span>
+<span class="kn">from</span> <span class="nn">colour.models</span> <span class="k">import</span> <span class="p">(</span><span class="n">Lab_to_XYZ</span><span class="p">,</span> <span class="n">RGB_to_XYZ</span><span class="p">,</span> <span class="n">XYZ_to_Lab</span><span class="p">,</span> <span class="n">XYZ_to_RGB</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">colour.volume</span> <span class="k">import</span> <span class="n">is_within_pointer_gamut</span><span class="p">,</span> <span class="n">is_within_visible_spectrum</span>
+
+<span class="n">__author__</span> <span class="o">=</span> <span class="s1">&#39;Colour Developers&#39;</span>
+<span class="n">__copyright__</span> <span class="o">=</span> <span class="s1">&#39;Copyright (C) 2013-2018 - Colour Developers&#39;</span>
+<span class="n">__license__</span> <span class="o">=</span> <span class="s1">&#39;New BSD License - http://opensource.org/licenses/BSD-3-Clause&#39;</span>
+<span class="n">__maintainer__</span> <span class="o">=</span> <span class="s1">&#39;Colour Developers&#39;</span>
+<span class="n">__email__</span> <span class="o">=</span> <span class="s1">&#39;colour-science@googlegroups.com&#39;</span>
+<span class="n">__status__</span> <span class="o">=</span> <span class="s1">&#39;Production&#39;</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s1">&#39;sample_RGB_colourspace_volume_MonteCarlo&#39;</span><span class="p">,</span> <span class="s1">&#39;RGB_colourspace_limits&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;RGB_colourspace_volume_MonteCarlo&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;RGB_colourspace_pointer_gamut_coverage_MonteCarlo&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;RGB_colourspace_visible_spectrum_coverage_MonteCarlo&#39;</span>
+<span class="p">]</span>
+
+
+<span class="k">def</span> <span class="nf">_wrapper_RGB_colourspace_volume_MonteCarlo</span><span class="p">(</span><span class="n">args</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Convenient wrapper to be able to call</span>
+<span class="sd">    :func:`colour.volume.rgb.sample_RGB_colourspace_volume_MonteCarlo`:</span>
+<span class="sd">    definition with multiple arguments.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    args : array_like, optional</span>
+<span class="sd">        Arguments.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    integer</span>
+<span class="sd">        Inside *RGB* colourspace volume samples count.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">return</span> <span class="n">sample_RGB_colourspace_volume_MonteCarlo</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">sample_RGB_colourspace_volume_MonteCarlo</span><span class="p">(</span>
+        <span class="n">colourspace</span><span class="p">,</span>
+        <span class="n">samples</span><span class="o">=</span><span class="mf">10e6</span><span class="p">,</span>
+        <span class="n">limits</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">100</span><span class="p">],</span> <span class="p">[</span><span class="o">-</span><span class="mi">150</span><span class="p">,</span> <span class="mi">150</span><span class="p">],</span> <span class="p">[</span><span class="o">-</span><span class="mi">150</span><span class="p">,</span> <span class="mi">150</span><span class="p">]]),</span>
+        <span class="n">illuminant_Lab</span><span class="o">=</span><span class="n">ILLUMINANTS</span><span class="p">[</span><span class="s1">&#39;CIE 1931 2 Degree Standard Observer&#39;</span><span class="p">][</span>
+            <span class="s1">&#39;D50&#39;</span><span class="p">],</span>
+        <span class="n">chromatic_adaptation_method</span><span class="o">=</span><span class="s1">&#39;CAT02&#39;</span><span class="p">,</span>
+        <span class="n">random_generator</span><span class="o">=</span><span class="n">random_triplet_generator</span><span class="p">,</span>
+        <span class="n">random_state</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Randomly samples the *Lab* colourspace volume and returns the ratio of</span>
+<span class="sd">    samples within the given *RGB* colourspace volume.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    colourspace : RGB_Colourspace</span>
+<span class="sd">        *RGB* colourspace to compute the volume of.</span>
+<span class="sd">    samples : numeric, optional</span>
+<span class="sd">        Samples count.</span>
+<span class="sd">    limits : array_like, optional</span>
+<span class="sd">        *Lab* colourspace volume.</span>
+<span class="sd">    illuminant_Lab : array_like, optional</span>
+<span class="sd">        *Lab* colourspace *illuminant* chromaticity coordinates.</span>
+<span class="sd">    chromatic_adaptation_method : unicode, optional</span>
+<span class="sd">        **{&#39;CAT02&#39;, &#39;XYZ Scaling&#39;, &#39;Von Kries&#39;, &#39;Bradford&#39;, &#39;Sharp&#39;,</span>
+<span class="sd">        &#39;Fairchild&#39;, &#39;CMCCAT97&#39;, &#39;CMCCAT2000&#39;, &#39;CAT02_BRILL_CAT&#39;, &#39;Bianco&#39;,</span>
+<span class="sd">        &#39;Bianco PC&#39;}**,</span>
+<span class="sd">        *Chromatic adaptation* method.</span>
+<span class="sd">    random_generator : generator, optional</span>
+<span class="sd">        Random triplet generator providing the random samples within the *Lab*</span>
+<span class="sd">        colourspace volume.</span>
+<span class="sd">    random_state : RandomState, optional</span>
+<span class="sd">        Mersenne Twister pseudo-random number generator to use in the random</span>
+<span class="sd">        number generator.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    integer</span>
+<span class="sd">        Within *RGB* colourspace volume samples count.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    -   The doctest is assuming that :func:`np.random.RandomState` definition</span>
+<span class="sd">        will return the same sequence no matter which *OS* or *Python*</span>
+<span class="sd">        version is used. There is however no formal promise about the *prng*</span>
+<span class="sd">        sequence reproducibility of either *Python* or *Numpy*</span>
+<span class="sd">        implementations: Laurent. (2012). Reproducibility of python</span>
+<span class="sd">        pseudo-random numbers across systems and versions? Retrieved January</span>
+<span class="sd">        20, 2015, from http://stackoverflow.com/questions/8786084/\</span>
+<span class="sd">reproducibility-of-python-pseudo-random-numbers-across-systems-and-versions</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; from colour.models import sRGB_COLOURSPACE as sRGB</span>
+<span class="sd">    &gt;&gt;&gt; prng = np.random.RandomState(2)</span>
+<span class="sd">    &gt;&gt;&gt; sample_RGB_colourspace_volume_MonteCarlo(sRGB, 10e3, random_state=prng)</span>
+<span class="sd">    ... # doctest: +ELLIPSIS</span>
+<span class="sd">    9...</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">random_state</span> <span class="o">=</span> <span class="p">(</span><span class="n">random_state</span>
+                    <span class="k">if</span> <span class="n">random_state</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">RandomState</span><span class="p">())</span>
+
+    <span class="n">Lab</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">random_generator</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="n">limits</span><span class="p">,</span> <span class="n">random_state</span><span class="p">)))</span>
+    <span class="n">RGB</span> <span class="o">=</span> <span class="n">XYZ_to_RGB</span><span class="p">(</span>
+        <span class="n">Lab_to_XYZ</span><span class="p">(</span><span class="n">Lab</span><span class="p">,</span> <span class="n">illuminant_Lab</span><span class="p">),</span>
+        <span class="n">illuminant_Lab</span><span class="p">,</span>
+        <span class="n">colourspace</span><span class="o">.</span><span class="n">whitepoint</span><span class="p">,</span>
+        <span class="n">colourspace</span><span class="o">.</span><span class="n">XYZ_to_RGB_matrix</span><span class="p">,</span>
+        <span class="n">chromatic_adaptation_transform</span><span class="o">=</span><span class="p">(</span><span class="n">chromatic_adaptation_method</span><span class="p">))</span>
+    <span class="n">RGB_w</span> <span class="o">=</span> <span class="n">RGB</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">logical_and</span><span class="p">(</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">RGB</span><span class="p">,</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">RGB</span><span class="p">,</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="p">)]</span>
+    <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="n">RGB_w</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="RGB_colourspace_limits"><a class="viewcode-back" href="../../../generated/colour.RGB_colourspace_limits.html#colour.RGB_colourspace_limits">[docs]</a><span class="k">def</span> <span class="nf">RGB_colourspace_limits</span><span class="p">(</span>
+        <span class="n">colourspace</span><span class="p">,</span>
+        <span class="n">illuminant</span><span class="o">=</span><span class="n">ILLUMINANTS</span><span class="p">[</span><span class="s1">&#39;CIE 1931 2 Degree Standard Observer&#39;</span><span class="p">][</span><span class="s1">&#39;D50&#39;</span><span class="p">]):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Computes given *RGB* colourspace volume limits in *Lab* colourspace.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    colourspace : RGB_Colourspace</span>
+<span class="sd">        *RGB* colourspace to compute the volume of.</span>
+<span class="sd">    illuminant : array_like, optional</span>
+<span class="sd">        *Lab* colourspace *illuminant* chromaticity coordinates.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    ndarray</span>
+<span class="sd">        *RGB* colourspace volume limits.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; from colour import sRGB_COLOURSPACE as sRGB</span>
+<span class="sd">    &gt;&gt;&gt; RGB_colourspace_limits(sRGB)  # doctest: +ELLIPSIS</span>
+<span class="sd">    array([[   0...        ,  100.0000848...],</span>
+<span class="sd">           [ -79.2197012...,   94.6760011...],</span>
+<span class="sd">           [-114.7814393...,   96.7261797...]])</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">Lab</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">combination</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">itertools</span><span class="o">.</span><span class="n">product</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">repeat</span><span class="o">=</span><span class="mi">3</span><span class="p">)):</span>
+        <span class="n">Lab</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+            <span class="n">XYZ_to_Lab</span><span class="p">(</span>
+                <span class="n">RGB_to_XYZ</span><span class="p">(</span><span class="n">combination</span><span class="p">,</span> <span class="n">colourspace</span><span class="o">.</span><span class="n">whitepoint</span><span class="p">,</span> <span class="n">illuminant</span><span class="p">,</span>
+                           <span class="n">colourspace</span><span class="o">.</span><span class="n">RGB_to_XYZ_matrix</span><span class="p">)))</span>
+    <span class="n">Lab</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">Lab</span><span class="p">)</span>
+
+    <span class="n">limits</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">3</span><span class="p">):</span>
+        <span class="n">limits</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">Lab</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">i</span><span class="p">]),</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">Lab</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">i</span><span class="p">])))</span>
+
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">limits</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="RGB_colourspace_volume_MonteCarlo"><a class="viewcode-back" href="../../../generated/colour.RGB_colourspace_volume_MonteCarlo.html#colour.RGB_colourspace_volume_MonteCarlo">[docs]</a><span class="k">def</span> <span class="nf">RGB_colourspace_volume_MonteCarlo</span><span class="p">(</span>
+        <span class="n">colourspace</span><span class="p">,</span>
+        <span class="n">samples</span><span class="o">=</span><span class="mf">10e6</span><span class="p">,</span>
+        <span class="n">limits</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">100</span><span class="p">],</span> <span class="p">[</span><span class="o">-</span><span class="mi">150</span><span class="p">,</span> <span class="mi">150</span><span class="p">],</span> <span class="p">[</span><span class="o">-</span><span class="mi">150</span><span class="p">,</span> <span class="mi">150</span><span class="p">]]),</span>
+        <span class="n">illuminant_Lab</span><span class="o">=</span><span class="n">ILLUMINANTS</span><span class="p">[</span><span class="s1">&#39;CIE 1931 2 Degree Standard Observer&#39;</span><span class="p">][</span>
+            <span class="s1">&#39;D50&#39;</span><span class="p">],</span>
+        <span class="n">chromatic_adaptation_method</span><span class="o">=</span><span class="s1">&#39;CAT02&#39;</span><span class="p">,</span>
+        <span class="n">random_generator</span><span class="o">=</span><span class="n">random_triplet_generator</span><span class="p">,</span>
+        <span class="n">random_state</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">processes</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Performs given *RGB* colourspace volume computation using *Monte Carlo*</span>
+<span class="sd">    method and multiprocessing.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    colourspace : RGB_Colourspace</span>
+<span class="sd">        *RGB* colourspace to compute the volume of.</span>
+<span class="sd">    samples : numeric, optional</span>
+<span class="sd">        Samples count.</span>
+<span class="sd">    limits : array_like, optional</span>
+<span class="sd">        *Lab* colourspace volume.</span>
+<span class="sd">    illuminant_Lab : array_like, optional</span>
+<span class="sd">        *Lab* colourspace *illuminant* chromaticity coordinates.</span>
+<span class="sd">    chromatic_adaptation_method : unicode, optional</span>
+<span class="sd">        **{&#39;CAT02&#39;, &#39;XYZ Scaling&#39;, &#39;Von Kries&#39;, &#39;Bradford&#39;, &#39;Sharp&#39;,</span>
+<span class="sd">        &#39;Fairchild&#39;, &#39;CMCCAT97&#39;, &#39;CMCCAT2000&#39;, &#39;CAT02_BRILL_CAT&#39;, &#39;Bianco&#39;,</span>
+<span class="sd">        &#39;Bianco PC&#39;}**,</span>
+<span class="sd">        *Chromatic adaptation* method.</span>
+<span class="sd">    random_generator : generator, optional</span>
+<span class="sd">        Random triplet generator providing the random samples within the *Lab*</span>
+<span class="sd">        colourspace volume.</span>
+<span class="sd">    random_state : RandomState, optional</span>
+<span class="sd">        Mersenne Twister pseudo-random number generator to use in the random</span>
+<span class="sd">        number generator.</span>
+<span class="sd">    processes : integer, optional</span>
+<span class="sd">        Processes count, default to :func:`multiprocessing.cpu_count`</span>
+<span class="sd">        definition.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    float</span>
+<span class="sd">        *RGB* colourspace volume.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    -   The doctest is assuming that :func:`np.random.RandomState` definition</span>
+<span class="sd">        will return the same sequence no matter which *OS* or *Python*</span>
+<span class="sd">        version is used. There is however no formal promise about the *prng*</span>
+<span class="sd">        sequence reproducibility of either *Python* or *Numpy*</span>
+<span class="sd">        implementations: Laurent. (2012). Reproducibility of python</span>
+<span class="sd">        pseudo-random numbers across systems and versions? Retrieved January</span>
+<span class="sd">        20, 2015, from http://stackoverflow.com/questions/8786084/\</span>
+<span class="sd">reproducibility-of-python-pseudo-random-numbers-across-systems-and-versions</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; from colour import sRGB_COLOURSPACE as sRGB</span>
+<span class="sd">    &gt;&gt;&gt; prng = np.random.RandomState(2)</span>
+<span class="sd">    &gt;&gt;&gt; processes = 1</span>
+<span class="sd">    &gt;&gt;&gt; RGB_colourspace_volume_MonteCarlo(sRGB, 10e3, random_state=prng,</span>
+<span class="sd">    ...                                   processes=processes)</span>
+<span class="sd">    ... # doctest: +ELLIPSIS</span>
+<span class="sd">    858...</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">cpu_count</span> <span class="o">=</span> <span class="n">processes</span> <span class="k">if</span> <span class="n">processes</span> <span class="k">else</span> <span class="n">multiprocessing</span><span class="o">.</span><span class="n">cpu_count</span><span class="p">()</span>
+    <span class="n">pool</span> <span class="o">=</span> <span class="n">multiprocessing</span><span class="o">.</span><span class="n">Pool</span><span class="p">(</span><span class="n">processes</span><span class="o">=</span><span class="n">cpu_count</span><span class="p">)</span>
+
+    <span class="n">process_samples</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="n">samples</span> <span class="o">/</span> <span class="n">cpu_count</span><span class="p">))</span>
+
+    <span class="n">arguments</span> <span class="o">=</span> <span class="p">(</span><span class="n">colourspace</span><span class="p">,</span> <span class="n">process_samples</span><span class="p">,</span> <span class="n">limits</span><span class="p">,</span> <span class="n">illuminant_Lab</span><span class="p">,</span>
+                 <span class="n">chromatic_adaptation_method</span><span class="p">,</span> <span class="n">random_generator</span><span class="p">,</span> <span class="n">random_state</span><span class="p">)</span>
+
+    <span class="n">results</span> <span class="o">=</span> <span class="n">pool</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">_wrapper_RGB_colourspace_volume_MonteCarlo</span><span class="p">,</span>
+                       <span class="p">[</span><span class="n">arguments</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">cpu_count</span><span class="p">)])</span>
+
+    <span class="n">Lab_volume</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">product</span><span class="p">([</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">x</span><span class="p">))</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">limits</span><span class="p">])</span>
+
+    <span class="k">return</span> <span class="n">Lab_volume</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">results</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">process_samples</span> <span class="o">*</span> <span class="n">cpu_count</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="RGB_colourspace_volume_coverage_MonteCarlo"><a class="viewcode-back" href="../../../generated/colour.RGB_colourspace_volume_coverage_MonteCarlo.html#colour.RGB_colourspace_volume_coverage_MonteCarlo">[docs]</a><span class="k">def</span> <span class="nf">RGB_colourspace_volume_coverage_MonteCarlo</span><span class="p">(</span>
+        <span class="n">colourspace</span><span class="p">,</span>
+        <span class="n">coverage_sampler</span><span class="p">,</span>
+        <span class="n">samples</span><span class="o">=</span><span class="mf">10e6</span><span class="p">,</span>
+        <span class="n">random_generator</span><span class="o">=</span><span class="n">random_triplet_generator</span><span class="p">,</span>
+        <span class="n">random_state</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns given *RGB* colourspace percentage coverage of an arbitrary volume.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    colourspace : RGB_Colourspace</span>
+<span class="sd">        *RGB* colourspace to compute the volume coverage percentage.</span>
+<span class="sd">    coverage_sampler : object</span>
+<span class="sd">        Python object responsible for checking the volume coverage.</span>
+<span class="sd">    samples : numeric, optional</span>
+<span class="sd">        Samples count.</span>
+<span class="sd">    random_generator : generator, optional</span>
+<span class="sd">        Random triplet generator providing the random samples.</span>
+<span class="sd">    random_state : RandomState, optional</span>
+<span class="sd">        Mersenne Twister pseudo-random number generator to use in the random</span>
+<span class="sd">        number generator.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    float</span>
+<span class="sd">        Percentage coverage of volume.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; from colour import sRGB_COLOURSPACE as sRGB</span>
+<span class="sd">    &gt;&gt;&gt; prng = np.random.RandomState(2)</span>
+<span class="sd">    &gt;&gt;&gt; RGB_colourspace_volume_coverage_MonteCarlo(</span>
+<span class="sd">    ...     sRGB, is_within_pointer_gamut, 10e3, random_state=prng)</span>
+<span class="sd">    ... # doctest: +ELLIPSIS</span>
+<span class="sd">    83...</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">random_state</span> <span class="o">=</span> <span class="p">(</span><span class="n">random_state</span>
+                    <span class="k">if</span> <span class="n">random_state</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">RandomState</span><span class="p">())</span>
+
+    <span class="c1"># TODO: Investigate for generator yielding directly a ndarray.</span>
+    <span class="n">XYZ</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span>
+        <span class="nb">list</span><span class="p">(</span><span class="n">random_generator</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="n">random_state</span><span class="o">=</span><span class="n">random_state</span><span class="p">)))</span>
+    <span class="n">XYZ_vs</span> <span class="o">=</span> <span class="n">XYZ</span><span class="p">[</span><span class="n">coverage_sampler</span><span class="p">(</span><span class="n">XYZ</span><span class="p">)]</span>
+
+    <span class="n">RGB</span> <span class="o">=</span> <span class="n">XYZ_to_RGB</span><span class="p">(</span><span class="n">XYZ_vs</span><span class="p">,</span> <span class="n">colourspace</span><span class="o">.</span><span class="n">whitepoint</span><span class="p">,</span> <span class="n">colourspace</span><span class="o">.</span><span class="n">whitepoint</span><span class="p">,</span>
+                     <span class="n">colourspace</span><span class="o">.</span><span class="n">XYZ_to_RGB_matrix</span><span class="p">)</span>
+
+    <span class="n">RGB_c</span> <span class="o">=</span> <span class="n">RGB</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">logical_and</span><span class="p">(</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">RGB</span><span class="p">,</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">RGB</span><span class="p">,</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="p">)]</span>
+
+    <span class="k">return</span> <span class="mi">100</span> <span class="o">*</span> <span class="n">RGB_c</span><span class="o">.</span><span class="n">size</span> <span class="o">/</span> <span class="n">XYZ_vs</span><span class="o">.</span><span class="n">size</span></div>
+
+
+<div class="viewcode-block" id="RGB_colourspace_pointer_gamut_coverage_MonteCarlo"><a class="viewcode-back" href="../../../generated/colour.RGB_colourspace_pointer_gamut_coverage_MonteCarlo.html#colour.RGB_colourspace_pointer_gamut_coverage_MonteCarlo">[docs]</a><span class="k">def</span> <span class="nf">RGB_colourspace_pointer_gamut_coverage_MonteCarlo</span><span class="p">(</span>
+        <span class="n">colourspace</span><span class="p">,</span>
+        <span class="n">samples</span><span class="o">=</span><span class="mf">10e6</span><span class="p">,</span>
+        <span class="n">random_generator</span><span class="o">=</span><span class="n">random_triplet_generator</span><span class="p">,</span>
+        <span class="n">random_state</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns given *RGB* colourspace percentage coverage of Pointer&#39;s Gamut</span>
+<span class="sd">    volume using *Monte Carlo* method.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    colourspace : RGB_Colourspace</span>
+<span class="sd">        *RGB* colourspace to compute the *Pointer&#39;s Gamut* coverage percentage.</span>
+<span class="sd">    samples : numeric, optional</span>
+<span class="sd">        Samples count.</span>
+<span class="sd">    random_generator : generator, optional</span>
+<span class="sd">        Random triplet generator providing the random samples.</span>
+<span class="sd">    random_state : RandomState, optional</span>
+<span class="sd">        Mersenne Twister pseudo-random number generator to use in the random</span>
+<span class="sd">        number generator.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    float</span>
+<span class="sd">        Percentage coverage of *Pointer&#39;s Gamut* volume.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; from colour import sRGB_COLOURSPACE as sRGB</span>
+<span class="sd">    &gt;&gt;&gt; prng = np.random.RandomState(2)</span>
+<span class="sd">    &gt;&gt;&gt; RGB_colourspace_pointer_gamut_coverage_MonteCarlo(</span>
+<span class="sd">    ...     sRGB, 10e3, random_state=prng)  # doctest: +ELLIPSIS</span>
+<span class="sd">    83...</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">return</span> <span class="n">RGB_colourspace_volume_coverage_MonteCarlo</span><span class="p">(</span>
+        <span class="n">colourspace</span><span class="p">,</span> <span class="n">is_within_pointer_gamut</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">random_generator</span><span class="p">,</span>
+        <span class="n">random_state</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="RGB_colourspace_visible_spectrum_coverage_MonteCarlo"><a class="viewcode-back" href="../../../generated/colour.RGB_colourspace_visible_spectrum_coverage_MonteCarlo.html#colour.RGB_colourspace_visible_spectrum_coverage_MonteCarlo">[docs]</a><span class="k">def</span> <span class="nf">RGB_colourspace_visible_spectrum_coverage_MonteCarlo</span><span class="p">(</span>
+        <span class="n">colourspace</span><span class="p">,</span>
+        <span class="n">samples</span><span class="o">=</span><span class="mf">10e6</span><span class="p">,</span>
+        <span class="n">random_generator</span><span class="o">=</span><span class="n">random_triplet_generator</span><span class="p">,</span>
+        <span class="n">random_state</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns given *RGB* colourspace percentage coverage of visible spectrum</span>
+<span class="sd">    volume using *Monte Carlo* method.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    colourspace : RGB_Colourspace</span>
+<span class="sd">        *RGB* colourspace to compute the visible spectrum coverage percentage.</span>
+<span class="sd">    samples : numeric, optional</span>
+<span class="sd">        Samples count.</span>
+<span class="sd">    random_generator : generator, optional</span>
+<span class="sd">        Random triplet generator providing the random samples.</span>
+<span class="sd">    random_state : RandomState, optional</span>
+<span class="sd">        Mersenne Twister pseudo-random number generator to use in the random</span>
+<span class="sd">        number generator.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    float</span>
+<span class="sd">        Percentage coverage of visible spectrum volume.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; from colour import sRGB_COLOURSPACE as sRGB</span>
+<span class="sd">    &gt;&gt;&gt; prng = np.random.RandomState(2)</span>
+<span class="sd">    &gt;&gt;&gt; RGB_colourspace_visible_spectrum_coverage_MonteCarlo(</span>
+<span class="sd">    ...     sRGB, 10e3, random_state=prng)  # doctest: +ELLIPSIS</span>
+<span class="sd">    36...</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">return</span> <span class="n">RGB_colourspace_volume_coverage_MonteCarlo</span><span class="p">(</span>
+        <span class="n">colourspace</span><span class="p">,</span> <span class="n">is_within_visible_spectrum</span><span class="p">,</span> <span class="n">samples</span><span class="p">,</span> <span class="n">random_generator</span><span class="p">,</span>
+        <span class="n">random_state</span><span class="p">)</span></div>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright  2013-2018 - Colour Developers.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../',
+            VERSION:'0.3.11',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>
