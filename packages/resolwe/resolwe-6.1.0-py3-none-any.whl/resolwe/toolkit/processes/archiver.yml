@@ -1,0 +1,47 @@
+- slug: archiver
+  name: Archive Files
+  data_name: File archive
+  requirements:
+    expression-engine: jinja
+    executor:
+      docker:
+        image: resolwe/archiver
+  version: 0.0.1
+  type: "data:archive:"
+  category: other
+  persistence: TEMP
+  description: >
+    Create an archive of output files. The process does not support
+    nested outputs or directory fields.
+  input:
+    - name: data
+      label: Data list
+      type: list:data
+    - name: fields
+      label: Output file fields
+      type: list:basic:string
+    - name: j
+      label: Junk paths
+      type: basic:boolean
+      description: Store just names of saved files (junk the path)
+      default: False
+  output:
+    - name: archive
+      label: Archive
+      type: basic:file
+  run:
+    language: bash
+    program: |
+      zip -0 {% if j %}-j {% endif %}results.zip \
+      {% for d in data %}{% for field in fields %} \
+        {% if d[field].file %} \
+          {{ d[field].file }} {% for ref in d[field].refs %}{{ ref }} {% endfor %} \
+        {% endif %} \
+        {% for file in d[field] %} \
+          {% if file.file %} \
+            {{ file.file }} {% for ref in file.refs %}{{ ref }} {% endfor %} \
+          {% endif %} \
+        {% endfor %} \
+      {% endfor %}{% endfor %} \
+
+      re-save-file archive results.zip
