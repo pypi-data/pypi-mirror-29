@@ -1,0 +1,313 @@
+|License| |Build Status|
+
+Introduction
+============
+
+This project provides a Python 2.7/3.x library that allows the user to
+quickly create CLI prompts for user input. The main features of this
+library are:
+
+-  Simple multi-entry menus.
+
+-  Prompt for typed (integer/float/string) input.
+
+-  Optional default values and validity checks.
+
+-  Various CLI convenience functions.
+
+-  User input can optionally be supplied from script command-line
+   arguments allowing for simple automation.
+
+-  Should work on any platform without additional dependencies.
+
+Status
+======
+
+Currently, this project is in the **development release** stage. While
+this project is suitable for use, please note that there may be
+incompatibilities in new releases.
+
+Release notes are maintained in the project
+`changelog <https://github.com/jeffrimko/Qprompt/blob/master/CHANGELOG.adoc>`__.
+
+Requirements
+============
+
+Qprompt should run on any Python 2.7/3.x interpreter without additional
+dependencies.
+
+Installation
+============
+
+Qprompt can be installed with pip using the following command:
+``pip install qprompt``
+
+Additionally, Qprompt can be installed from source by running:
+``python setup.py install``
+
+Usage
+=====
+
+Start by importing Qprompt into your Python script:
+
+.. code:: python
+
+    import qprompt
+
+You can prompt the user for various input types:
+
+.. code:: python
+
+    qprompt.ask_yesno()
+    qprompt.ask_int()
+    qprompt.ask_float()
+    qprompt.ask_str()
+
+All prompts requiring user input will start with ``[?]``:
+
+.. code:: python
+
+    qprompt.ask_int()
+    # [?] Enter an integer:
+
+At any prompt, the user can enter the ``?`` character to show valid
+entries:
+
+.. code:: python
+
+    qprompt.ask_yesno()
+    # [?] Proceed?: ?
+    # ['N', 'NO', 'Y', 'YES', 'n', 'no', 'y', 'yes']
+
+The default prompt message can be changed:
+
+.. code:: python
+
+    qprompt.ask_str("Enter your name")
+    # [?] Enter your name:
+
+An optional default value can be supplied:
+
+.. code:: python
+
+    qprompt.ask_yesno(dft="y")
+    # [?] Proceed? [y]:
+
+Optional validity checks can be added:
+
+.. code:: python
+
+    qprompt.ask_int(vld=[1,2,3])
+    # [?] Enter an integer: 4
+    # [?] Enter an integer: 1
+
+    qprompt.ask_str(vld=lambda x: x.startswith("spa"))
+    # [?] Enter a string: foo
+    # [?] Enter a string: spam
+
+    qprompt.ask_str("Enter a path", vld=lambda x: os.path.exists(x))
+    # [?] Enter a path: C:\Windows
+
+Robot problem? Try using a captcha:
+
+.. code:: python
+
+    qprompt.ask_captcha()
+    # [?] Enter the following letters, "kslg":
+
+    qprompt.ask_captcha(length=6)
+    # [?] Enter the following letters, "dkixzp":
+
+Menus are easy to make:
+
+.. code:: python
+
+    menu = qprompt.Menu()
+    menu.add("p", "Previous")
+    menu.add("n", "Next")
+    menu.add("q", "Quit")
+    choice = menu.show()
+    # -- MENU --
+    #   (p) Previous
+    #   (n) Next
+    #   (q) Quit
+    # [?] Enter menu selection:
+
+The menu entry name (first parameter of ``add()``) is returned by
+default but can be changed:
+
+.. code:: python
+
+    print(menu.show())
+    # [?] Enter menu selection: p
+    # p
+
+    print(menu.show(returns="desc"))
+    # [?] Enter menu selection: p
+    # Previous
+
+Your menus can do cool stuff by registering functions:
+
+.. code:: python
+
+    def foo(a, b):
+        print(a + b)
+    menu.add("f", "foo", foo, [1, 2])
+
+Some print-like functions:
+
+.. code:: python
+
+    qprompt.echo("foo")
+    # foo
+
+    qprompt.alert("bar")
+    # [!] bar
+
+    qprompt.warn("baz")
+    # [WARNING] baz
+
+    qprompt.error("qux")
+    # [ERROR] qux
+
+Got a function that takes a while? Show that it is running with
+``status`` which can be used as a function or decorator:
+
+.. code:: python
+
+    qprompt.status("Doing stuff...", time.sleep, [1])
+    # [!] Doing stuff... DONE.
+
+    @qprompt.status("Doing more stuff...")
+    def do_stuff():
+        time.sleep(1)
+    do_stuff()
+    # [!] Doing more stuff... DONE.
+
+Additional convenience functions:
+
+.. code:: python
+
+    qprompt.pause()
+    # Press ENTER to continue...
+
+    qprompt.hrule(width=10)
+    # ----------
+
+    qprompt.wrap("hello world", "hi", width=10)
+    # /-- hi ---
+    # hello world
+    # \---------
+
+Check out the following additional examples of Qprompt; more can be
+found
+`here <https://github.com/jeffrimko/Qprompt/tree/master/examples>`__:
+
+-  `examples/ask\_1.py <https://github.com/jeffrimko/Qprompt/blob/master/examples/ask_1.py>`__
+   - Basic info prompting.
+
+-  `examples/menu\_1.py <https://github.com/jeffrimko/Qprompt/blob/master/examples/menu_1.py>`__
+   - Basic menu usage.
+
+-  `examples/display\_1.py <https://github.com/jeffrimko/Qprompt/blob/master/examples/display_1.py>`__
+   - Basic display functions.
+
+-  `examples/status\_1.py <https://github.com/jeffrimko/Qprompt/blob/master/examples/status_1.py>`__
+   - Basic status function usage.
+
+Input Automation
+----------------
+
+User input can be automated using command-line arguments to the script.
+
+Use the ``StdinAuto()`` context manager to automatically pass a list of
+strings to input functions:
+
+.. code:: python
+
+    with qprompt.StdinAuto(["foo","bar","42"]):
+        print(ask_str())
+        print(ask_str())
+        print(ask_int())
+    # foo
+    # bar
+    # 42
+
+The ``stdin_auto`` context manager will automatically pass script
+command-line arguments to input functions:
+
+.. code:: python
+
+    with qprompt.stdin_auto:
+        print(ask_str())
+        print(ask_str())
+        print(ask_int())
+    # $ python example.py foo bar 42
+    # foo
+    # bar
+    # 42
+
+Menus can be automated using the ``main()`` method:
+
+.. code:: python
+
+    menu = qprompt.Menu
+    menu.add("f", "Foo", some_useful_function)
+    menu.add("b", "Bar", another_useful_function)
+    menu.main()
+    # $ python example.py f
+    # some_useful_function() ran just now!
+
+Menus can optionally loop allowing for multiple tasks to be run:
+
+.. code:: python
+
+    menu = qprompt.Menu
+    menu.add("f", "Foo", some_useful_function)
+    menu.add("b", "Bar", another_useful_function)
+    menu.main(loop=True)
+    # $ python example.py f b q
+    # some_useful_function() ran just now!
+    # another_useful_function() ran just now!
+
+If no arguments are passed to the script, the input prompts will act as
+normal.
+
+Documentation
+=============
+
+The full documentation for this project can be found `here on Read the
+Docs <http://qprompt.readthedocs.io>`__.
+
+Roadmap
+=======
+
+The following potential updates are under consideration:
+
+-  Accept multiple menu choices from user at once; e.g. space separated
+   entries like ``1 2 q``.
+
+-  Default value for menus.
+
+-  Timeouts for prompt inputs; default value used if timed out.
+
+Similar
+=======
+
+The following projects are similar and may be worth checking out:
+
+-  `cliask <https://github.com/Sleft/cliask>`__
+
+-  `Promptly <https://github.com/aventurella/promptly>`__
+
+-  `python-inquirer <https://github.com/magmax/python-inquirer>`__
+
+-  `python-prompt <https://github.com/sfischer13/python-prompt>`__
+
+-  `python-prompt-toolkit <https://github.com/jonathanslenders/python-prompt-toolkit>`__
+
+-  `prompter <https://github.com/tylerdave/prompter>`__
+
+.. |Qprompt| image:: doc/logo/qprompt.png
+.. |License| image:: http://img.shields.io/:license-mit-blue.svg
+.. |Build Status| image:: https://travis-ci.org/jeffrimko/Qprompt.svg?branch=master
