@@ -1,0 +1,1343 @@
+{% extends 'cpbase.html' %}
+
+{% block pagecontent %}
+<div class="row">
+
+  <div class="col-sm-2 sidebar">
+
+    <div class="row">
+      <div class="col-sm-12 help-text text-sm-center">
+        <a href="#" id="shortcuts-box" data-toggle="modal"
+           data-target="#help-box">Keyboard shortcuts and help</a>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-sm-12">
+        <h5 class="text-sm-center">Checkplot Pickles</h5>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-sm-12 sidebar-label">
+          <strong>Sorted:</strong> {{ project_cpsortkey }} &mdash; {{ project_cpsortorder }}
+      </div>
+    </div>
+
+    {% if project_cpfilterstatements %}
+    <div class="row">
+      <div class="col-sm-12 sidebar-label">
+        {% for filt in project_cpfilterstatements %}
+        <strong>Filtered:</strong> {{ filt }}<br>
+        {% end %}
+      </div>
+    </div>
+    {% end %}
+
+    <div class="row sidebar-list">
+      <div class="col-sm-12">
+        <ul id="checkplotlist" class="list-unstyled">
+          {% for cplpath, cplbase, cplind in zip(project_checkplots, project_checkplotbasenames,project_checkplotindices) %}
+          <li>
+            <span class="object-status" data-fname="{{ cplpath }}"></span>
+            <a class="checkplot-load" href="#"
+               data-findex="{{ cplind }}"
+               data-fname="{{ cplpath }}">
+              {{ cplbase }}
+            </a>
+            <span class="object-disposition" data-fname="{{ cplpath }}"></span>
+          </li>
+          {% end %}
+        </ul>
+      </div>
+    </div>
+
+    <!-- <\!-- FIXME: fill this in later. this is the control for filtering all checkplots -\-> -->
+    <!-- <div class="row"> -->
+    <!--   <div class="col-sm-12 text-sm-center"> -->
+    <!--     <select class="custom-select form-control" -->
+    <!--             id="checkplotfilter" name="checkplotfilter"> -->
+    <!--       <option value="0" selected>Show all checkplots</option> -->
+    <!--       <option value="1">Show reviewed checkplots</option> -->
+    <!--       <option value="2">Show unreviewed checkplots</option> -->
+    <!--     </select> -->
+    <!--   </div> -->
+    <!-- </div> -->
+
+    <div class="row sidebar-controls">
+      <div class="col-sm-12">
+        <h5 class="text-sm-center">Reviewed Objects</h5>
+
+        <!-- this is where downloads appear -->
+        <div class="row">
+          <div class="col-sm-12 download-center text-sm-center">
+            <p>Reviewed objects so far:
+              <strong><span id="saved-count">0/{{ len(project_checkplots) }}</span></strong></p>
+
+          </div>
+        </div>
+
+        <!-- this is the save project row -->
+        <div class="row">
+          <div class="col-sm-12 text-sm-center">
+
+            <p>Summary in
+              <button type="button" id="save-project-csv"
+                      class="btn btn-outline-primary btn-sm">
+                CSV
+              </button> or
+              <button type="button" id="save-project-json"
+                      class="btn btn-outline-primary btn-sm">
+                JSON
+            </button></p>
+
+          </div>
+        </div>
+
+        <div class="row bot-mrg-10px">
+          <div class="col-sm-12 text-sm-center">
+            <a id="download-anchor" style="display:none">
+              download data for saved objects
+            </a>
+          </div>
+        </div>
+
+        <!-- this is the status row -->
+        <div class="row status-list">
+          <div class="col-sm-12" >
+
+            <div id="project-status">
+
+            </div>
+
+          </div>
+        </div>
+
+        <!-- this is the control for filtering reviewed objects -->
+        <div class="row">
+          <div class="col-sm-12 text-sm-center">
+            <select class="custom-select form-control"
+                    id="reviewedfilter" name="reviewedfilter">
+              <option value="0">Show objects with no variable flag</option>
+              <option value="1">Show objects flagged as variable</option>
+              <option value="2">Show objects flagged as not variable</option>
+              <option value="3">Show objects flagged as maybe variable</option>
+              <option value="4" selected>Show all reviewed objects</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- this is a cheesy tag cloud. clicking on a tag, restricts the reviewed list to only those objects (with a reset button) -->
+        <div class="row pt-1">
+          <div class="col-sm-12 text-sm-center" id="objtag-cloud">
+          </div>
+        </div>
+
+        <!-- this is the location of the JSON file -->
+        <div class="row pb-1">
+          <div class="col-sm-12 text-sm-center">
+            {% if readonly %}
+            <p class="text-muted">The checkplotserver is in read-only mode. <strong>Changes will not be saved</strong>.</p>
+            {% else %}
+            <p class="text-muted">Updates are automatically synced to each checkplot pickle and the
+              checkplot list <strong><abbr title="{{ project_checkplotfile }}">JSON file</abbr></strong>.</p>
+            {% end %}
+          </div>
+        </div>
+
+        <!-- this tracks currently processing objects -->
+        <!-- contains divs of the form: -->
+        <!--   objectid (data-objectid, data-cpfname) -->
+        <!--   name of lctool running -->
+        <!--   state of lctool running -->
+        <div class="row">
+          <div class="col-sm-12 text-sm-center">
+
+            <div class="tool-queue">
+
+            </div>
+
+          </div>
+        </div>
+
+
+      </div>
+    </div>
+
+  </div>
+
+
+  <div class="col-sm-10">
+
+    <div class="row">
+      <div class="col-sm-12 text-sm-center">
+        <p><a href="#" class="checkplot-prev"
+              title="go to the previous checkplot [alt+shift+left]"><strong>&larr;</strong> previous</a> |
+          <span id="checkplot-current"></span> |
+          <a href="#" class="checkplot-next"
+             title="go to the next checkplot [alt+shift+right]">next <strong>&rarr;</strong></a>
+        </p>
+      </div>
+    </div>
+
+
+    <div class="row">
+
+      <div class="col-sm-3">
+
+        <div class="row objectinfo-row">
+          <div class="col-sm-12 text-sm-center">
+
+            <h4 id="objectid">objectid</h4>
+            <h6 id="twomassid">twomassid</h6>
+            <img class="img-fluid" id="finderchart">
+
+          </div>
+        </div>
+
+        <div class="row py-1">
+          <div class="col-sm-12 text-sm-center">
+
+            <select class="custom-select mousetrap" id="varcheck" name="varcheck">
+              <option value="0" selected>Is this a variable star?</option>
+              <option value="1">Probably a variable star</option>
+              <option value="2">Probably not a variable star</option>
+              <option value="3">Not sure if variable or not</option>
+            </select>
+
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="col-sm-12">
+            <div class="text-sm-center">
+              <strong>Period and epoch</strong>
+            </div>
+
+            <input type="text" class="form-control mousetrap"
+                   name="objectperiod" id="objectperiod"
+                   placeholder="period in days">
+            <input type="text" class="form-control mousetrap"
+                   name="objectepoch" id="objectepoch"
+                   placeholder="epoch in JD">
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="col-sm-12">
+            <div class="text-sm-center dropdown">
+              <a href="#" id="vartag-dropdown" data-toggle="dropdown"
+                 aria-haspopup="true" aria-expanded="false">
+                <strong>Variability tags</strong>
+              </a>
+
+              <div class="dropdown-menu dropdown-menu-right"
+                   aria-labelledby="vartag-dropdown">
+                <h6 class="dropdown-header">Add a tag from the list below<br>(or
+                  type in a new one)</h6>
+                <a class="dropdown-item vartag-dn" href="#"
+                   data-dnvartag="planet candidate">planet candidate</a>
+                <a class="dropdown-item vartag-dn" href="#"
+                   data-dnvartag="HADS">HADS</a>
+                <a class="dropdown-item vartag-dn" href="#"
+                   data-dnvartag="RRab">RRab</a>
+                <a class="dropdown-item vartag-dn" href="#"
+                   data-dnvartag="RRc">RRc</a>
+                <a class="dropdown-item vartag-dn" href="#"
+                   data-dnvartag="Cepheid">Cepheid</a>
+                <a class="dropdown-item vartag-dn" href="#"
+                   data-dnvartag="starspot rotation">starspot rotation</a>
+                <a class="dropdown-item vartag-dn" href="#"
+                   data-dnvartag="LPV">LPV</a>
+                <a class="dropdown-item vartag-dn" href="#"
+                   data-dnvartag="Mira">Mira</a>
+                <a class="dropdown-item vartag-dn" href="#"
+                   data-dnvartag="contact EB">contact EB</a>
+                <a class="dropdown-item vartag-dn" href="#"
+                   data-dnvartag="semi-detached EB">semi-detached EB</a>
+                <a class="dropdown-item vartag-dn" href="#"
+                   data-dnvartag="detached EB">detached EB</a>
+                <a class="dropdown-item vartag-dn" href="#"
+                   data-dnvartag="flare star">flare star</a>
+                <a class="dropdown-item vartag-dn" href="#"
+                   data-dnvartag="quasi-periodic">quasi-periodic variable</a>
+                <a class="dropdown-item vartag-dn" href="#"
+                   data-dnvartag="multi-periodic">multi-periodic variable</a>
+                <a class="dropdown-item vartag-dn" href="#"
+                   data-dnvartag="period harmonic">period harmonic</a>
+                <a class="dropdown-item vartag-dn" href="#"
+                   data-dnvartag="not actually variable">not actually variable?</a>
+                <a class="dropdown-item vartag-dn" href="#"
+                   data-dnvartag="weird variability">weird variability</a>
+              </div>
+
+            </div>
+            <input type="text" class="form-control mousetrap"
+                   name="vartags" id="vartags"
+                   placeholder="variability tag 1, variability tag 2,...">
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="col-sm-12">
+
+            <div class="text-sm-center dropdown">
+              <a href="#" id="objtag-dropdown" data-toggle="dropdown"
+                 aria-haspopup="true" aria-expanded="false">
+                <strong>Object tags</strong>
+              </a>
+
+              <div class="dropdown-menu dropdown-menu-right"
+                   aria-labelledby="objtag-dropdown">
+                <h6 class="dropdown-header">Add a tag from the list below<br>(or
+                  type in a new one)</h6>
+                <a class="dropdown-item objtag-dn" href="#"
+                   data-dnobjtag="white dwarf">white dwarf</a>
+                <a class="dropdown-item objtag-dn" href="#"
+                   data-dnobjtag="hot star (OB)">hot star (OB)</a>
+                <a class="dropdown-item objtag-dn" href="#"
+                   data-dnobjtag="A star">A star</a>
+                <a class="dropdown-item objtag-dn" href="#"
+                   data-dnobjtag="F or G star">F or G star</a>
+                <a class="dropdown-item objtag-dn" href="#"
+                   data-dnobjtag="red giant">red giant</a>
+                <a class="dropdown-item objtag-dn" href="#"
+                   data-dnobjtag="K or M dwarf">K or M dwarf</a>
+                <a class="dropdown-item objtag-dn" href="#"
+                   data-dnobjtag="giant star">giant star</a>
+                <a class="dropdown-item objtag-dn" href="#"
+                   data-dnobjtag="dwarf star">dwarf star</a>
+                <a class="dropdown-item objtag-dn" href="#"
+                   data-dnobjtag="blended with neighbors">blended with neighbors</a>
+                <a class="dropdown-item objtag-dn" href="#"
+                   data-dnobjtag="bad offset">bad offset</a>
+                <a class="dropdown-item objtag-dn" href="#"
+                   data-dnobjtag="TODO prewhiten signal">TODO prewhiten signal</a>
+                <a class="dropdown-item objtag-dn" href="#"
+                   data-dnobjtag="TODO mask signal">TODO mask signal</a>
+                <a class="dropdown-item objtag-dn" href="#"
+                   data-dnobjtag="redo sigclip">redo sigclip</a>
+                <a class="dropdown-item objtag-dn" href="#"
+                   data-dnobjtag="nearby object">nearby object</a>
+                <a class="dropdown-item objtag-dn" href="#"
+                   data-dnobjtag="weird object">weird object</a>
+              </div>
+
+            </div>
+            <input type="text" class="form-control mousetrap"
+                   name="objecttags" id="objecttags"
+                   placeholder="object tag 1, object tag 2,...">
+          </div>
+        </div>
+
+        <!-- this is the comments box -->
+        <div class="row">
+          <div class="col-sm-12">
+            <div class="text-sm-center">
+              <strong>Comments</strong>
+            </div>
+
+            <textarea class="form-control mousetrap" id="objectcomments" rows="5">
+            </textarea>
+          </div>
+        </div>
+
+        <!-- this is the alert box -->
+        <div class="row py-1">
+          <div class="col-sm-12 text-sm-center" id="alert-box">
+
+          </div>
+        </div>
+
+      </div>
+
+
+      <div class="col-sm-9">
+
+        <div class="row">
+
+          <!-- contains the periodogram and phased LCs for each method-->
+          <!-- each method gets their own column with as many rows as necessary -->
+          <div class="col-sm-12">
+
+            <div class="row">
+              <div class="col-sm-12">
+                <ul class="nav nav-tabs" role="tablist">
+
+                  <li class="nav-item">
+                    <a class="nav-link active" id="overview-tab"
+                       data-toggle="tab" title="object overview [alt+shift+o]"
+                       href="#overview" role="tab">Overview</a>
+                  </li>
+
+                  <li class="nav-item">
+                    <a class="nav-link" id="phasedlcs-tab"
+                       data-toggle="tab" title="phased light curves [alt+shift+l]"
+                       href="#phasedlcs" role="tab">Phased LCs</a>
+                  </li>
+
+                  <li class="nav-item">
+                    <a class="nav-link" id="xmatches-tab"
+                       data-toggle="tab" title="cross-matches for this object [alt+shift+x]"
+                       href="#xmatches" role="tab">Cross Matches</a>
+                  </li>
+
+                  {% if not readonly %}
+
+                  <li class="nav-item">
+                    <a class="nav-link" id="periodsearch-tab"
+                       data-toggle="tab" title="run a new period-search [alt+shift+p]"
+                       href="#periodsearch" role="tab">Period Search</a>
+                  </li>
+
+                  <!-- FIXME: finish these later, disabled for now -->
+                  <!-- <li class="nav-item"> -->
+                  <!--   <a class="nav-link" -->
+                  <!--      data-toggle="tab" -->
+                  <!--      href="#variability" role="tab">Variability</a> -->
+                  <!-- </li> -->
+
+                  <!-- <li class="nav-item"> -->
+                  <!--   <a class="nav-link" -->
+                  <!--      data-toggle="tab" -->
+                  <!--      href="#lcfit" role="tab">LC Fit</a> -->
+                  <!-- </li> -->
+
+                  {% end %}
+
+                  <li class="nav-item">
+                    <a class="nav-link"
+                       data-toggle="tab"
+                       href="#cpsave" role="tab">Save/Reset</a>
+                  </li>
+
+
+                </ul>
+              </div>
+            </div>
+
+            <div class="tab-content">
+
+
+              <!-- this tab panel contains an overview of the object -->
+              <div class="tab-pane active" id="overview" role="tabpanel">
+                <div class="row mt-2">
+
+                  <div class="col-md-5">
+
+                    <table id="objectinfo-basic"
+                           class="table table-sm objectinfo-table">
+
+                      <tr>
+                        <th>Observations</th>
+                        <td id="hatinfo">blah</td>
+                      </tr>
+                      <tr>
+                        <th>Coords and PM</th>
+                        <td id="coordspm">blah</td>
+                      </tr>
+                      <tr>
+                        <th>Magnitudes<span id="magnotice"></span></th>
+                        <td id="mags">blah</td>
+                      </tr>
+                      <tr>
+                        <th>Colors<span id="derednotice"></span></th>
+                        <td id="colors">blah</td>
+                      </tr>
+
+                    </table>
+
+                    <table id="objectinfo-extra" class="table table-sm objectinfo-table">
+                    </table>
+
+                  </div>
+
+                  <div class="col-md-7">
+                    <img class="img-fluid magseriesplot">
+                  </div>
+
+                </div>
+
+                <div class="row">
+
+                  <div class="col-sm-5">
+                    <h5><span id="lcc-neighbor-count">0</span> LC collection neighbor(s) within <span id="lcc-neighbor-maxdist"></span>&Prime;</h5>
+
+                    <p class="align-middle">Neighbors for this object from this light curve collection are listed below in order of increasing distance.  Their unphased LC and phased LCs using the same period-finder methods, and best period and fold epoch, as for the object are also shown.</p>
+
+                  </div>
+
+                  <div class="col-sm-7 neighbor-table-row">
+
+                    <h5><span id="gaia-neighbor-count">0</span> GAIA neighbor(s) within <span id="gaia-neighbor-maxdist"></span>&Prime;</h5>
+
+                    <table id="gaia-neighbors" class="table table-sm objectinfo-table table-hover">
+                      <thead>
+                        <tr>
+                          <th>GAIA source id<br>&nbsp;</th>
+                          <th>distance<br>[arcsec]</th>
+                          <th>parallax<br>[mas]</th>
+                          <th><em>G</em><br>[mag]</th>
+                          <th><em>M<sub>G</sub></em><br>[mag]</th>
+                        </tr>
+                      </thead>
+                      <tbody id="gaia-neighbor-tbody">
+
+                      </tbody>
+                    </table>
+
+                  </div>
+
+                </div>
+
+                <div class="row tool-header-panel" id="lcc-neighbor-container">
+
+                  <!-- for each neighbor we have a divrow with a heading of objectid, ra, decl, dist -->
+                  <!-- then for each periodfinder, the best phased LC for that periodfinder -->
+
+                </div>
+
+              </div>
+
+
+              <!-- this tab panel contains the phased light curve plots -->
+              <div class="tab-pane" id="phasedlcs" role="tabpanel">
+                <div class="row phased-container tool-header-panel ">
+
+                </div>
+              </div>
+
+              <!-- this tab panel contains xmatch stuff -->
+              <div class="tab-pane" id="xmatches" role="tabpanel">
+                <div class="row tool-header-panel">
+
+                  <div class="col-sm-12" id="xmatch-content">
+
+                    <div id="matched-catalogs">
+                    </div>
+
+                    <div id="unmatched-catalogs">
+                    </div>
+
+                  </div>
+
+                </div>
+              </div>
+
+              {% if not readonly %}
+
+              <!-- this tab panel contains the period-tools -->
+              <div class="tab-pane" id="periodsearch" role="tabpanel">
+
+                <!-- this contains the periodogram runner controls -->
+                <div class="row tool-header-panel">
+
+                  <div class="col-sm-6">
+
+                    <div class="row">
+                      <div class="col-sm-12">
+                        <img class="img-fluid magseriesplot">
+                      </div>
+                    </div>
+
+                    <div class="form-group">
+                      <label for="psearch-timefilters">Apply time (JD - <span class="time0"></span>) filters [<code>t1:t2, not:t3:t4,...</code>]</label>
+                      <input type="text" class="form-control form-control-sm"
+                             id="psearch-timefilters" value="">
+                    </div>
+
+                    <div class="form-group">
+                      <label for="psearch-magfilters">Apply flux/mag filters [<code>y1:y2, not:y3:y4,...</code>]</label>
+                      <input type="text" class="form-control form-control-sm"
+                             id="psearch-magfilters" value="">
+                    </div>
+
+                    <div class="form-group">
+                      <label for="psearch-sigclip">Use sigma clip for LC [<code>lohi_sig</code> or <code>lo_sig, hi_sig</code>]</label>
+                      <input type="text" class="form-control form-control-sm"
+                             id="psearch-sigclip" value="">
+                    </div>
+
+                    <div class="form-check">
+                      <label class="form-check-label">
+                        <input type="checkbox" id="psearch-magsarefluxes"
+                               class="form-check-input">
+                        Light curve measurements are fluxes
+                      </label>
+                    </div>
+
+                  </div>
+
+                  <div class="col-sm-6">
+
+                    <button type="submit" id="psearch-start"
+                            class="btn btn-primary btn-block">
+                      Run a new period search
+                    </button>
+
+                    <div class="form-group mt-1">
+                      <label for="psearch-lspmethod">Period search method</label>
+                      <select class="custom-select form-control form-control-sm"
+                              id="psearch-lspmethod" name="psearch-lspmethod">
+                        <option value="gls" selected>Generalized Lomb-Scargle</option>
+                        <option value="pdm">Phase Dispersion Minimization</option>
+                        <option value="bls">Box Least-squared Search</option>
+                        <option value="aov">Analysis of Variance</option>
+                        <option value="mav">Multi-harmonic Analysis of Variance</option>
+                        <option value="acf">Autocorrelation Period Find</option>
+                        <option value="win">Timeseries Spectral Window Lomb-Scargle</option>
+                      </select>
+                    </div>
+
+                    <div class="row">
+                      <div class="col-sm-6">
+                        <div class="form-group">
+                          <label for="psearch-nbestpeaks">Periodogram peaks to get</label>
+                          <input type="text" class="form-control form-control-sm"
+                                 id="psearch-nbestpeaks" value="10">
+                        </div>
+                      </div>
+
+                      <div class="col-sm-6">
+                        <div class="form-group">
+                          <label for="psearch-freqstep">Frequency step [days<sup>-1</sup>]</label>
+                          <input type="text" class="form-control form-control-sm"
+                                 id="psearch-freqstep" disabled>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="row">
+                      <div class="col-sm-6">
+                        <div class="form-group">
+                          <label for="psearch-startp">Start period [days]</label>
+                          <input type="text" class="form-control form-control-sm"
+                                 id="psearch-startp" disabled>
+                        </div>
+                      </div>
+                      <div class="col-sm-6">
+                        <div class="form-group">
+                          <label for="psearch-endp">End period [days]</label>
+                          <input type="text" class="form-control form-control-sm"
+                                 id="psearch-endp" disabled>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="form-check">
+                      <label class="form-check-label">
+                        <input type="checkbox" id="psearch-autofreq"
+                               class="form-check-input" checked>
+                        Use automatic frequency step and period coverage
+                      </label>
+                    </div>
+
+                    <div class="form-group">
+                      <label for="psearch-periodepsilon">
+                        Min P diff. for periodogram peak search [days]
+                      </label>
+                      <input type="text" name="periodepsilon"
+                             class="form-control form-control-sm pf-extraparam"
+                             id="psearch-periodepsilon" value="0.1">
+                    </div>
+
+                    <!-- this contains extra options for each specific period finders -->
+                    <div id="psearch-pf-extraparams">
+                    </div>
+
+                  </div>
+
+                </div>
+
+                <!-- this contains the periodogram and phasedlc display controls -->
+                <div class="row mt-2">
+
+                  <div class="col-sm-3">
+                    <div class="form-group">
+                      <label for="psearch-pgrampeaks">Phased LC for spec peak</label>
+                      <select class="custom-select form-control"
+                              id="psearch-pgrampeaks" name="psearch-pgrampeaks">
+                        <option value="none">no tool results yet</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div class="col-sm-4">
+                    <div class="form-group">
+                      <label for="psearch-plotperiod">
+                        Period [days]
+                      </label>
+                      <div class="input-group">
+                        <span class="input-group-btn">
+                          <button class="btn btn-secondary"
+                                  type="button" id="psearch-halfperiod">1/2</button>
+                        </span>
+                        <input type="text" id="psearch-plotperiod"
+                               class="form-control">
+                        <span class="input-group-btn">
+                          <button class="btn btn-secondary"
+                                  type="button"
+                                  id="psearch-doubleperiod">&times; 2</button>
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="col-sm-3">
+                    <div class="form-group">
+                      <label for="psearch-plotepoch">
+                        Epoch [JD]
+                        <strong>
+                          <a href="#" id="psearch-addhalfp-epoch">[+1/2 P]</a>
+                          <a href="#" id="psearch-subhalfp-epoch">[-1/2 P]</a>
+                        </strong>
+                      </label>
+                      <input type="text" class="form-control"
+                             id="psearch-plotepoch">
+                    </div>
+                  </div>
+
+                  <div class="col-sm-2">
+                    <div class="form-group">
+                      <label for="psearch-makephasedlc">&nbsp;</label>
+                      <button type="submit" id="psearch-makephasedlc"
+                              class="btn btn-success form-control">
+                        Plot LC
+                      </button>
+                    </div>
+                  </div>
+
+                </div>
+
+                <!-- this has the periodogram and phased LC displays -->
+                <div class="row">
+
+                  <div class="col-sm-6 display-panel">
+                    <img class="img-fluid" id="psearch-periodogram-display" src="/static/no-tool-results.png">
+                  </div>
+
+                  <div class="col-sm-6 display-panel">
+                    <img class="img-fluid" id="psearch-phasedlc-display" src="/static/no-tool-results.png">
+                  </div>
+
+                </div>
+
+                <!-- this contains phased LC zoom, binning and overplot tools -->
+                <div class="row">
+
+                  <div class="col-sm-3">
+
+                    <div class="form-group">
+                      <label for="psearch-plotxlim">Zoom plot to phase range</label>
+                      <input type="text" class="form-control"
+                             id="psearch-plotxlim" value="[-0.8, 0.8]">
+                    </div>
+
+                  </div>
+
+                  <div class="col-sm-5">
+
+                    <div class="form-group">
+                      <label for="psearch-binphase">Overplot a binned LC with
+                        phase bin size</label>
+                      <input type="text" class="form-control"
+                             id="psearch-binphase" value="0.002">
+                    </div>
+
+                  </div>
+
+                  <div class="col-sm-4">
+
+                    <div class="form-check">
+                      <label class="form-check-label">
+                        <input type="checkbox" id="psearch-updateperiod"
+                               class="form-check-input">
+                        Update object period from plot
+                      </label>
+                    </div>
+
+                    <div class="form-check">
+                      <label class="form-check-label">
+                        <input type="checkbox" id="psearch-updateepoch"
+                               class="form-check-input">
+                        Update object epoch from plot
+                      </label>
+                    </div>
+
+                  </div>
+
+                </div>
+
+              </div>
+
+
+              <!-- FIXME: finish these later, disabled for now -->
+              <!-- <\!-- this tab panel contains variability tools -\-> -->
+              <!-- <div class="tab-pane" id="variability" role="tabpanel"> -->
+
+              <!--   <\!-- this has the phased LC display -\-> -->
+              <!--   <div class="row tool-header-panel"> -->
+
+              <!--     <div class="col-sm-8 display-panel text-sm-center col-centered" -->
+              <!--          id="var-phasedlc-display"> -->
+              <!--     </div> -->
+
+              <!--   </div> -->
+
+              <!--   <\!-- this contains the periodogram and phasedlc display controls -\-> -->
+              <!--   <div class="row"> -->
+
+              <!--     <div class="col-sm-3"> -->
+              <!--       <div class="form-group"> -->
+              <!--         <label for="var-pgrampeaks">For periodogram peak</label> -->
+              <!--         <select class="custom-select form-control" -->
+              <!--                 id="var-pgrampeaks" name="var-pgrampeaks"> -->
+              <!--         </select> -->
+              <!--       </div> -->
+              <!--     </div> -->
+
+              <!--     <div class="col-sm-4"> -->
+              <!--       <div class="form-group"> -->
+              <!--         <label for="var-plotperiod">Modify period [days]</label> -->
+              <!--         <div class="input-group"> -->
+              <!--           <span class="input-group-btn"> -->
+              <!--             <button class="btn btn-secondary" type="button" id="var-halfperiod">1/2</button> -->
+              <!--           </span> -->
+              <!--           <input type="text" class="form-control"> -->
+              <!--           <span class="input-group-btn"> -->
+              <!--             <button class="btn btn-secondary" type="button" id="var-doubleperiod">&times; 2</button> -->
+              <!--           </span> -->
+              <!--         </div> -->
+              <!--       </div> -->
+              <!--     </div> -->
+
+              <!--     <div class="col-sm-3"> -->
+              <!--       <div class="form-group"> -->
+              <!--         <label for="var-plotepoch">Modify epoch [JD]</label> -->
+              <!--         <input type="text" class="form-control" -->
+              <!--                id="var-plotepoch"> -->
+              <!--       </div> -->
+              <!--     </div> -->
+
+              <!--     <div class="col-sm-2"> -->
+              <!--       <div class="form-group"> -->
+              <!--         <label for="var-makephasedlc">&nbsp;</label> -->
+              <!--         <button type="submit" id="var-makephasedlc" -->
+              <!--                 class="btn btn-secondary form-control"> -->
+              <!--           Plot LC -->
+              <!--         </button> -->
+              <!--       </div> -->
+              <!--     </div> -->
+
+              <!--   </div> -->
+
+              <!--   <div class="row py-1"> -->
+
+              <!--     <div class="col-sm-4"> -->
+
+              <!--       <\!-- this returns a JSON from the backend to HTML table -\-> -->
+              <!--       <\!-- can download the table as CSV or JSON -\-> -->
+              <!--       <\!-- can save results to the cpdict['varinfo']['features'] -\-> -->
+              <!--       <\!-- these are reloaded from the checkplot if present already -\-> -->
+              <!--       <h5>Variability features</h5> -->
+
+              <!--       <form> -->
+              <!--         <button type="submit" id="get-varfeatures" -->
+              <!--                 class="btn btn-primary btn-block">Get -->
+              <!--           variability features</button> -->
+              <!--       </form> -->
+
+              <!--       <\!-- results go into a table here -\-> -->
+              <!--       <div id="var-varfeatures-results" class="py-1"> -->
+
+              <!--       </div> -->
+
+              <!--     </div> -->
+
+              <!--     <\!-- this pre-whitens a periodic signal from the light curve -\-> -->
+              <!--     <\!-- the results can then be reused in the period-search tools -\-> -->
+              <!--     <\!-- can save results to cpdict['signals']['whiten'] -\-> -->
+              <!--     <div class="col-sm-4"> -->
+
+              <!--       <h5>Pre-whiten light curve</h5> -->
+
+              <!--     </div> -->
+
+
+              <!--     <\!-- this subtracts a periodic signal from the light curve -\-> -->
+              <!--     <\!-- the results can then be reused in the period-search tools -\-> -->
+              <!--     <\!-- can save results to cpdict['signals']['mask'] -\-> -->
+              <!--     <div class="col-sm-4"> -->
+
+              <!--       <h5>Mask periodic signal</h5> -->
+
+              <!--     </div> -->
+
+              <!--   </div> -->
+
+              <!-- </div> -->
+
+              <!-- <\!-- this tab panel contains lcfit tools -\-> -->
+              <!-- <div class="tab-pane" id="lcfit" role="tabpanel"> -->
+
+              <!--   <\!-- this has the phased LC display -\-> -->
+              <!--   <div class="row tool-header-panel"> -->
+
+              <!--     <div class="col-sm-8 display-panel text-sm-center col-centered" -->
+              <!--          id="lcfit-phasedlc-display"> -->
+              <!--     </div> -->
+
+              <!--   </div> -->
+
+              <!--   <\!-- this contains the periodogram and phasedlc display controls -\-> -->
+              <!--   <div class="row"> -->
+
+              <!--     <div class="col-sm-3"> -->
+              <!--       <div class="form-group"> -->
+              <!--         <label for="lcfit-pgrampeaks">For periodogram peak</label> -->
+              <!--         <select class="custom-select form-control" -->
+              <!--                 id="lcfit-pgrampeaks" name="lcfit-pgrampeaks"> -->
+              <!--         </select> -->
+              <!--       </div> -->
+              <!--     </div> -->
+
+              <!--     <div class="col-sm-4"> -->
+              <!--       <div class="form-group"> -->
+              <!--         <label for="lcfit-plotperiod">Modify period [days]</label> -->
+              <!--         <div class="input-group"> -->
+              <!--           <span class="input-group-btn"> -->
+              <!--             <button class="btn btn-secondary" type="button">1/2</button> -->
+              <!--           </span> -->
+              <!--           <input type="text" class="form-control"> -->
+              <!--           <span class="input-group-btn"> -->
+              <!--             <button class="btn btn-secondary" type="button">&times; 2</button> -->
+              <!--           </span> -->
+              <!--         </div> -->
+              <!--       </div> -->
+              <!--     </div> -->
+
+              <!--     <div class="col-sm-3"> -->
+              <!--       <div class="form-group"> -->
+              <!--         <label for="lcfit-plotepoch">Modify epoch [JD]</label> -->
+              <!--         <input type="text" class="form-control" -->
+              <!--                id="lcfit-plotepoch"> -->
+              <!--       </div> -->
+              <!--     </div> -->
+
+              <!--     <div class="col-sm-2"> -->
+              <!--       <div class="form-group"> -->
+              <!--         <label for="lcfit-makephasedlc">&nbsp;</label> -->
+              <!--         <button type="submit" id="lcfit-makephasedlc" -->
+              <!--                 class="btn btn-secondary form-control"> -->
+              <!--           Plot LC -->
+              <!--         </button> -->
+              <!--       </div> -->
+              <!--     </div> -->
+
+              <!--   </div> -->
+
+
+              <!--   <div class="row py-1"> -->
+
+              <!--     <div class="col-sm-6"> -->
+
+              <!--       <h5>Fit functions to light curve</h5> -->
+
+              <!--       <\!-- this does fitting using Fourier, spline, legendre, savgol -\-> -->
+              <!--       <\!-- can download the resulting plot as PNG -\-> -->
+              <!--       <\!-- can save results to cpdict['fitinfo'][method] -\-> -->
+              <!--       <div class="form-group"> -->
+              <!--         <label for="lcfit-type">Fit method</label> -->
+              <!--         <select class="custom-select form-control form-control-sm" -->
+              <!--                 id="lcfit-fitmethod" -->
+              <!--                 name="lcfit-fitmethod"> -->
+              <!--           <option value="fourier" selected>Fourier fit</option> -->
+              <!--           <option value="spline">Spline fit</option> -->
+              <!--           <option value="legendre">Legendre polynomial fit</option> -->
+              <!--           <option value="savgol">Savitsky-Golay smoothed fit</option> -->
+              <!--         </select> -->
+              <!--       </div> -->
+
+              <!--       <div class="form-check"> -->
+              <!--         <label class="form-check-label"> -->
+              <!--           <input type="checkbox" id="lcfit-magsarefluxes" -->
+              <!--                  class="form-check-input"> -->
+              <!--           Light curve measurements are fluxes -->
+              <!--         </label> -->
+              <!--       </div> -->
+
+              <!--       <button type="submit" id="lcfit-start" -->
+              <!--               class="btn btn-primary btn-block"> -->
+              <!--         Run light curve fit -->
+              <!--       </button> -->
+
+              <!--       <div class="py-1"> -->
+
+              <!--         <h5>Fit results</h5> -->
+
+              <!--         <div id="lcfit-results"> -->
+
+              <!--         </div> -->
+
+              <!--         <button type="submit" id="lcfit-update-mags" -->
+              <!--                 class="btn btn-secondary btn-block"> -->
+              <!--           Subtract fit and use resulting LC -->
+              <!--         </button> -->
+
+
+              <!--       </div> -->
+
+              <!--     </div> -->
+
+              <!--     <div class="col-sm-6"> -->
+
+              <!--       <div class="form-group"> -->
+              <!--         <label for="lcfit-fourierfitorder">Fourier fit order</label> -->
+              <!--         <input type="text" class="form-control form-control-sm" -->
+              <!--                id="lcfit-fourierfitorder" value="6"> -->
+              <!--       </div> -->
+
+              <!--       <div class="form-group"> -->
+              <!--         <label for="lcfit-splinefitknots">Spline knot fraction</label> -->
+              <!--         <input type="text" class="form-control form-control-sm" -->
+              <!--                id="lcfit-splinefitknots" value="0.002"> -->
+              <!--       </div> -->
+
+              <!--       <div class="form-group"> -->
+              <!--         <label for="lcfit-legendrepolyorder"> -->
+              <!--           Lengendre polynomial order -->
+              <!--         </label> -->
+              <!--         <input type="text" class="form-control form-control-sm" -->
+              <!--                id="lcfit-legendrepolyorder" value="10"> -->
+              <!--       </div> -->
+
+              <!--       <div class="form-group"> -->
+              <!--         <label for="lcfit-savgolwinlength"> -->
+              <!--           Savitsky-Golay window length -->
+              <!--         </label> -->
+              <!--         <input type="text" class="form-control form-control-sm" -->
+              <!--                id="lcfit-savgolwinlength"> -->
+              <!--       </div> -->
+
+              <!--     </div> -->
+
+              <!--   </div> -->
+              <!-- </div> -->
+
+              {% end %}
+
+              <!-- this tab contains save and export tools -->
+              <div class="tab-pane" id="cpsave" role="tabpanel">
+
+                {% if not readonly %}
+
+                <!-- this is the save tool results link -->
+                <div class="row tool-header-panel">
+
+                  <div class="col-sm-6">
+                    <p>All results from light curve tools applied to this object are
+                      being saved to a temporary location and will kept around until
+                      they are sychronized to the checkplot pickle. Syncing these
+                      results will <strong>overwrite</strong> previous values in the
+                      checkplot pickle. Resetting all unsynced results will remove
+                      all current tool results and reload the pickle.</p>
+                  </div>
+
+                  <div class="col-sm-6 py-1">
+                    <button type="submit" id="save-cptool-results"
+                            class="btn btn-danger btn-block">
+                      Sync current LC tool results to checkplot pickle
+                    </button>
+                    <button type="submit" id="reset-cptool-results"
+                            class="btn btn-warning btn-block">
+                      Reset all unsynced LC tool results
+                    </button>
+                  </div>
+
+                </div>
+
+                {% end %}
+
+                <!-- this is the save to PNG link -->
+                <div class="row tool-header-panel">
+
+                  <div class="col-sm-6">
+                    <p>All synced object information in the checkplot pickle can be
+                      exported as a PNG file. This will include the object name,
+                      finder chart, period and epoch, variability and object tags,
+                      comments, the light curve, and finally, periodograms and phased
+                      light curves for all period-finding methods used.
+                  </div>
+
+                  <div class="col-sm-6 py-1">
+                    <button type="submit" id="save-to-png"
+                            class="btn btn-secondary btn-block">
+                      Export synced info from checkplot pickle to PNG
+                    </button>
+                  </div>
+                </div>
+
+              </div>
+
+            </div>
+
+          </div>
+
+
+        </div>
+
+
+      </div>
+
+
+    </div>
+
+  </div>
+
+</div>
+
+<!-- this is the help box modal  -->
+<div class="modal fade" id="help-box" tabindex="-1" role="dialog"
+     aria-labelledby="help-box" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+
+    <div class="modal-content">
+
+      <div class="modal-header">
+        <button type="button" class="close"
+                data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+        <h5 class="modal-title" id="help-box-title">Help and Keyboard Shortcuts</h5>
+      </div>
+
+      <div class="modal-body">
+
+        <h6>Switching between tabs</h6>
+
+        <table class="table table-sm">
+          <tr>
+            <td width="200"><kbd>alt</kbd> + <kbd>shift</kbd> + <kbd>o</kbd></td>
+            <td>open the object overview tab</td>
+          </tr>
+          <tr>
+            <td width="200"><kbd>alt</kbd> + <kbd>shift</kbd> + <kbd>l</kbd></td>
+            <td>open the phased light curves tab</td>
+          </tr>
+          <tr>
+            <td width="200"><kbd>alt</kbd> + <kbd>shift</kbd> + <kbd>x</kbd></td>
+            <td>open the cross-match information tab</td>
+          </tr>
+          <tr>
+            <td width="200"><kbd>alt</kbd> + <kbd>shift</kbd> + <kbd>p</kbd></td>
+            <td>open the period-search tab</td>
+          </tr>
+        </table>
+
+
+        <h6>Moving around and editing</h6>
+
+        <table class="table table-sm">
+          <tr>
+            <td width="200"><kbd>alt</kbd> + <kbd>shift</kbd> + <kbd>&rarr;</kbd></td>
+            <td>save the current checkplot and move to next in list</td>
+          </tr>
+          <tr>
+            <td width="200"><kbd>alt</kbd> + <kbd>shift</kbd> + <kbd>&larr;</kbd></td>
+            <td>save the current checkplot and move to previous in list</td>
+          </tr>
+          <tr>
+            <td width="200"><kbd>ctrl</kbd> + <kbd>enter</kbd></td>
+            <td>save the current checkplot and move to next in list</td>
+          </tr>
+          <tr>
+            <td width="200"><kbd>shift</kbd> + <kbd>enter</kbd></td>
+            <td>save the current checkplot only, don't move anywhere
+          </tr>
+          <tr>
+            <td width="200"><kbd>alt</kbd> + <kbd>shift</kbd> + <kbd>e</kbd></td>
+            <td>save the current checkplot to a PNG
+          </tr>
+          <tr>
+            <td width="200"><kbd>ctrl</kbd> + <kbd>backspace</kbd></td>
+            <td>clear variability flag, period, epoch, and variability tags</td>
+          </tr>
+          <tr>
+            <td width="200"><kbd>ctrl</kbd> + <kbd>shift</kbd> + <kbd>backspace</kbd></td>
+            <td>clear all object information (var flag, period, epoch, var
+            tags, object tags, comments)</td>
+          </tr>
+        </table>
+
+        <h6>Setting variability flags</h6>
+
+        <table class="table table-sm">
+          <tr>
+            <td width="200"><kbd>alt</kbd> + <kbd>shift</kbd> + <kbd>v</kbd></td>
+            <td>set the variability flag to <span class="cp-tag">object is
+                variable</span></td>
+          </tr>
+          <tr>
+            <td width="200"><kbd>alt</kbd> + <kbd>shift</kbd> + <kbd>n</kbd></td>
+            <td>set the variability flag to <span class="cp-tag">object is not
+                variable</span></td>
+          </tr>
+          <tr>
+            <td width="200"><kbd>alt</kbd> + <kbd>shift</kbd> + <kbd>m</kbd></td>
+            <td>set the variability flag to <span class="cp-tag">object is
+                maybe variable</span></td>
+          </tr>
+          <tr>
+            <td width="200"><kbd>alt</kbd> + <kbd>shift</kbd> + <kbd>u</kbd></td>
+            <td>reset the variability flag to the unknown state</td>
+          </tr>
+        </table>
+
+        <h6>Tagging objects by variability</h6>
+
+        <table class="table table-sm">
+          <tr>
+            <td width="200"><kbd>ctrl</kbd> + <kbd>shift</kbd> + <kbd>1</kbd></td>
+            <td>add a <span class="cp-tag">planet candidate</span> tag</td>
+          </tr>
+          <tr>
+            <td width="200"><kbd>ctrl</kbd> + <kbd>shift</kbd> + <kbd>2</kbd></td>
+            <td>add a <span class="cp-tag">RR Lyrae</span> tag</td>
+          </tr>
+          <tr>
+            <td width="200"><kbd>ctrl</kbd> + <kbd>shift</kbd> + <kbd>3</kbd></td>
+            <td>add a <span class="cp-tag">Cepheid</span> tag</td>
+          </tr>
+          <tr>
+            <td width="200"><kbd>ctrl</kbd> + <kbd>shift</kbd> + <kbd>4</kbd></td>
+            <td>add a <span class="cp-tag">starspot rotation</span> tag</td>
+          </tr>
+          <tr>
+            <td width="200"><kbd>ctrl</kbd> + <kbd>shift</kbd> + <kbd>5</kbd></td>
+            <td>add a <span class="cp-tag">flare star</span> tag</td>
+          </tr>
+          <tr>
+            <td width="200"><kbd>ctrl</kbd> + <kbd>shift</kbd> + <kbd>6</kbd></td>
+            <td>add a <span class="cp-tag">contact EB</span> tag</td>
+          </tr>
+          <tr>
+            <td width="200"><kbd>ctrl</kbd> + <kbd>shift</kbd> + <kbd>7</kbd></td>
+            <td>add a <span class="cp-tag">semi-detached EB</span> tag</td>
+          </tr>
+          <tr>
+            <td width="200"><kbd>ctrl</kbd> + <kbd>shift</kbd> + <kbd>8</kbd></td>
+            <td>add a <span class="cp-tag">detached EB</span> tag</td>
+          </tr>
+          <tr>
+            <td width="200"><kbd>ctrl</kbd> + <kbd>shift</kbd> + <kbd>9</kbd></td>
+            <td>add a <span class="cp-tag">weird variability</span> tag</td>
+          </tr>
+          <tr>
+            <td width="200"><kbd>ctrl</kbd> + <kbd>shift</kbd> + <kbd>0</kbd></td>
+            <td>add a <span class="cp-tag">period harmonic</span> tag</td>
+          </tr>
+        </table>
+
+        <h6>Tagging objects by type</h6>
+
+        <table class="table table-sm">
+          <tr>
+            <td width="200"><kbd>alt/cmd</kbd> + <kbd>shift</kbd> + <kbd>1</kbd></td>
+            <td>add a <span class="cp-tag">white dwarf</span> tag</td>
+          </tr>
+          <tr>
+            <td width="200"><kbd>alt/cmd</kbd> + <kbd>shift</kbd> + <kbd>2</kbd></td>
+            <td>add a <span class="cp-tag">hot star (OB)</span> tag</td>
+          </tr>
+          <tr>
+            <td width="200"><kbd>alt/cmd</kbd> + <kbd>shift</kbd> + <kbd>3</kbd></td>
+            <td>add a <span class="cp-tag">A star</span> tag</td>
+          </tr>
+          <tr>
+            <td width="200"><kbd>alt/cmd</kbd> + <kbd>shift</kbd> + <kbd>4</kbd></td>
+            <td>add a <span class="cp-tag">F or G star</span> tag</td>
+          </tr>
+          <tr>
+            <td width="200"><kbd>alt/cmd</kbd> + <kbd>shift</kbd> + <kbd>5</kbd></td>
+            <td>add a <span class="cp-tag">red giant</span> tag</td>
+          </tr>
+          <tr>
+            <td width="200"><kbd>alt/cmd</kbd> + <kbd>shift</kbd> + <kbd>6</kbd></td>
+            <td>add a <span class="cp-tag">K or M dwarf</span> tag</td>
+          </tr>
+          <tr>
+            <td width="200"><kbd>alt/cmd</kbd> + <kbd>shift</kbd> + <kbd>7</kbd></td>
+            <td>add a <span class="cp-tag">giant star</span> tag</td>
+          </tr>
+          <tr>
+            <td width="200"><kbd>alt/cmd</kbd> + <kbd>shift</kbd> + <kbd>8</kbd></td>
+            <td>add a <span class="cp-tag">dwarf star</span> tag</td>
+          </tr>
+          <tr>
+            <td width="200"><kbd>alt/cmd</kbd> + <kbd>shift</kbd> + <kbd>9</kbd></td>
+            <td>add a <span class="cp-tag">blended with neighbors</span> tag</td>
+          </tr>
+          <tr>
+            <td width="200"><kbd>alt/cmd</kbd> + <kbd>shift</kbd> + <kbd>0</kbd></td>
+            <td>add a <span class="cp-tag">weird object</span> tag</td>
+          </tr>
+        </table>
+
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary"
+                data-dismiss="modal">Close</button>
+      </div>
+
+    </div>
+
+  </div>
+</div>
+
+{% end %}
+
+{% block pagejs %}
+<script src="{{ static_url("mousetrap.min.js") }}"></script>
+<script src="{{ static_url("cpserver.js") }}"></script>
+
+<script>
+
+  $(document).ready(function() {
+  // load the count of the objects
+  cpv.totalcps = $('#checkplotlist li').length;
+
+  // set up the controls
+  cpv.action_setup();
+  cptools.action_setup();
+
+  // set up the keyboard shortcuts
+  cpv.keyboard_setup();
+
+  // fix the height for the sidebar
+  var winheight = $(window).height();
+  var docheight = $(document).height();
+  $('.sidebar-controls').css({'height': (docheight - 300.0) + 'px'});
+
+  // load the first checkplot
+  var firstcp = $("a[data-findex='0']").attr('data-fname');
+  cpv.load_checkplot(firstcp);
+
+  // get the already reviewed objects from the checkplot-filelist.json file
+  cptracker.all_reviewed_from_cplist();
+
+  // load the names of the checkplots into cptracker.checkplotlist
+  var cpl_elems = $('#checkplotlist li a');
+  $.each(cpl_elems, function (index, elem) {
+    cptracker.checkplotlist.push(elem.getAttribute('data-fname'));
+  });
+
+
+  });
+
+  $(function () {
+    $('[data-toggle="popover"]').popover();
+  });
+
+</script>
+{% end %}
