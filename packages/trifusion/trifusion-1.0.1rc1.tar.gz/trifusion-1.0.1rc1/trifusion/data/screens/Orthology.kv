@@ -1,0 +1,522 @@
+#:import orthology_storage trifusion.data.resources.info_data.orthology_storage
+#:import get_active_group trifusion.data.resources.background_tasks.get_active_group
+#:import tm trifusion.data.resources.theme.default
+#:import os os
+#:import sys sys
+
+ShowcaseScreen:
+    name: "Orthology"
+
+    BoxLayout:
+        orientation: "horizontal"
+
+        BoxLayout:
+            orientation: "vertical"
+            size_hint_x: None
+            width: 120
+            id: op_box
+            Label:
+                size_hint_y: None
+                height: 30
+                text: "Operations:"
+                halign: "center"
+                valign: "middle"
+                bold: True
+                text_size: self.size
+                canvas.before:
+                    Color:
+                        rgba: (0.216, 0.67, 0.784, 1)
+                    Rectangle:
+                        pos: self.pos
+                        size: self.size
+            MainSideBt:
+                text: "Search"
+                state: "down"
+                disabled: True
+                id: search
+                disabled: True
+                on_release:
+                    orto_car.load_slide(orto_car.slides[0])
+                canvas.before:
+                    Color:
+                        rgba: tm.c_orto_sidepanel if search.state == "normal" else (0,0,0,0)
+                    Rectangle:
+                        pos: self.pos
+                        size: self.size
+
+            Hseparator:
+                margin: -1
+                c: app._blue
+
+            MainSideBt:
+                text: "Explore"
+                id: explore
+                on_release:
+                    orto_car.load_slide(orto_car.slides[1])
+                canvas.before:
+                    Color:
+                        rgba: tm.c_orto_sidepanel if explore.state == "normal" else (0,0,0,0)
+                    Rectangle:
+                        pos: self.pos
+                        size: self.size
+
+            Hseparator:
+                margin: -1
+                c: app._blue
+
+#            MainSideBt:
+#                text: "Complement"
+#                id: complement
+#                on_release:
+#                    orto_car.load_slide(orto_car.slides[2])
+            Widget:
+                canvas.before:
+                    Color:
+                        rgba: tm.c_orto_sidepanel
+                    Rectangle:
+                        pos: self.pos
+                        size: self.size
+
+        Vseparator:
+            offset: [0, 0]
+            margin: -1
+            c: app._blue
+
+        ScrollView:
+            Carousel:
+                direction: "bottom"
+                id: orto_car
+                anim_move_duration: 0
+
+                BoxLayout:
+                    orientation: "vertical"
+                    ScrollView:
+                        id: orto_search_sv
+                        bar_width: 10
+                        scroll_type: ["bars"]
+
+                        GridLayout:
+                            id: gl_orto_search
+                            cols: 1
+                            bt_wdt: 250
+                            padding: (5,5)
+                            size_hint_y: None
+                            height: sum([x.size[1] for x in self.children])
+
+                            LightBox:
+                                padding: 5
+                                Label:
+                                    text: "General options"
+                                    bold: True
+                                    halign: "center"
+                                    valign: "middle"
+                                    text_size: self.size
+                                    size_hint_x: .8
+
+                            DarkBox:
+                                id: dark_l
+                                Label:
+                                    id: output_label
+                                    markup: True
+                                    text: "[size=18][b]Threads[/b][/size]\n[size=13]Number of threads (CPU's) to use during USEARCH[/size]"
+                                    halign: "left"
+                                    valign: "middle"
+                                    text_size: self.size
+                                ProcessBt:
+                                    id: usearch_threads
+                                    size_hint_x: None
+                                    width: gl_orto_search.bt_wdt
+                                    text: "1"
+                                    on_release: app.toggle_fancy_dropdown(self, tuple(str(x) for x in range(1, multiprocessing.cpu_count() + 1)), orientation="down")
+
+
+                            Hseparator
+
+                            DarkBox:
+                                height: 70
+                                Label:
+                                    id: output_label
+                                    markup: True
+                                    text: "[size=18][b]Ortholog filters[/b][/size]\n[size=13]Set the maximum number of gene copies and minimum number of species represented per ortholog cluster[/size]"
+                                    halign: "left"
+                                    valign: "middle"
+                                    text_size: self.size
+                                InfoBt:
+                                    width: 50
+                                    height: 50
+                                    on_release:
+                                        app.dialog_general_info("orthology_filters")
+                                BoxLayout:
+                                    size_hint_x: None
+                                    width: gl_orto_search.bt_wdt
+                                    padding: (0,7.5,0,7.5)
+                                    ProcessBt:
+                                        id: orto_dir
+                                        text: "Set filters"
+                                        on_release:
+                                            app.dialog_ortho_filter()
+
+                            Hseparator
+
+                            DarkBox:
+                                Label:
+                                    id: output_label
+                                    markup: True
+                                    text: "[size=18][b]Output directory[/b][/size]\n[size=13]Save output files to...[/size]"
+                                    halign: "left"
+                                    valign: "middle"
+                                    text_size: self.size
+                                InfoBt:
+                                    width: 50
+                                    height: 50
+                                    on_release:
+                                        app.dialog_general_info("orthology_output")
+                                ProcessBt:
+                                    id: orto_dir
+                                    text: "Select..." if not app.ortho_dir else os.path.basename(app.ortho_dir)
+                                    size_hint_x: None
+                                    width: gl_orto_search.bt_wdt
+                                    on_release:
+                                        app.dialog_filechooser("ortho_dir")
+
+                            BoxLayout:
+                                size_hint_y: None
+                                height: 60
+                                AnchorLayout:
+                                    ToggleButton:
+                                        bold: True
+                                        id: adv_search_options
+                                        text: "Show additional options"
+                                        background_down: "data/backgrounds/toggle_process_opts_down.png"
+                                        background_normal: "data/backgrounds/toggle_process_opts_normal.png"
+                                        size_hint: None, None
+                                        width: 300
+                                        height: 40
+                                        on_release:
+                                            app.toggle_orto_soptions()
+
+                    ScrollView:
+                        size_hint_y: None
+                        height: 65
+                        canvas.before:
+                            Color:
+                                rgba: tm.c_light_box
+                            Rectangle:
+                                pos: self.pos[0] + 2, self.pos[1]
+                                size: self.size
+                        BoxLayout:
+                            padding: 10
+                            spacing: 10
+                            ExecutionBt:
+                                id: execute
+                                text: "Search Orthologs"
+                                on_release:
+                                    app.dialog_orto_execution()
+                            ExecutionBt:
+                                text: "View Queue"
+                                id: queue_bt
+                                on_release:
+                                    app.save_operation_queue()
+                                    app.go_carousel(3, "queue")
+                                    app.toggle_sidepanel()
+                            ExecutionBt:
+                                text: "Clear Options"
+                                on_release:
+                                    app.check_action("Are you sure you want to clear all options?", app.orthology_clear_options, None)
+
+                BoxLayout:
+                    orientation: "vertical"
+                    ScrollView:
+                        id: orto_process_sv
+
+                        BoxLayout:
+                            orientation: "vertical"
+                            padding: (5,5)
+
+                            BoxLayout:
+                                BoxLayout:
+                                    size_hint_x: None
+                                    width: 220
+                                    padding: 10
+                                    spacing: 10
+                                    orientation: "vertical"
+                                    BoxLayout
+                                        orientation: "vertical"
+                                        #size_hint_y: None
+                                        #height: 300
+                                        BoxLayout:
+                                            size_hint_y: None
+                                            height: 40
+                                            padding: (0, 0, 5, 0)
+                                            AnchorLayout:
+                                                anchor_y: "center"
+                                                anchor_x: "left"
+                                                CheckBox:
+                                                    id: master_chk
+                                                    size_hint_x: None
+                                                    width: group_check.width
+                                                    disabled: True if not app.ortho_group_files else False
+                                                    on_release:
+                                                        app.orto_change_state()
+                                            AnchorLayout:
+                                                anchor_x: "center"
+                                                anchor_y: "center"
+                                                Label:
+                                                    text: "Group file(s)"
+                                                    halign: "center"
+                                                    valign: "middle"
+                                                    text_size: self.size
+                                                    size_hint_x: None
+                                                    width: 120
+                                                    bold: True
+                                                    color: (0.216, 0.67, 0.784, 1)
+                                            AnchorLayout:
+                                                anchor_x: "right"
+                                                anchor_y: "center"
+                                                Button:
+                                                    size_hint: None, None
+                                                    size: 30,30
+                                                    id: add_group
+                                                    border: 0,0,0,0
+                                                    background_normal: "data/backgrounds/add_bt30.png"
+                                                    background_down: "data/backgrounds/add_bt30_down.png"
+                                                    on_release:
+                                                        app.dialog_import_groups()
+
+                                        Hseparator:
+                                            thickness: 1.5
+
+                                        ScrollView:
+                                            BoxLayout:
+                                                id: orto_group_glbx
+                                                #size_hint_y: None
+                                                #height: sum([x.size[1] + 5 for x in group_gl.children]) + 5
+                                                GridLayout:
+                                                    cols: 1
+                                                    id: group_check
+                                                    size_hint_x: .1
+                                                    padding: (5, 5)
+                                                    spacing: 5
+                                                    Button:
+                                                        id: no_bt
+                                                        disabled: True
+                                                        text: "No groups loaded"
+                                                        size_hint: None, None
+                                                        size: 190, 35
+                                                GridLayout:
+                                                    cols: 1
+                                                    size_hint_x: .7
+                                                    id: group_gl
+                                                    padding: (5, 5)
+                                                    spacing: 5
+                                                GridLayout:
+                                                    cols: 1
+                                                    size_hint_x: None
+                                                    width: 40
+                                                    id: group_rm
+                                                    padding: (5,5)
+                                                    spacing: 5
+                                                    #size_hint_y: None
+
+                                        Hseparator:
+                                            thickness: 1.5
+
+                                        BoxLayout:
+                                            size_hint_y: None
+                                            height: 45
+                                            padding: 5
+                                            spacing: 10
+                                            Button:
+                                                id: compare_group_bt
+                                                text: "Compare"
+                                                bold: True
+                                                background_normal: "data/backgrounds/bt_process.png"
+                                                background_disabled_normal: "data/backgrounds/bt_process_full_disabled.png"
+                                                disabled: True
+                                                on_release:
+                                                    app.go_screen(5)
+                                                    app.orto_compare_groups(selected_groups=[y.id for x, y in zip(group_check.children, group_gl.children) if x.active])
+                                                    app.show_plot_toolbar()
+                                            Button:
+                                                size_hint_x: None
+                                                width: 35
+                                                border: 0,0,0,0
+                                                background_normal: "data/backgrounds/remove_bt35.png"
+                                                background_down: "data/backgrounds/remove_bt35_down.png"
+                                                background_disabled_normal: "data/backgrounds/remove_bt35_disabled.png"
+                                                disabled: True if not app.ortho_group_files else False
+                                                on_release:
+                                                    app.check_action(text="Are you sure you want to remove all group files?", func=app.remove_all_groups)
+
+                                        Hseparator:
+                                            thickness: 1.5
+
+                                    Label:
+                                        size_hint_y: None
+                                        height: 20
+                                        text: "Graphical visualization"
+                                        bold: True
+                                        color: (0.216, 0.67, 0.784, 1)
+
+                                    BoxLayout:
+                                        orientation: "vertical"
+                                        size_hint_y: None
+                                        height: 280
+                                        BoxLayout:
+                                            size_hint_y: None
+                                            height: 50
+                                            ExploreOpsBt:
+                                                id: sp_vis
+                                                # Gecko Icon made by Freepik from www.flaticon.com
+                                                state: "down"
+                                                halign: "right"
+                                                background_disabled_down: "data/backgrounds/orto_explore_sp.png"
+                                                background_normal: "data/backgrounds/orto_explore_sp_normal.png"
+                                                disabled: True
+                                                on_release:
+                                                    explore_car.load_slide(explore_car.slides[0])
+                                            ExploreOpsBt:
+                                                id: gn_vis
+                                                #  Double Helix Icon made by Freepik from www.flaticon.com
+                                                background_disabled_down: "data/backgrounds/orto_explore_gn.png"
+                                                background_normal: "data/backgrounds/orto_explore_gn_normal.png"
+                                                halign: "left"
+                                                on_release:
+                                                    explore_car.load_slide(explore_car.slides[1])
+
+                                        ScrollView:
+                                            canvas.before:
+                                                Color:
+                                                    rgba: (0.216, 0.67, 0.784, 1)
+                                                Line:
+                                                    width: 1.5
+                                                    cap: "round"
+                                                    joint: "round"
+                                                    rectangle: self.x,self.y,self.width,self.height
+                                            Carousel:
+                                                id: explore_car
+                                                anim_move_duration: 0
+                                                # For some reason, without the ScrollViews for each carousel element, the buttons will have a buggy behaviour
+                                                ScrollView:
+                                                    BoxLayout:
+                                                        orientation: "vertical"
+                                                        spacing: 5
+                                                        padding: (10, 0, 10, 10)
+                                                        BoxLayout:
+                                                            size_hint_y: None
+                                                            height: 65
+                                                            orientation: "vertical"
+                                                            Label:
+                                                                text: "Select analysis"
+                                                                bold: True
+                                                                font_size: 13
+                                                                halign: "left"
+                                                                valign: "middle"
+                                                                text_size: self.size
+                                                            PlotSpinner:
+                                                                id: sp_plot
+                                                                disabled: True if not app.ortho_group_files else False
+                                                                text: "Taxa distribution"
+                                                                option_cls: Factory.get("PlotOpt")
+                                                                values: ("Taxa distribution", "Taxa coverage", "Taxa gene copies")
+                                                                on_release:
+                                                                    plot_description.text = orthology_storage[self.text]
+                                                        BoxLayout:
+                                                            orientation: "vertical"
+                                                            Label:
+                                                                size_hint_y: None
+                                                                height: 30
+                                                                bold: True
+                                                                text: "Description"
+                                                                font_size: 13
+                                                                halign: "left"
+                                                                valign: "middle"
+                                                                text_size: self.size
+                                                            Label:
+                                                                id: plot_description
+                                                                text: orthology_storage[sp_plot.text] if sp_plot.text else ""
+                                                                text_size: self.size
+                                                                font_size: 13
+                                                                halign: "justify"
+                                                                valign: "top"
+                                                            TFButton:
+                                                                size_hint_y: None
+                                                                height: 40
+                                                                text: "Generate plot"
+                                                                disabled: True if not app.ortho_group_files else False
+                                                                on_release:
+                                                                    app.go_screen(7)
+                                                                    app.run_in_background(get_active_group, app.orto_show_plot, [app.ortho_groups, app.active_group, str(app.active_group_name)], [sp_plot.text], False, cancel=False)
+                                                                    app.show_plot_toolbar()
+                                                ScrollView:
+                                                    BoxLayout:
+                                                        orientation: "vertical"
+                                                        spacing: 5
+                                                        padding: (10, 0, 10, 10)
+                                                        BoxLayout:
+                                                            size_hint_y: None
+                                                            height: 65
+                                                            orientation: "vertical"
+                                                            Label:
+                                                                text: "Select analysis"
+                                                                bold: True
+                                                                font_size: 13
+                                                                halign: "left"
+                                                                valign: "middle"
+                                                                text_size: self.size
+                                                            PlotSpinner:
+                                                                id: gn_plot
+                                                                text: "Gene copy distribution"
+                                                                values: ("Gene copy distribution", "")
+                                                                disabled: True if not app.ortho_group_files else False
+                                                                option_cls: Factory.get("PlotOpt")
+                                                                on_release:
+                                                                    plot_description.text = orthology_storage[self.text]
+                                                        BoxLayout:
+                                                            orientation: "vertical"
+                                                            Label:
+                                                                size_hint_y: None
+                                                                height: 30
+                                                                bold: True
+                                                                text: "Description"
+                                                                font_size: 13
+                                                                halign: "left"
+                                                                valign: "middle"
+                                                                text_size: self.size
+                                                            Label:
+                                                                id: plot_description
+                                                                text: orthology_storage[gn_plot.text] if gn_plot.text else ""
+                                                                text_size: self.size
+                                                                font_size: 13
+                                                                halign: "justify"
+                                                                valign: "top"
+                                                            TFButton:
+                                                                size_hint_y: None
+                                                                height: 40
+                                                                disabled: True if not app.ortho_group_files else False
+                                                                text: "Generate plot"
+                                                                on_release:
+                                                                    app.go_screen(7)
+                                                                    app.run_in_background(get_active_group, app.orto_show_plot, [app.ortho_groups, app.active_group, str(app.active_group_name)], [gn_plot.text], False, cancel=False)
+                                                                    app.show_plot_toolbar()
+                                BoxLayout:
+                                    padding: 10
+                                    orientation: "vertical"
+                                    GridLayout:
+                                        cols: 1
+                                        id: card_gl
+                                        Label:
+                                            id: orto_results_lb
+                                            padding: 10, 10
+                                            halign: "center"
+                                            valign: "middle"
+                                            text_size: self.size
+                                            text: "Explore and transform the output of OrthoMCL by searching orthologs with the Search operation or [i][color=37abc8ff][ref=import_group]importing group files[/ref][/color][/i]"
+                                            bold: True
+                                            markup: True
+                                            on_ref_press:
+                                                app.dialog_import_groups()
+
+                BoxLayout:
+                    Label:
+                        text: "Placeholder"
