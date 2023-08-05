@@ -1,0 +1,2 @@
+dcpy is a javascript charting library with native crossfilter support, allowing highly efficient exploration on large multi-dimensional datasets. It leverages d3 to render charts in CSS-friendly SVG format. Charts rendered using dc.js are data driven and reactive and therefore provide instant feedback to user interaction.
+dcpy is an easy yet powerful python library for data visualization and analysis.
