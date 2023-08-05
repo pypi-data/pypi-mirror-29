@@ -1,0 +1,219 @@
+---
+version: '2.0'
+name: tripleo.deployment.v1
+description: TripleO deployment workflows
+
+workflows:
+
+  deploy_on_server:
+
+    input:
+      - server_uuid
+      - server_name
+      - config
+      - config_name
+      - group
+      - queue_name: tripleo
+
+    tags:
+      - tripleo-common-managed
+
+    tasks:
+
+      deploy_config:
+        action: tripleo.deployment.config
+        on-complete: send_message
+        input:
+          server_id: <% $.server_uuid %>
+          name: <% $.config_name %>
+          config: <% $.config %>
+          group: <% $.group %>
+
+      send_message:
+        action: zaqar.queue_post
+        retry: count=5 delay=1
+        input:
+          queue_name: <% $.queue_name %>
+          messages:
+            body:
+              type: tripleo.deployment.v1.deploy_on_server
+              payload:
+                server_uuid: <% $.server_uuid %>
+                server_name: <% $.server_name %>
+                config_name: <% $.config_name %>
+                status_code: <% task(deploy_config).result.deploy_status_code %>
+                stdout: <% task(deploy_config).result.deploy_stdout %>
+                stderr: <% task(deploy_config).result.deploy_stderr %>
+                execution: <% execution() %>
+        on-success:
+          - fail: <% $.get('status') = "FAILED" %>
+
+  deploy_on_servers:
+
+    input:
+      - server_name
+      - config_name
+      - config
+      - group: script
+      - queue_name: tripleo
+
+    tags:
+      - tripleo-common-managed
+
+    tasks:
+
+      get_servers_matching:
+        action: nova.servers_list
+        on-success: deploy_on_servers
+        publish:
+          servers_with_name: <% task(get_servers_matching).result._info.where($.name.indexOf(execution().input.server_name) > -1) %>
+
+      deploy_on_servers:
+        on-success: send_success_message
+        on-error: send_failed_message
+        with-items: server in <% $.servers_with_name %>
+        workflow: tripleo.deployment.v1.deploy_on_server
+        input:
+          server_name: <% $.server.name %>
+          server_uuid: <% $.server.id %>
+          config: <% $.config %>
+          config_name: <% $.config_name %>
+          group: <% $.group %>
+          queue_name: <% $.queue_name %>
+
+      send_success_message:
+        action: zaqar.queue_post
+        retry: count=5 delay=1
+        input:
+          queue_name: <% $.queue_name %>
+          messages:
+            body:
+              type: tripleo.deployment.v1.deploy_on_servers
+              payload:
+                status: SUCCESS
+                execution: <% execution() %>
+
+      send_failed_message:
+        action: zaqar.queue_post
+        retry: count=5 delay=1
+        input:
+          queue_name: <% $.queue_name %>
+          messages:
+            body:
+              type: tripleo.deployment.v1.deploy_on_servers
+              payload:
+                status: FAILED
+                message: <% task(deploy_on_servers).result %>
+                execution: <% execution() %>
+        on-success: fail
+
+  deploy_plan:
+
+    description: >
+      Deploy the overcloud for a plan.
+
+    input:
+      - container
+      - run_validations: False
+      - timeout: 240
+      - skip_deploy_identifier: False
+      - queue_name: tripleo
+
+    tags:
+      - tripleo-common-managed
+
+    tasks:
+
+      add_validation_ssh_key:
+        workflow: tripleo.validations.v1.add_validation_ssh_key_parameter
+        input:
+          container: <% $.container %>
+          queue_name: <% $.queue_name %>
+        on-complete:
+          - run_validations: <% $.run_validations %>
+          - create_swift_rings_backup_plan: <% not $.run_validations %>
+
+      run_validations:
+        workflow: tripleo.validations.v1.run_groups
+        input:
+          group_names:
+            - 'pre-deployment'
+          plan: <% $.container %>
+          queue_name: <% $.queue_name %>
+        on-success: create_swift_rings_backup_plan
+        on-error: set_validations_failed
+
+      set_validations_failed:
+        on-success: send_message
+        publish:
+          status: FAILED
+          message: <% task(run_validations).result %>
+
+      create_swift_rings_backup_plan:
+        workflow: tripleo.swift_rings_backup.v1.create_swift_rings_backup_container_plan
+        on-success: get_heat_stack
+        on-error: create_swift_rings_backup_plan_set_status_failed
+        input:
+          container: <% $.container %>
+          queue_name: <% $.queue_name %>
+          use_default_templates: true
+
+      get_heat_stack:
+        action: heat.stacks_get stack_id=<% $.container %>
+        on-error: cell_v2_discover_hosts
+        on-success:
+          - set_stack_in_progress: <% "_IN_PROGRESS" in task(get_heat_stack).result.stack_status %>
+          - cell_v2_discover_hosts: <% not "_IN_PROGRESS" in task(get_heat_stack).result.stack_status %>
+
+      set_stack_in_progress:
+        on-success: send_message
+        publish:
+          status: FAILED
+          message: The Heat stack is busy.
+
+      cell_v2_discover_hosts:
+        on-success: deploy
+        on-error: cell_v2_discover_hosts_failed
+        action: tripleo.baremetal.cell_v2_discover_hosts
+
+      cell_v2_discover_hosts_failed:
+        on-success: send_message
+        publish:
+          status: FAILED
+          message: <% task(cell_v2_discover_hosts).result %>
+
+      deploy:
+        action: tripleo.deployment.deploy
+        input:
+          timeout: <% $.timeout %>
+          container: <% $.container %>
+          skip_deploy_identifier: <% $.skip_deploy_identifier %>
+        on-success: send_message
+        on-error: set_deployment_failed
+
+      create_swift_rings_backup_plan_set_status_failed:
+        on-success: send_message
+        publish:
+          status: FAILED
+          message: <% task(create_swift_rings_backup_plan).result %>
+
+      set_deployment_failed:
+        on-success: send_message
+        publish:
+          status: FAILED
+          message: <% task(deploy).result %>
+
+      send_message:
+        action: zaqar.queue_post
+        retry: count=5 delay=1
+        input:
+          queue_name: <% $.queue_name %>
+          messages:
+            body:
+              type: tripleo.deployment.v1.deploy_plan
+              payload:
+                status: <% $.get('status', 'SUCCESS') %>
+                message: <% $.get('message', '') %>
+                execution: <% execution() %>
+        on-success:
+          - fail: <% $.get('status') = "FAILED" %>

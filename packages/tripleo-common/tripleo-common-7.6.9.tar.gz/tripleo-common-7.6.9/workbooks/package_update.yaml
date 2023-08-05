@@ -1,0 +1,182 @@
+---
+version: '2.0'
+name: tripleo.package_update.v1
+description: TripleO update workflows
+
+workflows:
+
+  # Updates a workload cloud stack
+  package_update_plan:
+    description: Take a container and perform a package update with possible breakpoints
+
+    input:
+      - container
+      - container_registry
+      - ceph_ansible_playbook
+      - timeout: 240
+      - queue_name: tripleo
+      - skip_deploy_identifier: False
+      - config_dir: '/tmp/'
+
+    tags:
+      - tripleo-common-managed
+
+    tasks:
+      update_plan:
+        action: tripleo.plan.update_from_dir
+        input:
+          container: <% $.container %>
+        on-success: update
+        on-error: set_update_failed
+
+      update:
+        action: tripleo.package_update.update_stack container=<% $.container %> timeout=<% $.timeout %> container_registry=<% $.container_registry %> ceph_ansible_playbook=<% $.ceph_ansible_playbook %>
+        input:
+          timeout: <% $.timeout %>
+          container: <% $.container %>
+          container_registry: <% $.container_registry %>
+          ceph_ansible_playbook: <% $.ceph_ansible_playbook %>
+        on-success: clean_plan
+        on-error: set_update_failed
+
+      clean_plan:
+        action: tripleo.plan.update_plan_environment
+        input:
+          container: <% $.container %>
+          parameter: CephAnsiblePlaybook
+          env_key: parameter_defaults
+          delete: true
+        on-success: send_message
+        on-error: set_update_failed
+
+
+      set_update_failed:
+        on-success: send_message
+        publish:
+          status: FAILED
+          message: <% task(update).result %>
+
+      send_message:
+        action: zaqar.queue_post
+        input:
+          queue_name: <% $.queue_name %>
+          messages:
+            body:
+              type: tripleo.package_update.v1.package_update_plan
+              payload:
+                status: <% $.get('status', 'SUCCESS') %>
+                message: <% $.get('message', '') %>
+                execution: <% execution() %>
+        on-success:
+          - fail: <% $.get('status') = "FAILED" %>
+
+  get_config:
+    input:
+      - container
+      - queue_name: tripleo
+
+    tags:
+      - tripleo-common-managed
+
+    tasks:
+      get_config:
+        action: tripleo.config.get_overcloud_config container=<% $.container %>
+        publish:
+          status: SUCCESS
+          message: <% task().result %>
+        publish-on-error:
+          status: FAILED
+          message: Init Minor update failed
+        on-complete: send_message
+
+      send_message:
+        action: zaqar.queue_post
+        input:
+          queue_name: <% $.queue_name %>
+          messages:
+            body:
+              type: tripleo.package_update.v1.package_update_plan
+              payload:
+                status: <% $.get('status', 'SUCCESS') %>
+                message: <% $.get('message', '') %>
+                execution: <% execution() %>
+        on-success:
+          - fail: <% $.get('status') = "FAILED" %>
+
+  update_nodes:
+    description: Take a container and perform an update nodes by nodes
+
+    input:
+      - node_user: heat-admin
+      - nodes
+      - playbook
+      - inventory_file
+      - queue_name: tripleo
+      - ansible_queue_name: tripleo
+      - module_path: /usr/share/ansible-modules
+      - ansible_extra_env_variables:
+            ANSIBLE_HOST_KEY_CHECKING: 'False'
+
+    tags:
+      - tripleo-common-managed
+
+    tasks:
+      download_config:
+        action: tripleo.config.download_config
+        on-success: get_private_key
+        publish:
+          tmp_path: <% task(download_config).result %>
+        on-error: node_update_failed
+
+      get_private_key:
+        action: tripleo.validations.get_privkey
+        publish:
+          private_key: <% task(get_private_key).result %>
+        on-success: node_update
+
+      node_update:
+        action: tripleo.ansible-playbook
+        input:
+          inventory: <% $.inventory_file %>
+          playbook: <% $.tmp_path %>/<% $.playbook %>
+          remote_user: <% $.node_user %>
+          become: true
+          become_user: root
+          verbosity: 0
+          ssh_private_key: <% $.private_key %>
+          extra_env_variables: <% $.ansible_extra_env_variables %>
+          limit_hosts: <% $.nodes %>
+          module_path: <% $.module_path %>
+          queue_name: <% $.ansible_queue_name %>
+        on-success:
+          - node_update_passed: <% task().result.returncode = 0 %>
+          - node_update_failed: <% task().result.returncode != 0 %>
+        on-error: node_update_failed
+        publish:
+          output: <% task(node_update).result %>
+
+      node_update_passed:
+        on-success: notify_zaqar
+        publish:
+          status: SUCCESS
+          message: Updated nodes - <% $.nodes %>
+
+      node_update_failed:
+        on-success: notify_zaqar
+        publish:
+          status: FAILED
+          message: Failed to update nodes - <% $.nodes %>, please see the logs.
+
+      notify_zaqar:
+        action: zaqar.queue_post
+        retry: count=5 delay=1
+        input:
+          queue_name: <% $.queue_name %>
+          messages:
+            body:
+              type: tripleo.package_update.v1.update_nodes
+              payload:
+                status: <% $.status %>
+                execution: <% execution() %>
+        on-success:
+          - fail: <% $.get('status') = "FAILED" %>

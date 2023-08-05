@@ -1,0 +1,811 @@
+---
+version: '2.0'
+name: tripleo.validations.v1
+description: TripleO Validations Workflows v1
+
+workflows:
+
+  run_validation:
+    input:
+      - validation_name
+      - plan: overcloud
+      - queue_name: tripleo
+
+    tags:
+      - tripleo-common-managed
+
+    tasks:
+
+      notify_running:
+        on-complete: run_validation
+        action: zaqar.queue_post
+        retry: count=5 delay=1
+        input:
+          queue_name: <% $.queue_name %>
+          messages:
+            body:
+              type: tripleo.validations.v1.run_validation
+              payload:
+                validation_name: <% $.validation_name %>
+                plan: <% $.plan %>
+                status: RUNNING
+                execution: <% execution() %>
+
+      run_validation:
+        on-success: send_message
+        on-error: set_status_failed
+        action: tripleo.validations.run_validation validation=<% $.validation_name %> plan=<% $.plan %>
+        publish:
+          status: SUCCESS
+          stdout: <% task(run_validation).result.stdout %>
+          stderr: <% task(run_validation).result.stderr %>
+
+      set_status_failed:
+        on-complete: send_message
+        publish:
+          status: FAILED
+          stdout: <% task(run_validation).result.stdout %>
+          stderr: <% task(run_validation).result.stderr %>
+
+      send_message:
+        action: zaqar.queue_post
+        retry: count=5 delay=1
+        input:
+          queue_name: <% $.queue_name %>
+          messages:
+            body:
+              type: tripleo.validations.v1.run_validation
+              payload:
+                validation_name: <% $.validation_name %>
+                plan: <% $.plan %>
+                status: <% $.get('status', 'SUCCESS') %>
+                stdout: <% $.stdout %>
+                stderr: <% $.stderr %>
+                execution: <% execution() %>
+        on-success:
+          - fail: <% $.get('status') = "FAILED" %>
+
+  run_validations:
+    input:
+      - validation_names: []
+      - plan: overcloud
+      - queue_name: tripleo
+
+    tags:
+      - tripleo-common-managed
+
+    tasks:
+
+      notify_running:
+        on-complete: run_validations
+        action: zaqar.queue_post
+        retry: count=5 delay=1
+        input:
+          queue_name: <% $.queue_name %>
+          messages:
+            body:
+              type: tripleo.validations.v1.run_validations
+              payload:
+                validation_names: <% $.validation_names %>
+                plan: <% $.plan %>
+                status: RUNNING
+                execution: <% execution() %>
+
+      run_validations:
+        on-success: send_message
+        on-error: set_status_failed
+        workflow: tripleo.validations.v1.run_validation validation_name=<% $.validation %> plan=<% $.plan %> queue_name=<% $.queue_name %>
+        with-items: validation in <% $.validation_names %>
+        publish:
+          status: SUCCESS
+
+      set_status_failed:
+        on-complete: send_message
+        publish:
+          status: FAILED
+
+      send_message:
+        action: zaqar.queue_post
+        retry: count=5 delay=1
+        input:
+          queue_name: <% $.queue_name %>
+          messages:
+            body:
+              type: tripleo.validations.v1.run_validations
+              payload:
+                validation_names: <% $.validation_names %>
+                plan: <% $.plan %>
+                status: <% $.get('status', 'SUCCESS') %>
+                execution: <% execution() %>
+        on-success:
+          - fail: <% $.get('status') = "FAILED" %>
+
+  run_groups:
+    input:
+      - group_names: []
+      - plan: overcloud
+      - queue_name: tripleo
+
+    tags:
+      - tripleo-common-managed
+
+    tasks:
+
+      find_validations:
+        on-success: notify_running
+        action: tripleo.validations.list_validations groups=<% $.group_names %>
+        publish:
+          validations: <% task(find_validations).result %>
+
+      notify_running:
+        on-complete: run_validation_group
+        action: zaqar.queue_post
+        retry: count=5 delay=1
+        input:
+          queue_name: <% $.queue_name %>
+          messages:
+            body:
+              type: tripleo.validations.v1.run_validations
+              payload:
+                group_names: <% $.group_names %>
+                validation_names: <% $.validations.id %>
+                plan: <% $.plan %>
+                status: RUNNING
+                execution: <% execution() %>
+
+      run_validation_group:
+        on-success: send_message
+        on-error: set_status_failed
+        workflow: tripleo.validations.v1.run_validation validation_name=<% $.validation %> plan=<% $.plan %> queue_name=<% $.queue_name %>
+        with-items: validation in <% $.validations.id %>
+        publish:
+          status: SUCCESS
+
+      set_status_failed:
+        on-complete: send_message
+        publish:
+          status: FAILED
+
+      send_message:
+        action: zaqar.queue_post
+        retry: count=5 delay=1
+        input:
+          queue_name: <% $.queue_name %>
+          messages:
+            body:
+              type: tripleo.validations.v1.run_groups
+              payload:
+                group_names: <% $.group_names %>
+                validation_names: <% $.validations.id %>
+                plan: <% $.plan %>
+                status: <% $.get('status', 'SUCCESS') %>
+                execution: <% execution() %>
+        on-success:
+          - fail: <% $.get('status') = "FAILED" %>
+
+  list:
+    input:
+      - group_names: []
+    tags:
+      - tripleo-common-managed
+    tasks:
+      find_validations:
+        action: tripleo.validations.list_validations groups=<% $.group_names %>
+
+  list_groups:
+    tags:
+      - tripleo-common-managed
+    tasks:
+      find_groups:
+        action: tripleo.validations.list_groups
+
+  add_validation_ssh_key_parameter:
+    input:
+     - container
+     - queue_name: tripleo
+
+    tags:
+      - tripleo-common-managed
+
+    tasks:
+      test_validations_enabled:
+        action: tripleo.validations.enabled
+        on-success: get_pubkey
+        on-error: unset_validation_key_parameter
+
+      get_pubkey:
+        action: tripleo.validations.get_pubkey
+        on-success: set_validation_key_parameter
+        publish:
+          pubkey: <% task(get_pubkey).result %>
+
+      set_validation_key_parameter:
+        action: tripleo.parameters.update
+        input:
+          parameters:
+            node_admin_extra_ssh_keys: <% $.pubkey %>
+          container: <% $.container %>
+
+      # NOTE(shadower): We need to clear keys from a previous deployment
+      unset_validation_key_parameter:
+        action: tripleo.parameters.update
+        input:
+          parameters:
+            node_admin_extra_ssh_keys: ""
+          container: <% $.container %>
+
+  copy_ssh_key:
+    input:
+      # FIXME: we should stop using heat-admin as e.g. split-stack
+      # environments (where Nova didn't create overcloud nodes) don't
+      # have it present
+      - overcloud_admin: heat-admin
+      - queue_name: tripleo
+    tags:
+      - tripleo-common-managed
+    tasks:
+      get_servers:
+        action: nova.servers_list
+        on-success: get_pubkey
+        publish:
+          servers: <% task(get_servers).result._info %>
+
+      get_pubkey:
+        action: tripleo.validations.get_pubkey
+        on-success: deploy_ssh_key
+        publish:
+          pubkey: <% task(get_pubkey).result %>
+
+      deploy_ssh_key:
+        workflow: tripleo.deployment.v1.deploy_on_server
+        with-items: server in <% $.servers %>
+        input:
+          server_name: <% $.server.name %>
+          server_uuid: <% $.server.id %>
+          config: |
+            #!/bin/bash
+            if ! grep "<% $.pubkey %>" /home/<% $.overcloud_admin %>/.ssh/authorized_keys; then
+              echo "<% $.pubkey %>" >> /home/<% $.overcloud_admin %>/.ssh/authorized_keys
+            fi
+          config_name: copy_ssh_key
+          group: script
+          queue_name: <% $.queue_name %>
+
+  check_boot_images:
+    input:
+      - deploy_kernel_name: 'bm-deploy-kernel'
+      - deploy_ramdisk_name: 'bm-deploy-ramdisk'
+      - run_validations: true
+      - queue_name: tripleo
+    output:
+      errors: <% $.errors %>
+      warnings: <% $.warnings %>
+      kernel_id: <% $.kernel_id %>
+      ramdisk_id: <% $.ramdisk_id %>
+    tags:
+      - tripleo-common-managed
+    tasks:
+      check_run_validations:
+        on-complete:
+          - get_images: <% $.run_validations %>
+          - send_message: <% not $.run_validations %>
+
+      get_images:
+        action: glance.images_list
+        on-success: check_images
+        publish:
+          images: <% task(get_images).result %>
+
+      check_images:
+        action: tripleo.validations.check_boot_images
+        input:
+          images: <% $.images %>
+          deploy_kernel_name: <% $.deploy_kernel_name %>
+          deploy_ramdisk_name: <% $.deploy_ramdisk_name %>
+        on-success: send_message
+        on-error: fail_check_images
+        publish:
+          kernel_id: <% task(check_images).result.kernel_id %>
+          ramdisk_id: <% task(check_images).result.ramdisk_id %>
+          warnings: <% task(check_images).result.warnings %>
+          errors: <% task(check_images).result.errors %>
+        publish-on-error:
+          kernel_id: <% task(check_images).result.kernel_id %>
+          ramdisk_id: <% task(check_images).result.ramdisk_id %>
+          warnings: <% task(check_images).result.warnings %>
+          errors: <% task(check_images).result.errors %>
+
+      fail_check_images:
+        on-success: send_message
+        publish:
+          status: FAILED
+          message: <% task(check_images).result %>
+
+      send_message:
+        action: zaqar.queue_post
+        retry: count=5 delay=1
+        input:
+          queue_name: <% $.queue_name %>
+          messages:
+            body:
+              type: tripleo.validations.v1.check_boot_images
+              payload:
+                status: <% $.get('status', 'SUCCESS') %>
+                message: <% $.get('message', '') %>
+                execution: <% execution() %>
+                kernel_id: <% $.kernel_id %>
+                ramdisk_id: <% $.ramdisk_id %>
+                errors: <% $.errors %>
+                warnings: <% $.warnings %>
+        on-success:
+          - fail: <% $.get('status') = "FAILED" %>
+
+  collect_flavors:
+    input:
+      - roles_info: {}
+      - run_validations: true
+      - queue_name: tripleo
+    output:
+      errors: <% $.errors %>
+      warnings: <% $.warnings %>
+      flavors: <% $.flavors %>
+
+    tags:
+      - tripleo-common-managed
+
+    tasks:
+      check_run_validations:
+        on-complete:
+          - check_flavors: <% $.run_validations %>
+          - send_message: <% not $.run_validations %>
+
+      check_flavors:
+        action: tripleo.validations.check_flavors
+        input:
+          roles_info: <% $.roles_info %>
+        on-success: send_message
+        on-error: fail_check_flavors
+        publish:
+          flavors: <% task(check_flavors).result.flavors %>
+          errors: <% task(check_flavors).result.errors %>
+          warnings: <% task(check_flavors).result.warnings %>
+        publish-on-error:
+          flavors: {}
+          errors: <% task(check_flavors).result.errors %>
+          warnings: <% task(check_flavors).result.warnings %>
+
+      fail_check_flavors:
+        on-success: send_message
+        publish:
+          status: FAILED
+          message: <% task(check_flavors).result %>
+
+      send_message:
+        action: zaqar.queue_post
+        retry: count=5 delay=1
+        input:
+          queue_name: <% $.queue_name %>
+          messages:
+            body:
+              type: tripleo.validations.v1.collect_flavors
+              payload:
+                status: <% $.get('status', 'SUCCESS') %>
+                message: <% $.get('message', '') %>
+                execution: <% execution() %>
+                flavors: <% $.flavors %>
+                errors: <% $.errors %>
+                warnings: <% $.warnings %>
+        on-success:
+          - fail: <% $.get('status') = "FAILED" %>
+
+  check_ironic_boot_configuration:
+    input:
+      - kernel_id: null
+      - ramdisk_id: null
+      - run_validations: true
+      - queue_name: tripleo
+    output:
+      errors: <% $.errors %>
+      warnings: <% $.warnings %>
+
+    tags:
+      - tripleo-common-managed
+
+    tasks:
+      check_run_validations:
+        on-complete:
+          - get_ironic_nodes: <% $.run_validations %>
+          - send_message: <% not $.run_validations %>
+
+      get_ironic_nodes:
+        action: ironic.node_list
+        on-success: check_node_boot_configuration
+        on-error: failed_get_ironic_nodes
+        input:
+          provision_state: available
+          maintenance: false
+          detail: true
+        publish:
+          nodes: <% task(get_ironic_nodes).result %>
+
+      failed_get_ironic_nodes:
+        on-success: send_message
+        publish:
+          status: FAILED
+          message: <% task(get_ironic_nodes).result %>
+
+      check_node_boot_configuration:
+        action: tripleo.validations.check_node_boot_configuration
+        input:
+          node: <% $.node %>
+          kernel_id: <% $.kernel_id %>
+          ramdisk_id: <% $.ramdisk_id %>
+        with-items: node in <% $.nodes %>
+        on-success: send_message
+        on-error: fail_check_node_boot_configuration
+        publish:
+          errors: <% task(check_node_boot_configuration).result.errors.flatten() %>
+          warnings: <% task(check_node_boot_configuration).result.warnings.flatten() %>
+        publish-on-error:
+          errors: <% task(check_node_boot_configuration).result.errors.flatten() %>
+          warnings: <% task(check_node_boot_configuration).result.warnings.flatten() %>
+
+      fail_check_node_boot_configuration:
+        on-success: send_message
+        publish:
+          status: FAILED
+          message: <% task(check_node_boot_configuration).result %>
+
+      send_message:
+        action: zaqar.queue_post
+        retry: count=5 delay=1
+        input:
+          queue_name: <% $.queue_name %>
+          messages:
+            body:
+              type: tripleo.validations.v1.check_ironic_boot_configuration
+              payload:
+                status: <% $.get('status', 'SUCCESS') %>
+                message: <% $.get('message', '') %>
+                execution: <% execution() %>
+                errors: <% $.errors %>
+                warnings: <% $.warnings %>
+        on-success:
+          - fail: <% $.get('status') = "FAILED" %>
+
+  verify_profiles:
+    input:
+      - flavors: []
+      - run_validations: true
+      - queue_name: tripleo
+    output:
+      errors: <% $.errors %>
+      warnings: <% $.warnings %>
+
+    tags:
+      - tripleo-common-managed
+
+    tasks:
+      check_run_validations:
+        on-complete:
+          - get_ironic_nodes: <% $.run_validations %>
+          - send_message: <% not $.run_validations %>
+
+      get_ironic_nodes:
+        action: ironic.node_list
+        on-success: verify_profiles
+        on-error: failed_get_ironic_nodes
+        input:
+          maintenance: false
+          detail: true
+        publish:
+          nodes: <% task(get_ironic_nodes).result %>
+
+      failed_get_ironic_nodes:
+        on-success: send_message
+        publish:
+          status: FAILED
+          message: <% task(get_ironic_nodes).result %>
+
+      verify_profiles:
+        action: tripleo.validations.verify_profiles
+        input:
+          nodes: <% $.nodes %>
+          flavors: <% $.flavors %>
+        on-success: send_message
+        on-error: fail_verify_profiles
+        publish:
+          errors: <% task(verify_profiles).result.errors %>
+          warnings: <% task(verify_profiles).result.warnings %>
+        publish-on-error:
+          errors: <% task(verify_profiles).result.errors %>
+          warnings: <% task(verify_profiles).result.warnings %>
+
+      fail_verify_profiles:
+        on-success: send_message
+        publish:
+          status: Failed
+          message: <% task(verify_profiles).result %>
+
+      send_message:
+        action: zaqar.queue_post
+        retry: count=5 delay=1
+        input:
+          queue_name: <% $.queue_name %>
+          messages:
+            body:
+              type: tripleo.validations.v1.verify_profiles
+              payload:
+                status: <% $.get('status', 'SUCCESS') %>
+                message: <% $.get('message', '') %>
+                execution: <% execution() %>
+                errors: <% $.errors %>
+                warnings: <% $.warnings %>
+        on-success:
+          - fail: <% $.get('status') = "FAILED" %>
+
+  check_default_nodes_count:
+    input:
+      - stack_id: overcloud
+      - parameters: {}
+      - default_role_counts: {}
+      - run_validations: true
+      - queue_name: tripleo
+    output:
+      statistics: <% $.statistics %>
+      errors: <% $.errors %>
+      warnings: <% $.warnings %>
+
+    tags:
+      - tripleo-common-managed
+
+    tasks:
+      check_run_validations:
+        on-complete:
+          - get_hypervisor_statistics: <% $.run_validations %>
+          - send_message: <% not $.run_validations %>
+
+      get_hypervisor_statistics:
+        action: nova.hypervisors_statistics
+        on-success: get_stack
+        on-error: fail_get_hypervisor_statistics
+        publish:
+          statistics: <% task(get_hypervisor_statistics).result %>
+
+      fail_get_hypervisor_statistics:
+        on-success: send_message
+        publish:
+          status: FAILED
+          message: <% task(get_hypervisor_statistics).result %>
+          errors: []
+          warnings: []
+          statistics: null
+
+      get_stack:
+        action: heat.stacks_get
+        input:
+          stack_id: <% $.stack_id %>
+        on-success: get_associated_nodes
+        on-error: get_associated_nodes
+        publish:
+          stack: <% task(get_stack).result %>
+        publish-on-error:
+          stack: null
+
+      get_associated_nodes:
+        action: ironic.node_list
+        on-success: get_available_nodes
+        on-error: fail_get_associated_nodes
+        input:
+          associated: true
+        publish:
+          associated_nodes: <% task(get_associated_nodes).result %>
+
+      fail_get_associated_nodes:
+        on-success: send_message
+        publish:
+          status: FAILED
+          message: <% task(get_associated_nodes).result %>
+          errors: []
+          warnings: []
+
+      get_available_nodes:
+        action: ironic.node_list
+        on-success: check_nodes_count
+        on-error: fail_get_available_nodes
+        input:
+          provision_state: available
+          associated: false
+          maintenance: false
+        publish:
+          available_nodes: <% task(get_available_nodes).result %>
+
+      fail_get_available_nodes:
+        on-success: send_message
+        publish:
+          status: FAILED
+          message: <% task(get_available_nodes).result %>
+          errors: []
+          warnings: []
+
+      check_nodes_count:
+        action: tripleo.validations.check_nodes_count
+        input:
+          statistics: <% $.statistics %>
+          stack: <% $.stack %>
+          associated_nodes: <% $.associated_nodes %>
+          available_nodes: <% $.available_nodes %>
+          parameters: <% $.parameters %>
+          default_role_counts: <% $.default_role_counts %>
+        on-success: send_message
+        on-error: fail_check_nodes_count
+        publish:
+          errors: <% task(check_nodes_count).result.errors %>
+          warnings: <% task(check_nodes_count).result.warnings %>
+
+      fail_check_nodes_count:
+        on-success: send_message
+        publish:
+          status: FAILED
+          message: <% task(check_nodes_count).result %>
+          statistics: null
+          errors: <% task(check_nodes_count).result.errors %>
+          warnings: <% task(check_nodes_count).result.warnings %>
+
+      send_message:
+        action: zaqar.queue_post
+        retry: count=5 delay=1
+        input:
+          queue_name: <% $.queue_name %>
+          messages:
+            body:
+              type: tripleo.validations.v1.check_hypervisor_stats
+              payload:
+                status: <% $.get('status', 'SUCCESS') %>
+                message: <% $.get('message', '') %>
+                execution: <% execution() %>
+                statistics: <% $.statistics %>
+                errors: <% $.errors %>
+                warnings: <% $.warnings %>
+        on-success:
+          - fail: <% $.get('status') = "FAILED" %>
+
+  check_pre_deployment_validations:
+    input:
+      - deploy_kernel_name: 'bm-deploy-kernel'
+      - deploy_ramdisk_name: 'bm-deploy-ramdisk'
+      - roles_info: {}
+      - stack_id: overcloud
+      - parameters: {}
+      - default_role_counts: {}
+      - run_validations: true
+      - queue_name: tripleo
+
+    output:
+      errors: <% $.errors %>
+      warnings: <% $.warnings %>
+      kernel_id: <% $.kernel_id %>
+      ramdisk_id: <% $.ramdisk_id %>
+      flavors: <% $.flavors %>
+      statistics: <% $.statistics %>
+    tags:
+      - tripleo-common-managed
+    tasks:
+      init_messages:
+        on-success: check_boot_images
+        publish:
+          errors: []
+          warnings: []
+
+      check_boot_images:
+        workflow: check_boot_images
+        input:
+          deploy_kernel_name: <% $.deploy_kernel_name %>
+          deploy_ramdisk_name: <% $.deploy_ramdisk_name %>
+          run_validations: <% $.run_validations %>
+          queue_name: <% $.queue_name %>
+        publish:
+          errors: <% $.errors + task(check_boot_images).result.errors %>
+          warnings: <% $.warnings + task(check_boot_images).result.warnings %>
+          kernel_id: <% task(check_boot_images).result.kernel_id %>
+          ramdisk_id: <% task(check_boot_images).result.ramdisk_id %>
+        publish-on-error:
+          errors: <% $.errors + task(check_boot_images).result.errors %>
+          warnings: <% $.warnings + task(check_boot_images).result.warnings %>
+          kernel_id: <% task(check_boot_images).result.kernel_id %>
+          ramdisk_id: <% task(check_boot_images).result.ramdisk_id %>
+          status: FAILED
+        on-success: collect_flavors
+        on-error: collect_flavors
+
+      collect_flavors:
+        workflow: collect_flavors
+        input:
+          roles_info: <% $.roles_info %>
+          run_validations: <% $.run_validations %>
+          queue_name: <% $.queue_name %>
+        publish:
+          errors: <% $.errors + task(collect_flavors).result.errors %>
+          warnings: <% $.warnings + task(collect_flavors).result.warnings %>
+          flavors: <% task(collect_flavors).result.flavors %>
+        publish-on-error:
+          errors: <% $.errors + task(collect_flavors).result.errors %>
+          warnings: <% $.warnings + task(collect_flavors).result.warnings %>
+          flavors: <% task(collect_flavors).result.flavors %>
+          status: FAILED
+        on-success: check_ironic_boot_configuration
+        on-error: check_ironic_boot_configuration
+
+      check_ironic_boot_configuration:
+        workflow: check_ironic_boot_configuration
+        input:
+          kernel_id: <% $.kernel_id %>
+          ramdisk_id: <% $.ramdisk_id %>
+          run_validations: <% $.run_validations %>
+          queue_name: <% $.queue_name %>
+        publish:
+          errors: <% $.errors + task(check_ironic_boot_configuration).result.errors %>
+          warnings: <% $.warnings + task(check_ironic_boot_configuration).result.warnings %>
+        publish-on-error:
+          errors: <% $.errors + task(check_ironic_boot_configuration).result.errors %>
+          warnings: <% $.warnings + task(check_ironic_boot_configuration).result.warnings %>
+          status: FAILED
+        on-success: verify_profiles
+        on-error: verify_profiles
+
+      verify_profiles:
+        workflow: verify_profiles
+        input:
+          flavors: <% $.flavors %>
+          run_validations: <% $.run_validations %>
+          queue_name: <% $.queue_name %>
+        publish:
+          errors: <% $.errors + task(verify_profiles).result.errors %>
+          warnings: <% $.warnings + task(verify_profiles).result.warnings %>
+        publish-on-error:
+          errors: <% $.errors + task(verify_profiles).result.errors %>
+          warnings: <% $.warnings + task(verify_profiles).result.warnings %>
+          status: FAILED
+        on-success: check_default_nodes_count
+        on-error: check_default_nodes_count
+
+      check_default_nodes_count:
+        workflow: check_default_nodes_count
+        input:
+          stack_id: <% $.stack_id %>
+          parameters: <% $.parameters %>
+          default_role_counts: <% $.default_role_counts %>
+          run_validations: <% $.run_validations %>
+          queue_name: <% $.queue_name %>
+        publish:
+          errors: <% $.errors + task(check_default_nodes_count).result.errors %>
+          warnings: <% $.warnings + task(check_default_nodes_count).result.warnings %>
+          statistics: <% task(check_default_nodes_count).result.statistics %>
+        publish-on-error:
+          errors: <% $.errors + task(check_default_nodes_count).result.errors %>
+          warnings: <% $.warnings + task(check_default_nodes_count).result.warnings %>
+          statistics: <% task(check_default_nodes_count).result.statistics %>
+          status: FAILED
+        on-success: send_message
+        on-error: send_message
+
+      send_message:
+        action: zaqar.queue_post
+        retry: count=5 delay=1
+        input:
+          queue_name: <% $.queue_name %>
+          messages:
+            body:
+              type: tripleo.validations.v1.check_hypervisor_stats
+              payload:
+                status: <% $.get('status', 'SUCCESS') %>
+                message: <% $.get('message', '') %>
+                execution: <% execution() %>
+                kernel_id: <% $.kernel_id %>
+                ramdisk_id: <% $.ramdisk_id %>
+                flavors: <% $.flavors %>
+                statistics: <% $.statistics %>
+                errors: <% $.errors %>
+                warnings: <% $.warnings %>
+        on-success:
+          - fail: <% $.get('status') = "FAILED" %>
