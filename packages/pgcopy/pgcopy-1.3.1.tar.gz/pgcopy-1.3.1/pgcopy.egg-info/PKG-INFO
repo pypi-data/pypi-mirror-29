@@ -1,0 +1,269 @@
+Metadata-Version: 1.1
+Name: pgcopy
+Version: 1.3.1
+Summary: Fast db insert with postgresql binary copy
+Home-page: https://github.com/altaurog/pgcopy
+Author: Aryeh Leib Taurog
+Author-email: python@aryehleib.com
+License: MIT
+Description-Content-Type: UNKNOWN
+Description: pgcopy
+        =================
+        
+        .. image:: https://travis-ci.org/altaurog/pgcopy.svg?branch=master
+            :target: https://travis-ci.org/altaurog/pgcopy
+        
+        pgcopy is a small system for very fast bulk insertion of data into a
+        PostgreSQL database table using `binary copy`_.
+        
+        Installation
+        -------------
+        
+        To install::
+        
+            $ pip install pgcopy
+        
+        pgcopy requires pytz_ and the psycopg2_ db adapter.
+        nose_ is required to run the tests.
+        
+        Use
+        ---------
+        
+        pgcopy provides facility for copying data from an iterable of tuple-like
+        objects using a ``CopyManager``, which must be instantiated with a psycopg2
+        db connection, the table name, and an iterable containing the names of the
+        columns to be inserted in the order in which they will be provided.
+        pgcopy inspects the database to determine the datatypes of the columns.
+        
+        For example::
+        
+            from datetime import datetime
+            from pgcopy import CopyManager
+            import psycopg2
+            cols = ('id', 'timestamp', 'location', 'temperature')
+            now = datetime.now()
+            records = [
+                    (0, now, 'Jerusalem', 72.2),
+                    (1, now, 'New York', 75.6),
+                    (2, now, 'Moscow', 54.3),
+                ]
+            conn = psycopg2.connect(database='weather_db')
+            mgr = CopyManager(conn, 'measurements_table', cols)
+            mgr.copy(records)
+        
+            # don't forget to commit!
+            conn.commit()
+        
+        By default, a temporary file on disk is used.  If there's enough memory,
+        you can get a slight performance benefit with in-memory storage::
+        
+            from io import BytesIO
+            mgr.copy(records, BytesIO)
+        
+        A db schema can be specified in the table name using dot notation::
+        
+            mgr = CopyManager(conn, 'myschema.measurements', cols)
+        
+        Supported datatypes
+        -------------------
+        
+        Currently the following PostgreSQL datatypes are supported:
+        
+        * bool
+        * smallint
+        * integer
+        * bigint
+        * real
+        * double precision
+        * char
+        * varchar
+        * text
+        * bytea
+        * date
+        * timestamp
+        * timestamp with time zone
+        * numeric (data must be ``decimal.Decimal``)
+        * json
+        * jsonb
+        * uuid
+        
+        Unicode strings in the data to be inserted (all values of type ``str`` in
+        Python 3) should be encoded as ``bytes`` before passing them to ``copy``.
+        Values intended to be ``NULL`` in the database should be encoded as ``None``
+        rather than as empty strings.
+        
+        .. note::
+        
+            PostgreSQL numeric does not support ``Decimal('Inf')`` or
+            ``Decimal('-Inf')``.  pgcopy serializes these as ``NaN``.
+        
+        Testing
+        --------
+        
+        For a fast test run using current environment, use nose_::
+        
+            $ nosetests
+        
+        For more thorough testing, Tox_ configuration will run tests on python
+        versions 2.7 and 3.3 - 3.6::
+        
+            $ tox
+        
+        Additionally, test can be run with no local requirements other than the
+        ubiquitous docker::
+        
+            $ docker-compose up pgcopy
+        
+        
+        Benchmarks
+        -----------
+        
+        Below are simple benchmarks for 100000 records.
+        This gives a general idea of the kind of speedup 
+        available with pgcopy::
+        
+            $ nosetests -c tests/benchmark.cfg 
+                      ExecuteManyBenchmark:   7.75s
+                           PGCopyBenchmark:   0.54s
+            ----------------------------------------------------------------------
+            Ran 2 tests in 9.101s
+        
+        Replacing a Table
+        ------------------
+        
+        When possible, faster insertion may be realized by inserting into an empty
+        table with no indices or constraints.  In a case where the entire contents
+        of the table can be reinserted, the ``Replace`` context manager automates
+        the process.  On entry, it creates a new table like the original, with a
+        temporary name.  Default column values are included.  It provides the
+        temporary name for populating the table within the context.  On exit, it
+        recreates the constraints, indices, triggers, and views on the new table,
+        then replaces the old table with the new.  It can be used so::
+        
+            from pgcopy import CopyManager, Replace
+            with Replace(conn, 'mytable') as temp_name:
+                mgr = CopyManager(conn, temp_name, cols)
+                mgr.copy(records)
+        
+        ``Replace`` renames new db objects like the old, where possible.
+        Names of foreign key and check constraints will be mangled.
+        As of v0.6 there is also ``pgcopy.util.RenameReplace``, which instead of
+        dropping the original objects renames them using a transformation function.
+        
+        Note that on PostgreSQL 9.1 and earlier, concurrent queries on the table
+        `will fail`_ once the table is dropped.
+        
+        .. _will fail: https://gist.github.com/altaurog/ab0019837719d2a93e6b
+        
+        See Also
+        --------
+        
+        cpgcopy_, a Cython implementation, about twice as fast.
+        
+        
+        .. _binary copy: http://www.postgresql.org/docs/9.3/static/sql-copy.html
+        .. _psycopg2: https://pypi.python.org/pypi/psycopg2/
+        .. _pytz: https://pypi.python.org/pypi/pytz/
+        .. _nose: https://pypi.python.org/pypi/nose/
+        .. _cpgcopy: https://github.com/altaurog/cpgcopy
+        .. _Tox: https://tox.readthedocs.io/en/latest/
+        
+        
+        Changelog
+        -----------
+        1.3.1
+        """""
+        :date: 14 Feb, 2018
+        
+        * Mention `commit` in the README
+        
+        1.3.0
+        """""
+        :date: 22 Aug, 2017
+        
+        * Support unlimited varchar fields (thanks John A. Bachman)
+        * Updated documentation regarding string encoding in Python 3 (thanks John
+          A. Bachman)
+        * Fix bug in varchar truncation
+        * Fix bug in numeric type formatter (reported by Peter Van Eynde)
+        
+        1.2.0
+        """""
+        :date: 25 Mar, 2017
+        
+        * Support db schema (thanks Marcin Gozdalik)
+        
+        1.1.0
+        """""
+        :date: 26 Jan, 2017
+        
+        * Support `uuid`, `json`, and `jsonb` types
+          (thanks Igor Mastak)
+        * Integrate Travis CI
+        * Add docker test strategy
+        
+        1.0.0
+        """""
+        :date: 19 Jan, 2017
+        
+        * Run tests with tox
+        * Support Python 3
+        * Initial release on PyPi
+        
+        0.7
+        """
+        :date: 19 Jan, 2017
+        
+        * Add support for serializing Python ``decimal.Decimal`` to PostgreSQL ``numeric``.
+        
+        0.6
+        """
+        :date: 21 Oct, 2014
+        
+        * ``RenameReplace`` variant
+        
+        0.5
+        """
+        :date: 14 Jul, 2014
+        
+        * Support default values and sequences
+        
+        0.4
+        """
+        :date: 14 Jul, 2014
+        
+        * Fix ``Replace`` utility class bugs
+        * Add view support to ``Replace``
+        
+        0.3
+        """
+        :date: 8 Jul, 2014
+        
+        *  Move Cython optimization to separate project
+        *  Add ``Replace`` utility class
+        
+        0.2
+        """
+        :date: 7 Jul, 2014
+        
+        *  Cython optimization
+        
+        0.1
+        """
+        :date: 29 Jun, 2014
+        
+        *  Initial version
+        
+Platform: UNKNOWN
+Classifier: Programming Language :: Python :: 2
+Classifier: Programming Language :: Python :: 2.7
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.3
+Classifier: Programming Language :: Python :: 3.4
+Classifier: Programming Language :: Python :: 3.5
+Classifier: Programming Language :: Python :: 3.6
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Intended Audience :: Developers
+Classifier: Topic :: Database
