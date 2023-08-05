@@ -1,0 +1,116 @@
+.. _dynamic_modules_compartments:
+
+******************
+Compartment models
+******************
+The compartment models are the building blocks of the composite models.
+They consists in basis of two parts, a list of parameters (see :ref:`dynamic_modules_parameters`) and the model code in OpenCL C (see :ref:`concepts_cl_code`).
+At runtime, MDT loads the C/CL code of the compartment model and combines it with the other compartments to form the composite model.
+
+The compartment models must be defined in a ``.py`` file in the ``compartment_models`` directory.
+For example, the Stick model can be defined as::
+
+    from mdt.component_templates.compartment_models import CompartmentTemplate
+
+    class Stick(CompartmentTemplate):
+
+        parameter_list = ('g', 'b', 'd', 'theta', 'phi')
+        cl_code = '''
+            mot_float_type4 n = (mot_float_type4)(cos(phi) * sin(theta),
+                                                  sin(phi) * sin(theta),
+                                                  cos(theta),
+                                                  0);
+
+            return exp(-b * d * pown(dot(g, n), 2));
+        '''
+
+
+This ``Stick`` example contains all the basic definitions required for a compartment model: a parameter list and CL code.
+
+
+Defining parameters
+===================
+The elements of the parameter list can either be string referencing one of the parameters defined in the dynamically loadable parameters (like shown in the example above),
+or it can be a direct instance of a parameter. For example, this is also a valid parameter list::
+
+    class special_param(FreeParameterTemplate):
+        ...
+
+    class MyModel(CompartmentTemplate):
+
+        parameter_list = ('g', 'b', special_param())
+        ...
+
+
+where the parameters ``g`` and ``b`` are loaded from the dynamically loadable parameters while the ``special_param`` is given as a parameter instance.
+It is also possible to provide a nickname for a parameter by stating something like::
+
+    parameter_list = ('my_theta(theta)', ...)
+
+Here, the parameter ``my_theta`` is loaded with the nickname ``theta``.
+This allows you to use simpler names for the parameters of a compartment and allows you to swap a parameter for a different type while still using the same (external) name.
+Without it, the name of the parameter should be updated in all referenced locations, like for example inside the model equation, inside the composite model, inside cascade models, etc.
+
+
+Dependency list
+===============
+Some models may depend on other compartment models or on library functions.
+These dependencies can be specified using the ``dependency_list`` attribute of the compartment model definition.
+As an example::
+
+    dependency_list = ('CerfErfi', 'MRIConstants', 'CylinderGPD')
+
+This list should contain strings with references to either library functions or other compartment models.
+In this example the ``CerfErfi`` library function is loaded from MOT, ``MRIConstants`` from MDT and ``CylinderGPD`` is another compartment model which our example depends on.
+
+Adding items to this list means that the corresponding CL functions of these components are included into the optimized OpenCL kernel and allows you to use the corresponding CL code in your compartment model.
+
+For example, in the dependency list above, the ``MRIConstants`` dependency adds multiple constants to the kernel,
+like ``GAMMA_H``, the gyromagnetic ratio of in the nucleus of H in units of (rad s^-1 T^-1).
+By adding ``MRIConstants`` as a compartment dependency, this constant can now be used in your compartment model function.
+
+
+Defining extra functions for your code
+======================================
+It is possible that a compartment model needs some auxiliary functions that are too small for an own library function.
+These can be added to the compartment model using the ``cl_extra`` attribute. For example::
+
+    class MyCompartment(CompartmentTemplate):
+
+        parameter_list = ('g', 'b', 'd')
+        cl_code = 'return other_function(g, b, d);'
+        cl_extra = '''
+            double other_function(
+                    mot_float_type4 g,
+                    mot_float_type b,
+                    mot_float_type d){
+
+                ...
+            }
+        '''
+
+
+.. _dynamic_modules_compartments_extra_result_maps:
+
+Extra result maps
+=================
+It is possible to add additional parameter maps to the fitting and sampling results.
+These maps are meant to be forthcoming to the end-user by providing additional maps to the output.
+Extra results maps can be added by both the composite model as well as by the compartment models.
+By defining them in a compartment model one ensures that all composite models that use that compartment profit from the additional output maps.
+
+Just as with composite models, one can add extra output maps by adding a list of post optimization modifiers, like for example:
+
+.. code-block:: python
+
+    from mdt.utils import spherical_to_cartesian
+
+    class Stick(CompartmentTemplate):
+        ...
+        post_optimization_modifiers = [
+            ('vec0', lambda results: spherical_to_cartesian(results['theta'], results['phi']))
+        ]
+
+
+In this example we added the (x, y, z) component vector to the results for the Stick compartment.
+
