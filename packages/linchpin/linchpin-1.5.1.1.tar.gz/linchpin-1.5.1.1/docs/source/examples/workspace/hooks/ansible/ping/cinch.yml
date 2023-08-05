@@ -1,0 +1,76 @@
+- name: wait for SSH
+  hosts: all
+  gather_facts: false
+  roles:
+    - check_ssh
+
+- name: stop Jenkins process when upgrading
+  hosts: jenkins_master
+  roles:
+    - role: jenkins_master_stop
+      when: jenkins_upgrade is defined and jenkins_upgrade
+
+- name: upload files before
+  hosts: all
+  roles:
+    - role: upload_files
+      vars:
+        upload_files: "{{ pre_upload_files }}"
+
+- name: configure certificate authority, if necessary
+  become: true
+  hosts: certificate_authority
+  gather_facts: false
+  roles:
+    - certificate_authority
+
+- name: configure repositories
+  become: true
+  hosts: repositories
+  roles:
+    - repositories
+
+- name: pre-configure jenkins
+  become: true
+  hosts: jenkins_master:jenkins_slave
+  roles:
+    - jenkins_common
+
+- name: configure jenkins masters
+  become: true
+  hosts: jenkins_master
+  roles:
+    - role: beaker-client
+      when: jenkins_upgrade is not defined or not jenkins_upgrade
+    - role: nginx
+      when: ansible_connection != 'docker'
+    - jenkins_master
+    - role: ntp
+      when: ansible_connection != 'docker'
+
+- name: configure jenkins slaves
+  become: true
+  hosts: jenkins_slave
+  roles:
+    - jenkins_slave
+
+- name: configure docker containers
+  become: true
+  hosts: jenkins_master:jenkins_slave
+  roles:
+    - role: dockerize
+      when: ansible_connection == 'docker'
+    - role: jenkins_slave_container_wrapup
+      when: ansible_connection == 'docker'
+
+- name: configure container-based slaves
+  hosts: jenkins_docker_slave
+  roles:
+    - jenkins_docker_slave
+
+- name: upload files after
+  hosts: all
+  roles:
+    - role: upload_files
+      vars:
+        upload_files: "{{ post_upload_files }}"
