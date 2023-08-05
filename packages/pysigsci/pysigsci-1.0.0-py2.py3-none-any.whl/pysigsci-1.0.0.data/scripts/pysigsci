@@ -1,0 +1,227 @@
+#!python
+"""
+Signal Sciences CLI Tool
+
+API credentials must be exported to environment variables:
+export SIGSCI_EMAIL=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+export SIGSCI_PASSWORD=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+export SIGSCI_CORP=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+export SIGSCI_SITE=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+"""
+
+from __future__ import print_function
+import os
+import sys
+import json
+import argparse
+from pysigsci import sigsciapi
+
+
+def print_json_data(json_data, pretty=False):
+    """
+    Print JSON data, with option of pretty printing
+    """
+    if pretty:
+        print(json.dumps(json_data, indent=4))
+    else:
+        print(json.dumps(json_data))
+
+
+def main():
+    """
+    Main function for Signal Sciences CLI tool
+    """
+    try:
+        email = os.environ["SIGSCI_EMAIL"]
+        password = os.environ["SIGSCI_PASSWORD"]
+
+    except KeyError as error:
+        print("Environment variable not set {}".format(str(error)))
+        sys.exit()
+
+    # Create sigsciapi object
+    sigsci = sigsciapi.SigSciApi(email, password)
+
+    if 'message' in sigsci.token and 'Unauthorized' in sigsci.token['message']:
+        print(sigsci.token['message'])
+        sys.exit()
+
+    if "SIGSCI_CORP" in os.environ:
+        sigsci.corp = os.environ['SIGSCI_CORP']
+    else:
+        print('SIGSCI_CORP required.')
+        sys.exit()
+
+    if "SIGSCI_SITE" in os.environ:
+        sigsci.site = os.environ['SIGSCI_SITE']
+    else:
+        print('SIGSCI_SITE required.')
+        sys.exit()
+
+    # Parse arguments
+    parser = argparse.ArgumentParser(
+        description="CLI tool for the Signal Sciences REST API \
+            (https://docs.signalsciences.net/api/).")
+
+    parser.add_argument(
+        '--get',
+        help='Get data from the API.',
+        choices=['corps', 'corp', 'corp-users', 'corp-user', 'overview-report',
+                 'corp-sites', 'corp-site', 'custom-alerts', 'custom-alert',
+                 'events', 'event', 'requests', 'request', 'request-feed',
+                 'whitelist', 'blacklist', 'redactions', 'integrations',
+                 'integration', 'parameter-whitelist', 'parameter-whitelist-param',
+                 'path-whitelist', 'path-whitelist-path', 'activity',
+                 'header-links', 'header-link', 'site-members', 'site-member',
+                 'site-monitor', 'agents', 'agent', 'agent-logs',
+                 'suspicious-ips', 'top-attacks', 'timeseries-requests'])
+    parser.add_argument(
+        '--add',
+        help='Add data via the API.',
+        choices=['corp-user', 'custom-alert', 'whitelist', 'blacklist',
+                 'redaction', 'integration', 'parameter-whitelst',
+                 'path-whitelist', 'header-links', 'site-member'])
+    parser.add_argument(
+        '--update',
+        help='Update data via the API.',
+        choices=['corp', 'corp-site', 'custom-alert', 'integration',
+                 'site-member'])
+    parser.add_argument(
+        '--delete',
+        help='Delete data via the API.',
+        choices=['corp-user', 'custom-alert', 'whitelist', 'blacklist',
+                 'redaction', 'integration', 'parameter-whitelst',
+                 'path-whitelist', 'header-links', 'site-member'])
+    parser.add_argument(
+        '--expire-event',
+        help='Expire an event by ID.',
+        default=False,
+        action='store_true'
+    )
+    parser.add_argument(
+        '--generate-site-monitor-url',
+        help='Generate site monitor URL.',
+        default=False,
+        action='store_true'
+    )
+    parser.add_argument(
+        '--enable',
+        help='Enable site monitor.',
+        choices=['site-monitor']
+    )
+    parser.add_argument(
+        '--disable',
+        help='Disable site monitor.',
+        choices=['site-monitor']
+    )
+    parser.add_argument(
+        '--from-time',
+        help='The POSIX Unix time to start.')
+    parser.add_argument(
+        '--until-time',
+        help='The POSIX Unix time to end.')
+    parser.add_argument(
+        '--tag',
+        help='Filter based on tag.')
+    parser.add_argument(
+        '--query',
+        help='Search query (syntax https://docs.signalsciences.net/faq/search-syntax/).')
+    parser.add_argument(
+        '--data',
+        help='Request data in JSON format.')
+    parser.add_argument(
+        '--email',
+        help='Corp user email address.')
+    parser.add_argument(
+        '--field',
+        help='Field specified for redactions.')
+    parser.add_argument(
+        '--site',
+        help='Corp site short name.')
+    parser.add_argument(
+        '--id',
+        help='Record identfier.')
+    parser.add_argument(
+        '--pretty',
+        help='Print JSON in pretty format.',
+        default=False,
+        action="store_true")
+
+    args = parser.parse_args()
+
+    try:
+        if args.get:
+            method = getattr(sigsci, 'get_' + args.get.replace("-", "_"))
+        elif args.add:
+            method = getattr(sigsci, 'add_' + args.add.replace("-", "_"))
+        elif args.update:
+            method = getattr(sigsci, 'update_' + args.update.replace("-", "_"))
+        elif args.delete:
+            method = getattr(sigsci, 'delete_' + args.delete.replace("-", "_"))
+        elif args.enable:
+            method = getattr(sigsci, 'enable_' + args.enable.replace("-", "_"))
+        elif args.disable:
+            method = getattr(
+                sigsci,
+                'disable_' +
+                args.disable.replace(
+                    "-",
+                    "_"))
+        elif args.expire_event:
+            method = getattr(sigsci, 'expire_event')
+        elif args.generate_site_monitor_url:
+            method = getattr(sigsci, 'generate_site_monitor_url')
+
+    except AttributeError as error:
+        print(str(error))
+
+    else:
+        try:
+            params = dict()
+            identifier = None
+
+            if args.from_time:
+                params['from'] = args.from_time
+
+            if args.until_time:
+                params['until'] = args.until_time
+
+            if args.tag:
+                params['tag'] = args.tag
+
+            if args.query:
+                params['q'] = args.query
+
+            if args.data:
+                data = args.data
+
+            if args.email:
+                identifier = args.email
+
+            if args.field:
+                identifier = args.field
+
+            if args.site:
+                identifier = args.site
+
+            if args.id:
+                identifier = args.id
+
+            num_params = len(params)
+
+            if num_params > 0:
+                print_json_data(method(parameters=params), args.pretty)
+            elif args.data:
+                print_json_data(method(data=data), args.pretty)
+            else:
+                if identifier is not None:
+                    print_json_data(method(identifier), args.pretty)
+                else:
+                    print_json_data(method(), args.pretty)
+
+        except Exception as error:
+            print(str(error))
+
+
+if __name__ == '__main__':
+    main()
