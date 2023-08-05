@@ -1,0 +1,164 @@
+===========================
+**Ochrus Project Overview**
+===========================
+
+The **Ochrus Project** is intended to be a complete solution to easily develop functional (black/gray box) automation tests.
+
+The **Ochrus Project** include the following components:
+
+1. **ochrus**:         Classes and modules to support functional automation tests
+2. **ochrus-srv**:     Detailed result DB server.
+3. **pytest-ochrus**:  Pytest plugin, see note below...
+
+ **NOTE**:
+ Ochrus Project choose **Pytest** (https://www.pytest.org) open source project as its testing framework.
+ 
+ Pytest is an easy to use and powerful testing framework that support the most common Python unit framework
+ such and "unittest" and "Nose".
+
+**Ochrus library:**
+-------------------
+Provide classes and modules to support functional automation tests
+Should be used with the power of **Pytest** framework.
+documentation should be available soon at the wiki and later at: http://www.ochrus.com
+
+ *To install:*
+
+ .. code-block:: bash
+
+  $ pip install ochrus
+
+
+**pytest-ochrus:**
+------------------
+A Pytest plugin, it needs to be installed with Pytest 
+It uses to send test results to the 'ochrus-srv' (see below) via REST protocol
+(code: https://github.com/ochrus/pytest-ochrus)
+
+ *To install:*
+
+ .. code-block:: bash
+
+  $ pip install pytest
+  $ pip install pytest-ochrus
+
+
+**Ochrus Server:**
+------------------
+Ochrus Server is a full-stack free application that include a data-base to hold  the test results, and HTML interface to display the results.
+User can see colorized online results, results history and comparison.
+The server support RESTful API and currently only pytest-ochrus is available to communicate with it, but actually it can serve any xUnit framework written in any language.
+
+ *To install*:
+
+ *The server is available as Docker image and can be run directly from docker hub as followed:*
+
+ .. code-block:: bash
+
+  $ docker run -d -p 80:8000 -v db:/ochrus/db --name ochrus_srv ochrus/ochrus_srv:demo
+
+
+
+**Requirements**
+----------------
+- Python 2.7
+- pytest
+- Docker (on host server only)
+
+**Installation**
+----------------
+**Client:**
+~~~~~~~~~~~
+ .. code-block:: bash
+
+  $ pip install pytest
+  $ pip install pytest_ochrus
+  $ pip install ochrus
+
+
+**Server:**
+~~~~~~~~~~~
+Followed the instructions at: https://docs.docker.com/engine/installation/ to install Docker on your host server.
+
+e.g.: for CentOS:
+
+ .. code-block:: bash
+
+  $ yum install -y yum-utils device-mapper-persistent-data lvm2
+  $ yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+  $ yum install docker-ce
+  $ systemctl start docker      #run the service
+  $ systemctl enable docker     #make it start on boot
+
+
+To install 'ochrus_srv' run the following command:
+
+ .. code-block:: bash
+
+  $ docker run -d -p 80:8000 -v db:/ochrus/db --name ochrus_srv ochrus/ochrus_srv:demo
+
+
+ The above Docker command will do the following:
+
+ 1. Download the **'ochrus_srv:demo'** image from the Docker public Hub.
+ 2. Run it at the background and give it the name **'ochrus_srv'**.
+ 3. Expose its 8000 port to port 80 on the running host.
+ 4. Create a persistent data-base at default Docker volume location at: 
+    **'/var/lib/docker/volumes/db/'**
+
+**NOTE**:
+ 
+1. The above docker command should be run only once, after that run:
+
+ .. code-block:: bash
+
+  docker stop ochrus_srv   to stop the server
+  docker start ochrus_srv  to run the server
+
+
+2. Make sure port **80** is free at the host server.
+
+**Execute:**
+------------
+
+**At the Client**:
+
+ **Define the ochrus-srv IP address**:
+ The 'ochrus' name must be define at the '/etc/hosts' file.  
+ e.g.:
+ 192.168.1.1  ochrus
+ 
+ Replace 192.168.1.1 with your Docker host machine IP address
+
+1. To run your tests: just run pytest according to pytest execution instructions.
+2. You can give a name to the running session as followed:
+
+ .. code-block:: bash
+
+  $ pytest --session_name="mySessionName"
+
+ The name will be displayed at the HTML report at the **ochres server**
+
+ **NOTE**:
+ You can give any name that will describe the running session
+ 
+   Recommended:  ***product_name-version_number.build_number***
+
+
+**Using Eclipse IDE**
+---------------------
+Note: Following instructions are taken with: *Eclipse Oxygen.1a Release (4.7.1a)*
+
+1. Install Eclipse IDE
+2. Run Eclipse and install '***pydev***' plugin. 
+   
+   Go to: ***Help | Eclipse Markeplace...***, write '***pydev***' at the Search box and click the '**Go**' button. 
+   
+   Wait until it find the Pydev plugin and click the '**Install**' button
+3. Create a new Pydev project (***File | New | Other...*** | PyDev | PyDev Project)
+4. Go to: ***Windows | Preferences | PyDev | PyUnit | Test Runner*** | choose: **Py.test runner**, click Apply
+5. Create a pytest script and run it by right-click and choose Run As | Python unit-test
+6. To run all tests in a special directory, just right-click the directory and choose Run As | Python unit-test
+
+
+
