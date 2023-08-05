@@ -1,0 +1,302 @@
+
+# ------------------------------------------------------------------------------ Handle node folders
+
+{{% for scopeName, scope in data.files.scopeByName.iteritems() %}}
+{{% if scope.folders|length > 0 %}}
+- hosts: {{{ scopeName }}}
+  any_errors_fatal: {{{ src.exit_on_fail }}}
+  tasks:
+{{% for folder in scope.folders %}}
+  - name: Create folder '{{{folder.path}}}'
+    file: path={{{folder.path}}} owner={{{folder.owner}}} group={{{folder.group}}} mode="{{{folder.mode}}}" state=directory
+{{% endfor %}}
+{{%endif %}}
+{{% endfor %}}
+
+# ------------------------------------------------------------------------------ Handle node files and trees
+
+{{% for scopeName, scope in data.files.scopeByName.iteritems() %}}
+{{% if scope.files|length > 0 or  scope.trees|length > 0 %}}
+- hosts: {{{ scopeName }}}
+  any_errors_fatal: {{{ src.exit_on_fail }}}
+{{% if scope.willUseMavenRepo or scope.stormNotifications|length > 0 %}}
+  roles:
+{{% endif %}}
+{{% if scope.willUseMavenRepo %}}
+    - lxml
+{{% endif %}}
+{{% if scope.stormNotifications|length > 0 %}}
+    - storm_modules
+{{% endif %}}
+
+  tasks:
+{{% for file in scope.files %}}
+{{% if file.src.startswith("file://") %}}
+  - name: Copy file '{{{file._displaySrc_}}}' to '{{{file._target_}}}'
+    copy: src={{{file._src_}}} dest={{{file._target_}}} owner={{{file.owner}}} group={{{file.group}}} mode="{{{file.mode}}}" 
+{{% if file._notify_ is defined %}}
+    notify:
+{{% for notification in file._notify_ %}}
+    - "reload_{{{notification}}}"
+{{% endfor %}}
+{{% endif %}}     
+{{% elif file.src.startswith("http://") or file.src.startswith("https://") %}}
+  - name: Download '{{{file.src}}}' to '{{{file._target_}}}'
+    get_url: url={{{file.src}}} dest={{{file._target_}}} owner={{{file.owner}}} group={{{file.group}}} mode="{{{file.mode}}}" validate_certs={{{file.validate_certs}}} force_basic_auth={{{file.force_basic_auth }}} {{% if file.url_username is defined %}}url_username={{{file.url_username}}}{{%endif%}} {{% if file.url_password is defined %}}url_password={{{file.url_password}}}{{%endif%}}
+{{% if file._notify_ is defined %}}
+    notify:
+{{% for notification in file._notify_ %}}
+    - "reload_{{{notification}}}"
+{{% endfor %}}
+{{% endif %}}     
+{{% elif file.src.startswith("tmpl://")  %}}
+  - name: Copy template file '{{{file._displaySrc_}}}' to '{{{file._target_}}}'
+    template: src={{{file._src_}}} dest={{{file._target_}}} owner={{{file.owner}}} group={{{file.group}}} mode="{{{file.mode}}}" 
+{{% if file._notify_ is defined %}}
+    notify:
+{{% for notification in file._notify_ %}}
+    - "reload_{{{notification}}}"
+{{% endfor %}}
+{{% endif %}}     
+{{% elif file.src.startswith("mvn://")  %}}
+  - name: Fetch artifact '{{{file._groupId_}}}:{{{file._artifactId_}}}:{{{file._version_}}}' '(classifier:{{{file._classifier_|default("none")}}}  extension:{{{file._extension_}}}) from repository '{{{file._repo_}}}'
+    maven_artifact:
+      repository_url: "{{{ file._repoUrl_ }}}"
+      group_id:  "{{{ file._groupId_ }}}"
+      artifact_id: "{{{ file._artifactId_ }}}" 
+      version:  "{{{ file._version_ }}}"
+      extension:  "{{{ file._extension_ }}}"
+{{% if file._classifier_ is defined %}}
+      classifier: "{{{ file._classifier_ }}}"
+{{% endif %}}      
+      dest: "{{{ file._target_ }}}"
+      timeout: "{{{ data.mavenRepoByName[file._repo_].timeout }}}"
+      validate_certs: {{{ data.mavenRepoByName[file._repo_].validate_certs }}}
+{{% if data.mavenRepoByName[file._repo_].username is defined %}}
+      username: "{{{data.mavenRepoByName[file._repo_].username}}}"      
+{{% endif %}}      
+{{% if data.mavenRepoByName[file._repo_].password is defined %}}
+      password: "{{{data.mavenRepoByName[file._repo_].password}}}"      
+{{% endif %}}     
+{{% if file._notify_ is defined %}}
+    notify:
+{{% for notification in file._notify_ %}}
+    - "reload_{{{notification}}}"
+{{% endfor %}}
+{{% endif %}}     
+  - name: Adjust rights on "{{{ file._target_ }}}"
+    file: path="{{{ file._target_ }}}" owner={{{file.owner}}} group={{{file.group}}} mode="{{{file.mode}}}" 
+{{% endif %}}
+
+{{% endfor %}}
+
+{{% for tree in scope.trees %}}
+  - name: Adjust rights on subfolders (And create empty ones if neeeded)
+    file: path="{{item}}" owner={{{tree.owner}}} group={{{tree.group}}} mode="{{{tree.folder_mode}}}" state=directory
+    with_items:
+{{% for dirname in tree._targetFolders_ %}}
+    - "{{{ dirname }}}"
+{{% endfor %}}
+{{% if tree.src.startswith("file://") %}}
+  - name: Copy tree '{{{tree._displaySrc_}}}' to '{{{tree.dest_folder}}}'
+    copy: src={{{tree._src_}}} dest={{{tree.dest_folder}}} owner={{{tree.owner}}} group={{{tree.group}}} mode="{{{tree.file_mode}}}"  directory_mode="{{{tree.folder_mode}}}"
+{{% elif tree.src.startswith("tmpl://")  %}}
+{{% if tree._tmplList|length > 0 %}}
+  - name: Copy template tree '{{{tree._displaySrc_}}}' to '{{{tree.dest_folder}}}'
+    template: src={{item.src}} dest={{item.dst}} owner={{{tree.owner}}} group={{{tree.group}}} mode="{{{tree.file_mode}}}"
+    with_items:
+{{% for x in tree._tmplList %}}
+    - { src: "{{{ x.src }}}", dst: "{{{ x.dst }}}" }
+{{% endfor %}}    
+    loop_control:
+      label: "{{item.dst}}"
+{{% endif %}}
+{{% endif %}}
+{{% endfor %}}
+
+# ------------------- Pre-tasks for notification handling
+
+{{% if scope.systemdNotifications|length > 0 %}}
+{{% for _, unit in scope.systemdNotifications.iteritems() %}}
+  - name: Get current state for '{{{ unit.name }}}
+    command: systemctl is-active {{{ unit.name }}}.service
+    register: unit_{{{ unit.name }}}
+    changed_when: false
+    failed_when: false
+{{% endfor %}}
+{{% endif %}}
+
+
+{{% if scope.supervisorPrgNotification|length > 0 %}}
+{{% for _, prg in scope.supervisorPrgNotification.iteritems() %}}
+  - name: Get current state for supervisor_{{{prg.supervisor}}}_{{{prg.name}}} programs
+    shell: "supervisorctl -c {{{ prg.supervisorConf }}} status '{{{prg._name_}}}' | awk '{ print $2 }'"
+    register: supervisor_{{{prg.supervisor}}}_{{{prg.name}}} 
+    changed_when: false
+    failed_when: false
+#  - debug: msg="Program {{{prg.supervisor}}}_{{{prg.name}}} is  {{supervisor_{{{prg.supervisor}}}_{{{prg.name}}}.stdout}}"    
+{{% endfor %}}
+{{% endif %}}
+
+
+{{% if scope.stormNotifications|length > 0 %}}
+  - set_fact:
+      topology_to_restart: []
+      status_by_name: {}
+{{%endif%}}
+
+
+# ----------------------------------------------------- Handler for notification
+
+{{% if scope.systemdNotifications|length > 0  or scope.supervisorPrgNotification|length > 0 or scope.stormNotifications|length > 0 %}}
+  handlers:
+{{%endif%}}
+
+{{% if scope.systemdNotifications|length > 0 %}}
+{{% for notified, unit in scope.systemdNotifications.iteritems() %}}
+{{% if unit.action_on_notify == "restart" %}}
+  - name: Restart {{{unit.name}}} service
+    systemd: name={{{ unit.name }}}.service state=restarted
+{{% elif unit.action_on_notify == "reload" %}}
+  - name: Reload {{{unit.name}}} service
+    systemd: name={{{ unit.name }}}.service state=reloaded
+{{% else %}}
+  - name: Notify {{{unit.name}}} service
+    debug: 
+      msg="Service {{{unit.name}}} may need a restart as some configuration has changed."
+{{% endif %}}
+    listen: "reload_{{{notified}}}"
+    when: unit_{{{ unit.name }}}.rc == 0
+{{% endfor %}}
+{{% endif %}}
+
+{{% if scope.supervisorPrgNotification|length > 0 %}}
+{{% for notified, prg in scope.supervisorPrgNotification.iteritems() %}}
+  - name: Restart supervisor_{{{ prg.supervisor }}} program {{{ prg.name }}}
+    supervisorctl: config={{{ prg.supervisorConf }}} name="{{{ prg._name_ }}}" state=restarted
+    listen: reload_{{{notified}}}
+    when: supervisor_{{{prg.supervisor}}}_{{{prg.name}}}.stdout.find("RUNNING") != -1
+{{% endfor %}}
+{{% endif %}}
+
+{{% if scope.stormNotifications|length > 0 %}}
+{{% for notified, topology in scope.stormNotifications.iteritems() %}}
+  - name: Flag "{{{topology.name}}}" topology to restart
+    set_fact:
+      topology_to_restart: '{{topology_to_restart + ["{{{topology.name}}}"] }}'
+    listen: reload_{{{notified}}}
+{{% endfor %}}
+{{%endif%}}
+
+
+# ----------------------------------------------------- Effective restart of topologies
+
+{{% if scope.stormNotifications|length > 0 %}}
+    
+- hosts: {{{ scopeName }}}
+  vars:
+    conf_by_topology:
+{{% for topology in src.storm_topologies %}}
+      "{{{ topology.name }}}": { wait_time_secs: {{{ topology.wait_time_secs }}}, launching_cmd: "{{{ topology.launching_cmd }}}", launching_dir: "{{{ topology.launching_dir }}}", timeout_secs: "{{{ topology.timeout_secs}}}" }
+{{% endfor %}}
+
+  tasks:  
+
+#  - debug: var=topology_to_restart   
+
+{{% if src.storm_relay._kerberos_ %}}
+{{% if  src.storm_relay._relayKeytabFolder_ is defined %}}
+  - name: Create keytabs location
+    file: path={{{ src.storm_relay._relayKeytabFolder_}}} owner={{ansible_user}}  mode="0700" state=directory
+{{%endif%}}
+{{% if  src.storm_relay.local_keytab_path is defined %}}
+  - name: Push keytab file
+    copy: src={{{src.storm_relay.local_keytab_path }}} dest={{{src.storm_relay.relay_keytab_path }}} owner={{ansible_user}} mode="0400"
+{{%endif%}}
+  - name: Perform kinit for Storm UI access
+    shell: kinit -kt {{{ src.storm_relay.relay_keytab_path }}} {{{ src.storm_relay.principal }}}
+    changed_when: false
+{{% if src.storm_relay.kdebug %}} 
+  - name: Check kerberos ticket for Storm access
+    shell: klist
+    register: klist_result
+    changed_when: false
+  - debug: var=klist_result
+{{%endif%}}
+{{%endif%}}
+
+
+
+  - name: Check topologies state
+    storm_topology:
+      ui_url: "{{{ src.storm_relay.storm_ui_url }}}"
+      name: "{{item}}"
+      state: get
+      kerberos: {{{ src.storm_relay._kerberos_ }}}
+    register: topostates
+    with_items: "{{topology_to_restart}}"
+
+#  - debug: var=topostates
+
+  - name: Build topologies state by name
+    set_fact:
+      status_by_name: "{{ status_by_name|combine({ item.item:  item.status }) }}"
+    with_items: "{{ topostates.results }}"
+    loop_control:
+      label: "{{ item.item }}:{{ item.status }}"
+
+#  - debug: var=status_by_name
+
+  - name: Kill topologies to restart
+    storm_topology:
+      ui_url: "{{{ src.storm_relay.storm_ui_url }}}"
+      name: "{{item}}"
+      state: killed
+      wait_time_secs:  "{{ conf_by_topology[item].wait_time_secs }}"
+      timeout_secs:  "{{ conf_by_topology[item].timeout_secs }}"
+      kerberos:  {{{ src.storm_relay._kerberos_ }}}
+    when: status_by_name[item] == "active"
+    with_items: "{{topology_to_restart}}"
+    
+  - name: Wait topologies to restart to be down
+    storm_topology:
+      ui_url: "{{{ src.storm_relay.storm_ui_url }}}"
+      name: "{{item}}"
+      state: nonexistent
+      timeout_secs: "{{ conf_by_topology[item].timeout_secs }}"
+      kerberos: {{{ src.storm_relay._kerberos_ }}}
+    when: status_by_name[item] == "active"
+    with_items: "{{topology_to_restart}}"
+
+
+  - name: Relaunch topologies to restart 
+    shell: "{{ conf_by_topology[item].launching_cmd }}"
+    args:
+      chdir: "{{ conf_by_topology[item].launching_dir }}"
+{{% if src.storm_relay.async %}}
+    async: 1000
+    poll: 0
+{{% endif %}}    
+    when: status_by_name[item] == "active"
+    with_items: "{{topology_to_restart}}"
+    
+  - name: Wait retstarted topologies to be up and running
+    storm_topology:
+      ui_url: "{{{ src.storm_relay.storm_ui_url }}}"
+      name: "{{item}}"
+      state: existing
+      timeout_secs: "{{ conf_by_topology[item].timeout_secs }}"
+      kerberos: {{{ src.storm_relay._kerberos_ }}}
+    when: status_by_name[item] == "active"
+    with_items: "{{topology_to_restart}}"
+
+{{% if src.storm_relay._kerberos_ %}}
+  - name: Perform kdestroy for Storm access
+    shell: kdestroy
+    changed_when: false
+{{%endif%}}
+
+{{%endif%}}
+
+{{%endif%}}
+{{% endfor %}}

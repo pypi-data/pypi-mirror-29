@@ -1,0 +1,86 @@
+
+{{% for scopeName, scope in data.supervisors.scopeByName.iteritems() %}}
+
+# ------------------------------------------------------------------------------ Handle supervisor_programs stuff
+
+{{% if scope.supervisors is defined and scope.supervisors|length > 0  %}}
+- hosts: {{{ scopeName }}}
+  any_errors_fatal: {{{ src.exit_on_fail }}}
+  tasks:
+
+{{% for sup in scope.supervisors %}}
+  - name: Need to skip if supervisor has already been removed
+    stat: path={{{sup.include_dir}}}
+    register: supervisor_{{{sup.name}}}_include_dir
+
+  - name: Install programs definition file(s)
+    template: src={{{sup.unprograms_j2}}} dest={{{sup.programs_dest}}} owner={{{sup.user}}} group={{{sup.group}}} mode="0755"
+    notify:
+    - update_unprograms_{{{sup.name}}}
+    when:  supervisor_{{{sup.name}}}_include_dir.stat.isdir is defined and supervisor_{{{sup.name}}}_include_dir.stat.isdir 
+{{% endfor %}}         
+
+  - meta: flush_handlers
+  
+  handlers:
+  
+{{% for sup in scope.supervisors %}}
+  - name: Update supervisor_{{{sup.name}}} programs
+    shell: "supervisorctl -c {{{ sup.conf_file_dst }}} update"
+    failed_when: False                      # May be the supervisor has been stopped
+    listen: update_unprograms_{{{sup.name}}}
+{{% endfor %}}         
+  
+{{% endif %}}      
+
+
+
+
+# ------------------------------------------------------------------------------ Handle supervisor stuff
+{{% if scope.supervisorsToRemove is defined and scope.supervisorsToRemove|length > 0 %}}
+- hosts: {{{ scopeName }}}
+  any_errors_fatal: {{{ src.exit_on_fail }}}
+  tasks:
+  # ------------------------ Halt supervisor_xxxx services
+  - name: Stop supervisors_xxxx service(s)
+    systemd: name=supervisord_{{item}}.service state=stopped enabled=false
+    failed_when: false
+    with_items:
+{{% for s in scope.supervisorsToRemove %}}
+    - {{{ s.name }}}
+{{% endfor %}}
+
+  - name: Remove file "/usr/lib/systemd/system/supervisord_xxxxx.service"
+    file: path=/usr/lib/systemd/system/supervisord_{{item}}.service state=absent 
+    with_items:
+{{% for s in scope.supervisorsToRemove %}}
+    - {{{ s.name }}}
+{{% endfor %}}
+    notify: 
+    - reload_service_file
+
+
+  
+  # ----------------- Remove supervisor_xxxx files and folders
+  - name: Remove Supervisor files and folders
+    file: state=absent path={{item}} 
+    with_items:
+{{% for s in scope.supervisorsToRemove %}}
+    - {{{s.conf_file_dst}}}
+    - {{{s.supervisorctl}}}
+    - {{{s.logs_dir}}}     
+    - {{{s.pid_dir}}}     
+    - {{{s.socks_dir}}}     
+    - {{{s.include_dir}}}
+{{% endfor %}}
+  
+  handlers:
+  - name: reload service file
+    command: "systemctl daemon-reload"
+    listen: reload_service_file
+  
+{{%endif%}}
+
+{{% endfor %}}
+
+

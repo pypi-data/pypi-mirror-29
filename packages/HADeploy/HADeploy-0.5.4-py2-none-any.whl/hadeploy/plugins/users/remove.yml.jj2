@@ -1,0 +1,63 @@
+ # ------------------------------------------------------------------------------ Remove groups and users
+
+{{% for scopeName, scope in data.users.scopeByName.iteritems() %}}
+{{% if scope.users|length > 0 or scope.groups|length > 0 %}}
+- hosts: {{{ scopeName }}}
+  any_errors_fatal: {{{ src.exit_on_fail }}}
+  tasks:
+{{% for user in scope.users|reverse %}}
+{{% if not user.no_remove %}}
+  - name: Remove sudo rights for '{{{user.login}}}' if any
+    file: path=/etc/sudoers.d/{{{user.login}}} state=absent
+{{% if user.authorized_keys is defined %}}
+#   failed_when: false as the user may not exists anymore, on succesive REMOVE run
+  - name: Remove authorized_keys for user '{{{user.login}}}'
+    authorized_key: user={{{user.login}}} state=absent key={{item}}
+    failed_when: false
+    with_file:
+{{% for k in user.authorized_keys %}}
+    - {{{k}}}
+{{% endfor %}}
+{{% endif %}}
+{{% endif %}}
+{{% if user.managed and not user.no_remove %}}
+  - name: Clean up process for user  '{{{user.login}}}'
+    shell: pkill  -u {{{user.login}}} sshd
+    failed_when: false
+    changed_when: false
+
+  - name: Remove user '{{{user.login}}}'
+    user: name={{{user.login}}} state=absent remove={{{user.create_home}}}
+    register: result
+    retries: 30
+    delay: 5               # May need long delay, as some user@notty can  
+    until: result|succeeded
+    ignore_errors: yes    
+
+  - name: report error
+    fail:
+      msg: Unable to remove user '{{{user.login}}}'
+    when: not result|succeeded
+    
+{{% endif %}}
+{{% endfor %}}
+
+{{% for group in scope.groups|reverse %}}
+{{% if group.managed and not group.no_remove  %}}
+  - name: Remove group '{{{group.name}}}'
+    group: name={{{group.name}}} state=absent
+    register: result
+    retries: 2
+    delay: 3
+    until: result|succeeded
+    ignore_errors: yes    
+
+  - name: report error
+    fail:
+      msg: Unable to remove group '{{{group.name}}}'
+    when: not result|succeeded
+    
+{{% endif %}}
+{{% endfor %}}
+{{% endif %}}
+{{% endfor %}}
