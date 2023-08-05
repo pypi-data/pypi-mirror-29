@@ -1,0 +1,229 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>argus_plugins.cases.remind &#8212; Argus-Toolbelt 1.0 documentation</title>
+    <link rel="stylesheet" href="../../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+   
+  <link rel="stylesheet" href="../../../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for argus_plugins.cases.remind</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">smtplib</span>
+<span class="kn">import</span> <span class="nn">time</span>
+<span class="kn">from</span> <span class="nn">email.mime.text</span> <span class="k">import</span> <span class="n">MIMEText</span>
+<span class="kn">from</span> <span class="nn">datetime</span> <span class="k">import</span> <span class="n">datetime</span><span class="p">,</span> <span class="n">timedelta</span>
+
+<span class="kn">from</span> <span class="nn">argus_cli.plugin</span> <span class="k">import</span> <span class="n">register_command</span><span class="p">,</span> <span class="n">api</span>
+<span class="kn">from</span> <span class="nn">argus_cli.helpers.log</span> <span class="k">import</span> <span class="n">log</span>
+
+<span class="kn">from</span> <span class="nn">.</span> <span class="k">import</span> <span class="n">utils</span>
+
+<span class="n">UNASSIGNED</span> <span class="o">=</span> <span class="s2">&quot;unassigned&quot;</span>
+<span class="n">SKIPABLES</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;tech&quot;</span><span class="p">,</span> <span class="s2">&quot;assigned&quot;</span><span class="p">,</span> <span class="s2">&quot;unassigned&quot;</span><span class="p">]</span>
+
+<span class="n">DEFAULT_STATUS</span> <span class="o">=</span> <span class="n">utils</span><span class="o">.</span><span class="n">STATUSES</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>  <span class="c1"># Exclude closed status</span>
+
+
+<span class="k">def</span> <span class="nf">_days</span><span class="p">(</span><span class="n">days</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot;Type check and converter to timestamp</span>
+
+<span class="sd">    :param days: Days</span>
+<span class="sd">    :returns: Today minus &quot;days&quot; in unix timestamp</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">days</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">days</span><span class="p">)</span>
+    <span class="n">latest</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">today</span><span class="p">()</span> <span class="o">-</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">days</span><span class="o">=</span><span class="n">days</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">time</span><span class="o">.</span><span class="n">mktime</span><span class="p">(</span><span class="n">latest</span><span class="o">.</span><span class="n">timetuple</span><span class="p">()))</span>
+
+
+<span class="k">def</span> <span class="nf">_get_customer_id</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot;Gets a customer&#39;s ID from their name</span>
+
+<span class="sd">    :param name: The name of the customer</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">customers</span> <span class="o">=</span> <span class="n">api</span><span class="o">.</span><span class="n">Customers</span><span class="o">.</span><span class="n">V1</span><span class="o">.</span><span class="n">Customer</span><span class="o">.</span><span class="n">getCustomerByShortname</span><span class="p">(</span><span class="n">shortName</span><span class="o">=</span><span class="n">name</span><span class="o">.</span><span class="n">lower</span><span class="p">())[</span><span class="s2">&quot;data&quot;</span><span class="p">]</span>
+    <span class="n">customer_id</span> <span class="o">=</span> <span class="n">customers</span><span class="p">[</span><span class="s2">&quot;id&quot;</span><span class="p">]</span>  <span class="c1"># This might get the wrong customer if there are more with the same name?</span>
+    <span class="k">return</span> <span class="n">customer_id</span>
+
+
+<div class="viewcode-block" id="parse_data"><a class="viewcode-back" href="../../../argus_plugins/argus_plugins.cases.html#argus_plugins.cases.remind.parse_data">[docs]</a><span class="k">def</span> <span class="nf">parse_data</span><span class="p">(</span><span class="n">cases</span><span class="p">:</span> <span class="nb">list</span><span class="p">,</span> <span class="n">skipable</span><span class="p">:</span> <span class="nb">list</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot;Parses cases and associates them with a user</span>
+
+<span class="sd">    :param cases: Cases to parse</span>
+<span class="sd">    :param skipable: If any types of cases are skipable</span>
+<span class="sd">    :returns: All cases sorted after the user to send to</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">parsed_cases</span> <span class="o">=</span> <span class="p">{</span><span class="n">UNASSIGNED</span><span class="p">:</span> <span class="p">[]}</span>
+
+    <span class="k">for</span> <span class="n">case</span> <span class="ow">in</span> <span class="n">cases</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">case</span><span class="p">[</span><span class="s2">&quot;assignedTech&quot;</span><span class="p">]</span> <span class="ow">and</span> <span class="s2">&quot;assigned&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">skipable</span><span class="p">:</span>
+            <span class="n">tech</span> <span class="o">=</span> <span class="n">case</span><span class="p">[</span><span class="s2">&quot;assignedTech&quot;</span><span class="p">][</span><span class="s2">&quot;userName&quot;</span><span class="p">]</span>
+
+            <span class="k">if</span> <span class="s2">&quot;tech&quot;</span> <span class="ow">in</span> <span class="n">skipable</span><span class="p">:</span>
+                <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">: Adding case #</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">UNASSIGNED</span><span class="p">,</span> <span class="n">case</span><span class="p">[</span><span class="s2">&quot;id&quot;</span><span class="p">]))</span>
+                <span class="n">parsed_cases</span><span class="p">[</span><span class="n">UNASSIGNED</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">case</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">: Adding case #</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">tech</span><span class="p">,</span> <span class="n">case</span><span class="p">[</span><span class="s2">&quot;id&quot;</span><span class="p">]))</span>
+                <span class="k">if</span> <span class="n">tech</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">parsed_cases</span><span class="p">:</span>
+                    <span class="n">parsed_cases</span><span class="p">[</span><span class="n">tech</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="n">parsed_cases</span><span class="p">[</span><span class="n">tech</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">case</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="ow">not</span> <span class="n">case</span><span class="p">[</span><span class="s2">&quot;assignedTech&quot;</span><span class="p">]</span> <span class="ow">and</span> <span class="s2">&quot;unassigned&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">skipable</span><span class="p">:</span>
+            <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">: Adding case #</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">UNASSIGNED</span><span class="p">,</span> <span class="n">case</span><span class="p">[</span><span class="s2">&quot;id&quot;</span><span class="p">]))</span>
+            <span class="n">parsed_cases</span><span class="p">[</span><span class="n">UNASSIGNED</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">case</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Skipping case #</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">case</span><span class="p">[</span><span class="s2">&quot;id&quot;</span><span class="p">])</span>
+
+    <span class="k">return</span> <span class="n">parsed_cases</span></div>
+
+
+<div class="viewcode-block" id="create_emails"><a class="viewcode-back" href="../../../argus_plugins/argus_plugins.cases.html#argus_plugins.cases.remind.create_emails">[docs]</a><span class="k">def</span> <span class="nf">create_emails</span><span class="p">(</span><span class="n">subject</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">message</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">parsed_cases</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">notify</span><span class="p">:</span> <span class="nb">list</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot;Crates emails from the parsed_cases dict</span>
+
+<span class="sd">    :param subject: The subject of the email</span>
+<span class="sd">    :param message: The boilerplate part of the email</span>
+<span class="sd">    :param parsed_cases: The parsed cases to create emails from</span>
+<span class="sd">    :param notify: Who to notify for unassigned cases</span>
+<span class="sd">    :return: A mail for each user</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">mails</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="k">for</span> <span class="n">user</span><span class="p">,</span> <span class="n">cases</span> <span class="ow">in</span> <span class="n">parsed_cases</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">cases</span><span class="p">)</span> <span class="ow">is</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="c1"># Don&#39;t bother generating a mail without any cases</span>
+            <span class="k">continue</span>
+
+        <span class="n">body</span> <span class="o">=</span> <span class="n">message</span> <span class="o">+</span> <span class="s2">&quot;</span><span class="se">\n\n</span><span class="s2">&quot;</span>
+        <span class="k">for</span> <span class="n">case</span> <span class="ow">in</span> <span class="n">cases</span><span class="p">:</span>
+            <span class="n">body</span> <span class="o">+=</span>\
+                <span class="s2">&quot;#</span><span class="si">%s</span><span class="s2"> - </span><span class="si">%s</span><span class="s2"> - </span><span class="si">%s</span><span class="s2"> - Last Update: </span><span class="si">%s</span><span class="se">\n</span><span class="s2">&quot;</span>\
+                <span class="o">%</span> <span class="p">(</span><span class="n">case</span><span class="p">[</span><span class="s2">&quot;id&quot;</span><span class="p">],</span> <span class="n">case</span><span class="p">[</span><span class="s2">&quot;status&quot;</span><span class="p">],</span> <span class="n">case</span><span class="p">[</span><span class="s2">&quot;subject&quot;</span><span class="p">],</span>
+                   <span class="n">datetime</span><span class="o">.</span><span class="n">fromtimestamp</span><span class="p">(</span><span class="n">case</span><span class="p">[</span><span class="s2">&quot;lastUpdatedTimestamp&quot;</span><span class="p">]</span> <span class="o">/</span> <span class="mi">1000</span><span class="p">)</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">&quot;%Y-%m-</span><span class="si">%d</span><span class="s2"> %H:%M:%S&quot;</span><span class="p">))</span>
+
+        <span class="n">mails</span><span class="p">[</span><span class="n">user</span><span class="p">]</span> <span class="o">=</span> <span class="n">MIMEText</span><span class="p">(</span><span class="n">body</span><span class="p">)</span>
+        <span class="n">mails</span><span class="p">[</span><span class="n">user</span><span class="p">][</span><span class="s2">&quot;Subject&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">subject</span>
+        <span class="n">mails</span><span class="p">[</span><span class="n">user</span><span class="p">][</span><span class="s2">&quot;From&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;argus-noreply@mnemonic.no&quot;</span>
+        <span class="n">mails</span><span class="p">[</span><span class="n">user</span><span class="p">][</span><span class="s2">&quot;To&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">notify</span><span class="p">)</span> <span class="k">if</span> <span class="n">user</span> <span class="o">==</span> <span class="n">UNASSIGNED</span> <span class="k">else</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">@mnemonic.no&quot;</span> <span class="o">%</span> <span class="n">user</span>
+
+    <span class="k">return</span> <span class="n">mails</span></div>
+
+
+<div class="viewcode-block" id="remind"><a class="viewcode-back" href="../../../argus_plugins/argus_plugins.cases.html#argus_plugins.cases.remind.remind">[docs]</a><span class="nd">@register_command</span><span class="p">(</span><span class="n">extending</span><span class="o">=</span><span class="s2">&quot;cases&quot;</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">remind</span><span class="p">(</span><span class="n">subject</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">message</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">notify</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+           <span class="n">service_type</span><span class="p">:</span> <span class="n">utils</span><span class="o">.</span><span class="n">SERVICE_TYPES</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">status</span><span class="p">:</span> <span class="n">utils</span><span class="o">.</span><span class="n">STATUSES</span> <span class="o">=</span> <span class="n">DEFAULT_STATUS</span><span class="p">,</span>
+           <span class="n">customer</span><span class="p">:</span> <span class="n">_get_customer_id</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">priority</span><span class="p">:</span> <span class="n">utils</span><span class="o">.</span><span class="n">PRIORITIES</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">skip</span><span class="p">:</span> <span class="n">SKIPABLES</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+           <span class="n">days</span><span class="p">:</span> <span class="n">_days</span> <span class="o">=</span> <span class="n">_days</span><span class="p">(</span><span class="mi">14</span><span class="p">),</span> <span class="n">dry</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+           <span class="n">smtp_host</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;smtp.mnemonic.no&quot;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A command for reminding people when they have pending cases that haven&#39;t been updated for a while.</span>
+
+<span class="sd">    :param subject: The subject of the email</span>
+<span class="sd">    :param message: The body of the email</span>
+<span class="sd">    :param notify: Email(s) to notify for unassigned cases</span>
+<span class="sd">    :param list service_type: The service type of the case</span>
+<span class="sd">    :param list status: The status of the case</span>
+<span class="sd">    :param customer: Customers to use (shortname)</span>
+<span class="sd">    :param list priority: Priorities to have on the case</span>
+<span class="sd">    :param list skip: Certain things to not notify about</span>
+<span class="sd">    :param days: Amount of days since last activity</span>
+<span class="sd">    :param dry: Runs the program without sending the actual email</span>
+<span class="sd">    :param smtp_host: The SMTP host to send mail from</span>
+
+<span class="sd">    :alias smtp_host: smtp</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Getting cases to notify about&quot;</span><span class="p">)</span>
+    <span class="n">cases</span> <span class="o">=</span> <span class="n">api</span><span class="o">.</span><span class="n">Cases</span><span class="o">.</span><span class="n">V2</span><span class="o">.</span><span class="n">Case</span><span class="o">.</span><span class="n">advancedCaseSearch</span><span class="p">(</span>
+        <span class="n">limit</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+        <span class="n">service</span><span class="o">=</span><span class="n">service_type</span><span class="p">,</span> <span class="n">status</span><span class="o">=</span><span class="n">status</span><span class="p">,</span> <span class="n">priority</span><span class="o">=</span><span class="n">priority</span><span class="p">,</span> <span class="n">customerID</span><span class="o">=</span><span class="p">[</span><span class="n">customer</span><span class="p">],</span>
+        <span class="n">startTimestamp</span><span class="o">=</span><span class="n">days</span>
+    <span class="p">)[</span><span class="s2">&quot;data&quot;</span><span class="p">]</span>
+
+    <span class="n">parsed_cases</span> <span class="o">=</span> <span class="n">parse_data</span><span class="p">(</span><span class="n">cases</span><span class="p">,</span> <span class="n">skip</span><span class="p">)</span>
+
+    <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Creating emails&quot;</span><span class="p">)</span>
+    <span class="n">mails</span> <span class="o">=</span> <span class="n">create_emails</span><span class="p">(</span><span class="n">subject</span><span class="p">,</span> <span class="n">message</span><span class="p">,</span> <span class="n">parsed_cases</span><span class="p">,</span> <span class="n">notify</span> <span class="ow">or</span> <span class="p">[])</span>
+
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">mails</span><span class="p">)</span> <span class="ow">is</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;No emails to send&quot;</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Sending email&quot;</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">recipient</span><span class="p">,</span> <span class="n">mail</span> <span class="ow">in</span> <span class="n">mails</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">if</span> <span class="n">dry</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%s</span><span class="se">\n</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">mail</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">smtp</span> <span class="o">=</span> <span class="n">smtplib</span><span class="o">.</span><span class="n">SMTP</span><span class="p">(</span><span class="n">smtp_host</span><span class="p">)</span>
+            <span class="n">smtp</span><span class="o">.</span><span class="n">send_message</span><span class="p">(</span><span class="n">mail</span><span class="p">)</span>
+            <span class="n">smtp</span><span class="o">.</span><span class="n">quit</span><span class="p">()</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../../index.html">Documentation overview</a><ul>
+  <li><a href="../../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2018, mnemonic.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.6.7</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.10</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

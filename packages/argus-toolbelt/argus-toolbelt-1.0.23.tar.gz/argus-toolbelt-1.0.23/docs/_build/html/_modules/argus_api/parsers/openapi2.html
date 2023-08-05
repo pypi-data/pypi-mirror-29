@@ -1,0 +1,486 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>argus_api.parsers.openapi2 &#8212; Argus-Toolbelt 1.0 documentation</title>
+    <link rel="stylesheet" href="../../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+   
+  <link rel="stylesheet" href="../../../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for argus_api.parsers.openapi2</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">collections</span>
+<span class="kn">from</span> <span class="nn">re</span> <span class="k">import</span> <span class="n">match</span><span class="p">,</span> <span class="n">split</span>
+<span class="kn">from</span> <span class="nn">jsonschema</span> <span class="k">import</span> <span class="n">RefResolver</span>
+
+<span class="kn">from</span> <span class="nn">argus_cli.settings</span> <span class="k">import</span> <span class="n">settings</span>
+<span class="kn">from</span> <span class="nn">argus_api.schema</span> <span class="k">import</span> <span class="n">find_schema</span>
+<span class="kn">from</span> <span class="nn">argus_api.helpers.urls</span> <span class="k">import</span> <span class="n">remove_url_parameters</span><span class="p">,</span> <span class="n">extract_url_parameters</span>
+<span class="kn">from</span> <span class="nn">argus_api.helpers.parsers</span> <span class="k">import</span> <span class="n">RequestMethod</span>
+<span class="kn">from</span> <span class="nn">argus_cli.helpers.formatting</span> <span class="k">import</span> <span class="n">python_name_for</span><span class="p">,</span> <span class="n">to_snake_case</span>
+
+
+<div class="viewcode-block" id="flatten"><a class="viewcode-back" href="../../../argus_api/argus_api.parsers.html#argus_api.parsers.openapi2.flatten">[docs]</a><span class="k">def</span> <span class="nf">flatten</span><span class="p">(</span><span class="n">nested_list</span><span class="p">:</span> <span class="nb">list</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot;Generator that flattens lists inside a list&quot;&quot;&quot;</span>
+    <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">nested_list</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="n">collections</span><span class="o">.</span><span class="n">Iterable</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="nb">bytes</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)):</span>
+            <span class="k">yield from</span> <span class="n">flatten</span><span class="p">(</span><span class="n">item</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">yield</span> <span class="n">item</span></div>
+
+<div class="viewcode-block" id="Swagger2RequestMethod"><a class="viewcode-back" href="../../../argus_api/argus_api.parsers.html#argus_api.parsers.openapi2.Swagger2RequestMethod">[docs]</a><span class="k">class</span> <span class="nc">Swagger2RequestMethod</span><span class="p">(</span><span class="n">RequestMethod</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Structure for a request method, allowing it to be passed to a template,</span>
+<span class="sd">    create mocks for tests, or spit out defined functions</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">_fake_response_factory</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">callable</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;Provides the method to generate a fake response&quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">argus_api.helpers.tests</span> <span class="k">import</span> <span class="n">fake_response</span>
+        <span class="k">return</span> <span class="n">fake_response</span>
+
+<div class="viewcode-block" id="Swagger2RequestMethod.from_swagger_definition"><a class="viewcode-back" href="../../../argus_api/argus_api.parsers.html#argus_api.parsers.openapi2.Swagger2RequestMethod.from_swagger_definition">[docs]</a>    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">from_swagger_definition</span><span class="p">(</span>
+            <span class="n">api_url</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+            <span class="n">endpoint_url</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+            <span class="n">method</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+            <span class="n">definition</span><span class="p">:</span> <span class="nb">dict</span>
+        <span class="p">)</span> <span class="o">-&gt;</span> <span class="s1">&#39;Swagger2RequestMethod&#39;</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;Creates request methods from their Swagger definitions</span>
+
+<span class="sd">        :param str api_url: API base url</span>
+<span class="sd">        :param str endpoint_url: URL to API endpoint</span>
+<span class="sd">        :param str method: GET / POST / PUT / PATCH / DELETE</span>
+<span class="sd">        :param dict definition: Method definition</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># Find out what errors can be raised and what the expected response would be</span>
+        <span class="n">error_responses</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="n">status_code</span><span class="p">:</span> <span class="n">error</span>
+            <span class="k">for</span> <span class="n">status_code</span><span class="p">,</span> <span class="n">error</span> <span class="ow">in</span> <span class="n">definition</span><span class="p">[</span><span class="s2">&quot;responses&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">match</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;\d+&#39;</span><span class="p">,</span> <span class="n">status_code</span><span class="p">)</span> <span class="ow">and</span> <span class="mi">399</span> <span class="o">&lt;</span> <span class="nb">int</span><span class="p">(</span><span class="n">status_code</span><span class="p">)</span>
+        <span class="p">}</span>
+
+        <span class="c1"># Find out what the successful response would normally look like (as a dict)</span>
+        <span class="n">successful_response</span> <span class="o">=</span> <span class="nb">next</span><span class="p">((</span>
+            <span class="n">response</span> \
+            <span class="k">for</span> <span class="n">status_code</span><span class="p">,</span> <span class="n">response</span> <span class="ow">in</span> <span class="n">definition</span><span class="p">[</span><span class="s2">&quot;responses&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> \
+            <span class="k">if</span> <span class="n">match</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;\d+&#39;</span><span class="p">,</span> <span class="n">status_code</span><span class="p">)</span> <span class="ow">and</span> <span class="mi">199</span> <span class="o">&lt;</span> <span class="nb">int</span><span class="p">(</span><span class="n">status_code</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">300</span>
+        <span class="p">),</span> <span class="kc">None</span><span class="p">)</span>
+        
+        <span class="n">url_parameters</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="p">{</span>
+                <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="n">parameter</span><span class="p">,</span>
+                <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+                <span class="s2">&quot;required&quot;</span><span class="p">:</span> <span class="kc">True</span>
+            <span class="p">}</span>
+            <span class="k">for</span> <span class="n">parameter</span> <span class="ow">in</span> <span class="n">extract_url_parameters</span><span class="p">(</span><span class="n">endpoint_url</span><span class="p">)</span>
+        <span class="p">]</span>
+
+        <span class="c1"># Parameters should be sorted by whether or not they&#39;re required</span>
+        <span class="n">url_parameters</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span>
+            <span class="n">url_parameters</span><span class="p">,</span>
+            <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">parameter</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="nb">bool</span><span class="p">(</span><span class="s2">&quot;default&quot;</span> <span class="ow">in</span> <span class="n">parameter</span> <span class="ow">and</span> <span class="n">parameter</span><span class="p">[</span><span class="s2">&quot;default&quot;</span><span class="p">])),</span>
+            <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Parameters with default arguments should come last; and required parameters </span>
+        <span class="c1"># with no default arguments must come first. Nested lists are flattened.</span>
+        <span class="n">parameters</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">param</span>
+            <span class="k">for</span> <span class="n">param</span> <span class="ow">in</span> <span class="n">flatten</span><span class="p">(</span><span class="n">definition</span><span class="p">[</span><span class="s2">&quot;parameters&quot;</span><span class="p">])</span>
+            <span class="k">if</span> <span class="s2">&quot;name&quot;</span> <span class="ow">in</span> <span class="n">param</span>
+        <span class="p">]</span>
+
+        <span class="n">parameters</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span>
+            <span class="nb">sorted</span><span class="p">(</span><span class="n">parameters</span><span class="p">,</span>
+                   <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">parameter</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="nb">bool</span><span class="p">(</span><span class="s2">&quot;default&quot;</span> <span class="ow">in</span> <span class="n">parameter</span> <span class="ow">and</span> <span class="n">parameter</span><span class="p">[</span><span class="s2">&quot;default&quot;</span><span class="p">])),</span>
+                   <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span>
+            <span class="p">),</span>
+            <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">parameter</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="nb">bool</span><span class="p">(</span><span class="s2">&quot;required&quot;</span> <span class="ow">in</span> <span class="n">parameter</span> <span class="ow">and</span> <span class="n">parameter</span><span class="p">[</span><span class="s2">&quot;required&quot;</span><span class="p">])),</span>
+            <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Description:</span>
+        <span class="n">description</span> <span class="o">=</span> <span class="n">definition</span><span class="p">[</span><span class="s2">&quot;summary&quot;</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="s2">&quot;description&quot;</span> <span class="ow">in</span> <span class="n">definition</span><span class="p">:</span>
+            <span class="n">description</span> <span class="o">+=</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">definition</span><span class="p">[</span><span class="s2">&quot;description&quot;</span><span class="p">]</span>
+
+        <span class="c1"># Cast default arguments to their type:</span>
+        <span class="k">for</span> <span class="n">param</span> <span class="ow">in</span> <span class="n">parameters</span><span class="p">:</span>
+            <span class="k">if</span> <span class="s2">&quot;default&quot;</span> <span class="ow">in</span> <span class="n">param</span> <span class="ow">and</span> <span class="n">param</span><span class="p">[</span><span class="s2">&quot;default&quot;</span><span class="p">]</span> \
+            <span class="ow">and</span> <span class="s2">&quot;type&quot;</span> <span class="ow">in</span> <span class="n">param</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">param</span><span class="p">[</span><span class="s2">&quot;type&quot;</span><span class="p">],</span> <span class="nb">str</span><span class="p">):</span>
+                <span class="n">default_type</span> <span class="o">=</span> <span class="n">__builtins__</span><span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">param</span><span class="p">[</span><span class="s2">&quot;type&quot;</span><span class="p">])]</span>
+                <span class="k">if</span> <span class="n">callable</span><span class="p">(</span><span class="n">default_type</span><span class="p">):</span>
+                    <span class="n">param</span><span class="p">[</span><span class="s2">&quot;default&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">default_type</span><span class="p">(</span><span class="n">param</span><span class="p">[</span><span class="s2">&quot;default&quot;</span><span class="p">])</span>
+        
+        <span class="k">return</span> <span class="n">Swagger2RequestMethod</span><span class="p">(</span>
+            <span class="n">url</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">api_url</span><span class="p">,</span> <span class="n">endpoint_url</span><span class="p">])</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;//&quot;</span><span class="p">,</span> <span class="s2">&quot;/&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;:/&quot;</span><span class="p">,</span> <span class="s2">&quot;://&quot;</span><span class="p">),</span>
+            <span class="n">method</span><span class="o">=</span><span class="n">method</span><span class="p">,</span>
+            <span class="n">name</span><span class="o">=</span><span class="n">definition</span><span class="p">[</span><span class="s2">&quot;operationId&quot;</span><span class="p">]</span> <span class="k">if</span> <span class="s2">&quot;operationId&quot;</span> <span class="ow">in</span> <span class="n">definition</span> <span class="k">else</span> <span class="n">method</span><span class="p">,</span>
+            <span class="n">description</span><span class="o">=</span><span class="n">description</span><span class="p">,</span>
+            <span class="n">errors</span><span class="o">=</span><span class="n">error_responses</span><span class="p">,</span>
+            <span class="n">parameters</span><span class="o">=</span><span class="p">{</span>
+                <span class="s2">&quot;path&quot;</span><span class="p">:</span> <span class="n">url_parameters</span> <span class="ow">or</span> <span class="p">{},</span>
+                <span class="s2">&quot;body&quot;</span><span class="p">:</span> <span class="p">[</span>
+                    <span class="n">param</span>
+                    <span class="k">for</span> <span class="n">param</span> <span class="ow">in</span> <span class="n">parameters</span>
+                    <span class="k">if</span> <span class="n">param</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="n">p</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">url_parameters</span><span class="p">]</span>
+            <span class="p">],</span>
+                <span class="s2">&quot;all&quot;</span><span class="p">:</span> <span class="n">parameters</span>
+            <span class="p">},</span>
+            <span class="n">response</span><span class="o">=</span><span class="n">successful_response</span> <span class="ow">or</span> <span class="kc">None</span>
+        <span class="p">)</span></div></div>
+
+<div class="viewcode-block" id="add_endpoints"><a class="viewcode-back" href="../../../argus_api/argus_api.parsers.html#argus_api.parsers.openapi2.add_endpoints">[docs]</a><span class="k">def</span> <span class="nf">add_endpoints</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">endpoints</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Adds endpoint functions to a class, and adds bridging classes in between</span>
+
+<span class="sd">    :param class cls: Class to add functions/classes to</span>
+<span class="sd">    :param dict endpoints: Endpoints to add</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">content</span> <span class="ow">in</span> <span class="n">endpoints</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">content</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">name</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;__&#39;</span><span class="p">):</span>
+            <span class="n">new_endpoint</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span><span class="n">name</span><span class="o">.</span><span class="n">capitalize</span><span class="p">(),</span> <span class="p">(</span><span class="nb">object</span><span class="p">,),</span> <span class="p">{})</span>
+            <span class="nb">setattr</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="o">.</span><span class="n">capitalize</span><span class="p">(),</span> <span class="n">new_endpoint</span><span class="p">)</span>
+            <span class="n">add_endpoints</span><span class="p">(</span><span class="n">new_endpoint</span><span class="p">,</span> <span class="n">content</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">content</span><span class="p">,</span> <span class="n">RequestMethod</span><span class="p">):</span>
+                <span class="n">content</span><span class="o">.</span><span class="n">to_method_on</span><span class="p">(</span><span class="bp">cls</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="nb">setattr</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">content</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="recursively_resolve_references"><a class="viewcode-back" href="../../../argus_api/argus_api.parsers.html#argus_api.parsers.openapi2.recursively_resolve_references">[docs]</a><span class="k">def</span> <span class="nf">recursively_resolve_references</span><span class="p">(</span>
+        <span class="n">reference</span><span class="p">:</span> <span class="s1">&#39;RefResolver&#39;</span><span class="p">,</span>
+        <span class="n">value</span><span class="p">,</span>
+        <span class="n">recursion_limit</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span>
+    <span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Recursively iterates through the swagger schema and resolves JSON references</span>
+
+<span class="sd">    :param RefResolver reference: A RefResolver object used to resolve references</span>
+<span class="sd">    :param value: Any value it comes across - starting with the schema object root</span>
+<span class="sd">    :return:</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># If value is a dict, proceed to figure out how to return this dict</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+        <span class="c1"># If we found a schema nested like { &quot;schema&quot;: { &quot;$ref&quot;: &quot;&quot;}}</span>
+        <span class="c1"># then set value to value[&quot;schema&quot;] and continue to resolve it further down</span>
+        <span class="k">if</span> <span class="s2">&quot;schema&quot;</span> <span class="ow">in</span> <span class="n">value</span> <span class="ow">and</span> <span class="s2">&quot;$ref&quot;</span> <span class="ow">in</span> <span class="n">value</span><span class="p">[</span><span class="s2">&quot;schema&quot;</span><span class="p">]:</span>
+            <span class="n">resolved</span> <span class="o">=</span> <span class="n">reference</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span><span class="n">value</span><span class="p">[</span><span class="s2">&quot;schema&quot;</span><span class="p">][</span><span class="s2">&quot;$ref&quot;</span><span class="p">])[</span><span class="mi">1</span><span class="p">]</span>
+            <span class="k">if</span> <span class="s2">&quot;properties&quot;</span> <span class="ow">in</span> <span class="n">resolved</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">resolved</span><span class="p">[</span><span class="s2">&quot;properties&quot;</span><span class="p">],</span> <span class="nb">dict</span><span class="p">):</span>
+                <span class="n">value</span> <span class="o">=</span> <span class="p">[</span>
+                    <span class="nb">dict</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="n">key</span><span class="p">)</span>
+                    <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">resolved</span><span class="p">[</span><span class="s2">&quot;properties&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+                <span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">value</span> <span class="o">=</span> <span class="n">resolved</span>
+
+
+        
+
+        <span class="c1"># If it contains items, we flatten that too and resolve the reference</span>
+        <span class="k">if</span> <span class="s2">&quot;items&quot;</span> <span class="ow">in</span> <span class="n">value</span> <span class="ow">and</span> <span class="s2">&quot;$ref&quot;</span> <span class="ow">in</span> <span class="n">value</span><span class="p">[</span><span class="s2">&quot;items&quot;</span><span class="p">]:</span>
+            <span class="n">value</span><span class="p">[</span><span class="s2">&quot;items&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">reference</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span><span class="n">value</span><span class="p">[</span><span class="s2">&quot;items&quot;</span><span class="p">][</span><span class="s2">&quot;$ref&quot;</span><span class="p">])[</span><span class="mi">1</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">recursion_limit</span><span class="p">:</span>
+                <span class="n">value</span><span class="p">[</span><span class="s2">&quot;items&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">recursively_resolve_references</span><span class="p">(</span>
+                    <span class="n">reference</span><span class="p">,</span>
+                    <span class="n">value</span><span class="p">[</span><span class="s2">&quot;items&quot;</span><span class="p">],</span>
+                    <span class="n">recursion_limit</span><span class="o">=</span><span class="n">recursion_limit</span> <span class="o">-</span> <span class="mi">1</span>
+                <span class="p">)</span>
+
+    <span class="c1"># Check again if this is a dict after attempting to resolve</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+        <span class="c1"># If it just contains a reference, immediately resolve it</span>
+        <span class="k">if</span> <span class="s2">&quot;$ref&quot;</span> <span class="ow">in</span> <span class="n">value</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">recursion_limit</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">recursively_resolve_references</span><span class="p">(</span>
+                    <span class="n">reference</span><span class="p">,</span>
+                    <span class="n">reference</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span><span class="n">value</span><span class="p">[</span><span class="s2">&quot;$ref&quot;</span><span class="p">])[</span><span class="mi">1</span><span class="p">],</span>
+                    <span class="n">recursion_limit</span><span class="o">=</span><span class="n">recursion_limit</span> <span class="o">-</span> <span class="mi">1</span>
+                <span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">reference</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span><span class="n">value</span><span class="p">[</span><span class="s2">&quot;$ref&quot;</span><span class="p">])[</span><span class="mi">1</span><span class="p">]</span>
+
+    
+    <span class="c1"># Check again if this is a dict as it may have been converted </span>
+    <span class="c1"># to a list if it was a properties dict</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="ow">and</span> <span class="n">recursion_limit</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="n">key</span><span class="p">:</span> <span class="n">recursively_resolve_references</span><span class="p">(</span><span class="n">reference</span><span class="p">,</span> <span class="n">val</span><span class="p">,</span> <span class="n">recursion_limit</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">value</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+        <span class="p">}</span>
+    
+    <span class="c1"># Same goes for lists</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span> <span class="ow">and</span> <span class="n">recursion_limit</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">[</span>
+            <span class="n">recursively_resolve_references</span><span class="p">(</span><span class="n">reference</span><span class="p">,</span> <span class="n">val</span><span class="p">,</span> <span class="n">recursion_limit</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">value</span>
+        <span class="p">]</span>
+    
+    <span class="c1"># Now we&#39;ve hit a single base value, and can just return</span>
+    <span class="k">return</span> <span class="n">value</span></div>
+
+<div class="viewcode-block" id="recursively_replace_types_with_pythonic_types"><a class="viewcode-back" href="../../../argus_api/argus_api.parsers.html#argus_api.parsers.openapi2.recursively_replace_types_with_pythonic_types">[docs]</a><span class="k">def</span> <span class="nf">recursively_replace_types_with_pythonic_types</span><span class="p">(</span><span class="n">schema</span><span class="p">,</span> <span class="n">recursion_limit</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">100</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Recurses through a nested dict, looking for keys &#39;type&#39;, and &#39;format&#39;.</span>
+<span class="sd">    The &quot;format&quot; key will be removed as it&#39;s superfluous, and the &quot;type&quot; key will</span>
+<span class="sd">    have its value replaced with the Python equivalent of that type.</span>
+
+<span class="sd">    :param dict schema: Will be the root dictionary at the start</span>
+<span class="sd">    :param int recursion_limit: Limits recursion to avoid maximum recursion depth</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">schema</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+        <span class="c1"># If we ever hit a dict containing only &quot;type&quot; and &quot;format&quot;, or only &quot;type&quot;,</span>
+        <span class="c1"># replace it with the python name for that type instead</span>
+        <span class="k">if</span> <span class="p">(</span>
+            <span class="nb">list</span><span class="p">(</span><span class="n">schema</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span><span class="o">.</span><span class="n">sort</span><span class="p">()</span> <span class="o">==</span> <span class="p">[</span><span class="s2">&quot;format&quot;</span><span class="p">,</span> <span class="s2">&quot;type&quot;</span><span class="p">]</span>
+            <span class="ow">or</span> <span class="nb">list</span><span class="p">(</span><span class="n">schema</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span> <span class="o">==</span> <span class="p">[</span><span class="s2">&quot;type&quot;</span><span class="p">])</span> \
+            <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">schema</span><span class="p">[</span><span class="s2">&quot;type&quot;</span><span class="p">],</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="n">schema</span> <span class="o">=</span> <span class="p">{</span> <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="n">python_name_for</span><span class="p">(</span><span class="n">schema</span><span class="p">[</span><span class="s2">&quot;type&quot;</span><span class="p">])</span> <span class="p">}</span>
+
+        <span class="k">elif</span> <span class="s2">&quot;type&quot;</span> <span class="ow">in</span> <span class="n">schema</span><span class="p">:</span>
+            <span class="k">if</span> <span class="s2">&quot;type&quot;</span> <span class="ow">in</span> <span class="n">schema</span><span class="p">[</span><span class="s2">&quot;type&quot;</span><span class="p">]:</span>
+                <span class="k">if</span> <span class="s2">&quot;enum&quot;</span> <span class="ow">in</span> <span class="n">schema</span><span class="p">[</span><span class="s2">&quot;type&quot;</span><span class="p">]:</span>
+                    <span class="n">schema</span><span class="o">.</span><span class="n">update</span><span class="p">({</span>
+                        <span class="s2">&quot;options&quot;</span><span class="p">:</span> <span class="n">schema</span><span class="p">[</span><span class="s2">&quot;type&quot;</span><span class="p">][</span><span class="s2">&quot;enum&quot;</span><span class="p">]</span>
+                    <span class="p">})</span>
+                <span class="n">schema</span><span class="o">.</span><span class="n">update</span><span class="p">({</span>
+                    <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="n">python_name_for</span><span class="p">(</span><span class="n">schema</span><span class="p">[</span><span class="s2">&quot;type&quot;</span><span class="p">][</span><span class="s2">&quot;type&quot;</span><span class="p">])</span>
+                <span class="p">})</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">schema</span><span class="o">.</span><span class="n">update</span><span class="p">({</span>
+                    <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="n">python_name_for</span><span class="p">(</span><span class="n">schema</span><span class="p">[</span><span class="s2">&quot;type&quot;</span><span class="p">])</span>
+                <span class="p">})</span>
+
+            <span class="k">if</span> <span class="s2">&quot;format&quot;</span> <span class="ow">in</span> <span class="n">schema</span><span class="p">:</span>
+                <span class="k">del</span> <span class="n">schema</span><span class="p">[</span><span class="s2">&quot;format&quot;</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="n">recursion_limit</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">{</span>
+                <span class="n">key</span><span class="p">:</span> <span class="n">recursively_replace_types_with_pythonic_types</span><span class="p">(</span>
+                    <span class="n">value</span><span class="p">,</span>
+                    <span class="n">recursion_limit</span> <span class="o">-</span> <span class="mi">1</span>
+                <span class="p">)</span> \
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="p">(</span><span class="nb">dict</span><span class="p">,</span> <span class="nb">list</span><span class="p">))</span> <span class="k">else</span> <span class="n">value</span>
+                <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">schema</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+            <span class="p">}</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">schema</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span> <span class="ow">and</span> <span class="n">recursion_limit</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">[</span>
+            <span class="n">recursively_replace_types_with_pythonic_types</span><span class="p">(</span>
+                <span class="n">value</span><span class="p">,</span>
+                <span class="n">recursion_limit</span> <span class="o">-</span> <span class="mi">1</span>
+            <span class="p">)</span>
+            <span class="k">for</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">schema</span>
+        <span class="p">]</span>
+
+    <span class="k">return</span> <span class="n">schema</span></div>
+
+<div class="viewcode-block" id="recursively_flatten_properties"><a class="viewcode-back" href="../../../argus_api/argus_api.parsers.html#argus_api.parsers.openapi2.recursively_flatten_properties">[docs]</a><span class="k">def</span> <span class="nf">recursively_flatten_properties</span><span class="p">(</span><span class="n">schema</span><span class="p">,</span> <span class="n">recursion_limit</span> <span class="o">=</span> <span class="mi">100</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Recursively flattens all &#39;properties&#39; keys in the schema, to avoid</span>
+<span class="sd">    unnecessary and unwanted nesting</span>
+
+<span class="sd">    :param schema: Any value it comes across while recursing</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">schema</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+        <span class="n">schema</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="n">key</span><span class="p">:</span> <span class="p">(</span>
+                <span class="n">value</span><span class="p">[</span><span class="s2">&quot;properties&quot;</span><span class="p">]</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="ow">and</span> <span class="s2">&quot;properties&quot;</span> <span class="ow">in</span> <span class="n">value</span>
+                <span class="k">else</span> <span class="n">value</span>
+            <span class="p">)</span>
+            <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">schema</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> 
+        <span class="p">}</span>
+
+    <span class="c1"># Continue recursing if we&#39;re allowed</span>
+    <span class="k">if</span> <span class="n">recursion_limit</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">schema</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+             <span class="k">return</span> <span class="p">[</span>
+                <span class="n">recursively_flatten_properties</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">recursion_limit</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">schema</span>
+            <span class="p">]</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">schema</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+            <span class="k">return</span> <span class="p">{</span>
+                <span class="n">key</span><span class="p">:</span> <span class="n">recursively_flatten_properties</span><span class="p">(</span>
+                    <span class="n">value</span><span class="p">,</span>
+                    <span class="n">recursion_limit</span> <span class="o">-</span> <span class="mi">1</span>
+                <span class="p">)</span>
+                <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">schema</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+            <span class="p">}</span>
+    
+    <span class="k">return</span> <span class="n">schema</span></div>
+
+<div class="viewcode-block" id="load"><a class="viewcode-back" href="../../../argus_api/argus_api.parsers.html#argus_api.parsers.openapi2.load">[docs]</a><span class="k">def</span> <span class="nf">load</span><span class="p">(</span><span class="n">location</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot;This is the main entry point of the OpenAPI2 parser. It loads the given</span>
+<span class="sd">    OpenAPI 2.0 definition, and makes sure it&#39;s saved to disk, and that </span>
+<span class="sd">    references are resolved, and javascript type names replaced with Python</span>
+<span class="sd">    type names.</span>
+
+<span class="sd">    It&#39;ll then begin setting up the nested endpoint structure, and create</span>
+<span class="sd">    RequestMethods for each API endpoint before loading these as templates.</span>
+
+<span class="sd">    The returned structure will be a nested dict representing the paths to each</span>
+<span class="sd">    endpoint, where some dicts (the actual endpoints) will contain keys with </span>
+<span class="sd">    metadata such as [&quot;__METADATA__&quot;][&quot;__MODULE_NAME__&quot;] and other useful</span>
+<span class="sd">    data.</span>
+
+<span class="sd">    It&#39;s up to the application to make use of these endpoints, e.g call</span>
+<span class="sd">    nested_dict_structure_to_class_structure(endpoints), or whatever else</span>
+<span class="sd">    you may want to do with these.</span>
+
+<span class="sd">    If the endpoint structure has been loaded previously, the already loaded</span>
+<span class="sd">    structure will be returned.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">schema</span> <span class="o">=</span> <span class="n">find_schema</span><span class="p">(</span><span class="n">location</span><span class="p">)</span>
+    
+    <span class="n">schema</span> <span class="o">=</span> <span class="n">recursively_resolve_references</span><span class="p">(</span><span class="n">RefResolver</span><span class="o">.</span><span class="n">from_schema</span><span class="p">(</span><span class="n">schema</span><span class="p">),</span> <span class="n">schema</span><span class="p">)</span>
+    <span class="n">schema</span> <span class="o">=</span> <span class="n">recursively_flatten_properties</span><span class="p">(</span><span class="n">schema</span><span class="p">)</span>
+    <span class="n">schema</span> <span class="o">=</span> <span class="n">recursively_replace_types_with_pythonic_types</span><span class="p">(</span><span class="n">schema</span><span class="p">)</span>
+    <span class="n">api_url</span> <span class="o">=</span> <span class="n">settings</span><span class="p">[</span><span class="s2">&quot;api&quot;</span><span class="p">][</span><span class="s2">&quot;api_url&quot;</span><span class="p">]</span>
+
+    <span class="c1"># Contains all endpoints as a dict, to make lookup quick and easy</span>
+    <span class="n">endpoints</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="k">for</span> <span class="n">endpoint</span><span class="p">,</span> <span class="n">endpoint_definition</span> <span class="ow">in</span> <span class="n">schema</span><span class="p">[</span><span class="s2">&quot;paths&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">current_endpoint</span> <span class="o">=</span> <span class="n">endpoints</span>
+
+        <span class="c1"># Set up &quot;bridge classes&quot; (The Components.V1 part of System.Components.V1)</span>
+        <span class="c1"># Skip first url partsince the string will start with a slash</span>
+        <span class="n">url_parts</span> <span class="o">=</span> <span class="n">remove_url_parameters</span><span class="p">(</span><span class="n">endpoint</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">)[</span><span class="mi">1</span><span class="p">:]</span>
+
+        <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">part</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">url_parts</span><span class="p">):</span>
+            <span class="n">last_part</span> <span class="o">=</span> <span class="n">url_parts</span><span class="p">[</span><span class="n">index</span> <span class="o">-</span> <span class="mi">2</span> <span class="k">if</span> <span class="n">index</span> <span class="o">-</span> <span class="mi">2</span> <span class="o">&gt;=</span> <span class="mi">0</span> <span class="k">else</span> <span class="mi">0</span><span class="p">]</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">last_part</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="mi">2</span> <span class="ow">and</span> <span class="n">last_part</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;v&quot;</span> <span class="ow">and</span> <span class="n">last_part</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span><span class="o">.</span><span class="n">isdigit</span><span class="p">():</span>
+                <span class="c1"># We don&#39;t want to have anything deeper than 1 level after the version.</span>
+                <span class="c1"># All endpoints under the namespaces after vX should </span>
+                <span class="c1"># have unique names anyways.</span>
+                <span class="k">break</span>
+            <span class="k">if</span> <span class="n">part</span> <span class="o">==</span> <span class="s1">&#39;&#39;</span><span class="p">:</span>
+                <span class="c1"># The URL parameter removal will leave some blanks, so we ignore them</span>
+                <span class="k">continue</span>
+            <span class="k">elif</span> <span class="n">part</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">current_endpoint</span><span class="p">:</span>
+                <span class="n">current_endpoint</span><span class="p">[</span><span class="n">part</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="n">current_endpoint</span> <span class="o">=</span> <span class="n">current_endpoint</span><span class="p">[</span><span class="n">part</span><span class="p">]</span>
+
+        <span class="n">url_parameters</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="p">{</span>
+                <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="n">parameter</span><span class="p">,</span>
+                <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+                <span class="s2">&quot;required&quot;</span><span class="p">:</span> <span class="kc">True</span>
+            <span class="p">}</span>
+            <span class="k">for</span> <span class="n">parameter</span> <span class="ow">in</span> <span class="n">extract_url_parameters</span><span class="p">(</span><span class="n">endpoint</span><span class="p">)</span>
+        <span class="p">]</span>
+
+        <span class="k">if</span> <span class="s2">&quot;__METADATA__&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">current_endpoint</span><span class="p">:</span>
+            <span class="c1"># Join the [&quot;url&quot;, &quot;v1&quot;, &quot;parts&quot;] into a comma separated string of parts</span>
+            <span class="n">class_name</span> <span class="o">=</span> <span class="s2">&quot;,&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">url_parts</span><span class="p">)</span>
+
+            <span class="c1"># Then remove ,v1, or ,v2, and take whatever comes after the version</span>
+            <span class="n">class_name</span> <span class="o">=</span> <span class="n">split</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;,v\d+,&#39;</span><span class="p">,</span> <span class="n">class_name</span><span class="p">)[</span><span class="mi">1</span><span class="p">:]</span>
+
+            <span class="c1"># Again split the remainder to get all the parts after the versioning</span>
+            <span class="n">class_name</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">class_name</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;,&quot;</span><span class="p">)</span>
+
+            <span class="c1"># Join that back into one class name, with each word capitalized</span>
+            <span class="n">class_name</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="nb">str</span><span class="o">.</span><span class="n">capitalize</span><span class="p">,</span> <span class="n">class_name</span><span class="p">)))</span>
+            
+            <span class="c1"># Endpoint name will come out as AlarmsV1Alarm, while class name will</span>
+            <span class="c1"># come out as Alarm</span>
+            <span class="n">endpoint_name</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="nb">str</span><span class="o">.</span><span class="n">capitalize</span><span class="p">,</span> <span class="n">url_parts</span><span class="p">)))</span>
+
+            <span class="n">current_endpoint</span><span class="p">[</span><span class="s2">&quot;__METADATA__&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s2">&quot;__REQUEST_METHODS__&quot;</span><span class="p">:</span> <span class="p">[],</span>
+                <span class="s2">&quot;__MODULE_NAME__&quot;</span><span class="p">:</span> <span class="n">to_snake_case</span><span class="p">(</span><span class="n">class_name</span><span class="p">),</span>
+                <span class="s2">&quot;__ENDPOINT_NAME__&quot;</span><span class="p">:</span> <span class="n">endpoint_name</span><span class="p">,</span>
+                <span class="s2">&quot;__CLASS_NAME__&quot;</span><span class="p">:</span> <span class="n">class_name</span><span class="p">,</span>
+                <span class="s2">&quot;__PATH__&quot;</span><span class="p">:</span> <span class="n">url_parts</span><span class="p">,</span>
+                <span class="s2">&quot;__IDENTIFIER__&quot;</span><span class="p">:</span> <span class="s2">&quot;/&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">url_parts</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="n">class_name</span><span class="p">])</span>
+            <span class="p">}</span>
+        
+        <span class="n">current_endpoint</span><span class="p">[</span><span class="s2">&quot;__METADATA__&quot;</span><span class="p">][</span><span class="s2">&quot;__REQUEST_METHODS__&quot;</span><span class="p">]</span> <span class="o">+=</span> <span class="p">[</span>
+            <span class="n">Swagger2RequestMethod</span><span class="o">.</span><span class="n">from_swagger_definition</span><span class="p">(</span>
+                <span class="n">api_url</span><span class="p">,</span>
+                <span class="n">endpoint</span><span class="p">,</span>
+                <span class="n">method</span><span class="p">,</span>
+                <span class="n">definition</span>
+            <span class="p">)</span>
+            <span class="k">for</span> <span class="n">method</span><span class="p">,</span> <span class="n">definition</span> <span class="ow">in</span> <span class="n">endpoint_definition</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+        <span class="p">]</span>
+
+        <span class="k">for</span> <span class="n">method</span> <span class="ow">in</span> <span class="n">current_endpoint</span><span class="p">[</span><span class="s2">&quot;__METADATA__&quot;</span><span class="p">][</span><span class="s2">&quot;__REQUEST_METHODS__&quot;</span><span class="p">]:</span>
+                <span class="n">current_endpoint</span><span class="p">[</span><span class="n">method</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">method</span>
+
+    <span class="c1"># Return a flattened list to be iterated and written to disk</span>
+    <span class="k">return</span> <span class="n">endpoints</span></div>
+    
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../../index.html">Documentation overview</a><ul>
+  <li><a href="../../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2018, mnemonic.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.6.7</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.10</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

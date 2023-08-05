@@ -1,0 +1,213 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>argus_api.helpers.authentication &#8212; Argus-Toolbelt 1.0 documentation</title>
+    <link rel="stylesheet" href="../../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+   
+  <link rel="stylesheet" href="../../../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for argus_api.helpers.authentication</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">getpass</span>
+<span class="kn">import</span> <span class="nn">hmac</span>
+<span class="kn">from</span> <span class="nn">time</span> <span class="k">import</span> <span class="n">time</span>
+<span class="kn">from</span> <span class="nn">hashlib</span> <span class="k">import</span> <span class="n">sha256</span>
+<span class="kn">from</span> <span class="nn">base64</span> <span class="k">import</span> <span class="n">urlsafe_b64encode</span><span class="p">,</span> <span class="n">b64decode</span>
+<span class="kn">from</span> <span class="nn">urllib.parse</span> <span class="k">import</span> <span class="n">urlparse</span>
+<span class="kn">from</span> <span class="nn">requests</span> <span class="k">import</span> <span class="n">post</span>
+<span class="kn">from</span> <span class="nn">argus_api</span> <span class="k">import</span> <span class="n">__version__</span>
+<span class="kn">from</span> <span class="nn">argus_cli.settings</span> <span class="k">import</span> <span class="n">settings</span>
+
+
+<div class="viewcode-block" id="csrf_token_for"><a class="viewcode-back" href="../../../argus_api/argus_api.helpers.html#argus_api.helpers.authentication.csrf_token_for">[docs]</a><span class="k">def</span> <span class="nf">csrf_token_for</span><span class="p">(</span><span class="n">url</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">key</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot;Generates a CSRF token for an API URL</span>
+<span class="sd">    </span>
+<span class="sd">    :param url: URL endpoint</span>
+<span class="sd">    :param key: User&#39;s session key</span>
+<span class="sd">    :returns: CSRF token</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Parse the URL into its components</span>
+    <span class="n">u</span> <span class="o">=</span> <span class="n">urlparse</span><span class="p">(</span><span class="n">url</span><span class="p">)</span>
+
+    <span class="c1"># Create the original path, i.e https://domain.tld/path</span>
+    <span class="n">path</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">://</span><span class="si">%s</span><span class="s2">/</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">scheme</span><span class="p">,</span> <span class="n">u</span><span class="o">.</span><span class="n">netloc</span><span class="p">,</span> <span class="n">u</span><span class="o">.</span><span class="n">path</span><span class="p">)</span>
+
+    <span class="c1"># Decode the session key</span>
+    <span class="n">session_key</span> <span class="o">=</span> <span class="n">b64decode</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+
+    <span class="n">canonical_string</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;{&quot;alg&quot;: &quot;HS256&quot;, &quot;typ&quot;: &quot;JWT&quot;}.{&quot;url&quot;: &quot;</span><span class="si">%s</span><span class="s2">&quot;, &quot;timestamp&quot;: &quot;</span><span class="si">%s</span><span class="s2">&quot;}&quot;&quot;&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="nb">round</span><span class="p">(</span><span class="n">time</span><span class="p">()</span><span class="o">*</span><span class="mi">1000</span><span class="p">)))</span>
+
+    <span class="c1"># Sign the URL, timestamp,</span>
+    <span class="n">signature</span> <span class="o">=</span> <span class="n">hmac</span><span class="o">.</span><span class="n">new</span><span class="p">(</span><span class="n">session_key</span><span class="p">,</span> <span class="n">msg</span><span class="o">=</span><span class="n">canonical_string</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s2">&quot;utf-8&quot;</span><span class="p">),</span> <span class="n">digestmod</span><span class="o">=</span><span class="n">sha256</span><span class="p">)</span><span class="o">.</span><span class="n">digest</span><span class="p">()</span>
+    <span class="n">token</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">.</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">canonical_string</span><span class="p">,</span> <span class="n">urlsafe_b64encode</span><span class="p">(</span><span class="n">signature</span><span class="p">))</span>
+
+    <span class="k">return</span> <span class="n">token</span></div>
+
+<div class="viewcode-block" id="with_api_key"><a class="viewcode-back" href="../../../argus_api/argus_api.helpers.html#argus_api.helpers.authentication.with_api_key">[docs]</a><span class="k">def</span> <span class="nf">with_api_key</span><span class="p">(</span><span class="n">api_key</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot;Authenticates the user towards the API with an API key</span>
+
+<span class="sd">    :param api_key: User&#39;s API key</span>
+<span class="sd">    :return: Authentication headers</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># TODO: Check if the API Key is valid for the user</span>
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="s2">&quot;Argus-API-Key&quot;</span><span class="p">:</span> <span class="n">api_key</span>
+    <span class="p">}</span></div>
+
+
+<div class="viewcode-block" id="with_credentials"><a class="viewcode-back" href="../../../argus_api/argus_api.helpers.html#argus_api.helpers.authentication.with_credentials">[docs]</a><span class="k">def</span> <span class="nf">with_credentials</span><span class="p">(</span><span class="n">username</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="n">password</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="n">method</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;ldap&quot;</span><span class="p">,</span> <span class="n">base_url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">callable</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot;Authenticates the user with the API via TOTP, Radius or LDAP, and returns a function</span>
+<span class="sd">    that creates the correct headers with CSRF token for a given URL, using the user&#39;s</span>
+<span class="sd">    sessionKey and cookie.</span>
+
+<span class="sd">    :param base_url: API URL</span>
+<span class="sd">    :param method: Authentication method</span>
+<span class="sd">    :param username: The user&#39;s username</span>
+<span class="sd">    :param password: The user&#39;s password</span>
+<span class="sd">    :return: Authentication data</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">base_url</span> <span class="o">=</span> <span class="n">base_url</span> <span class="ow">or</span> <span class="n">settings</span><span class="p">[</span><span class="s2">&quot;api&quot;</span><span class="p">][</span><span class="s2">&quot;api_url&quot;</span><span class="p">]</span>
+    <span class="n">auth_url</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">/authentication/v1/</span><span class="si">%s</span><span class="s2">/authenticate&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">base_url</span><span class="p">,</span> <span class="n">method</span><span class="p">)</span>
+
+    <span class="n">parameters</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">&quot;userName&quot;</span><span class="p">:</span> <span class="n">username</span><span class="p">,</span>
+        <span class="s2">&quot;password&quot;</span><span class="p">:</span> <span class="n">password</span>
+    <span class="p">}</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">username</span><span class="p">:</span>
+        <span class="n">parameters</span><span class="p">[</span><span class="s2">&quot;userName&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">input</span><span class="p">(</span><span class="s2">&quot;Username&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">password</span><span class="p">:</span>
+        <span class="n">parameters</span><span class="p">[</span><span class="s2">&quot;password&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">getpass</span><span class="o">.</span><span class="n">getpass</span><span class="p">(</span><span class="s2">&quot;Enter </span><span class="si">%s</span><span class="s2">password:&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="s2">&quot;AD3 &quot;</span> <span class="k">if</span> <span class="n">method</span> <span class="o">==</span> <span class="s2">&quot;ldap&quot;</span> <span class="k">else</span> <span class="s2">&quot;&quot;</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">method</span> <span class="o">==</span> <span class="s2">&quot;totp&quot;</span><span class="p">:</span>
+        <span class="n">parameters</span><span class="p">[</span><span class="s2">&quot;tokenCode&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">input</span><span class="p">(</span><span class="s2">&quot;Enter TOTP token code:&quot;</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">method</span> <span class="o">==</span> <span class="s2">&quot;radius&quot;</span><span class="p">:</span>
+        <span class="n">parameters</span><span class="p">[</span><span class="s2">&quot;tokenCode&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">input</span><span class="p">(</span><span class="s2">&quot;Enter Radius token code:&quot;</span><span class="p">)</span>
+        <span class="n">parameters</span><span class="p">[</span><span class="s2">&quot;mode&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;AUTHENTICATION&quot;</span>
+    <span class="k">elif</span> <span class="n">method</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">&quot;ldap&quot;</span><span class="p">,</span> <span class="s2">&quot;password&quot;</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Invalid authentication method: </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">method</span><span class="p">)</span>
+
+    <span class="n">response</span> <span class="o">=</span> <span class="n">post</span><span class="p">(</span><span class="n">auth_url</span><span class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="n">parameters</span><span class="p">)</span>
+
+    <span class="c1"># Accept both 200 and 201 response</span>
+    <span class="k">if</span> <span class="n">response</span><span class="o">.</span><span class="n">status_code</span> <span class="ow">in</span> <span class="p">(</span><span class="mi">200</span><span class="p">,</span> <span class="mi">201</span><span class="p">):</span>
+        <span class="n">authentication_data</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">json</span><span class="p">()[</span><span class="s2">&quot;data&quot;</span><span class="p">]</span>
+
+        <span class="k">def</span> <span class="nf">authenticate</span><span class="p">(</span><span class="n">url</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+            <span class="sd">&quot;&quot;&quot;Authenticator function, generates a CSRF token for the given URL</span>
+<span class="sd">            </span>
+<span class="sd">            :param str url: URL to create CSRF token for</span>
+<span class="sd">            :returns: Headers to pass to a request</span>
+<span class="sd">            &quot;&quot;&quot;</span>
+            <span class="k">return</span> <span class="p">{</span>
+                <span class="s2">&quot;Cookie&quot;</span><span class="p">:</span> <span class="s2">&quot;argus_username=</span><span class="si">%s</span><span class="s2">; argus_cookie=</span><span class="si">%s</span><span class="s2">;&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">username</span><span class="p">,</span> <span class="n">authentication_data</span><span class="p">[</span><span class="s2">&quot;cookie&quot;</span><span class="p">]),</span>
+                <span class="s2">&quot;Argus-CSRF-Token&quot;</span><span class="p">:</span> <span class="n">csrf_token_for</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">authentication_data</span><span class="p">[</span><span class="s2">&quot;sessionKey&quot;</span><span class="p">])</span>
+            <span class="p">}</span>
+        <span class="k">return</span> <span class="n">authenticate</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Authentication failed </span><span class="si">%d</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">response</span><span class="o">.</span><span class="n">status_code</span><span class="p">)</span>
+
+        <span class="c1"># Return empty headers — failed authentication does not need to raise </span>
+        <span class="c1"># any further errors.</span>
+        <span class="k">return</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="p">{}</span></div>
+
+<div class="viewcode-block" id="with_authentication"><a class="viewcode-back" href="../../../argus_api/argus_api.helpers.html#argus_api.helpers.authentication.with_authentication">[docs]</a><span class="k">def</span> <span class="nf">with_authentication</span><span class="p">(</span><span class="n">mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;ldap&quot;</span><span class="p">,</span> <span class="n">base_url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">username</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="n">api_key</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">callable</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot;Creates a decorator that can be used by plugins to have authentication handled for them,</span>
+<span class="sd">    by calling with_credentials or with_api_key and then passing the authentication headers</span>
+<span class="sd">    to the decorated function as `authentication`. </span>
+
+<span class="sd">    Generated API methods accept `authentication` parameter, so after decorating a function</span>
+<span class="sd">    with this, the authentication argument can be passed directly to any API method.</span>
+
+<span class="sd">    :param str mode: LDAP, Radius, Password or API key</span>
+<span class="sd">    :returns: decorator function</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">base_url</span> <span class="o">=</span> <span class="n">base_url</span> <span class="ow">or</span> <span class="n">settings</span><span class="p">[</span><span class="s2">&quot;api&quot;</span><span class="p">][</span><span class="s2">&quot;api_url&quot;</span><span class="p">]</span>
+    <span class="k">def</span> <span class="nf">decorator</span><span class="p">(</span><span class="n">function</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Authenticate with {mode}&quot;&quot;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">mode</span><span class="o">=</span><span class="n">mode</span><span class="p">)</span>
+        <span class="k">def</span> <span class="nf">authenticate</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+            <span class="sd">&quot;&quot;&quot;Returns a callable that can be used to create authentication headers for a URL,</span>
+<span class="sd">            for LDAP, TOTP, Password or API key authentication. This will be passed in to the function</span>
+<span class="sd">            as authentication=function, and can be passed to any API call</span>
+<span class="sd">            &quot;&quot;&quot;</span>
+            <span class="k">if</span> <span class="n">mode</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;apikey&#39;</span><span class="p">,</span> <span class="s1">&#39;api_key&#39;</span><span class="p">):</span>
+                <span class="n">kwargs</span><span class="o">.</span><span class="n">update</span><span class="p">({</span> <span class="s2">&quot;authentication&quot;</span><span class="p">:</span> <span class="n">with_credentials</span><span class="p">(</span><span class="n">method</span><span class="o">=</span><span class="n">mode</span><span class="p">,</span> <span class="n">username</span><span class="o">=</span><span class="n">username</span><span class="p">,</span> <span class="n">base_url</span><span class="o">=</span><span class="n">base_url</span><span class="p">)</span> <span class="p">})</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">kwargs</span><span class="o">.</span><span class="n">update</span><span class="p">({</span>
+                    <span class="s2">&quot;authentication&quot;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">url</span><span class="p">:</span> <span class="n">with_api_key</span><span class="p">(</span><span class="n">api_key</span><span class="p">)</span> <span class="k">if</span> <span class="n">api_key</span> <span class="k">else</span> <span class="nb">input</span><span class="p">(</span><span class="s2">&quot;Enter Argus API key&quot;</span><span class="p">)</span>
+                <span class="p">})</span>
+            <span class="k">return</span> <span class="n">function</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">authenticate</span>
+    <span class="k">return</span> <span class="n">decorator</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../../index.html">Documentation overview</a><ul>
+  <li><a href="../../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2018, mnemonic.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.6.7</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.10</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

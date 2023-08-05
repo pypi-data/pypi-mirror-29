@@ -1,0 +1,108 @@
+{% macro format_arguments(arguments) %}
+    {%- if arguments -%}
+    {%- for arg in arguments -%}
+        {%- if arg.type -%}
+            {{arg.name}}: {{arg.type}}
+        {%- else -%}
+            {{arg.name}}
+        {%- endif -%}
+        {%- if arg.default -%}
+            {{" "}}={{" "}}
+            {%- if arg.default is string -%}
+                "{{arg.default}}"
+            {%- elif arg.default is iterable -%}
+                [{{arg.default | join(",")}}]
+            {%- elif arg.default is number -%}
+                {{ arg.default }}
+            {%- endif -%}
+        {%- elif not arg.required -%}
+            {{" = None"}}
+        {%- endif -%}
+        {{ ", " }}
+    {% endfor -%}
+    {%- endif -%}
+{%- endmacro -%}
+
+{% macro format_arguments_as_dict(arguments) -%}
+    {{ "{" }}
+    {%- if arguments -%}
+    {% for arg in arguments %}
+        "{{arg.name}}": {{arg.name}}
+        {%- if not loop.last %}, {% endif -%}
+    {% endfor %}
+    {%- endif %}
+    {{ "}" }}
+{%- endmacro %}
+
+
+{% macro format_url_parameters(parameters) -%}
+    {% for param in parameters -%}
+        {{param.name}}={{param.name}}
+        {%- if not loop.last -%}, {% endif %}
+    {%- endfor %}
+{%- endmacro %}
+
+
+{%- macro exception(exception) -%}
+  {%- for word in exception.split(" ") -%}
+    {{ word | capitalize }}
+  {%- endfor -%}
+  {{ "Exception" }}
+{%- endmacro -%}
+
+def {{method.name}}(
+    {{ format_arguments(method.parameters.all)}}
+    json: bool = True,
+    verify: bool = True,
+    apiKey: str = None,
+    authentication: dict = {}
+  ) -> dict:
+    """{{method.description}}
+
+    {%- if method.parameters.all -%}
+    {%- for parameter in method.parameters.all %}
+    :param {{parameter.type}} {{parameter.name}}: {{parameter.description}}
+    {%- endfor -%}
+    {%- endif -%}
+    
+    {%- if method.errors -%}
+    {%- for status_code, error in method.errors.items() %}
+    :raises {{exception(error.description)}}: on {{status_code}}
+    {%- endfor -%}
+    {% endif %}
+    :returns: {{ method.fake_response() }}
+    """
+    from requests import {{ method.method }}
+    from argus_api.exceptions import http
+
+    url = "{{method.url}}".format({{ format_url_parameters(method.parameters.path) }})
+    headers = {
+        'Content-Type': 'application/json',
+        'User-Agent': 'ArgusToolbelt/{{version}}'
+    }
+
+    if apiKey:
+        headers["{{method.api_key_header_name}}"] = apiKey
+    elif authentication and isinstance(authentication, dict):
+        headers.update(authentication)
+    elif callable(authentication):
+        headers.update(authentication(url))
+
+    body = {{ format_arguments_as_dict(method.parameters.body) }}
+
+    response = {{method.method}}(url,
+                    json=body if body else None,
+                    verify=verify,
+                    headers=headers
+                )
+
+    if response.status_code == 401:
+        raise http.AuthenticationFailedException(response)
+    elif response.status_code == 403:
+        raise http.AccessDeniedException(response)
+    elif response.status_code == 412:
+        raise http.ValidationErrorException(response)
+    elif response.status_code == 404:
+        raise http.ObjectNotFoundException(response)
+
+    return response.json() if json else response

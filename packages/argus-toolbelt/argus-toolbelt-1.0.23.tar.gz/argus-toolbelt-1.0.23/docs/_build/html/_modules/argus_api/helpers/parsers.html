@@ -1,0 +1,289 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>argus_api.helpers.parsers &#8212; Argus-Toolbelt 1.0 documentation</title>
+    <link rel="stylesheet" href="../../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+   
+  <link rel="stylesheet" href="../../../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for argus_api.helpers.parsers</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Supporting methods and classes for parsing request methods from API schemas&quot;&quot;&quot;</span>
+<span class="kn">import</span> <span class="nn">re</span><span class="o">,</span> <span class="nn">json</span>
+<span class="kn">from</span> <span class="nn">os.path</span> <span class="k">import</span> <span class="n">abspath</span><span class="p">,</span> <span class="n">join</span><span class="p">,</span> <span class="n">dirname</span>
+
+<span class="kn">from</span> <span class="nn">jinja2</span> <span class="k">import</span> <span class="n">Environment</span><span class="p">,</span> <span class="n">FileSystemLoader</span>
+
+<span class="kn">from</span> <span class="nn">argus_api.helpers</span> <span class="k">import</span> <span class="n">tests</span>
+<span class="kn">from</span> <span class="nn">argus_api.helpers</span> <span class="k">import</span> <span class="n">http</span>
+<span class="kn">from</span> <span class="nn">argus_cli.helpers.formatting</span> <span class="k">import</span> <span class="n">python_name_for</span><span class="p">,</span> <span class="n">to_snake_case</span><span class="p">,</span> <span class="n">to_safe_name</span><span class="p">,</span> <span class="n">from_safe_name</span>
+<span class="kn">from</span> <span class="nn">argus_api.helpers.log</span> <span class="k">import</span> <span class="n">log</span>
+
+<span class="n">JINJA_ENGINE</span> <span class="o">=</span> <span class="n">Environment</span><span class="p">(</span><span class="n">loader</span><span class="o">=</span><span class="n">FileSystemLoader</span><span class="p">(</span><span class="n">abspath</span><span class="p">(</span><span class="n">join</span><span class="p">(</span><span class="n">dirname</span><span class="p">(</span><span class="vm">__file__</span><span class="p">),</span> <span class="s2">&quot;..&quot;</span><span class="p">,</span> <span class="s2">&quot;templates&quot;</span><span class="p">))))</span>
+
+
+<div class="viewcode-block" id="RequestMethod"><a class="viewcode-back" href="../../../argus_api/argus_api.helpers.html#argus_api.helpers.parsers.RequestMethod">[docs]</a><span class="k">class</span> <span class="nc">RequestMethod</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Container for a RequestMethod, accepts all building blocks for a request method</span>
+<span class="sd">    parsed by any parser, and provides functionality for creating an actual python</span>
+<span class="sd">    method as a string that can be printed to file, or load that string as an actual</span>
+<span class="sd">    function that can be executed.</span>
+
+<span class="sd">    When loaded as an executable function, this function will also have attributes</span>
+<span class="sd">    that can be used in tests, such as @function.success(), @function.unauthorized(),</span>
+<span class="sd">    which will intercept any calls made to the URL declared in this request method,</span>
+<span class="sd">    and respond with a fake response.</span>
+
+<span class="sd">    For example, to write a test for alarms.get_alarms, you might want to decorate</span>
+<span class="sd">    your function with:</span>
+
+<span class="sd">    @alarms.get_alarms.success()</span>
+<span class="sd">    def my_method():</span>
+<span class="sd">        # Receives a fake response, no call to the server will be created:</span>
+<span class="sd">        response = alarms.get_alarms()</span>
+
+<span class="sd">    This class is an ABC, meaning it should not be used in its raw form. Parsers</span>
+<span class="sd">    should subclass RequestMethod, and are responsible for overloading _fake_response</span>
+<span class="sd">    (to parse and generate the response object into a fake response), and for passing</span>
+<span class="sd">    the correct arguments to initialization.</span>
+
+<span class="sd">    For example, you might want to have different parsers, and therefore different ways</span>
+<span class="sd">    of parsing request methods, e.g `class RABLRequestMethod(RequestMethod`,</span>
+<span class="sd">    `Swagger2RequestMethod(RequestMethod)`, `class OpenAPI3RequestMethod(RequestMethod)`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">url</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">method</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">description</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">parameters</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span>
+        <span class="n">response</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">errors</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">url</span> <span class="o">=</span> <span class="n">url</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">to_snake_case</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">method</span> <span class="o">=</span> <span class="n">method</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">description</span> <span class="o">=</span> <span class="n">description</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span> <span class="o">=</span> <span class="n">parameters</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">api_key_header_name</span> <span class="o">=</span> <span class="s2">&quot;Argus-API-Key&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">response</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="n">key</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]:</span> <span class="n">key</span>
+            <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">response</span>
+            <span class="k">if</span> <span class="n">key</span> <span class="ow">and</span> <span class="s2">&quot;name&quot;</span> <span class="ow">in</span> <span class="n">key</span>
+        <span class="p">}</span> <span class="k">if</span> <span class="n">response</span> <span class="k">else</span> <span class="p">{}</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">errors</span> <span class="o">=</span> <span class="n">errors</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">auth_data</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="c1"># Ensure parameters are sorted so that parameters</span>
+        <span class="c1"># with a default value come first in the list</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">[</span><span class="s2">&quot;all&quot;</span><span class="p">]:</span>
+            <span class="c1"># Sort so that all parameters that are not required come last:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">[</span><span class="s2">&quot;all&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">[</span><span class="s2">&quot;all&quot;</span><span class="p">],</span>
+                <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">parameter</span><span class="p">:</span> <span class="s2">&quot;required&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">parameter</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">parameter</span><span class="p">[</span><span class="s2">&quot;required&quot;</span><span class="p">]</span>
+            <span class="p">)</span>
+
+            <span class="c1"># Sort again so that all parameters with a default value come</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">[</span><span class="s2">&quot;all&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">[</span><span class="s2">&quot;all&quot;</span><span class="p">],</span>
+                <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">parameter</span><span class="p">:</span> <span class="s2">&quot;default&quot;</span> <span class="ow">in</span> <span class="n">parameter</span>
+            <span class="p">)</span>
+
+            <span class="c1"># Ensure arguments are unique by name:</span>
+            <span class="n">unique_parameters</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="n">name_list</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">param</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">[</span><span class="s2">&quot;all&quot;</span><span class="p">]:</span>
+                <span class="k">if</span> <span class="n">param</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">name_list</span><span class="p">:</span>
+                    <span class="n">unique_parameters</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">param</span><span class="p">)</span>
+                    <span class="n">name_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">param</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">])</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">log</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s2">&quot;[</span><span class="si">%s</span><span class="s2">] Parameter </span><span class="si">%s</span><span class="s2"> is not unique&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">param</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]))</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">[</span><span class="s2">&quot;all&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">unique_parameters</span>
+
+    
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">to_template</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;Creates a function from the Request Method specification&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">JINJA_ENGINE</span><span class="o">.</span><span class="n">get_template</span><span class="p">(</span><span class="s2">&quot;request.j2&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">render</span><span class="p">(</span><span class="n">method</span><span class="o">=</span><span class="bp">self</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">to_function</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">callable</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;Wrapper around _as_function for retrieving a standalone function</span>
+<span class="sd">        When this property is used, the function will be attached to the </span>
+<span class="sd">        fake scope &#39;runtime_generated_api&#39;, rather than the scope of the</span>
+<span class="sd">        given module.</span>
+<span class="sd">        </span>
+<span class="sd">        To attach this function on a class, or module, use .as_method_on(cls)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_as_function</span><span class="p">(</span><span class="s1">&#39;runtime_generated_api&#39;</span><span class="p">)</span>
+    
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">url_regex</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;Returns a regex for matching the URL including its parameters&quot;&quot;&quot;</span>
+        <span class="n">url</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">url</span>
+
+        <span class="k">for</span> <span class="n">parameter</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">[</span><span class="s2">&quot;path&quot;</span><span class="p">]:</span>
+            <span class="k">if</span> <span class="n">parameter</span><span class="p">[</span><span class="s2">&quot;type&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;int&#39;</span><span class="p">:</span>
+                <span class="n">url</span> <span class="o">=</span> <span class="n">url</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;{</span><span class="si">%s</span><span class="s2">}&quot;</span> <span class="o">%</span> <span class="n">parameter</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">],</span> <span class="s2">&quot;\d+&quot;</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">url</span> <span class="o">=</span> <span class="n">url</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;{</span><span class="si">%s</span><span class="s2">}&quot;</span> <span class="o">%</span> <span class="n">parameter</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">],</span> <span class="s2">&quot;\w+&quot;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">url</span>
+
+<div class="viewcode-block" id="RequestMethod.to_method_on"><a class="viewcode-back" href="../../../argus_api/argus_api.helpers.html#argus_api.helpers.parsers.RequestMethod.to_method_on">[docs]</a>    <span class="k">def</span> <span class="nf">to_method_on</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="bp">cls</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Attaches this as a function on a class / module&quot;&quot;&quot;</span>
+        <span class="nb">setattr</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_as_function</span><span class="p">(</span><span class="bp">cls</span><span class="o">.</span><span class="vm">__module__</span><span class="p">))</span>
+        <span class="k">return</span> <span class="bp">cls</span></div>
+
+<div class="viewcode-block" id="RequestMethod.fake_response"><a class="viewcode-back" href="../../../argus_api/argus_api.helpers.html#argus_api.helpers.parsers.RequestMethod.fake_response">[docs]</a>    <span class="k">def</span> <span class="nf">fake_response</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;Returns a fake response for this method</span>
+
+<span class="sd">        :raises AttributeError: When the _fake_response method has not been overloaded</span>
+<span class="sd">        :returns: A dict with fake data</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fake_response_factory</span><span class="p">()(</span><span class="bp">self</span><span class="o">.</span><span class="n">response</span><span class="p">)</span></div>
+
+    <span class="c1"># PRIVATE</span>
+    <span class="k">def</span> <span class="nf">_fake_response_factory</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Guard method, this method must be overridden in subclasses&quot;&quot;&quot;</span>
+        <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span>
+            <span class="s2">&quot;Subclasses must override `_fake_response_factory` and&quot;</span>
+            <span class="s2">&quot;return a method to generate fake responses!&quot;</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Printable representation of this object&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="s2">&quot;&lt;RequestMethod: url=</span><span class="si">%s</span><span class="s2"> method=</span><span class="si">%s</span><span class="s2"> parameters=</span><span class="si">%s</span><span class="s2">&gt;&quot;</span> <span class="o">%</span> \
+        <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">url</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">method</span><span class="p">,</span> <span class="s2">&quot;,&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">p</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">[</span><span class="s2">&quot;all&quot;</span><span class="p">]]))</span>
+
+
+    <span class="k">def</span> <span class="nf">_as_function</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">target_module</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;runtime_generated_api&#39;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">callable</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;Calls self.to_template to create the function string,</span>
+<span class="sd">        then loads it into the scope to ensure the method is loaded</span>
+<span class="sd">        </span>
+<span class="sd">        :param target_module: What scope to assign function on, e.g cls.__module__</span>
+<span class="sd">        :returns: Callable function</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Compile the method into the imaginary runtime_generated_api module</span>
+        <span class="n">fake_function</span> <span class="o">=</span> <span class="nb">compile</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">to_template</span><span class="p">,</span>
+            <span class="n">target_module</span><span class="p">,</span>
+            <span class="s1">&#39;exec&#39;</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Evaluate it into fake_globals, where it&#39;ll be accessible</span>
+        <span class="n">fake_globals</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="nb">eval</span><span class="p">(</span><span class="n">fake_function</span><span class="p">,</span> <span class="p">{},</span> <span class="n">fake_globals</span><span class="p">)</span>
+
+        <span class="c1"># Create a regex to match this URL, including its URL parameters</span>
+        <span class="c1"># so that the decorators can intercept calls to this URL</span>
+        <span class="n">url_regex</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">url_regex</span>
+        <span class="n">function</span> <span class="o">=</span> <span class="n">fake_globals</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
+
+        <span class="c1"># Successful response decorator</span>
+        <span class="n">function</span><span class="o">.</span><span class="n">success</span> <span class="o">=</span> <span class="n">tests</span><span class="o">.</span><span class="n">response</span><span class="p">(</span>
+            <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="n">url_regex</span><span class="p">),</span>
+            <span class="n">method</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">method</span><span class="p">,</span>
+            <span class="n">json</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">fake_response</span><span class="p">()</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Unauthorized 401 response decorator</span>
+        <span class="n">function</span><span class="o">.</span><span class="n">unauthoried</span> <span class="o">=</span> <span class="n">tests</span><span class="o">.</span><span class="n">response</span><span class="p">(</span>
+            <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="n">url_regex</span><span class="p">),</span>
+            <span class="n">method</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">method</span><span class="p">,</span>
+            <span class="n">status_code</span><span class="o">=</span><span class="mi">401</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Access denied 403 response decorator</span>
+        <span class="n">function</span><span class="o">.</span><span class="n">access_denied</span> <span class="o">=</span> <span class="n">tests</span><span class="o">.</span><span class="n">response</span><span class="p">(</span>
+            <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="n">url_regex</span><span class="p">),</span> 
+            <span class="n">method</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">method</span><span class="p">,</span> 
+            <span class="n">status_code</span><span class="o">=</span><span class="mi">403</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Not found 404 response decorator</span>
+        <span class="n">function</span><span class="o">.</span><span class="n">not_found</span> <span class="o">=</span> <span class="n">tests</span><span class="o">.</span><span class="n">response</span><span class="p">(</span>
+            <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="n">url_regex</span><span class="p">),</span> 
+            <span class="n">method</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">method</span><span class="p">,</span> 
+            <span class="n">status_code</span><span class="o">=</span><span class="mi">404</span>
+        <span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">function</span></div>
+
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../../index.html">Documentation overview</a><ul>
+  <li><a href="../../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2018, mnemonic.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.6.7</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.10</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>
