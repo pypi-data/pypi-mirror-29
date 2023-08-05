@@ -1,0 +1,354 @@
+# ==========
+# Import-SRA
+# ==========
+---
+
+- slug: import-sra
+  name: Import SRA
+  requirements:
+    expression-engine: jinja
+    executor:
+      docker:
+        image: resolwebio/legacy:latest
+    resources:
+      network: true
+  data_name: "Import SRA ({{ sra_accession }})"
+  version: 0.0.2
+  type: data:reads:fastq
+  category: upload
+  persistence: TEMP
+  description: >
+    Import SRA file from NCBI.
+  input:
+    - name: sra_accession
+      label: SRA accession
+      type: basic:string
+    - name: advanced
+      label: Advanced
+      type: basic:boolean
+      default: false
+    - name: prefetch
+      label: Prefetch SRA
+      type: basic:boolean
+      default: true
+      hidden: "!advanced"
+    - name: gzip
+      label: Use external compression tool
+      type: basic:boolean
+      default: true
+      hidden: "!advanced"
+    - name: min_spot_id
+      label: Minimum spot ID
+      type: basic:integer
+      required: false
+      hidden: "!advanced"
+    - name: max_spot_id
+      label: Maximum spot ID
+      type: basic:integer
+      required: false
+      hidden: "!advanced"
+    - name: min_read_len
+      label: Minimum read length
+      type: basic:integer
+      required: false
+      hidden: "!advanced"
+    - name: skip_technical
+      label: Dump only biological reads
+      type: basic:boolean
+      default: false
+      hidden: "!advanced"
+    - name: aligned
+      label: Dump only aligned sequences
+      type: basic:boolean
+      default: false
+      hidden: "!advanced"
+    - name: unaligned
+      label: Dump only unaligned sequences
+      type: basic:boolean
+      default: false
+      hidden: "!advanced"
+  run:
+    runtime: polyglot
+    language: bash
+    program: |
+
+      mkdir $HOME/.ncbi/
+      echo '/repository/user/cache-disabled = "true"' >$HOME/.ncbi/user-settings.mkfg
+
+      numLines=$(fastq-dump -X 1 -Z --split-spot {{sra_accession}} | wc -l)
+      if [ $numLines -eq 4 ]
+      then
+        echo 'run {"process":"import-sra-single","input":{"sra_accession":"{{sra_accession}}","prefetch":{{prefetch | lower}},"gzip":{{gzip | lower}}{% if min_spot_id %},"min_spot_id":{{min_spot_id}}{% endif %}{% if max_spot_id %},"max_spot_id":{{max_spot_id}}{% endif %}{% if min_read_len %},"min_read_len":{{min_read_len}}{% endif %},"skip_technical":{{skip_technical | lower}},"aligned":{{aligned | lower}},"unaligned":{{unaligned | lower}}}}'
+      else
+        echo 'run {"process":"import-sra-paired","input":{"sra_accession":"{{sra_accession}}","prefetch":{{prefetch | lower}},"gzip":{{gzip | lower}}{% if min_spot_id %},"min_spot_id":{{min_spot_id}}{% endif %}{% if max_spot_id %},"max_spot_id":{{max_spot_id}}{% endif %}{% if min_read_len %},"min_read_len":{{min_read_len}}{% endif %},"skip_technical":{{skip_technical | lower}},"aligned":{{aligned | lower}},"unaligned":{{unaligned | lower}}}}'
+      fi
+
+- slug: import-sra-single
+  name: Import SRA (single-end)
+  requirements:
+    expression-engine: jinja
+    executor:
+      docker:
+        image: resolwebio/legacy:latest
+    resources:
+      network: true
+  data_name: "Import SRA ({{ sra_accession }})"
+  version: 0.0.5
+  type: data:reads:fastq:single
+  flow_collection: sample
+  category: upload
+  persistence: RAW
+  description: >
+    Import single end SRA file from NCBI.
+  input:
+    - name: sra_accession
+      label: SRA accession
+      type: basic:string
+    - name: advanced
+      label: Advanced
+      type: basic:boolean
+      default: false
+    - name: prefetch
+      label: Prefetch SRA
+      type: basic:boolean
+      default: true
+      hidden: "!advanced"
+    - name: gzip
+      label: Use external compression tool
+      type: basic:boolean
+      default: true
+      hidden: "!advanced"
+    - name: min_spot_id
+      label: Minimum spot ID
+      type: basic:integer
+      required: false
+      hidden: "!advanced"
+    - name: max_spot_id
+      label: Maximum spot ID
+      type: basic:integer
+      required: false
+      hidden: "!advanced"
+    - name: min_read_len
+      label: Minimum read length
+      type: basic:integer
+      required: false
+      hidden: "!advanced"
+    - name: skip_technical
+      label: Dump only biological reads
+      type: basic:boolean
+      default: false
+      hidden: "!advanced"
+    - name: aligned
+      label: Dump only aligned sequences
+      type: basic:boolean
+      default: false
+      hidden: "!advanced"
+    - name: unaligned
+      label: Dump only unaligned sequences
+      type: basic:boolean
+      default: false
+      hidden: "!advanced"
+  output:
+    - name: fastq
+      label: Reads file
+      type: list:basic:file
+    - name: fastqc_url
+      label: Quality control with FastQC
+      type: list:basic:file:html
+    - name: fastqc_archive
+      label: Download FastQC archive
+      type: list:basic:file
+  run:
+    runtime: polyglot
+    language: bash
+    program: |
+      CACHE="$PWD/fastq_cache"
+      mkdir "$CACHE"
+      mkdir "$HOME/.ncbi/"
+      echo "/repository/user/main/public/root = \"$CACHE\"" >"$HOME/.ncbi/user-settings.mkfg"
+
+      {% if prefetch %}
+        wget ftp://ftp-trace.ncbi.nih.gov/sra/sra-instant/reads/ByRun/sra/{{sra_accession[0:3]}}/{{sra_accession[0:6]}}/{{sra_accession}}/{{sra_accession}}.sra
+      {% endif %}
+
+      fastq-dump \
+        {% if not gzip %} --gzip {% endif %} \
+        {% if min_spot_id %} --minSpotId {{min_spot_id}} {% endif %} \
+        {% if max_spot_id %} --maxSpotId {{max_spot_id}} {% endif %} \
+        {% if min_read_len %} --minReadLen {{min_read_len}} {% endif %} \
+        {% if skip_technical %} --skip-technical {% endif %} \
+        {% if aligned %} --aligned {% endif %} \
+        {% if unaligned %} --unaligned {% endif %} \
+        {{sra_accession}}{% if prefetch %}.sra{% endif %}
+
+      {% if gzip %}
+        gzip {{sra_accession}}.fastq
+      {% endif %}
+
+      re-save-file-list fastq {{sra_accession}}.fastq.gz
+
+      echo "Postprocessing FastQC..."
+      mkdir "fastqc" && fastqc {{sra_accession}}.fastq.gz --extract --outdir="fastqc" 2> stderr.txt
+      re-checkrc "Failed while processing with FastQC."
+      if [[ $(grep --text "Failed to process file" stderr.txt) != "" ]]
+      then
+        re-error "Failed while processing with FastQC."
+      fi
+
+      mv fastqc/*_fastqc.zip .
+
+      for report_dir in ./fastqc/*/
+      do
+        ENCODING=`parse_encoding_type.py ${report_dir}fastqc_data.txt`
+        if [ "${ENCODING}" != "Sanger / Illumina 1.9" ]; then
+          re-error "Only Sanger / Illumina 1.9 encoding in supported."
+        fi
+      done
+
+      for fqc in `ls -v *_fastqc.zip`
+      do
+        FASTQC=${FASTQC}"$fqc "
+        NAME=`basename $fqc _fastqc.zip`
+        FASTQC_URL=${FASTQC_URL}"{\"file\":\"fastqc/${NAME}_fastqc/fastqc_report.html\",\"refs\":[\"fastqc/${NAME}_fastqc\"]} "
+      done
+
+       re-save-file-list fastqc_archive ${FASTQC}
+       re-save-list fastqc_url ${FASTQC_URL}
+
+- slug: import-sra-paired
+  name: Import SRA (paired-end)
+  requirements:
+    expression-engine: jinja
+    executor:
+      docker:
+        image: resolwebio/legacy:latest
+    resources:
+      network: true
+  data_name: "Import SRA ({{ sra_accession }})"
+  version: 0.0.5
+  type: data:reads:fastq:paired
+  flow_collection: sample
+  category: upload
+  persistence: RAW
+  description: >
+    Import paired end SRA file from NCBI.
+  input:
+    - name: sra_accession
+      label: SRA accession
+      type: basic:string
+    - name: advanced
+      label: Advanced
+      type: basic:boolean
+      default: false
+    - name: prefetch
+      label: Prefetch SRA
+      type: basic:boolean
+      default: true
+      hidden: "!advanced"
+    - name: gzip
+      label: Use external compression tool
+      type: basic:boolean
+      default: true
+      hidden: "!advanced"
+    - name: min_spot_id
+      label: Minimum spot ID
+      type: basic:integer
+      required: false
+      hidden: "!advanced"
+    - name: max_spot_id
+      label: Maximum spot ID
+      type: basic:integer
+      required: false
+      hidden: "!advanced"
+    - name: min_read_len
+      label: Minimum read length
+      type: basic:integer
+      required: false
+      hidden: "!advanced"
+    - name: skip_technical
+      label: Dump only biological reads
+      type: basic:boolean
+      default: false
+      hidden: "!advanced"
+    - name: aligned
+      label: Dump only aligned sequences
+      type: basic:boolean
+      default: false
+      hidden: "!advanced"
+    - name: unaligned
+      label: Dump only unaligned sequences
+      type: basic:boolean
+      default: false
+      hidden: "!advanced"
+  output:
+    - name: fastq
+      label: Reads file (mate 1)
+      type: list:basic:file
+    - name: fastq2
+      label: Reads file (mate 2)
+      type: list:basic:file
+    - name: fastqc_url
+      label: Quality control with FastQC (Upstream)
+      type: list:basic:file:html
+    - name: fastqc_url2
+      label: Quality control with FastQC (Downstream)
+      type: list:basic:file:html
+    - name: fastqc_archive
+      label: Download FastQC archive (Upstream)
+      type: list:basic:file
+    - name: fastqc_archive2
+      label: Download FastQC archive (Downstream)
+      type: list:basic:file
+  run:
+    runtime: polyglot
+    language: bash
+    program: |
+      CACHE="$PWD/fastq_cache"
+      mkdir "$CACHE"
+      mkdir "$HOME/.ncbi/"
+      echo "/repository/user/main/public/root = \"$CACHE\"" >"$HOME/.ncbi/user-settings.mkfg"
+
+      {% if prefetch %}
+        wget ftp://ftp-trace.ncbi.nih.gov/sra/sra-instant/reads/ByRun/sra/{{sra_accession[0:3]}}/{{sra_accession[0:6]}}/{{sra_accession}}/{{sra_accession}}.sra
+      {% endif %}
+
+      fastq-dump \
+        --split-files \
+        {% if not gzip %} --gzip {% endif %} \
+        {% if min_spot_id %} --minSpotId {{min_spot_id}} {% endif %} \
+        {% if max_spot_id %} --maxSpotId {{max_spot_id}} {% endif %} \
+        {% if min_read_len %} --minReadLen {{min_read_len}} {% endif %} \
+        {% if skip_technical %} --skip-technical {% endif %} \
+        {% if aligned %} --aligned {% endif %} \
+        {% if unaligned %} --unaligned {% endif %} \
+        {{sra_accession}}{% if prefetch %}.sra{% endif %}
+
+      {% if gzip %}
+        gzip {{sra_accession}}_[12].fastq
+      {% endif %}
+
+      re-save-file-list fastq {{sra_accession}}_1.fastq.gz
+      re-save-file-list fastq2 {{sra_accession}}_2.fastq.gz
+
+      echo "Postprocessing FastQC..."
+      mkdir "fastqc" && fastqc {{sra_accession}}_1.fastq.gz {{sra_accession}}_2.fastq.gz --extract --outdir="fastqc" 2> stderr.txt
+      re-checkrc "Failed while processing with FastQC."
+      if [[ $(grep --text "Failed to process file" stderr.txt) != "" ]]
+      then
+        re-error "Failed while processing with FastQC."
+      fi
+
+      mv fastqc/*_fastqc.zip .
+
+      for report_dir in ./fastqc/*/
+      do
+        ENCODING=`parse_encoding_type.py ${report_dir}fastqc_data.txt`
+        if [ "${ENCODING}" != "Sanger / Illumina 1.9" ]; then
+          re-error "Only Sanger / Illumina 1.9 encoding in supported."
+        fi
+      done
+
+      re-save-file-list fastqc_archive {{sra_accession}}_1_fastqc.zip
+      re-save-file-list fastqc_archive2 {{sra_accession}}_2_fastqc.zip
+      re-save-list fastqc_url '{"file":"fastqc/'{{sra_accession}}'_1_fastqc/fastqc_report.html","refs":["fastqc/'{{sra_accession}}'_1_fastqc"]}'
+      re-save-list fastqc_url2 '{"file":"fastqc/'{{sra_accession}}'_2_fastqc/fastqc_report.html","refs":["fastqc/'{{sra_accession}}'_2_fastqc"]}'
