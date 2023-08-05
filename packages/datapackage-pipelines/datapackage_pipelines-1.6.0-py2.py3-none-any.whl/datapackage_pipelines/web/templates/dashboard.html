@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- The above 3 meta tags *must* come first in the head; any other head content must come *after* these tags -->
+    <title>Datapackage Pipelines Dashboard</title>
+
+    <!-- Bootstrap -->
+    <!-- Latest compiled and minified CSS -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+
+    <!-- Optional theme -->
+    <link href="https://maxcdn.bootstrapcdn.com/bootswatch/3.3.7/flatly/bootstrap.min.css" rel="stylesheet" integrity="sha384-+ENW/yibaokMnme+vBLnHMphUYxHs34h9lpdbSLuAwGkOKFRl4C34WkjazBtb7eT" crossorigin="anonymous">
+
+
+    <!-- HTML5 shim and Respond.js for IE8 support of HTML5 elements and media queries -->
+    <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+    <!--[if lt IE 9]>
+    <script src="https://oss.maxcdn.com/html5shiv/3.7.3/html5shiv.min.js"></script>
+    <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
+    <![endif]-->
+    <style>
+        .tooltip-inner {
+            max-width: 600px;
+            text-align: left;
+        }
+        .affix {
+            top: 0px;
+            overflow-y: scroll;
+            max-height: 100%;
+            width: 25%;
+            padding-right: 30px;
+        }
+        .panel {
+            box-shadow: 5px 5px 5px 0px rgba(0,0,0,0.3);
+        }
+        .inner-tabs {
+            min-width: 100px;
+        }
+        .nesting {
+            border: 1px solid #ccc;;
+            border-top: none;
+            border-right: none;
+        }
+        .affix-top > .row > .col-xs-12 > .nesting {
+            border-right: 1px solid #ccc;
+        }
+        .affix > .row > .col-xs-12 > .nesting {
+            border-right: 1px solid #ccc;
+        }
+        .nesting > .nesting-contents {
+            border: none;
+            border-top: 1px dashed #ccc;
+            padding-left: 10px;
+            padding-bottom: 5px;
+            display: none;
+        }
+        .nesting.open > .nesting-contents {
+            display: inherit;
+        }
+        .pipline-title {
+            padding-left: 5px;
+            cursor: pointer;
+        }
+        .pipline-title .glyphicon {
+            font-size: 0.85em;
+        }
+
+        .nesting-title {
+            font-size: 0.85em;
+            padding-left: 5px;
+            padding-top: 3px;
+            padding-bottom: 3px;
+            cursor: pointer;
+        }
+        .nesting > .nesting-title .glyphicon {
+            transition: 0.25s ease-in-out;
+            transform: rotate(0deg);
+        }
+        .nesting.open > .nesting-title .glyphicon {
+            transform: rotate(90deg);
+        }
+        .pipline-title .stats {
+            font-family: monospace;
+            font-size: 0.8em;
+            padding-left: 30px;
+        }
+        .button[role="refresher"] {
+            float: right;
+            position: relative;
+            top: -36px;
+        }
+
+    </style>
+</head>
+<body>
+<nav class="navbar navbar-default">
+    <div class="container-fluid">
+        <!-- Brand and toggle get grouped for better mobile display -->
+        <div class="navbar-header">
+            <a class="navbar-brand" href="#">Pipeline Status Dashboard</a>
+        </div>
+
+        <!-- Collect the nav links, forms, and other content for toggling -->
+        <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+        </div><!-- /.navbar-collapse -->
+    </div><!-- /.container-fluid -->
+</nav>
+
+<div class="container-fluid">
+    <ul class="nav nav-tabs" role="tablist">
+        {% for category in categories %}
+        <li role="presentation" class="{%if category[0]=='ALL'%}active{%endif%}"><a href="#state-{{category[0]}}" aria-controls="{{category[0]}}" role="tab" data-toggle="tab">{{category[1]}} ({{category[4]}})</a></li>
+        {% endfor %}
+    </ul>
+    <div class="tab-content">
+        {% for category in categories %}
+        <div role="tabpanel" class="tab-pane {%if category[0]=='ALL'%}active{%endif%}" id="state-{{category[0]}}">
+            <div class="row">
+                <div class="col-md-3 hidden-xs hidden-sm">
+                    <div data-spy="affix" >
+                        {% macro nested_pipelines(statuses) %}
+                        {% for k, children in statuses.children.items() %}
+                        <div class="row">
+                            <div class="col-xs-12">
+                                <div class="nesting open">
+                                    <div class="nesting-title">
+                                        <span class="glyphicon glyphicon-menu-right"></span>
+                                        <span>{{ k }}</span>
+                                    </div>
+                                    <div class="nesting-contents">
+                                        {{ nested_pipelines(children) }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                        {% for status in statuses.pipelines %}
+                        <div class="row">
+                            <div class="col-xs-12">
+                                <div class="pipline-title">
+                                    <div>
+                                        <span class="glyphicon glyphicon-expand"></span>
+                                        <a href="#anchor-{{category[0]}}-{{status.slug}}">
+                                            {{ status.title or status.id }}
+                                        </a>
+                                    </div>
+                                    {% if status.get('stats') %}
+                                    <div class='stats'>
+                                        {{ yamlize(status.get('stats', {})).replace('\n', '<br/>') | safe }}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                        {% endmacro %}
+
+                        {{ nested_pipelines(category[5]) }}
+                        <br/>
+                    </div>
+                </div>
+                <div class="col-md-9">
+                    {% for status in category[3] %}
+                    <div class="row" id="anchor-{{category[0]}}-{{status.slug}}">
+                        <div class="col-md-12">
+                            <div class="panel panel-{{ status.class }}">
+                                <div class="panel-heading">
+                                    <h1 class="panel-title">
+                                        {% if status.pipeline.title %}
+                                        {{ status.pipeline.title }} <small>({{ status.id.split('/')[-1] }})</small>
+                                        {% else %}
+                                        {{ status.id }}
+                                        {% endif %}
+                                        <br/><small><strong><span class="glyphicon glyphicon-arrow-right"></span> {{ status.message }}</strong></small>
+                                    </h1>
+                                </div>
+                                <div class="panel-body">
+                                    <div class="row">
+                                        <div class="col-sm-1 inner-tabs">
+                                            <ul class="nav nav-pills nav-stacked" role="tablist">
+                                                <li role="presentation" class="active"><a href="#status-{{category[0]}}-{{status.slug}}" aria-controls="status" role="tab" data-toggle="tab">Status</a></li>
+                                                <li role="presentation"><a href="#pipeline-{{category[0]}}-{{status.slug}}" aria-controls="pipeline-{{status.id}}" role="tab" data-toggle="tab">Pipeline</a></li>
+                                                <li role="presentation"><a href="#source-{{category[0]}}-{{status.slug}}" aria-controls="source" role="tab" data-toggle="tab">Source</a></li>
+                                                <li role="presentation"><a href="#log-{{category[0]}}-{{status.slug}}" aria-controls="log" role="tab" data-toggle="tab">Log</a></li>
+                                            </ul>
+                                        </div>
+                                        <div class="col-sm-9">
+                                            <!-- Tab panes -->
+                                            <div class="tab-content">
+                                                <div role="tabpanel" class="tab-pane active" id="status-{{category[0]}}-{{status.slug}}">
+                                                    {% if status.pipeline.description %}
+                                                    <di>{{ markdown(status.pipeline.description) | safe }}</di>
+                                                    <hr/>
+                                                    {% endif %}
+                                                    <dl class="dl-horizontal">
+                                                        <dt>Last Run triggered by:</dt><dd>{{ status.trigger }}</dd>
+                                                        <dt>Last Run started at:</dt><dd>{{ status.started }}</dd>
+                                                        <dt>Last Completion:</dt><dd>{{ status.ended }}</dd>
+                                                        <dt>Last Success:</dt><dd>{{ status.last_success }}</dd>
+                                                    </dl>
+                                                    <hr/>
+                                                    {% if status.error_log %}
+                                                    <pre>{{ '\n'.join(status.error_log) }}</pre>
+                                                    <hr/>
+                                                    {% endif %}
+                                                    <p><small>Pipeline ID: <strong>{{ status.id }}</strong></small></p>
+                                                </div>
+                                                <div role="tabpanel"
+                                                     class="tab-pane"
+                                                     id="pipeline-{{category[0]}}-{{status.slug}}">
+                                                    <div class="tab-content"
+                                                         data-field="pipeline"
+                                                         data-pipeline="{{status.id}}"
+                                                    >
+                                                    </div>
+                                                </div>
+                                                <div role="tabpanel"
+                                                     class="tab-pane"
+                                                     id="source-{{category[0]}}-{{status.slug}}">
+                                                    <div class="tab-content"
+                                                             data-field="source"
+                                                             data-pipeline="{{status.id}}"
+                                                    >
+                                                    </div>
+                                                </div>
+                                                <div role="tabpanel"
+                                                     id="log-{{category[0]}}-{{status.slug}}"
+                                                     class="tab-pane">
+                                                    <div class="tab-content"
+                                                         data-field="log"
+                                                         data-pipeline="{{status.id}}"
+                                                    >
+                                                    </div>
+                                                    <button role="refresher" data-tab="#log-{{category[0]}}-{{status.slug}}"
+                                                            type="button" class="btn btn-primary btn-xs">
+                                                        <span class="glyphicon glyphicon-refresh"></span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- jQuery (necessary for Bootstrap's JavaScript plugins) -->
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.4/jquery.min.js"></script>
+<!-- Latest compiled and minified JavaScript -->
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"
+        integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa"
+        crossorigin="anonymous"></script>
+
+<script>
+    $(function () {
+        $('[data-toggle="tooltip"]').tooltip();
+        var top = $('[data-spy="affix"]:first').offset().top;
+        $('[data-spy="affix"]').each(function() {
+            $(this).attr('data-offset-top', top);
+        })
+        $('.nesting-title').on('click', function(e) {
+          $(e.currentTarget).parent().toggleClass('open');
+        })
+    });
+
+    function refill(target, force) {
+      if (!force) {
+        var gotData = target.attr('data-full');
+        if (gotData) return;
+      }
+      var field = target.attr('data-field');
+      if (!field) return;
+      var pipeline_id = target.attr('data-pipeline');
+      $.get('api/'+field+'/'+pipeline_id, function(data) {
+        text = data.text;
+        contents = '<pre>';
+        for (i = 0 ; i < text.length ; i++) contents += text[i] + '\n';
+        contents = contents + '</pre>';
+        target.html(contents);
+        target.attr('data-full', true);
+      }, 'json');
+    }
+
+    $('[role=tabpanel]').on('shown.bs.tab', function(e) {
+      var control = $(e.target);
+      var tabContents = $(control.attr('href')).find('.tab-content');
+      refill(tabContents, false);
+    });
+
+    $('[role=refresher]').on('click', function(e) {
+      var control = $(e.currentTarget);
+      var tab = $(control.attr('data-tab'));
+      var tabContents = tab.find('.tab-content');
+      refill(tabContents, true);
+    });
+
+</script>
+</body>
+</html>
