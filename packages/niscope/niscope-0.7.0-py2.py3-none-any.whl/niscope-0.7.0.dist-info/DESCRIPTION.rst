@@ -1,0 +1,203 @@
+Overall Status
+--------------
+
++----------------------+------------------------------------------------------------------------------------------------------------------------------------+
+| master branch status | |BuildStatus| |Docs| |MITLicense| |CoverageStatus|                                                                                 |
++----------------------+------------------------------------------------------------------------------------------------------------------------------------+
+| GitHub status        | |OpenIssues| |OpenPullRequests|                                                                                                    |
++----------------------+------------------------------------------------------------------------------------------------------------------------------------+
+
+===========  ============================================================================================================================
+Info         Python bindings for NI Modular Instrument drivers. See `GitHub <https://github.com/ni/nimi-python/>`_ for the latest source.
+Author       National Instruments
+===========  ============================================================================================================================
+
+.. |BuildStatus| image:: https://img.shields.io/travis/ni/nimi-python.svg
+    :alt: Build Status - master branch
+    :target: https://travis-ci.org/ni/nimi-python
+
+.. |Docs| image:: https://readthedocs.org/projects/nimi-python/badge/?version=latest
+    :alt: Documentation Status - master branch
+    :target: https://nimi-python.readthedocs.io/en/latest/?badge=latest
+
+.. |MITLicense| image:: https://img.shields.io/badge/License-MIT-yellow.svg
+    :alt: MIT License
+    :target: https://opensource.org/licenses/MIT
+
+.. |CoverageStatus| image:: https://coveralls.io/repos/github/ni/nimi-python/badge.svg?branch=master&dummy=no_cache_please_1
+    :alt: Test Coverage - master branch
+    :target: https://coveralls.io/github/ni/nimi-python?branch=master
+
+.. |OpenIssues| image:: https://img.shields.io/github/issues/ni/nimi-python.svg
+    :alt: Open Issues + Pull Requests
+    :target: https://github.com/ni/nimi-python/issues
+
+.. |OpenPullRequests| image:: https://img.shields.io/github/issues-pr/ni/nimi-python.svg
+    :alt: Open Pull Requests
+    :target: https://github.com/ni/nimi-python/pulls
+
+
+.. _about-section:
+
+.. image:: https://raw.githubusercontent.com/ni/nimi-python/master/docs/_static/python-dmm-small.jpg
+   :alt: NI Digital Multimeter with Python logo
+   :align: center
+
+About
+=====
+
+The **nimi-python** repository generates Python bindings (Application Programming Interface) for interacting with the Modular Instrument drivers. Currently, the following drivers are supported:
+
+* NI-DCPower (Python module: nidcpower)
+* NI-DMM (Python module: nidmm)
+* NI-FGEN (Python module: nifgen)
+* NI-SCOPE (Python module: niscope)
+* NI-SWITCH (Python module: niswitch)
+* NI-ModInst (Python module: nimodinst)
+
+It is implemented as a set of `Mako templates <http://makotemplates.org>`_ and per-driver metafiles that produce a Python module for each driver. The driver is called through its public C API using the
+`ctypes <https://docs.python.org/2/library/ctypes.html>`_ Python library.
+
+**nimi-python** supports all the Operating Systems supported by the underlying driver.
+
+**nimi-python** supports Python 2.7, 3.4 and later using CPython or PyPy.
+
+
+NI-SCOPE Python API Status
+--------------------------
+
++-------------------------------+------------------------+
+| NI-SCOPE (niscope)            |                        |
++===============================+========================+
+| Driver Version Tested Against | 17.0.2                 |
++-------------------------------+------------------------+
+| PyPI Version                  | |niscopeLatestVersion| |
++-------------------------------+------------------------+
+| Supported Python Version      | |niscopePythonVersion| |
++-------------------------------+------------------------+
+| Open Issues                   | |niscopeOpenIssues|    |
++-------------------------------+------------------------+
+| Open Pull Requests            | |niscopeOpenPRs|       |
++-------------------------------+------------------------+
+
+
+.. |niscopeLatestVersion| image:: http://img.shields.io/pypi/v/niscope.svg
+    :alt: Latest NI-SCOPE Version
+    :target: http://pypi.python.org/pypi/niscope
+
+
+.. |niscopePythonVersion| image:: http://img.shields.io/pypi/pyversions/niscope.svg
+    :alt: NI-SCOPE supported Python versions
+    :target: http://pypi.python.org/pypi/niscope
+
+
+.. |niscopeOpenIssues| image:: https://img.shields.io/github/issues/ni/nimi-python/niscope.svg
+    :alt: Open Issues + Pull Requests for NI-SCOPE
+    :target: https://github.com/ni/nimi-python/issues?q=is%3Aopen+is%3Aissue+label%3Aniscope
+
+
+.. |niscopeOpenPRs| image:: https://img.shields.io/github/issues-pr/ni/nimi-python/niscope.svg
+    :alt: Pull Requests for NI-SCOPE
+    :target: https://github.com/ni/nimi-python/pulls?q=is%3Aopen+is%3Aissue+label%3Aniscope
+
+
+
+.. _niscope_installation-section:
+
+Installation
+------------
+
+As a prerequisite to using the niscope module, you must install the NI-SCOPE runtime on your system. Visit `ni.com/downloads <http://www.ni.com/downloads/>`_ to download the driver runtime for your devices.
+
+The nimi-python modules (i.e. for **NI-SCOPE**) can be installed with `pip <http://pypi.python.org/pypi/pip>`_::
+
+  $ python -m pip install niscope
+
+Or **easy_install** from
+`setuptools <http://pypi.python.org/pypi/setuptools>`_::
+
+  $ python -m easy_install niscope
+
+
+Contributing
+============
+
+We welcome contributions! You can clone the project repository, build it, and install it by `following these instructions <https://github.com/ni/nimi-python/blob/readme-contributing-link/CONTRIBUTING.md>`_.
+
+Usage
+------
+
+The following is a basic example of using the **niscope** module to open a session to a High Speed Digitizer and capture a single record of 1000 points.
+
+.. code-block:: python
+
+    import niscope
+    with niscope.Session("Dev1") as session:
+        session.configure_vertical(range=1.0, coupling=niscope.VerticalCoupling.AC)
+        session.configure_horizontal_timing(min_sample_rate=50000000, min_num_pts=1000, ref_position=50.0, num_records=1, enforce_realtime=True)
+        with session.initiate():
+            wfm, wfm_infos = session[args.channels].fetch(num_samples=args.length)
+        print('Number of samples acquired: {:,}\n'.format(len(wfm)))
+
+Additional examples for NI-SCOPE are located in src/niscope/examples/ directory.
+
+.. _support-section:
+
+Support / Feedback
+==================
+
+The packages included in **nimi-python** package are supported by NI. For support, open
+a request through the NI support portal at `ni.com <http://www.ni.com>`_.
+
+.. _bugs-section:
+
+Bugs / Feature Requests
+=======================
+
+To report a bug or submit a feature request, please use the
+`GitHub issues page <https://github.com/ni/nimi-python/issues>`_.
+
+Information to Include When Asking for Help
+-------------------------------------------
+
+Please include **all** of the following information when opening an issue:
+
+- Detailed steps on how to reproduce the problem and full traceback, if
+  applicable. Code samples are encouraged!
+
+- The python version used::
+
+  $ python -c "import sys; print(sys.version)"
+
+- The module (i.e. **nidmm**) and its version::
+
+  $ python -m pip list
+
+- The version of the driver used (i.e. **NI-DMM 17.1**). Follow
+  `this KB article <http://digital.ni.com/express.nsf/bycode/ex8amn>`_
+  to determine the version you have installed.
+
+- The operating system, version, and bitness. For example 64-bit Windows 7.
+
+
+.. _documentation-section:
+
+Documentation
+=============
+
+Documentation is available `here <http://nimi-python.readthedocs.io>`_.
+
+
+.. _license-section:
+
+License
+=======
+
+**nimi-python** is licensed under an MIT-style license (`see
+LICENSE <https://github.com/ni/nimi-python/blob/master/LICENSE>`_).
+Other incorporated projects may be licensed under different licenses. All
+licenses allow for non-commercial and commercial use.
+
+
+
+
