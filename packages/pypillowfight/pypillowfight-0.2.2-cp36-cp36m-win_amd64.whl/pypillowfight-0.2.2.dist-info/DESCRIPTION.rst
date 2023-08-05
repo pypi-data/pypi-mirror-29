@@ -1,0 +1,3 @@
+Library containing various image processing algorithms: Automatic Color Equalization, Unpaper's algorithms, Stroke Width Transformation, etc
+
+
