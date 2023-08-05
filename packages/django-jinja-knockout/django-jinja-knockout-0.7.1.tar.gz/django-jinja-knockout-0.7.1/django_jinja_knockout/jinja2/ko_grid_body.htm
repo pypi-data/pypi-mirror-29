@@ -1,0 +1,339 @@
+{% macro ko_grid_body(include_ids=None, exclude_ids=None) -%}
+
+{% set _include_ids = set([
+    'ko_range_filter',
+    'ko_grid_row_click_menu',
+    'ko_action_form',
+    'ko_grid_filter_choices',
+    'ko_grid_filter_popup',
+    'ko_grid_search',
+    'ko_grid_nav',
+    'ko_grid_bottom_nav',
+    'ko_grid_no_results',
+    'ko_grid_table',
+    'ko_grid_body',
+    'ko_grid_pagination',
+    'ko_grid_rows_per_page_dialog'
+]) -%}
+
+{% if include_ids is not none -%}
+    {% set _include_ids = _include_ids.union(include_ids) -%}
+{% endif -%}
+
+{% if exclude_ids is not none -%}
+    {% set _include_ids = _include_ids.difference(exclude_ids) -%}
+{% endif -%}
+
+{% if 'ko_range_filter' in _include_ids -%}
+<script type="text/template" id="ko_range_filter">
+    <div class="panel panel-default">
+        <div class="panel-body">
+            <div class="row form-group">
+                <label data-bind="text: meta.from" class="control-label col-md-4" for="id_range_from"></label>
+                <div class="field col-md-6">
+                    <input data-bind="textInput: from, attr: fieldAttrs" id="id_range_from" name="range_from">
+                </div>
+                <label data-bind="text: meta.to" class="control-label col-md-4" for="id_range_to"></label>
+                <div class="field col-md-6">
+                    <input data-bind="textInput: to, attr: fieldAttrs" id="id_range_to" name="range_to">
+                </div>
+            </div>
+        </div>
+    </div>
+</script>
+{% endif -%}
+
+{% if 'ko_grid_row_click_menu' in _include_ids -%}
+<script type="text/template" id="ko_grid_row_click_menu">
+    <div data-bind="foreach: getEnabledActions(lastClickedKoRow, 'click')">
+        <button class="btn btn-block" data-bind="css: actionCss(), click: function() { doLastClickedRowAction(); }, text: $data.localName">
+        </button>
+    </div>
+</script>
+{% endif -%}
+
+{% if 'ko_action_form' in _include_ids -%}
+<!-- 'ko_action_form' template is not actual template but a skeleton of action template for App.ActionTemplateDialog class. -->
+<script type="text/template" id="ko_action_form">
+    <div class="panel panel-default">
+        <div class="panel-body">
+            <form class="ajax-form" enctype="multipart/form-data" method="post" role="form" data-bind="attr: {'data-url': actions.getLastActionUrl()}">
+                <input type="hidden" name="csrfmiddlewaretoken" data-bind="value: actions.getCsrfToken()">
+                <input type="hidden" name="pk_val" data-bind="value: getLastPkVal()">
+                <div class="jumbotron">
+                    <div class="default-padding">
+                        This is the sample template. Copy this template with another id then add your MVVM fields here.
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</script>
+{% endif -%}
+
+{% if 'ko_grid_filter_choices' in _include_ids -%}
+<script type="text/template" id="ko_grid_filter_choices">
+    <li data-bind="grid_filter, css: {'bg-info': hasActiveChoices()}" class="dropdown">
+        <a data-bind="click: onDropdownClick.bind($data)" aria-expanded="false" class="dropdown-toggle" data-toggle="dropdown" href="#">
+            <span data-bind="text: name"></span> <b class="caret"></b>
+        </a>
+        <ul data-bind="foreach: choices" class="dropdown-menu">
+            <li data-bind="css: {active: is_active()}">
+                <a data-bind="text: name, grid_filter_choice, click: onLoadFilter.bind($data)" name="#"></a>
+            </li>
+        </ul>
+    </li>
+</script>
+{% endif -%}
+
+
+{% if 'ko_grid_breadcrumb_filter_choices' in _include_ids -%}
+<script type="text/template" id="ko_grid_breadcrumb_filter_choices">
+    <li data-bind="grid_filter">
+        <ol class="breadcrumb grid-breadcrumb">
+            <li class="bold" data-bind="text: name"></li>
+            <!-- ko foreach: choices -->
+            <li data-bind="css: {active: is_active()}">
+                <a data-bind="css: {bold: is_active()}, text: name, grid_filter_choice, click: onLoadFilter.bind($data)" name="#"></a>
+            </li>
+            <!-- /ko -->
+        </ol>
+    </li>
+</script>
+{% endif -%}
+
+{% if 'ko_grid_filter_popup' in _include_ids -%}
+<script type="text/template" id="ko_grid_filter_popup">
+    <li data-bind="grid_filter, css: {'bg-info': hasActiveChoices()}" class="dropdown">
+        <a data-bind="click: onDropdownClick.bind($data)" aria-expanded="false" class="dropdown-toggle" data-toggle="dropdown" href="#">
+            <span data-bind="text: name"></span> <b class="caret"></b>
+        </a>
+    </li>
+</script>
+{% endif -%}
+
+{% if 'ko_grid_breadcrumb_filter_popup' in _include_ids -%}
+<script type="text/template" id="ko_grid_breadcrumb_filter_popup">
+    <li data-bind="grid_filter">
+        <ol class="breadcrumb grid-breadcrumb">
+            <li>
+                <a data-bind="click: onDropdownClick.bind($data), css: {'bold': hasActiveChoices()}" href="#">
+                    <span data-bind="text: name"></span> <b class="caret"></b>
+                </a>
+            </li>
+        </ol>
+    </li>
+</script>
+{% endif -%}
+
+{% if 'ko_grid_search' in _include_ids -%}
+<script type="text/template" id="ko_grid_search">
+    <form data-bind="visible: meta.hasSearch() || actionTypes['button']().length > 0" class="navbar-form navbar-left">
+        <div data-bind="if: meta.hasSearch()" class="form-group">
+            <input data-bind="textInput: gridSearchDisplayStr, attr: {placeholder: meta.searchPlaceholder}" class="form-control" type="search">
+            <button data-bind="click: onSearchReset" class="btn btn-default">{{ _('Clear') }}</button>
+        </div>
+        <!-- ko foreach: actionTypes['button'] -->
+            <button class="btn" data-bind="css: actionCss('button'), click: function() { doAction(); }">
+                <span class="glyphicon" data-bind="css: actionCss('glyphicon')"></span>
+                <span data-bind="text: $data.localName"></span>
+            </button>
+        <!-- /ko -->
+    </form>
+</script>
+{% endif -%}
+
+{% if 'ko_grid_nav' in _include_ids -%}
+<script type="text/template" id="ko_grid_nav">
+    <nav class="nav navbar navbar-default">
+        <div class="container-fluid grid-controls">
+            <ul data-bind="foreach: gridFilters" class="nav navbar-nav">
+                <!-- ko if: choices === undefined -->
+                <div data-template-id="ko_grid_filter_popup"></div>
+                <!-- /ko -->
+                <!-- ko if: choices !== undefined -->
+                <div data-template-id="ko_grid_filter_choices"></div>
+                <!-- /ko -->
+            </ul>
+            <div data-template-id="ko_grid_search"></div>
+        </div>
+    </nav>
+</script>
+{% endif -%}
+
+{% if 'ko_grid_bottom_nav' in _include_ids -%}
+<script type="text/template" id="ko_grid_bottom_nav">
+    <div class="navbar navbar-left">
+        <!-- ko foreach: actionTypes['button_footer'] -->
+        <button class="btn" data-bind="css: actionCss('button'), click: function() { doAction(); }">
+            <span class="glyphicon" data-bind="css: actionCss('glyphicon')"></span>
+            <span data-bind="text: $data.localName"></span>
+        </button>
+        <!-- /ko -->
+    </div>
+</script>
+{% endif -%}
+
+{% if 'ko_grid_no_results' in _include_ids -%}
+<script language="text/template" id="ko_grid_no_results">
+    <div class="panel panel-default">
+        <div class="panel-heading">
+            {{ _(
+                'No %(verbose_name)s found matching the query',
+                verbose_name=mark_safe('<span data-bind="text: meta.verboseName"></span>'
+            )) }}.
+        </div>
+    </div>
+</script>
+{% endif -%}
+
+{% if 'ko_grid_table' in _include_ids -%}
+<script type="text/template" id="ko_grid_table">
+    <div data-top="true">
+        <div class="table-responsive" <% if (self.get('vscroll')) { %> style="overflow-y: scroll;" <% } %> >
+            <table class="table table-bordered table-hover table-collapse" <% if (self.get('vscroll')) { %> style="margin-bottom: 0;" <% } %>>
+                <thead>
+                    <tr>
+                        <!-- ko if: options.showSelection -->
+                        <th data-bind="if: options.selectMultipleRows" class="grid-glyph-cell">
+                            <span data-bind="css: selectAllRowsCss, click: onSelectAllRows" class="halflings glyphicon glyphicon-unchecked"></span>
+                        </th>
+                        <!-- /ko -->
+                        <!-- ko if: glyphiconColumns() -->
+                        <th class="grid-glyph-cell"></th>
+                        <!-- /ko -->
+                        <!-- ko foreach: gridColumns -->
+                        <th data-bind="foreach: columnOrders">
+                            <!-- ko if: isSortedColumn() -->
+                            <a data-bind="
+                                text: name,
+                                grid_order_by,
+                                click: onSwitchOrder,
+                                css: orderCss
+                            " class="halflings-before" name="#"></a>
+                            <!-- /ko -->
+                            <!-- ko if: !isSortedColumn() -->
+                            <div data-bind="text: name"></div>
+                            <!-- /ko -->
+                        </th>
+                        <!-- /ko -->
+                    </tr>
+                </thead>
+                <% if (self.get('vscroll')) { %>
+            </table>
+        </div>
+        <div class="table-responsive vscroll" style="overflow-y: scroll;">
+            <table class="table table-bordered table-hover table-collapse">
+                <% } %>
+                <tbody data-bind="foreach: {data: gridRows, afterRender: afterRowRender.bind($data) }">
+                    <tr data-bind="grid_row, css: rowCss">
+                        <!-- ko if: $parent.options.showSelection -->
+                        <td data-bind="click: onSelect" class="grid-glyph-cell">
+                            <span data-bind="css: selectionCss" class="halflings glyphicon"></span>
+                        </td>
+                        <!-- /ko -->
+                        <!-- ko if: $parent.glyphiconColumns() -->
+                        <td class="grid-glyph-cell grid-glypicon-actions">
+                            <!-- ko foreach: $parent.actionTypes['glyphicon'] -->
+                                <!-- ko if: $parent.observeEnabledAction($data) -->
+                                <span data-bind="
+                                    css: actionCss(),
+                                    attr: {title: $data.localName},
+                                    click: function() { doForRow($parent); }
+                                " class="halflings glyphicon pointer"></span>
+                                <!-- /ko -->
+                            <!-- /ko -->
+                        </td>
+                        <!-- /ko -->
+                        <!-- ko foreach: $parent.gridColumns -->
+                        <td data-bind="
+                            click: $parent.onRowClick.bind($parent),
+                            attr: {index: $index, 'data-caption': names},
+                            css: columnCss,
+                            grid_row_values
+                        "></td>
+                        <!-- /ko -->
+                    </tr>
+                </tbody>
+                <tfoot class="jumbotron default-padding" data-bind="visible: gridRows().length === 0">
+                    <tr>
+                        <td data-bind="attr: {colspan: totalColumns()}">
+                            <div data-template-id="ko_grid_no_results"></div>
+                        </td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+</script>
+{% endif -%}
+
+{% if 'ko_grid_body' in _include_ids -%}
+<script type="text/template" id="ko_grid_body">
+    <div <% if (self.get('show_title')) { %> class="panel panel-primary" <% } %>>
+        <% if (self.get('show_title')) { %>
+        <div data-bind="text: meta.verboseNamePlural" class="panel-heading"></div>
+        <div class="panel-body">
+        <% } %>
+            <!-- ko if: meta.hasSearch() || gridFilters().length > 0 || actionTypes['button']().length > 0 -->
+            <div data-template-id="ko_grid_nav"></div>
+            <!-- /ko -->
+            <div data-template-id="ko_grid_table"></div>
+        <% if (self.get('show_pagination')) { %>
+            <div data-template-id="ko_grid_pagination"></div>
+        <% } %>
+            <!-- ko if: actionTypes['button_footer']().length > 0 -->
+            <div data-template-id="ko_grid_bottom_nav"></div>
+            <!-- /ko -->
+        <% if (self.get('show_title')) { %>
+        </div>
+        <% } %>
+    </div>
+</script>
+{% endif -%}
+
+{% if 'ko_grid_pagination' in _include_ids -%}
+<script type="text/template" id="ko_grid_pagination">
+    <div data-bind="visible: options.alwaysShowPagination || gridTotalPages() > 1" class="pagination-wrapper default-padding">
+        <ul class="pagination">
+            <!-- ko foreach: actionTypes['pagination'] -->
+                <li data-bind="click: function() { doAction(); }">
+                    <span class="halflings glyphicon" data-bind="css: actionCss('glyphicon'), attr: {title: $data.localName}"></span>
+                </li>
+            <!-- /ko -->
+            <!-- ko foreach: gridPages -->
+            <li data-bind="css:{active: isActive}">
+                <a data-bind="text:title, click: onPagination" name="#"></a>
+            </li>
+            <!-- /ko -->
+        </ul>
+    </div>
+</script>
+{% endif -%}
+
+{% if 'ko_grid_rows_per_page_dialog' in _include_ids -%}
+<script id="ko_grid_rows_per_page_dialog" language="text/html">
+    <div class="panel panel-default">
+        <div class="panel-heading flex-space-between" data-bind="foreach: meta.rowsPerPageValues">
+            <div data-bind="text: $data"></div>
+        </div>
+        <div class="panel-body">
+            <input type="range" data-bind="attr: meta.rowsPerPageRange, value: meta.rowsPerPage, valueUpdate: 'input'" list="tickmarks">
+            <datalist id="tickmarks" data-bind="foreach: meta.rowsPerPageValues">
+                <option data-bind="attr: {value: $data}">
+            </datalist>
+        </div>
+    </div>
+</script>
+{% endif -%}
+
+{% endmacro -%}
+{% if _render_ -%}
+    {% if not include_ids is defined -%}
+        {% set include_ids = {} -%}
+    {% endif -%}
+    {% if not exclude_ids is defined -%}
+        {% set exclude_ids = {} -%}
+    {% endif -%}
+    {{ ko_grid_body(include_ids=include_ids, exclude_ids=exclude_ids) }}
+{% endif -%}

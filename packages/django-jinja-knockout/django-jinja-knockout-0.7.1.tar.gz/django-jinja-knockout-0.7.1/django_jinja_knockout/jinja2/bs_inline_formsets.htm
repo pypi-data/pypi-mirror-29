@@ -1,0 +1,141 @@
+{#
+ # One or zero ModelForm with one or multiple one to many related inline formsets
+ #}
+{% from 'bs_form_body.htm' import bs_form_body with context -%}
+{% macro bs_inline_formsets(related_form, formsets, action, html) -%}
+{% if formsets|get_type != 'list' -%}
+{{ raise('"formsets" argument should be the list of formsets') }}
+{% endif -%}
+{% set wrapper_atts = {
+    'class': 'formsets panel panel-default default-padding'
+} -%}
+{% if not html.layout_classes -%}
+    {% do html.update({'layout_classes': layout_classes}) -%}
+{% endif -%}
+{% if html.class -%}
+    {% do tpl.add_css_classes_to_dict(wrapper_atts, html.class) -%}
+{% endif -%}
+{% if action == '' -%}
+    {% do tpl.add_css_classes_to_dict(wrapper_atts, 'display-only') -%}
+{% endif -%}
+{% set table_classes = 'table table-bordered table-responsive' -%}
+<div{{ flatatt(wrapper_atts) }}>
+    {% if html.title is defined -%}
+    <div class="panel-heading"><h3 class="panel-title">{{ html.title }}</h3></div>
+    {% endif -%}
+    {% if action != '' -%}
+        {% if html.is_ajax -%}
+            {% set atts = {'data-url': action, 'class': 'ajax-form'} -%}
+        {% else -%}
+            {% set atts = {'action': action} -%}
+        {% endif -%}
+        {% do atts.update({
+            'method': 'post',
+            'enctype': "multipart/form-data",
+            'role': 'form'
+        }) -%}
+    <form{{ flatatt(atts) }}>
+        <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+    {% endif -%}
+        {% if related_form -%}
+        <div class="panel-body default-padding">
+            {% if action == '' -%}
+            {# DisplayText fields use tr/td #}
+            <table class="{{ table_classes }}">
+                <colgroup>
+                    <col class="{{ html.layout_classes.label }}">
+                    <col class="{{ html.layout_classes.field }}">
+                </colgroup>
+            {% endif -%}
+            {% if caller -%}
+                {{ caller({'related_form_begin': related_form, 'html': html}) }}
+            {% endif -%}
+            {{ bs_form_body(related_form, html.layout_classes) }}
+            {% if caller -%}
+                {{ caller({'related_form_end': related_form, 'html': html}) }}
+            {% endif -%}
+            {% if action == '' -%}
+            </table>
+            {% endif -%}
+        </div>
+        {% endif -%}
+        {% for formset in formsets -%}
+            {% if formset.inline_title is defined -%}
+                {% do html.update({'inline_title': formset.inline_title}) -%}
+            {% else -%}
+                {% do html.update({'inline_title': formset.model._meta.verbose_name}) -%}
+            {% endif -%}
+            {% if caller -%}
+                {{ caller({'formset_begin': formset, 'html': html}) }}
+            {% endif -%}
+            <div class="formset default-padding">
+                <div class="management-form">
+                    {{ formset.management_form }}
+                </div>
+                {% if formset.total_error_count() -%}
+                    <div class="alert alert-warning">
+                    {% for error in formset.errors -%}
+                        <div>{{ error }}</div>
+                    {% endfor -%}
+                    </div>
+                {% endif -%}
+                {% if action == '' -%}
+                    <table class="{{ table_classes }}">
+                        <colgroup>
+                            <col class="{{ html.layout_classes.label }}">
+                            <col class="{{ html.layout_classes.field }}">
+                        </colgroup>
+                {% endif -%}
+                {% for form in formset -%}
+                    {% if caller -%}
+                        {{ caller({'inline_form_begin': form, 'html': html}) }}
+                    {% endif -%}
+                    {% set formset_index = loop.index0 -%}
+                    {% if formset.can_delete -%}
+                        {% if formset_index < formset.min_num -%}
+                            {% do html.update({'formset_form_class': 'form-required'}) -%}
+                        {% else -%}
+                            {% do html.update({'formset_form_class': 'form-optional'}) -%}
+                        {% endif -%}
+                    {% endif -%}
+                    {% include 'bs_formset_form.htm' -%}
+                    {% if caller -%}
+                        {{ caller({'inline_form_end': form, 'html': html}) }}
+                    {% endif -%}
+                {% endfor -%}
+                {% if action == '' -%}
+                    </table>
+                {% endif -%}
+                {% if formset.knockout_template -%}
+                <div data-bind="foreach: {data: forms, afterRender: afterFormRendered}">
+                    <div data-bind="anonymous_template: {'base-selector': '.formsets', 'template-index': {{ loop.index0 }}}"></div>
+                </div>
+                <button class="btn btn-info btn-sm" data-bind="click: addForm, visible: hasMoreForms">
+                    {{ _('Add "%(verbose_name)s"', verbose_name=html.inline_title) }}
+                </button>
+                {% endif -%}
+            </div>
+            {% if caller -%}
+                {{ caller({'formset_end': formset, 'html': html}) }}
+            {% endif -%}
+        {% endfor -%}
+        {% if html.submit_text is defined -%}
+        <button type="submit" class="btn btn-primary">{{ html.submit_text }}</button>
+        {% endif -%}
+        {% if caller -%}
+            {{ caller({'buttons': True}) }}
+        {% endif -%}
+    {% if action != '' -%}
+    </form>
+    {% endif -%}
+    {% for formset in formsets -%}
+        {% if formset.knockout_template -%}
+        <textarea class="ko-template">{{ formset.knockout_template }}</textarea>
+        {% endif -%}
+    {% endfor -%}
+</div>
+{% endmacro -%}
+{% if _render_ -%}
+{% call(kwargs) bs_inline_formsets(form, formsets, action, html) -%}
+{% endcall -%}
+{% endif -%}
