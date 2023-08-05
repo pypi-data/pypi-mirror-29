@@ -1,0 +1,1043 @@
+<%inherit file="master.html"/>
+<%namespace name="captcha" module="bodhi.server.captcha"/>
+<%namespace name="json" module="json"/>
+
+<%block name="pagetitle">
+% if update.alias:
+  ${update.alias}
+% endif
+&mdash;
+${update.type} update for ${update.beautify_title(amp=True) | n}
+&mdash; Fedora Updates System
+</%block>
+
+<link rel="alternate" type="application/atom+xml" title="New Comments on ${update.alias}" href="${request.route_url('comments_rss')}?updates=${update.alias}"/>
+
+<script type="text/javascript">
+  $(document).ready(function() {
+    var base_url = '${request.registry.settings["resultsdb_api_url"]}' + '/api/v2.0/';
+
+    // Some handy lookups that map taskotron states to bootstrap CSS classes.
+    var classes = {
+      PASSED: 'success',
+      INFO: 'info',
+      FAILED: 'danger',
+      NEEDS_INSPECTION: 'warning',
+      ABORTED: 'warning',
+      CRASHED: 'warning',
+      ABSENT: 'danger',
+    }
+    var icons = {
+      PASSED: 'check-circle',
+      INFO: 'info-circle',
+      FAILED: 'minus-circle',
+      NEEDS_INSPECTION: 'exclamation-circle',
+      ABORTED: 'trash',
+      CRASHED: 'fire', // no joke.
+      ABSENT: 'question-circle',
+    }
+
+    // XXX - For development, we typically have updates in our development
+    // bodhi DB from a snapshot from over a year ago -- before the deployment
+    // of taskotron.  As such, taskotron doesn't know about the updates that
+    // we ask about.  Therefore, it is useful sometimes to mess around here
+    // and hardcode something like this:
+    //var update = 'ugene-1.14.2-1.fc21';
+    var update = '${update.title}';
+    var builds = ${update.builds_json | n};
+
+    // These are the required taskotron tests
+    var requirements = ${update.requirements_json | n};
+    // show the Greenwave decision
+    var greenwave_api_url = '${request.registry.settings["greenwave_api_url"]}';
+    var missing_tests = {};
+    // handle Greenwave decision
+    var handle_unsatisfied_reqs = function(data){
+        $.each(data['unsatisfied_requirements'], function(i, req) {
+            if (req.type == 'test-result-missing') {
+                if (missing_tests[req.item] === undefined)
+                    missing_tests[req.item]= [];
+                missing_tests[req.item].push(req);
+            }
+            // the user may have already specified this in the required taskotron tests
+            if ($.inArray(req.testcase, requirements) == -1) {
+                requirements.push(req.testcase);
+            }
+        });
+    };
+    var get_unsatisfied_reqs = function(data) {
+        $.ajax({
+            url: greenwave_api_url + '/decision',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(data),
+            success: function(data) {
+                handle_unsatisfied_reqs(data);
+            },
+            error: function (jqxhr, status, error) {
+               $('#resultsdb h3').after(
+                  '<h4 class="text-danger">Failed to talk to Greenwave.</h4>');
+            },
+        });
+    };
+
+    var test_gating_passed = '${update.test_gating_passed}';
+    var test_gating_required = '${request.registry.settings.get("test_gating.required")}';
+    if (test_gating_required == 'True' && test_gating_passed == 'False') {
+        var summary = '${update.greenwave_summary_string}';
+        $('#resultsdb h3').after(
+           '<div class="alert alert-danger">The update can not be pushed: ' + summary + '</div>');
+        get_unsatisfied_reqs({
+            'product_version': '${update.product_version}',
+            'decision_context': 'bodhi_update_push_stable',
+            'subject': ${ update.greenwave_subject_json | n }
+        });
+    }
+
+    var make_row = function(outcome, testcase, note, arch, time, url, flavor) {
+      var icon = '<span data-toggle="tooltip" data-placement="top" ' +
+        'title="' + outcome + '" ' +
+        'class="fa fa-' + icons[outcome] + ' text-' + classes[outcome] + '">' +
+        '</span>';
+
+      var required = '';
+      if ($.inArray(testcase, requirements) != -1) {
+        required = '<span data-toggle="tooltip" data-placement="top" ' +
+          'title="' + testcase + ' is a required test" ' +
+          'class="fa fa-asterisk">' +
+          '</span>';
+      }
+
+      if (arch != undefined) {
+        testcase = testcase + "&nbsp;<span class='label label-default'>"
+          + arch + "</label>";
+      }
+
+      if (flavor) {
+        testcase = testcase + "&nbsp;<span class='label label-default'>"
+          + flavor + "</label>";
+      }
+
+      var age = '';
+      if (time != undefined) {
+        // The ' Z' tells moment.js to interpret the time as UTC
+        // https://github.com/fedora-infra/bodhi/issues/217
+        var age = moment(time + ' Z').fromNow();
+      }
+      if (note == null){
+        note = '';
+      }
+      html = '<tr class="row-automatedtests table-' + classes[outcome];
+      if (outcome == 'ABSENT') {
+          html += ' absent-automatedtest"';
+      } else {
+          html += '" style="cursor: pointer;" data-href="' + url + '"';
+      }
+      html += '>' +
+        '<td>' + required + '</td>' +
+        '<td>' + icon + '</td>' +
+        '<td class="nowrap">' + testcase + '</td>' +
+        '<td class="stretch-table-column text-xs-right">' + note + '</td>' +
+        '<td class="nowrap">' + age + '</td>' +
+        '</tr>';
+      return html;
+    };
+
+    var latest = {};
+    var activeResultsAjaxCalls = 0;
+    var receive_resultsdb = function(data) {
+      activeResultsAjaxCalls--;
+
+      // First, prune duplicate results.  For instance, some depcheck runs
+      // happen multiple times on an update.  We only (imho) want to display
+      // the latest ones for each arch.  So, prune like this:
+      $.each(data.data, function(i, result) {
+
+        var testcase = result.testcase.name;
+        var scenario = 'no_scenario';
+        if (result.data.scenario) {
+            scenario = result.data.scenario[0];
+        }
+        // note: these are actually single-item arrays, though this doesn't
+        // seem to break anything
+        var arch = result.data.arch;
+        var item = result.data.item;
+        if (item === undefined && testcase == 'org.centos.prod.ci.pipeline.complete'){
+            item = result.data.original_spec_nvr[0] + '#' + result.data.rev;
+        }
+        var submit_time = new Date(result.submit_time);
+
+
+        if (latest[item] === undefined)
+          latest[item] = {};
+        if (latest[item][testcase] === undefined)
+          latest[item][testcase] = {};
+        if (latest[item][testcase][arch] === undefined)
+          latest[item][testcase][arch] = {};
+        if (latest[item][testcase][arch][scenario] === undefined) {
+          latest[item][testcase][arch][scenario] = result;
+
+          // the latest/ api endpoint doesn't take into account 'scenarios'
+          // like "same testcase different arch" (depcheck) or "same testcase
+          // different flavor" (openQA). So we have to know about these and
+          // on the first hit, query the other 'scenario'.
+          if (testcase == 'dist.depcheck'){
+            var theurl = base_url+"results?testcases=dist.depcheck&item="+item+"&type=koji_build&limit=1";
+            if (arch == 'x86_64'){
+              theurl = theurl +"&arch=i386"
+            } else {
+              theurl = theurl +"&arch=x86_64"
+            }
+            request_results(theurl);
+          }
+          else if (testcase.startsWith('update.base')) {
+            // unfortunately we don't report the flavor to rdb, so we have to
+            // do this in a silly way involving knowledge about 'scenario'
+            // and the flavors that exist for update tests. this all sucks and
+            // we need a better 'scenario' implementation.
+            var otherscen;
+            var theurl = base_url+"results?testcases="+testcase+"&item="+item+"&type=bodhi_update&limit=1";
+            if (scenario.includes("updates-server")) {
+              otherscen = scenario.replace("updates-server", "updates-workstation");
+            }
+            else {
+              otherscen = scenario.replace("updates-workstation", "updates-server");
+            }
+            theurl = theurl+"&scenario="+otherscen;
+            request_results(theurl);
+          }
+        }
+        if (new Date(latest[item][testcase][arch][scenario].submit_time) < submit_time) {
+          latest[item][testcase][arch][scenario] = result;
+        }
+      });
+
+      // we have all the results. lets render them out
+      if (activeResultsAjaxCalls == 0){
+      var data = [];
+      var count = 0;
+      // if there are no results in ResultsDB yet and we have already got the Greenwave decision
+      // to say that some tests are missing, let's just show them.
+      if (Object.keys(latest).length == 0) {
+          $.each(builds, function(i, buildname) {
+              count = count +1;
+              if (buildname in missing_tests) {
+                  $("#resultsdb").append("<h4 class='p-t-1'>"+buildname+
+                  "</h4><table class='table table-hover' id='buildresults"+count+
+                  "'></table>");
+                  $.each(missing_tests[buildname], function(i, result) {
+                      $('#buildresults'+count).append(make_row(
+                          'ABSENT',
+                          result.testcase,
+                          '',
+                          '',
+                          ''
+                      ));
+                  });
+              } else {
+                  $("#resultsdb").append("<h4 class='p-t-1'>"+buildname+
+                  "</h4><p>No results reported for this build.</p>");
+              }
+          });
+      } else {
+          $.each(latest, function(buildname, obj1) {
+            count = count +1;
+            $("#resultsdb").append("<h4 class='p-t-1'>"+buildname+
+            "</h4><table class='table table-hover' id='buildresults"+count+
+            "'></table>")
+            // We show missing tests first
+            if (buildname in missing_tests) {
+                $.each(missing_tests[buildname], function(i, result) {
+                    $('#buildresults'+count).append(make_row(
+                        'ABSENT',
+                        result.testcase,
+                        '',
+                        '',
+                        ''
+                    ));
+                });
+            }
+            $.each(obj1, function(testcase, obj2) {
+              $.each(obj2, function(arch, obj3) {
+                $.each(obj3, function(scenario, result) {
+                  var flavor;
+                  if (scenario.includes("updates-server")) {
+                    flavor = "server";
+                  }
+                  else if (scenario.includes("updates-workstation")) {
+                    flavor = "workstation";
+                  }
+                  $('#buildresults'+count).append(make_row(
+                      result.outcome,
+                      result.testcase.name,
+                      result.note,
+                      // note: this is a single-item array
+                      result.data.arch,
+                      result.submit_time,
+                      result.ref_url,
+                      flavor
+                  ));
+                });
+              });
+            });
+          });
+      }
+      finish();
+    };
+    };
+
+    var finish = function() {
+      // Furthermore, remove the spinners.
+      $("#tab-automatedtests .fa-spinner").remove();
+      $('#resultsdb .spinner').remove();
+
+      // add the count of tests to the automated tests tab
+
+      var successcount = $('.row-automatedtests.table-success').length;
+      var infocount = $('.row-automatedtests.table-info').length;
+      var warningcount = $('.row-automatedtests.table-warning').length;
+      var failedcount = $('.row-automatedtests.table-danger').length;
+
+
+      if (successcount > 0){
+      $("#tab-automatedtests").append(" <span class='label label-success'><span class='fa fa-check-circle'></span> "+successcount+"</span>");
+      }
+
+      if (infocount > 0){
+      $("#tab-automatedtests").append(" <span class='label label-info'><span class='fa fa-info-circle'></span> "+infocount+"</span>");
+      }
+
+      if (warningcount > 0 ){
+        $("#tab-automatedtests").append(" <span class='label label-warning'><span class='fa fa-exclamation-circle'></span> "+warningcount+"</span>");
+      }
+
+      if (failedcount > 0 ){
+        $("#tab-automatedtests").append(" <span class='label label-danger'><span class='fa fa-minus-circle'></span> "+failedcount+"</span>");
+      }
+
+      // Make each cell clickable and awesome except the missing tests
+      $('#resultsdb tr').not('.absent-automatedtest').off().click(function(event, row) {
+        window.open($(this).attr('data-href'));
+      });
+
+      // And, re-do tooltips for newly created spans.
+      $('#resultsdb span').tooltip();
+    }
+
+    var request_results = function(url) {
+      $.ajax(url, {
+        beforeSend: function(xhr) {
+          activeResultsAjaxCalls++;
+        },
+        dataType: 'jsonp',
+        cache: false,
+        success: receive_resultsdb,
+        error: function(v1, v2, v3) {
+          activeResultsAjaxCalls--;
+          $('#resultsdb .spinner').remove();
+          $('#resultsdb').append(
+            '<h4 class="text-danger">Error getting results.</h4>');
+        },
+      });
+    };
+
+    $("#tab-automatedtests").append(" <span class='fa fa-spinner fa-spin'></span>");
+
+    for (index = 0, len = builds.length; index < len; ++index) {
+      request_results(base_url+"results/latest?original_spec_nvr="
+        +builds[index]+"&testcases=org.centos.prod.ci.pipeline.complete");
+      request_results(base_url+"results/latest?item="+builds[index]+"&type=koji_build&testcases:like=dist.*");
+    }
+
+    var oqaquery = "?item=${update.alias}&type=bodhi_update&"+
+                   "testcases:like=update.*&since=${update.last_modified.isoformat()}";
+    request_results(base_url+"results/latest"+oqaquery);
+  });
+</script>
+
+<script type="text/javascript">
+$(document).ready(function() {
+    var messenger = Messenger({theme: 'flat'});
+    var update_id = '${update.title}';
+    $("#updatebuttons #edit").attr('href',
+        '${request.route_url("update_edit", id=update.alias)}');
+
+    $.each(['testing', 'stable', 'batched', 'unpush', 'revoke'], function(i, action) {
+      $("#updatebuttons #" + action).click(function() {
+          $("#updatebuttons a").addClass('disabled');
+          cabbage.spin(); // for real!
+          var url = '${request.route_url("update_request", id=update.alias)}';
+          $.ajax({
+              url: url,
+              data: {
+                request: action,
+                csrf_token: "${request.session.get_csrf_token()}",
+              },
+              method: 'POST',
+              dataType: 'json',
+              success: function(response) {
+                $("#updatebuttons a").removeClass('disabled');
+                cabbage.finish();
+                // Just reload the page if all went well..
+                location.reload();
+              },
+              error: function(response) {
+                $("#updatebuttons a").removeClass('disabled');
+                cabbage.finish();
+                $.each(response.responseJSON.errors, function(i, error) {
+                    msg = messenger.post({
+                      message: error.description,
+                      type: "error",
+                      hideAfter: false,
+                      showCloseButton: true,
+                    });
+                });
+              },
+          });
+      });
+    });
+
+});
+</script>
+
+<script type="text/javascript">
+var form;
+$(document).ready(function(){
+  CommentsForm = function() {};
+  CommentsForm.prototype = new Form("#new_comment", "${request.route_url('comments')}");
+  CommentsForm.prototype.success = function(data) {
+    Form.prototype.success.call(this, data);
+
+    $.ajax({
+      url: this.url + "../comments/" + data.comment.id,
+      dataType: "html",
+      success: function(html) {
+        $("#comments").append(html);
+      },
+      error: function(html) {
+        // TODO -- handle this
+        msg = this.messenger.post({
+          message: "Unhandled error",
+          type: "error",
+          hideAfter: false,
+          showCloseButton: true,
+        });
+      }
+    });
+
+    // Clear out the form.
+    $('#new_comment').find(':input').each(function() {
+      switch (this.type) {
+      case 'password':
+      case 'select-multiple':
+      case 'select-one':
+      case 'text':
+      case 'textarea':
+        $(this).val('');
+      case 'checkbox':
+      case 'radio':
+        this.checked = false;
+      }
+    });
+
+    // And the colors..
+    $('#new_comment tr.success').removeClass('success');
+    $('#new_comment tr.danger').removeClass('danger');
+  };
+
+  form = new CommentsForm();
+
+  $("#preview_button").click(function(){
+    update_markdown_preview($("#text").val());
+    if ($(this).hasClass("active")) {
+      /*preview is visible*/
+      $(".comment-preview").hide();
+      $("#comment-textarea").show();
+    } else {
+      $(".comment-preview").show();
+      $("#comment-textarea").hide();
+    }
+     $(this).button('toggle');
+  });
+
+  /*open the automated tests tab*/
+  $('.gating-summary').click(function(e){
+    e.preventDefault();
+    $('.nav-tabs a[href="' + this.getAttribute('href') + '"]').tab('show');
+  });
+
+});
+</script>
+
+<div class="subheader p-t-2">
+<div class="container">
+<div class="row">
+  <div class="col-md-12">
+    <h1>
+      % if update.locked and update.date_locked:
+          <a href="${request.route_url('compose', release_name=update.compose.release.name, request=update.compose.request.value)}">
+          <span class="fa fa-fw fa-lock text-muted" aria-hidden="true" data-toggle="tooltip" title="This update is currently locked since ${(update.date_locked).strftime('%Y-%m-%d %H:%M:%S')} (UTC) and cannot be modified.">
+          </span>
+          </a>
+          <span class="sr-only">Locked</span>
+      % endif
+      % if update.alias:
+      ${update.alias}
+      % else:
+      ${update.get_title(', ', 2, ", &hellip;") | n}
+      <div>
+        <span title="${(', ').join(map(lambda x: x.nvr, update.builds[2:]))}">
+          <small>${ "(+ " + str(len(update.builds) - 2) + " more)" if len(update.builds) > 2 else "" }</small>
+        </span>
+      </div>
+      % endif
+      % if update.type:
+        ${self.util.type2icon(update.type) | n}
+      % endif
+      % if update.critpath:
+      <span data-toggle="tooltip" title="This update is in the critical path" class="label label-danger"> <i class="fa fa-fw fa-fire"></i></span>
+      % endif
+
+      % if can_edit:
+        % if not update.locked:
+          <div id='updatebuttons' class="btn-group pull-right" role="group" aria-label="...">
+          % if not update.pushed:
+            <a id='edit' class="btn btn-sm btn-primary"><span class="fa fa-fw fa-pencil"></span> Edit</a>
+            % if update.request is None:
+              % if update.status.description != 'testing':
+              <a id='testing' class="btn btn-sm btn-success"><span class="fa fa-fw fa-arrow-circle-right"></span> Push to Testing</a>
+              % endif
+            % else:
+              <a id='revoke' class="btn btn-sm btn-danger"><span class="fa fa-fw fa-arrow-circle-left"></span> Revoke</a>
+            % endif
+          % elif update.pushed and (update.status.description != 'stable' or (update.status.description == 'stable' and 'releng' in [group.name for group in request.user.groups])):
+            <a id='edit' class="btn btn-sm btn-primary"><span class="fa fa-fw fa-pencil"></span> Edit</a>
+            % if update.critpath and update.critpath_approved:
+              ${self.util.push_to_batched_or_stable_button(update) | n}
+            % elif update.request and update.request.description in ['batched', 'stable']:
+              ${self.util.push_to_batched_or_stable_button(update) | n}
+            % elif update.meets_testing_requirements:
+              ${self.util.push_to_batched_or_stable_button(update) | n}
+            % elif update.stable_karma not in (0, None) and update.karma >= update.stable_karma and not update.autokarma:
+              ${self.util.push_to_batched_or_stable_button(update) | n}
+            % endif
+            <a id='unpush' class="btn btn-sm btn-danger"><span class="fa fa-fw fa-arrow-circle-left"></span> Unpush</a>
+          % endif
+          </div>
+        % else:
+          <div id='updatebuttons' class="btn-group pull-right" role="group" aria-label="...">
+            <button class="btn btn-sm btn-primary" disabled data-placement="bottom"
+                    data-toggle="tooltip" data-placement="bottom"
+                    title="Update is locked and cannot be edited. Locking of an update usually occurs when a push is in progress.">
+              <span class="fa fa-pencil"></span> Edit
+            </button>
+          </div>
+        % endif
+      % endif
+
+    </h1>
+    <h4>
+      ${update.type} update
+      in ${update.release.long_name}
+      for ${update.beautify_title(amp=True) | n}
+    </h4>
+    <div>
+      Status: ${self.util.status2html(update.status) | n}
+      % if 'pending' in update.status:
+         <span class="text-muted" data-toggle="tooltip" title="${(update.date_submitted).strftime('%Y-%m-%d %H:%M:%S')} (UTC)"> ${self.util.age(update.date_submitted)} </span>
+      % elif 'testing' in update.status and update.date_testing:
+         <span class="text-muted" data-toggle="tooltip" title="${(update.date_testing).strftime('%Y-%m-%d %H:%M:%S')} (UTC)"> ${self.util.age(update.date_testing)} </span>
+      % elif 'stable' in update.status:
+        <span class="text-muted" data-toggle="tooltip" title="${(update.date_stable).strftime('%Y-%m-%d %H:%M:%S')} (UTC)"> ${self.util.age(update.date_stable)} </span>
+      % endif
+    </div>
+  </div>
+</div>
+<ul class="nav nav-tabs p-t-2" role="tablist">
+  <li class="nav-item">
+    <a class="nav-link active" data-toggle="tab" href="#details" role="tab">Details</a>
+  </li>
+
+  <li class="nav-item">
+    <a class="nav-link" data-toggle="tab" href="#packages" role="tab">Builds <span class="label label-default">${len(update.builds)}</span></a>
+  </li>
+
+  % if update.bugs:
+  <li class="nav-item">
+    <a class="nav-link" data-toggle="tab" href="#bugs" role="tab">Bugs <span class="label label-default">${len(update.bugs)}</span></a>
+  </li>
+  % endif
+
+  % if update.test_cases:
+  <li class="nav-item">
+    <a class="nav-link" data-toggle="tab" href="#tests" role="tab">Test Cases <span class="label label-default">${len(update.test_cases)}</span></a>
+  </li>
+  % endif
+
+  <li class="nav-item">
+    <a class="nav-link" id="tab-automatedtests" data-toggle="tab" href="#automatedtests" role="tab">Automated Tests</a>
+  </li>
+
+</ul>
+</div>
+</div>
+<div class="container p-t-2">
+  <!-- Tab panes -->
+  <div class="tab-content">
+    <div class="tab-pane active" id="details" role="tabpanel">
+      <div class="row">
+        <div class="col-md-9">
+          % if update.notes:
+          ${self.util.markup(update.notes) | n}
+          % endif
+          % if not 'unspecified' in update.suggest:
+          <div class="alert alert-info">
+            % if 'logout' in update.suggest:
+            <h4>Logout Required</h4>
+            After installing this update it is required that you logout of
+            your current user session and log back in to ensure the changes
+            supplied by this update are applied properly.
+            % elif 'reboot' in update.suggest:
+            <h4>Reboot Required</h4>
+            After installing this update it is required that you reboot your
+            system to ensure the changes supplied by this update are applied
+            properly.
+            % endif
+          </div>
+          % endif
+
+          <div class="p-t-3">
+            <h4>Comments <span class="label label-default">${len(update.comments)}</span>
+              <small><a href="${request.route_url('comments_rss')}?updates=${update.alias}">
+                  <span class="fa fa-rss"></span>
+              </a></small>
+            </h4>
+            <div id="comments">
+              % for comment in update.comments:
+              <div id="comment-${comment.id}">
+                ${self.fragments.comment(comment, display_update=False)}
+              </div>
+              % endfor
+            </div>
+
+            <form id="new_comment" class="form-horizontal" role="form"
+              action="javascript:form.submit();">
+
+              <div class="alert alert-danger col-sm-4 col-sm-offset-1" style="display:none">
+                <strong></strong><span class="error"></span>
+              </div>
+
+              <div class="clearfix"></div>
+
+              <input type="hidden" name="csrf_token" value="${request.session.get_csrf_token()}"/>
+              <input type="hidden" name="update" value="${update.title}"/>
+
+              <hr/>
+
+              <div class="row">
+                <div class="col-md-12">
+
+                  <h5 class="m-t-2">
+                    <strong>Add Comment &amp; Feedback</strong>
+                    <div id="preview_button" class="btn btn-sm btn-secondary pull-xs-right">Toggle Preview</div>
+                  </h5>
+
+                    <div class="form-group" id="comment-textarea" class="m-t-2">
+                        <textarea class="form-control" id="text" name="text" rows="6"
+                          placeholder="Comment..."></textarea>
+                        <div class="alert alert-danger" for="text" style="display:none">
+                          <strong></strong> <span class="error"></span>
+                        </div>
+                      <p class="pull-right"><small>Comment fields support <a href="#" data-toggle="modal" data-target="#markdown-help">Fedora-Flavored Markdown</a>.</small></p>
+                    </div>
+
+                    % if not request.user:
+                    <div class="form-group" class="m-t-3">
+                        <input class="form-control" id="email" name="email" type="email"
+                        placeholder="email@address.org" required="true"></input>
+                        <div class="alert alert-danger" for="email" style="display:none">
+                          <strong></strong> <span class="error"></span>
+                        </div>
+                    </div>
+                    % endif
+
+                    ${self.fragments.markdown_help_modal()}
+
+                    <div id="preview" class="comment-preview m-t-2" style="display:none;"></div>
+
+                </div>
+                <div class="col-md-12">
+                    <table class="table m-t-2">
+                      <colgroup class='strip' span="1"></colgroup>
+                      <colgroup class='strip' span="1"></colgroup>
+                      <colgroup class='strip' span="1"></colgroup>
+                      <colgroup span="1"></colgroup>
+                      <thead>
+                        <tr>
+                          <th class='icon'><span data-toggle="tooltip" data-placement="top" class="label label-danger" title="FAIL - Does not fix the bug or pass the test case.">-1</span></th>
+                          <th class='icon'><span data-toggle="tooltip" data-placement="top" title="Untested." class="label label-default">0</span></th>
+                          <th class='icon'><span data-toggle="tooltip" data-placement="top" title="PASS - Fixes the bug or passes the test case." class="label label-success">+1</span></th>
+                          <th><a href="https://fedoraproject.org/wiki/QA:Update_feedback_guidelines" target="_blank">Feedback Guidelines</a></th>
+                        </tr>
+                      </thead>
+
+                      % for bug in update.bugs:
+                      <tr>
+                        <input type="hidden" name="bug_feedback.${loop.index}.bug_id" value="${bug.bug_id}">
+                        <td data-class="danger">  <input type="radio" name="bug_feedback.${loop.index}.karma" value="-1"> </td>
+                        <td>                      <input type="radio" name="bug_feedback.${loop.index}.karma" value="0" checked> </td>
+                        <td data-class="success"> <input type="radio" name="bug_feedback.${loop.index}.karma" value="1"> </td>
+                        <td>${self.util.bug_link(bug) | n}</td>
+                      </tr>
+                      % endfor
+
+                      % for test in update.full_test_cases:
+                      <tr>
+                        <input type="hidden" name="testcase_feedback.${loop.index}.testcase_name" value="${test.name}">
+                        <td data-class="danger">  <input type="radio" name="testcase_feedback.${loop.index}.karma" value="-1"> </td>
+                        <td>                      <input type="radio" name="testcase_feedback.${loop.index}.karma" value="0" checked> </td>
+                        <td data-class="success"> <input type="radio" name="testcase_feedback.${loop.index}.karma" value="1"> </td>
+                        <td>${self.util.testcase_link(test) | n}</td>
+                      </tr>
+                      % endfor
+
+                      % if update.critpath:
+                      <tr>
+                        <td data-class="danger">  <input type="radio" name="karma_critpath" value="-1"> </td>
+                        <td>                      <input type="radio" name="karma_critpath" value="0" checked> </td>
+                        <td data-class="success"> <input type="radio" name="karma_critpath" value="1"> </td>
+                        <td>Does the system's basic functionality continue to work after this update?</td>
+                      </tr>
+                      % endif
+
+                      <tr>
+                        <td data-class="danger">  <input type="radio" name="karma" value="-1"> </td>
+                        <td>                      <input type="radio" name="karma" value="0" checked> </td>
+                        <td data-class="success"> <input type="radio" name="karma" value="1"> </td>
+                        <td>Is the update generally functional?</td>
+                      </tr>
+
+                    </table>
+                </div>
+              </div>
+
+              % if not request.user and request.registry.settings.get('captcha.secret'):
+              <%
+                captcha_key, captcha_url = captcha.generate_captcha(request)
+              %>
+              <div class="row">
+                <div class="col-sm-12 text-xs-right">
+                  <input type="hidden" name="captcha_key" value="${captcha_key}"/>
+                  <img class="image m-t-1" src="${captcha_url}"/>
+                </div>
+              </div>
+
+              <div class="row">
+                <div class="col-sm-4 col-sm-offset-8 m-b-1">
+                  <input class="form-control" id="captcha_value" name="captcha_value"
+                  placeholder="prove that you're a human" required="true"></input>
+                </div>
+              </div>
+              % endif
+
+              <div class="form-group m-t-1">
+                <div class="col-sm-12 text-xs-right">
+                  <button type="submit" class="btn btn-default">
+                    <span class="indicator fa fa-comment" data-spinclass="indicator fa fa-spinner fa-spin"></span>
+                    Add Comment &amp; Feedback
+                  </button>
+                </div>
+              </div>
+            </form>
+
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="card">
+            <div class="card-block">
+
+              % if update.content_type:
+              <div class="p-b-1">
+                <div>
+                  <strong>Content Type</strong>
+                </div>
+                <div>
+                  ${update.content_type.description | n}
+                </div>
+              </div>
+              % endif
+
+              <div class="p-b-1">
+                <div>
+                  <strong>Status</strong>
+                </div>
+                <div>
+                  ${self.util.status2html(update.status) | n}
+                  % if update.signed:
+                    <span class="fa fa-key text-muted" aria-hidden="true" data-toggle="tooltip" data-placement="top" title="Update signed"></span>
+                  % endif
+                </div>
+              </div>
+
+              % if request.registry.settings.get('test_gating.required'):
+              <div class="p-b-1">
+                <div>
+                  % if request.registry.settings.get('test_gating.url'):
+                    <a href="${request.registry.settings.get('test_gating.url')}" title="More information about test gating">
+                      <strong>Test Gating Status</strong>
+                    </a>
+                  % else:
+                    <strong>Test Gating Status</strong>
+                  % endif
+                </div>
+                <div>
+                  ${self.util.test_gating_status2html(update.test_gating_status,
+                    update.greenwave_summary_string) | n}
+                </div>
+              </div>
+              % endif
+
+              % if update.request:
+              <div class="p-b-1">
+                <div>
+                  <strong>Request</strong>
+                </div>
+                <div>
+                  ${self.util.request2html(update.request) | n}
+                </div>
+              </div>
+              % endif
+
+
+              <div class="p-b-1">
+                <div>
+                  <strong>Submitted by</strong>
+                </div>
+                <div>
+                  <a href="${request.route_url('user', name=update.user.name)}">
+                    <img class="img-circle" src="${self.util.avatar(update.user.name, size=24)}"/>
+                    ${update.user.name}
+                  </a>
+                </div>
+              </div>
+
+              % if update.type:
+              <div class="p-b-1">
+                <div>
+                  <strong>Update Type</strong>
+                </div>
+                <div>
+                  ${self.util.type2html(update.type) | n}
+                </div>
+              </div>
+              % endif
+              % if not 'unspecified' in update.severity:
+              <div class="p-b-1">
+                <div>
+                  <strong>Update Severity</strong>
+                </div>
+                <div>
+                  <tr>
+                    ${self.util.severity2html(update.severity) | n}
+                  </tr>
+                </div>
+              </div>
+              % endif
+
+              <div class="p-b-1">
+                <div>
+                  <strong>Karma</strong>
+                </div>
+                <div>
+                    ${self.util.karma2html(update.karma) | n}
+                    % if update.stable_karma:
+                    <br/><small>stable threshold: ${update.stable_karma}</small>
+                    % endif
+                    % if update.unstable_karma:
+                    <br/><small>unstable threshold: ${update.unstable_karma}</small>
+                    % endif
+                  </a>
+                </div>
+              </div>
+
+              <div  class="p-b-1">
+                <div>
+                  <strong>Autopush</strong>
+                </div>
+                <div>
+                  % if update.autokarma is True:
+                  <td><span class='label label-success'>Enabled</span></td>
+                  % elif update.autokarma is False:
+                  <td><span class='label label-danger'>Disabled</span></td>
+                  % endif
+                </div>
+              </div>
+
+              <div class="p-b-1">
+                <div>
+                  <strong>Dates</strong>
+                </div>
+                <div>
+                  <table class="table table-sm">
+                    <tr>
+                      <td>submitted</td>
+                      <td class="text-muted">
+                        <span data-toggle='tooltip' title='${(update.date_submitted).strftime("%Y-%m-%d %H:%M:%S")} (UTC)'>${self.util.age(update.date_submitted)}
+                      </td>
+                    </tr>
+
+                    % if update.date_testing:
+                    <tr>
+                      <td>in testing</td>
+                      <td class="text-muted">
+                        <span data-toggle='tooltip' title='${(update.date_testing).strftime("%Y-%m-%d %H:%M:%S")} (UTC)'>${self.util.age(update.date_testing)}</span>
+                      </td>
+                    </tr>
+                    % endif
+
+                    % if update.date_stable:
+                    <tr>
+                      <td>in stable</td>
+                      <td class="text-muted">
+                        <span data-toggle='tooltip' title='${(update.date_stable).strftime("%Y-%m-%d %H:%M:%S")} (UTC)'>${self.util.age(update.date_stable)}</span>
+                      </td>
+                    </tr>
+                    % endif
+
+                    % if update.days_to_stable and update.status.description == 'testing':
+                    <tr>
+                      <td>days to stable</td>
+                      <td class="text-muted">
+                        <span>${str(update.days_to_stable)}</span>
+                      </td>
+                    </tr>
+                    % endif
+
+                    % if update.date_modified:
+                    <tr>
+                      <td>modified</td>
+                      <td class="text-muted">
+                        <span data-toggle='tooltip' title='${(update.date_modified).strftime("%Y-%m-%d %H:%M:%S")} (UTC)'>${self.util.age(update.date_modified)}</span>
+                      </td>
+                    </tr>
+                    % endif
+
+                    % if update.date_approved:
+                    <tr>
+                      <td>approved</td>
+                      <td class="text-muted">
+                        <span data-toggle='tooltip' title='${(update.date_approved).strftime("%Y-%m-%d %H:%M:%S")} (UTC)'>${self.util.age(update.date_approved)}</span>
+                      </td>
+                    </tr>
+                    % endif
+                  </table>
+                </div>
+              </div>
+
+
+
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    % if update.bugs:
+    <div class="tab-pane" id="bugs" role="tabpanel">
+      <h3>Related Bugs <span class="badge">${len(update.bugs)}</span></h3>
+      <table class="table">
+        <colgroup class='strip' span="1"></colgroup>
+        <colgroup class='strip' span="1"></colgroup>
+        <colgroup span="1"></colgroup>
+        <thead>
+          <tr>
+            <th class='icon'><span data-toggle="tooltip" data-placement="top" title="FAIL - Does not fix the bug." class="fa fa-times-circle-o"></span></th>
+            <th class='icon'><span data-toggle="tooltip" data-placement="top" title="PASS - Passes the test case." class="fa fa-check-circle-o"></span></th>
+            <th></th>
+          </tr>
+        </thead>
+        % for bug in update.bugs:
+        <tr>
+          <td>${self.util.karma2html(update.get_bug_karma(bug)) | n}</td>
+          <td>${self.util.bug_link(bug) | n}</td>
+        </tr>
+        % endfor
+      </table>
+    </div>
+    % endif
+
+    <div class="tab-pane" id="packages" role="tabpanel">
+      <table class="table">
+        % for build in update.builds:
+        <tr class="media">
+          <td>
+            <a href="https://koji.fedoraproject.org/koji/search?terms=${build.nvr}&type=build&match=glob" target="_blank">
+                ${build.nvr}</a>
+          </td>
+          <td class="pull-right">
+            % if build.signed:
+              <span class="fa fa-key text-muted" aria-hidden="true" data-toggle="tooltip" data-placement="top" title="Build signed"></span>
+            % endif
+          </td>
+          <td class="pull-right">
+            <a href='${request.route_url("updates_rss") + "?packages=" + build.package.name}'>
+              <span class="fa fa-rss" data-toggle="tooltip" data-placement="top" title="RSS feed for new Bodhi updates containing ${build.package.name}"></span>
+            </a>
+            <a href='${request.route_url("updates") + "?packages=" + build.package.name}'>
+              <span class="fa fa-list" data-toggle="tooltip" data-placement="top" title="Show other Bodhi updates for ${build.package.name}"></span>
+            </a>
+            % if can_edit:
+            % if build.override:
+            <a href="${request.route_url('override', nvr=build.nvr)}">
+              <span class="fa fa-pencil" data-toggle="tooltip" data-placement="top" title="Edit the buildroot override for ${build.nvr}"/>
+            </a>
+            % else:
+            <a href='${request.route_url("new_override")}?nvr=${build.nvr}'>
+              <span class="fa fa-plus" data-toggle="tooltip" data-placement="top" title="Create a buildroot override for ${build.nvr}"/>
+            </a>
+            % endif
+            % endif
+          </td>
+        </tr>
+        % endfor
+      </table>
+    </div>
+
+    <div class="tab-pane" id="automatedtests" role="tabpanel">
+      <div id="resultsdb">
+      <h3>Automated Test Results</h3>
+      <img class='spinner' src='static/img/spinner.gif'>
+      </div>
+    </div>
+
+    % if update.test_cases:
+    <div class="tab-pane" id="tests" role="tabpanel">
+    <h3>Test Cases</h3>
+    <table class="table">
+      <colgroup class='strip' span="1"></colgroup>
+      <colgroup class='strip' span="1"></colgroup>
+      <colgroup span="1"></colgroup>
+      <thead>
+        <tr>
+          <th><span data-toggle="tooltip" data-placement="top" title="FAIL - Does not fix the bug or pass the test case." class="fa fa-times-circle-o"></span></th>
+          <th><span data-toggle="tooltip" data-placement="top" title="PASS - Fixes the bug or passes the test case." class="fa fa-check-circle-o"></span></th>
+          <th></th>
+        </tr>
+      </thead>
+      % for test in update.full_test_cases:
+      <tr>
+        <td>${self.util.karma2html(update.get_testcase_karma(test)) | n}</td>
+        <td>${self.util.testcase_link(test) | n}</td>
+      </tr>
+      % endfor
+    </table>
+  </div>
+    % endif
+
+  </div>
+
+
+<div class="row">
+
+</div>
+</div> <!-- end container -->
