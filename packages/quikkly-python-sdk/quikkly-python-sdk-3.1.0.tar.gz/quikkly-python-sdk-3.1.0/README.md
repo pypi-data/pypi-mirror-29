@@ -1,0 +1,22 @@
+# Quikkly Python SDK #
+
+Note: to use this Python SDK, you need the Quikkly core native library.
+Please contact david@quikklycodes.com for more information and pricing.
+
+## Install ##
+
+`pip install quikkly-python-sdk`
+
+## Dependencies ##
+
+Python 2.7 or 3.6.
+
+Generating SVG codes has no dependencies besides the qukklycore native library files.
+
+Scanning codes from images also requires the `numpy` and `Pillow` Python packages.
+
+## Version History ##
+
+* 3.1.0 - Update to Quikkly core libs v3.1.0, with more styling options and templates. No Python SDK changes.
+* 1.0.0 - Support for generating SVG codes, scanning images, plus command-line scripts for both.
+* 0.1.0 - First Release.
