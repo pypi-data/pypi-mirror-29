@@ -1,0 +1,496 @@
+# Copyright Arne Bachmann
+# This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+# Utiliy functions
+import bz2, codecs, difflib, hashlib, logging, os, re, sys, time; START_TIME = time.time()
+try: import enum
+except: raise Exception("Please install SOS via 'pip install -U sos-vcs[backport]' to get enum support for Python versions prior 3.4")
+try:  # TODO remove as soon as Coconut supports it
+  from typing import Any, Callable, Dict, FrozenSet, Generic, IO, List, Sequence, Set, Tuple, Type, TypeVar, Union  # only required for mypy
+  Number = TypeVar("Number", int, float)
+  DataType = TypeVar("DataType", BranchInfo, ChangeSet, MergeBlock, PathInfo)
+except: pass  # typing not available (prior to Python 3.5)
+try: import wcwidth
+except: pass  # optional dependency
+
+
+verbose = os.environ.get("DEBUG", "False").lower() == "true" or '--verbose' in sys.argv or '-v' in sys.argv  # imported from utility, and only modified here
+
+# Classes
+class Accessor(dict):
+  ''' Dictionary with attribute access. Writing only supported via dictionary access. '''
+  def __init__(_, mapping:Dict[str,Any]): dict.__init__(_, mapping)
+  def __getattribute__(_, name:str) -> Any:
+    try: return _[name]
+    except: return dict.__getattribute__(_, name)
+
+class Counter(Generic[Number]):
+  ''' A simple counter. Can be augmented to return the last value instead. '''
+  def __init__(_, initial:Number = 0): _.value:Number = initial
+  def inc(_, by:Number = 1) -> Number: _.value += by; return _.value
+
+class ProgressIndicator(Counter):
+  ''' Manages a rotating progress indicator. '''
+  def __init__(_, callback:Optional[(str) -> None] = None): super(ProgressIndicator, _).__init__(-1); _.timer:float = time.time(); _.callback:Optional[(str) -> None] = callback
+  def getIndicator(_) -> str? =
+    newtime = time.time()
+    if newtime - _.timer < .1: return None
+    _.timer = newtime
+    sign:str = PROGRESS_MARKER[int(_.inc() % 4)]
+    if _.callback: _.callback(sign)
+    sign
+
+class Logger:
+  ''' Logger that supports many items. '''
+  def __init__(_, log): _._log = log
+  def debug(_, *s): _._log.debug(sjoin(*s))
+  def info(_, *s): _._log.info(sjoin(*s))
+  def warn(_, *s): _._log.warning(sjoin(*s))
+  def error(_, *s): _._log.error(sjoin(*s))
+
+
+# Constants
+_log = Logger(logging.getLogger(__name__)); debug, info, warn, error = _log.debug, _log.info, _log.warn, _log.error
+UTF8 = "utf_8"  # early used constant, not defined in standard library
+CONFIGURABLE_FLAGS = ["strict", "track", "picky", "compress"]
+CONFIGURABLE_LISTS = ["texttype", "bintype", "ignores", "ignoreDirs", "ignoresWhitelist", "ignoreDirsWhitelist"]
+GLOBAL_LISTS = ["ignores", "ignoreDirs", "ignoresWhitelist", "ignoreDirsWhitelist"]
+TRUTH_VALUES = ["true", "yes", "on", "1", "enable", "enabled"]  # all lower-case normalized
+FALSE_VALUES = ["false", "no", "off", "0", "disable", "disabled"]
+PROGRESS_MARKER = ["|", "/", "-", "\\"]
+BACKUP_SUFFIX = "_last"
+metaFolder:str = ".sos"
+metaFile:str = ".meta"
+metaBack:str = metaFile + BACKUP_SUFFIX
+bufSize:int = 1 << 20  # 1 MiB
+SVN = "svn"
+SLASH = "/"
+MEBI = 1 << 20
+vcsFolders:Dict[str,str] = {".svn": SVN, ".git": "git", ".bzr": "bzr", ".hg": "hg", ".fslckout": "fossil", "_FOSSIL_": "fossil", ".CVS": "cvs"}
+vcsBranches:Dict[str,str?] = {SVN: "trunk", "git": "master", "bzr": "trunk", "hg": "default", "fossil": None, "cvs": None}
+NL_NAMES:Dict[bytes,str] = {None: "<No newline>", b"\r\n": "<CR+LF>", b"\n\r": "<LF+CR>", b"\n": "<LF>", b"\r": "<CR>"}
+lateBinding:Accessor = Accessor({"verbose": False, "start": 0})
+
+
+# Enums
+MergeOperation = enum.Enum("MergeOperation", {"INSERT": 1, "REMOVE": 2, "BOTH": 3, "ASK": 4})  # insert remote changes into current, remove remote deletions from current, do both (replicates remote state), or ask per block
+MergeBlockType = enum.Enum("MergeBlockType", "KEEP INSERT REMOVE REPLACE MOVE")  # modify = intra-line changes, replace = full block replacement
+
+
+# Value types
+data BranchInfo(number:int, ctime:int, name:str? = None, inSync:bool = False, tracked:List[str] = [], untracked:List[str] = [], parent:int? = None)  # tracked is a list on purpose, as serialization to JSON needs effort and frequent access is not taking place
+data CommitInfo(number:int, ctime:int, message:str? = None)
+data PathInfo(nameHash:str, size:int?, mtime:int, hash:str?)  # size == None means deleted in this revision
+data ChangeSet(additions:Dict[str,PathInfo], deletions:Dict[str,PathInfo], modifications:Dict[str,PathInfo], moves:Dict[str,Tuple[str,PathInfo]])  # avoid default assignment of {} as it leads to runtime errors (contains data on init for unknown reason)
+data Range(tipe:MergeBlockType, indexes:int[])  # MergeBlockType[1,2,4], line number, length  # TODO use enum
+data MergeBlock(tipe:MergeBlockType, lines:List[str], line:int, replaces:MergeBlock? = None, changes:Range? = None)
+data GlobBlock(isLiteral:bool, content:str, index:int)  # for file pattern rename/move matching
+data GlobBlock2(isLiteral:bool, content:str, matches:str)  # matching file pattern and input filename for translation
+
+
+# Functions
+def printo(s:str, nl:str = "\n"): sys.stdout.buffer.write((s + nl).encode(sys.stdout.encoding, 'backslashreplace')); sys.stdout.flush()  # PEP528 compatibility
+def printe(s:str, nl:str = "\n"): sys.stderr.buffer.write((s + nl).encode(sys.stderr.encoding, 'backslashreplace')); sys.stderr.flush()
+def encode(s:str) -> bytes: return os.fsencode(s)  # for py->os access of writing filenames  # PEP 529 compatibility
+def decode(b:bytes) -> str: return os.fsdecode(b)  # for os->py access of reading filenames
+try:
+  import chardet  # https://github.com/chardet/chardet
+  def detectEncoding(binary:bytes) -> str = chardet.detect(binary)["encoding"]
+except:
+  def detectEncoding(binary:bytes) -> str =  # Guess the encoding
+    ''' Fallback if chardet library missing. '''
+    try: binary.decode(UTF8); return UTF8
+    except UnicodeError: pass
+    try: binary.decode("utf_16"); return "utf_16"
+    except UnicodeError: pass
+    try: binary.decode("cp1252"); return "cp1252"
+    except UnicodeError: pass
+    "ascii"  # this code will never be reached, as above is an 8-bit charset that always matches
+
+def tryOrDefault(func:() -> Any, default:Any) -> Any:
+  try: return func()
+  except: return default
+
+def tryOrIgnore(func:() -> Any) -> None:  # handle with care!
+  try: func()
+  except: pass
+
+def wcswidth(string:str) -> int:
+  l:int = 0
+  try:
+    l = wcwidth.wcswitdh(string)
+    return len(string) if l < 0 else l
+  finally: return len(string)
+
+def removePath(key:str, value:str) -> str =
+  ''' Cleanup of user-specified global file patterns. '''
+  value if value in GLOBAL_LISTS or SLASH not in value else value[value.rindex(SLASH)+1:]
+
+def conditionalIntersection(a:FrozenSet[str]?, b:FrozenSet[str]) -> FrozenSet[str] = a & b if a else b  # Used to match only arguments, or use only stored patterns
+
+def dictUpdate(dikt:Dict[Any,Any], by:Dict[Any,Any]) -> Dict[Any,Any]: d = {}; d.update(dikt); d.update(by); return d
+
+def openIt(file:str, mode:str, compress:bool = False) -> IO[bytes] = bz2.BZ2File(encode(file), mode) if compress else open(encode(file), mode + "b")  # Abstraction for opening both compressed and plain files
+
+def eoldet(file:bytes) -> bytes? =
+  ''' Determine EOL style from a binary string. '''
+  lf:int = file.count(b"\n")
+  cr:int = file.count(b"\r")
+  crlf:int = file.count(b"\r\n")
+  if crlf > 0:  # DOS/Windows/Symbian etc.
+    if lf != crlf or cr != crlf: warn("Inconsistent CR/NL count with CR+NL. Mixed EOL style detected, may cause problems during merge")
+    return b"\r\n"
+  if lf != 0 and cr != 0: warn("Inconsistent CR/NL count without CR+NL. Mixed EOL style detected, may cause problems during merge")
+  if lf > cr: return b"\n"  # Linux/Unix
+  if cr > lf: return b"\r"  # older 8-bit machines
+  None  # no new line contained, cannot determine
+
+try: Splittable = TypeVar("Splittable", str, bytes)
+except: pass
+def safeSplit(s:Splittable, d:Splittable? = None) -> List[Splittable]: return s.split(d ?? ("\n" if isinstance(s, str) else b"\n")) if len(s) > 0 else []
+
+def ajoin(sep:str, seq:str[], nl:str = "") -> str = (sep + (nl + sep).join(seq)) if seq else ""
+
+def sjoin(*s:Tuple[Any]) -> str = " ".join([str(e) for e in s if e != ''])
+
+def hashStr(datas:str) -> str = hashlib.sha256(datas.encode(UTF8)).hexdigest()
+
+def modified(changes:ChangeSet, onlyBinary:bool = False) -> bool = len(changes.additions) > 0 or len(changes.deletions) > 0 or len(changes.modifications) > 0 or len(changes.moves) > 0
+
+def listindex(lizt:Sequence[Any], what:Any, index:int = 0) -> int = lizt[index:].index(what) + index
+
+def getTermWidth() -> int =
+  try: import termwidth
+  except: return 80
+  termwidth.getTermWidth()[0]
+
+def branchFolder(branch:int, revision:int, base = ".", file = None) -> str = os.path.join(base, metaFolder, "b%d" % branch, "r%d" % revision) + ((os.sep + file) if file else "")
+
+def Exit(message:str = "", code = 1): printe("[EXIT%s]" % (" %.1fs" % (time.time() - START_TIME) if verbose else "") + (" " + message + "." if message != "" else "")); sys.exit(code)
+
+def exception(E):
+  ''' Report an exception. '''
+  printo(str(E))
+  import traceback
+  traceback.print_exc()
+  traceback.print_stack()
+
+def hashFile(path:str, compress:bool, saveTo:str? = None, callback:Optional[(str) -> None] = None) -> Tuple[str,int] =
+  ''' Calculate hash of file contents, and return compressed sized, if in write mode, or zero. '''
+  indicator:ProgressIndicator? = ProgressIndicator(callback) if callback else None
+  _hash = hashlib.sha256()
+  wsize:int = 0
+  if saveTo and os.path.exists(encode(saveTo)): Exit("Hash conflict. Leaving revision in inconsistent state. This should happen only once in a lifetime.")
+  to = openIt(saveTo, "w", compress) if saveTo else None
+  with open(encode(path), "rb") as fd:
+    while True:
+      buffer:bytes = fd.read(bufSize)
+      _hash.update(buffer)
+      if to: to.write(buffer)
+      if len(buffer) < bufSize: break
+      if indicator: indicator.getIndicator()
+    if to:
+      to.close()
+      wsize = os.stat(encode(saveTo)).st_size
+  (_hash.hexdigest(), wsize)
+
+def getAnyOfMap(map:Dict[str,Any], params:str[], default:Any = None) -> Any =
+  ''' Utility. '''
+  for k, v in map.items():
+    if k in params: return v
+  default
+
+def strftime(timestamp:int? = None) -> str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(timestamp / 1000. if timestamp is not None else None))
+
+def detectAndLoad(filename:str? = None, content:bytes? = None) -> Tuple[str,bytes,str[]] =
+  encoding:str; eol:bytes?; lines:str[] = []
+  if filename is not None:
+    with open(encode(filename), "rb") as fd: content = fd.read()
+  encoding = detectEncoding(content) ?? sys.getdefaultencoding()
+  eol =  eoldet(content)
+  if filename is not None:
+    with codecs.open(encode(filename), encoding = encoding) as fd2: lines = safeSplit(fd2.read(), (eol ?? b"\n").decode(encoding))
+  elif content is not None:
+    lines = safeSplit(content.decode(encoding), (eol ?? b"\n").decode(encoding))
+  else: return (sys.getdefaultencoding(), b"\n", [])
+  (encoding, eol, lines)
+
+def dataCopy(_tipe:Type[DataType], _old:DataType, *_args, **_kwargs) -> DataType: r = _old._asdict(); r.update(**_kwargs); return makedata(_tipe, *(list(_args) + [r[field] for field in _old._fields]))
+
+def user_block_input(output:List[str]):
+  sep:str = input("Enter end-of-text marker (default: <empty line>: "); line:str = sep
+  while True:
+    line = input("> ")
+    if line == sep: break
+    output.append(line)
+
+def merge(
+      file:bytes? = None, into:bytes? = None,
+      filename:str? = None, intoname:str? = None,
+      mergeOperation:MergeOperation = MergeOperation.BOTH,
+      charMergeOperation:MergeOperation = MergeOperation.BOTH,
+      diffOnly:bool = False,
+      eol:bool = False
+    ) -> Tuple[Union[bytes,List[MergeBlock]],bytes?] =
+  ''' Merges other binary text contents 'file' (or reads file 'filename') into current text contents 'into' (or reads file 'intoname'), returning merged result.
+      For update, the other version is assumed to be the "new/added" one, while for diff, the current changes are the ones "added".
+      However, change direction markers are insert ("+") for elements only in into, and remove ("-") for elements only in other file (just like the diff marks +/-)
+      diffOnly returns detected change blocks only, no text merging
+      eol flag will use the other file's EOL marks
+      in case of replace block and INSERT strategy, the change will be added **behind** the original
+  '''
+  encoding:str; othr:str[]; othreol:bytes?; curr:str[]; curreol:bytes?
+  try:  # load files line-wise and normalize line endings (keep the one of the current file) TODO document
+    encoding, othreol, othr = detectAndLoad(filename = filename, content = file)
+    encoding, curreol, curr = detectAndLoad(filename = intoname, content = into)
+  except Exception as E: Exit("Cannot merge '%s' into '%s': %r" % (filename, intoname, E))
+  if None not in [othreol, curreol] and othreol != curreol: warn("Differing EOL-styles detected during merge. Using current file's style for merged output")
+  output:List[str] = list(difflib.Differ().compare(othr, curr))  # from generator expression
+  blocks:List[MergeBlock] = []  # merged result in blocks
+  tmp:List[str] = []  # block lines
+  last:str = " "; no:int; line:str
+  for no, line in enumerate(output + ["X"]):  # EOF marker (difflib's output will never be "X" alone)
+    if line[0] == last: tmp.append(line[2:]); continue  # continue filling current block, no matter what type of block it is
+    if line == "X" and len(tmp) == 0: break  # break if nothing left to do, otherwise perform operation for stored block
+    if last == " ":  # block is same in both files
+      if len(tmp) > 0: blocks.append(MergeBlock(MergeBlockType.KEEP, [line for line in tmp], line = no - len(tmp)))  # avoid adding empty keep block
+    elif last == "-":  # may be a pure deletion or part of a replacement (with next block being "+")
+      blocks.append(MergeBlock(MergeBlockType.REMOVE, [line for line in tmp], line = no - len(tmp)))
+      if len(blocks) >= 2 and blocks[-2].tipe == MergeBlockType.INSERT:
+        blocks[-2] = MergeBlock(MergeBlockType.REPLACE, blocks[-1].lines, line = no - len(tmp) - 1, replaces = blocks[-2])  # remember replaced stuff with reference to other merge block TODO why -1 necessary?
+        blocks.pop()
+    elif last == "+":  # may be insertion or replacement (with previous - block)
+      blocks.append(MergeBlock(MergeBlockType.INSERT, [line for line in tmp], line = no - len(tmp)))  # first, assume simple insertion, then check for replacement
+      if len(blocks) >= 2 and blocks[-2].tipe == MergeBlockType.REMOVE:  #  and len(blocks[-1].lines) == len(blocks[-2].lines):  # requires previous block and same number of lines TODO allow multiple intra-line merge for same-length blocks
+        blocks[-2] = MergeBlock(MergeBlockType.REPLACE, blocks[-2].lines, line = no - len(tmp) - 1, replaces = blocks[-1])  # remember replaced stuff with reference to other merge block TODO why -1 necessary?
+        blocks.pop()  # remove TOS due to merging two blocks into replace or modify
+    elif last == "?":  # marker for intra-line change comment -> add to block info
+      ilm:Range = getIntraLineMarkers(tmp[0])  # TODO still true? "? " line includes a trailing \n for some reason
+      blocks[-1] = dataCopy(MergeBlock, blocks[-1], changes = ilm)
+    last = line[0]
+    tmp[:] = [line[2:]]  # only keep current line for next block
+  # TODO add code to detect block moves here
+  nl:bytes = othreol if eol else (curreol ?? othreol)  # no default newline, to mark "no newline"
+  debug("Diff blocks: " + repr(blocks))
+  if diffOnly: return (blocks, nl)
+
+  # now perform merge operations depending on detected blocks
+  output[:] = []  # clean list of strings
+  for block in blocks:
+    if block.tipe == MergeBlockType.KEEP:
+      output.extend(block.lines)
+    elif block.tipe == MergeBlockType.INSERT and not(mergeOperation.value & MergeOperation.REMOVE.value)\
+      or block.tipe == MergeBlockType.REMOVE and    (mergeOperation.value & MergeOperation.INSERT.value):
+      output.extend(block.lines)
+    elif block.tipe == MergeBlockType.REPLACE:  # complete block replacement
+      if len(block.lines) == len(block.replaces.lines) == 1:  # one-liner
+        output.append(lineMerge(block.lines[0], block.replaces.lines[0], mergeOperation = charMergeOperation))
+      elif mergeOperation == MergeOperation.ASK:  # more than one line: needs user input
+        printo(ajoin("- ", block.replaces.lines, nl = "\n"))  # TODO check +/- in update mode, could be swapped
+        printo(ajoin("+ ", block.lines, nl = "\n"))
+        while True:
+          op:str = input(" Line replacement: *M[I]ne (+), [T]heirs (-), [B]oth, [U]ser input: ").strip().lower()
+          if op in "tb": output.extend(block.lines); break
+          if op in "ib": output.extend(block.replaces.lines); break
+          if op == "m": user_block_input(output); break
+      else:  # more than one line and not ask
+        if   mergeOperation == MergeOperation.REMOVE: pass
+        elif mergeOperation == MergeOperation.BOTH: output.extend(block.lines)
+        elif mergeOperation == MergeOperation.INSERT: output.extend(list(block.replaces.lines) + list(block.lines))  # TODO optionally allow insertion BEFORE or AFTER original (order of these both lines)
+#  debug("Merge output: " + "; ".join(output))
+  ((nl ?? b"\n").join([line.encode(encoding) for line in output]), nl)  # returning bytes
+  # TODO handle check for more/less lines in found -/+ blocks to find common section and splitting prefix/suffix out
+
+def lineMerge(othr:str, into:str, mergeOperation:MergeOperation = MergeOperation.BOTH, diffOnly:bool = False) -> Union[str,List[MergeBlock]]:
+  ''' Merges string 'othr' into current string 'into'.
+      change direction mark is insert for elements only in into, and remove for elements only in file (according to diff marks +/-)
+  '''
+  out:List[str] = list(difflib.Differ().compare(othr, into))
+  blocks:List[MergeBlock] = []
+  for i, line in enumerate(out):
+    if line[0] == "+":
+      if i + 1 < len(out) and out[i + 1][0] == "+":  # block will continue
+        if i > 0 and blocks[-1].tipe == MergeBlockType.INSERT:  # middle of + block
+          blocks[-1].lines.append(line[2])  # add one more character to the accumulating list
+        else:  # first + in block
+          blocks.append(MergeBlock(MergeBlockType.INSERT, [line[2]], i))
+      else:  # last line of + block
+        if i > 0 and blocks[-1].tipe == MergeBlockType.INSERT:  # end of a block
+          blocks[-1].lines.append(line[2])
+        else:  # single line
+          blocks.append(MergeBlock(MergeBlockType.INSERT, [line[2]], i))
+        if i >= 1 and blocks[-2].tipe == MergeBlockType.REMOVE:  # previous - and now last in + block creates a replacement block
+          blocks[-2] = MergeBlock(MergeBlockType.REPLACE, blocks[-2].lines, i, replaces = blocks[-1]); blocks.pop()
+    elif line[0] == "-":
+      if i > 0 and blocks[-1].tipe == MergeBlockType.REMOVE:  # part of - block
+        blocks[-1].lines.append(line[2])
+      else:  # first in block
+        blocks.append(MergeBlock(MergeBlockType.REMOVE, [line[2]], i))
+    elif line[0] == " ":
+      if i > 0 and blocks[-1].tipe == MergeBlockType.KEEP:  # part of block
+        blocks[-1].lines.append(line[2])
+      else:  # first in block
+        blocks.append(MergeBlock(MergeBlockType.KEEP, [line[2]], i))
+    else: raise Exception("Cannot parse diff line %r" % line)
+  blocks[:] = [dataCopy(MergeBlock, block, lines = ["".join(block.lines)], replaces = dataCopy(MergeBlock, block.replaces, lines = ["".join(block.replaces.lines)]) if block.replaces else None) for block in blocks]
+  if diffOnly: return blocks
+  out[:] = []
+  for i, block in enumerate(blocks):
+    if   block.tipe == MergeBlockType.KEEP: out.extend(block.lines)
+    elif block.tipe == MergeBlockType.REPLACE:
+      if mergeOperation == MergeOperation.ASK:
+        printo(ajoin("- ", othr))
+        printo("- " + (" " * i) + block.replaces.lines[0])
+        printo("+ " + (" " * i) + block.lines[0])
+        printo(ajoin("+ ", into))
+        while True:
+          op:str = input(" Character replacement: *M[I]ne (+), [T]heirs (-), [B]oth, [U]ser input: ").strip().lower()
+          if op in "tb": out.extend(block.lines); break
+          if op in "ib": out.extend(block.replaces.lines); break
+          if op == "m":  user_block_input(out); break
+      else:  # non-interactive
+        if   mergeOperation == MergeOperation.REMOVE: pass
+        elif mergeOperation == MergeOperation.BOTH: out.extend(block.lines)
+        elif mergeOperation == MergeOperation.INSERT: out.extend(list(block.replaces.lines) + list(block.lines))
+    elif block.tipe == MergeBlockType.INSERT and not (mergeOperation.value & MergeOperation.REMOVE.value): out.extend(block.lines)
+    elif block.tipe == MergeBlockType.REMOVE and      mergeOperation.value & MergeOperation.INSERT.value:  out.extend(block.lines)
+    # TODO ask for insert or remove as well
+  return "".join(out)
+
+def getIntraLineMarkers(line:str) -> Range =
+  ''' Return (type, [affected indices]) of "? "-line diff markers ("? " prefix must be removed). difflib never returns mixed markers per line. '''
+  if "^" in line: return Range(MergeBlockType.REPLACE, [i for i, c in enumerate(line) if c == "^"])  # TODO wrong, needs removal anyway
+  if "+" in line: return Range(MergeBlockType.INSERT, [i for i, c in enumerate(line) if c == "+"])
+  if "-" in line: return Range(MergeBlockType.REMOVE, [i for i, c in enumerate(line) if c == "-"])
+  Range(MergeBlockType.KEEP, [])
+
+def findSosVcsBase() -> Tuple[str?,str?,str?] =
+  ''' Attempts to find sos and legacy VCS base folders. '''
+  debug("Detecting root folders...")
+  path:str = os.getcwd()  # start in current folder, check parent until found or stopped
+  vcs:Tuple[str?,str?] = (None, None)
+  while not os.path.exists(encode(os.path.join(path, metaFolder))):
+    contents:Set[str] = set(os.listdir(path))
+    vcss:str[] = [executable for folder, executable in vcsFolders.items() if folder in contents]  # determine VCS type from dot folder
+    choice:str? = None
+    if len(vcss) > 1:
+      choice = SVN if SVN in vcss else vcss[0]
+      warn("Detected more than one parallel VCS checkouts %r. Falling back to '%s'" % (vcss, choice))
+    elif len(vcss) > 0: choice = vcss[0]
+    if not vcs[0] and choice: vcs = (path, choice)  # memorize current repo root
+    new = os.path.dirname(path)  # get parent path
+    if new == path: break  # avoid infinite loop
+    path = new
+  if os.path.exists(encode(os.path.join(path, metaFolder))):  # found something
+    if vcs[0]: return (path, vcs[0], vcs[1])  # already detected vcs base and command
+    sos = path
+    while True:  # continue search for VCS base
+      new = os.path.dirname(path)  # get parent path
+      if new == path: return (sos, None, None)  # no VCS folder found
+      path = new
+      contents = set(os.listdir(path))
+      vcss = [executable for folder, executable in vcsFolders.items() if folder in contents]  # determine VCS type
+      choice = None
+      if len(vcss) > 1:
+        choice = SVN if SVN in vcss else vcss[0]
+        warn("Detected more than one parallel VCS checkouts %r. Falling back to '%s'" % (vcss, choice))
+      elif len(vcss) > 0: choice = vcss[0]
+      if choice: return (sos, path, choice)
+  (None, vcs[0], vcs[1])
+
+def tokenizeGlobPattern(pattern:str) -> List[GlobBlock] =
+  index:int = 0
+  out:List[GlobBlock] = []  # literal = True, first index
+  while index < len(pattern):
+    if pattern[index:index + 3] in ("[?]", "[*]", "[[]", "[]]"): out.append(GlobBlock(False, pattern[index:index + 3], index)); continue
+    if pattern[index] in "*?":
+      count:int = 1
+      while index + count < len(pattern) and pattern[index] == "?" and pattern[index + count] == "?": count += 1
+      out.append(GlobBlock(False, pattern[index:index + count], index)); index += count; continue
+    if pattern[index:index + 2] == "[!": out.append(GlobBlock(False, pattern[index:pattern.index("]", index + 2) + 1], index)); index += len(out[-1][1]); continue
+    count = 1
+    while index + count < len(pattern) and pattern[index + count] not in "*?[": count += 1
+    out.append(GlobBlock(True, pattern[index:index + count], index)); index += count
+  out
+
+def tokenizeGlobPatterns(oldPattern:str, newPattern:str) -> Tuple[GlobBlock[], GlobBlock[]] =
+  ot:List[GlobBlock] = tokenizeGlobPattern(oldPattern)
+  nt:List[GlobBlock] = tokenizeGlobPattern(newPattern)
+#  if len(ot) != len(nt): Exit("Source and target patterns can't be translated due to differing number of parsed glob markers and literal strings")
+  if len([o for o in ot if not o.isLiteral]) < len([n for n in nt if not n.isLiteral]): Exit("Source and target file patterns contain differing number of glob markers and can't be translated")
+  if any(O.content != N.content for O, N in zip([o for o in ot if not o.isLiteral], [n for n in nt if not n.isLiteral])): Exit("Source and target file patterns differ in semantics")
+  (ot, nt)
+
+def convertGlobFiles(filenames:str[], oldPattern:GlobBlock[], newPattern:GlobBlock[]) -> Tuple[str,str][] =
+  ''' Converts given filename according to specified file patterns. No support for adjacent glob markers currently. '''
+  pairs:List[Tuple[str,str]] = []
+  for filename in filenames:
+    literals:List[GlobBlock] = [l for l in oldPattern if l.isLiteral]  # source literals
+    nextliteral:int = 0
+    parsedOld:List[GlobBlock2] = []
+    index:int = 0
+    for part in oldPattern:  # match everything in the old filename
+      if part.isLiteral: parsedOld.append(GlobBlock2(True, part.content, part.content)); index += len(part.content); nextliteral += 1
+      elif part.content.startswith("?"): parsedOld.append(GlobBlock2(False, part.content, filename[index:index + len(part.content)])); index += len(part.content)
+      elif part.content.startswith("["): parsedOld.append(GlobBlock2(False, part.content, filename[index])); index += 1
+      elif part.content == "*":
+        if nextliteral >= len(literals): parsedOld.append(GlobBlock2(False, part.content, filename[index:])); break
+        nxt:int = filename.index(literals[nextliteral].content, index)  # also matches empty string
+        parsedOld.append(GlobBlock2(False, part.content, filename[index:nxt])); index = nxt
+      else: Exit("Invalid file pattern specified for move/rename")
+    globs:List[GlobBlock2] = [g for g in parsedOld if not g.isLiteral]
+    literals = [l for l in newPattern if l.isLiteral]  # target literals
+    nextliteral = 0; nextglob:int = 0
+    outname:List[str] = []
+    for part in newPattern:  # generate new filename
+      if part.isLiteral: outname.append(literals[nextliteral].content); nextliteral += 1
+      else: outname.append(globs[nextglob].matches); nextglob += 1
+    pairs.append((filename, "".join(outname)))
+  pairs
+
+def reorderRenameActions(actions:Tuple[str,str][], exitOnConflict:bool = True) -> Tuple[str,str][] =
+  ''' Attempt to put all rename actions into an order that avoids target == source names.
+      Note, that it's currently not really possible to specify patterns that make this work (swapping "*" elements with a reference).
+      An alternative would be to always have one (or all) files renamed to a temporary name before renaming to target filename.
+  '''
+  if not actions: return []
+  sources:List[str]; targets:List[str]
+  sources, targets = [list(l) for l in zip(*actions)]
+  last:int = len(actions)
+  while last > 1:
+    clean:bool = True
+    for i in range(1, last):
+      try:
+        index:int = targets[:i].index(sources[i])
+        sources.insert(index, sources.pop(i))  # bubble up the action right before conflict
+        targets.insert(index, targets.pop(i))
+        clean = False
+      except: continue  # target not found in sources: good!
+    if clean: break
+    last -= 1  # we know that the last entry in the list has the least conflicts, so we can disregard it in the next iteration
+  if exitOnConflict:
+    for i in range(1, len(actions)):
+      if sources[i] in targets[:i]: Exit("There is no order of renaming actions that avoids copying over not-yet renamed files: '%s' is contained in matching source filenames" % (targets[i]))
+  list(zip(sources, targets))
+
+def relativize(root:str, filepath:str) -> Tuple[str,str] =
+  ''' Determine OS-independent relative folder path, and relative pattern path. '''
+  relpath = os.path.relpath(os.path.dirname(os.path.abspath(filepath)), root).replace(os.sep, SLASH)
+  relpath, os.path.join(relpath, os.path.basename(filepath)).replace(os.sep, SLASH)
+
+def parseOnlyOptions(root:str, options:str[]) -> Tuple[FrozenSet[str]?, FrozenSet[str]?] =
+  ''' Returns set of --only arguments, and set or --except arguments. '''
+  cwd:str = os.getcwd()
+  onlys:List[str] = []; excps:List[str] = []; index:int = 0
+  while True:
+    try:
+      index = 1 + listindex(options, "--only", index)
+      onlys.append(options[index])
+    except: break
+  index = 0
+  while True:
+    try:
+      index = 1 + listindex(options, "--except", index)
+      excps.append(options[index])
+    except: break
+  (frozenset(relativize(root, o)[1] for o in onlys) if onlys else None, frozenset(relativize(root, e)[1] for e in excps) if excps else None)
