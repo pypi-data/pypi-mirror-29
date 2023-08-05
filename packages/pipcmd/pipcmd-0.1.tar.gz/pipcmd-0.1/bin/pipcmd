@@ -1,0 +1,562 @@
+#!/bin/sh
+
+# Copyright (c) 2018 Wilfredo Sánchez Vega. All rights reserved.
+
+##
+# Install and manage command line tools from PyPI
+##
+
+set -e
+set -u
+
+
+##
+# Variables
+##
+
+        pc_home="${PIPCMD_HOME:-${HOME}/.pipcmd}";
+         pc_bin="${pc_home}/bin";
+        pc_envs="${pc_home}/env";
+pc_envs_rel_bin="../env";
+
+pc_default_python="${PIPCMD_DEFAULT_PYTHON:-python}";
+
+##
+# Handle the main command line
+##
+
+#
+# Print usage and exit.
+# If given, print an error message and exit with EX_USAGE (64).
+#
+usage () {
+    local program="$(basename "$0")";
+
+    if [ "${1--}" != "-" ]; then
+        echo "$@";
+        echo;
+    else
+        echo "${program} is a tool to manage commands installed from PyPI.";
+        echo "The PATH environment variable should include: ${pc_bin}";
+        echo "";
+    fi;
+
+    echo "Usage: ${program} [options] subcommand [subcommand_arguments]";
+    echo "Options:";
+    echo "  -h  Print this help and exit (after subcommand for specifics)";
+    echo "";
+    echo "subcommand may be one of:";
+    echo "    install - Install a new command";
+    # echo "    update  - Update command";
+    echo "    remove  - Remove command";
+    echo "    list    - List commands";
+
+    if [ "${1-}" = "-" ]; then
+        return 0;
+    fi;
+    exit 64;
+}
+
+#
+# Set the "subcommand" variable to the first argument if it's a known
+# subcommand; otherwise exit with a usage error.
+#
+set_subcommand () {
+    case "${1}" in
+        "install") ;;
+        "update") ;;
+        "remove") ;;
+        "list") ;;
+        *) usage "Unknown subcommand: ${1}";
+    esac;
+
+    subcommand="${1}"; shift;
+}
+
+#
+# Parse options and subcommand from arguments.
+#
+parse_options () {
+    local option;
+    local OPTIND=1;
+    while getopts "h" option; do
+        case "${option}" in
+            '?') usage; ;;
+            'h') usage -; exit 0; ;;
+        esac;
+    done;
+    shift $((${OPTIND} - 1));
+
+    if [ $# = 0 ]; then
+        usage "No subcommand specified";
+    fi;
+    local _subcommand_="${1}"; shift;
+
+    set_subcommand "${_subcommand_}";
+}
+
+#
+# Main entry point
+#
+main () {
+    parse_options "$@";
+
+    "${subcommand}_main" "$@";
+}
+
+
+##
+# Common functions
+##
+
+#
+# Look up the path to a project environment
+#
+env_path () {
+    local project="${1}"; shift;
+    local version="${1}"; shift;
+
+    echo "${pc_envs}/${project}/${version}";
+}
+
+#
+# Look up the path for a command
+#
+command_path () {
+    local command="${1}"; shift;
+
+    if ! have_command "${command}"; then
+        return 1;
+    fi;
+
+    command_path_no_check "${command}";
+}
+
+#
+# Look up the path for a command without checking that it's installed correctly
+#
+command_path_no_check () {
+    local command="${1}"; shift;
+
+    echo "${pc_bin}/${command}";
+}
+
+#
+# Look up the path a command's symlink should point to
+#
+command_path_link_dest () {
+    local command="${1}"; shift;
+
+    local env_bin_relative="${pc_envs_rel_bin}";
+    env_bin_relative="${env_bin_relative}/${install_project}";
+    env_bin_relative="${env_bin_relative}/${install_version}";
+    env_bin_relative="${env_bin_relative}/bin";
+
+    echo "${env_bin_relative}/${command}";
+}
+
+#
+# Look up the path that the command's symlink points to
+#
+command_path_readlink () {
+    local command="${1}"; shift;
+    local path="$(command_path "${command}")";
+    readlink "${path}";
+}
+
+#
+# Check whether a command is installed
+#
+have_command () {
+    local command="${1}"; shift;
+    local path="$(command_path_no_check "${command}")";
+
+    if [ ! -L "${path}" ] || [ ! -e "${path}" ]; then
+        # No symlink to an executable: not a command we installed.
+        return 1;
+    fi;
+}
+
+#
+# Look up description of command
+#
+command_info () {
+    local command="${1}"; shift;
+
+    if ! have_command "${command}"; then
+        echo "No such command: ${command}" >&2;
+        return 1;
+    fi;
+
+    local project="$(command_project_name "${command}")";
+    local version="$(command_project_version "${command}")";
+    local  python="$(command_python "${command}")";
+
+    echo "${command} from ${project}[${version}] using ${python}";
+}
+
+#
+# List installed commands
+#
+list_commands () {
+    if [ ! -d "${pc_bin}" ]; then
+        return;
+    fi;
+
+    local commands=$(ls "${pc_bin}");
+
+    local command;
+    for command in ${commands}; do
+        if have_command "${command}"; then
+            echo "${command}";
+        fi;
+    done;
+}
+
+#
+# Look up the project name for a command
+#
+command_project_name () {
+    local command="${1}"; shift;
+    local tmp="$(command_path_readlink "${command}")";
+
+    # Pick off the prefix to the project
+    local name="${tmp##${pc_envs_rel_bin}/}";
+    if [ "${name}" = "${tmp}" ]; then
+        local path="$(command_path "${command}")";
+        echo                                                   \
+            "ERROR: Found command with unexpected link path:"  \
+            "${path} -> ${name}"                               \
+            >&2;
+        return 1;
+    fi;
+
+    # Pick off the path after the project name
+    name="${name%%/*}";
+
+    echo "${name}";
+}
+
+#
+# Look up the project version for a command
+#
+command_project_version () {
+    local command="${1}"; shift;
+    local tmp="$(command_path_readlink "${command}")";
+    local project="$(command_project_name "${command}")";
+
+    # Pick off the prefix to the project and the project name
+    local version="${tmp##${pc_envs_rel_bin}/${project}/}";
+    if [ "${version}" = "${tmp}" ]; then
+        local path="$(command_path "${command}")";
+        echo                                                   \
+            "ERROR: Found command with unexpected link path:"  \
+            "${path} -> ${version}"                            \
+            >&2;
+        return 1;
+    fi;
+
+    # Pick off the project name
+    version="${version%%${project}/*}"
+
+    # Pick off the path after the project version
+    version="${version%%/*}"
+
+    echo "${version}";
+}
+
+#
+# Look up the python version for a command
+#
+command_python () {
+    local command="${1}"; shift;
+    local project="$(command_project_name "${command}")";
+    local version="$(command_project_version "${command}")";
+    local env_bin="$(env_path "${project}" "${version}")/bin";
+    local interpreter=$(
+        "${env_bin}/python" -c \
+        'import platform as p; print(p.python_implementation())'
+    );
+    local version=$(
+        "${env_bin}/python" -c \
+        'import platform as p; print(p.python_version())'
+    );
+
+    echo "${interpreter} ${version}";
+}
+
+##
+# Handle the install command line
+##
+
+#
+# Print usage and exit.
+# If given, print an error message and exit with EX_USAGE (64).
+#
+usage_install () {
+    local program="$(basename "$0")";
+
+    if [ "${1--}" != "-" ]; then
+        echo "$@";
+        echo;
+    else
+        echo "Install a command from PyPI.";
+        echo "";
+    fi;
+
+    echo "Usage: ${program} ${subcommand} [options] project [command ...]";
+    echo "  project - The project to install the command from";
+    echo "  command - The command to install [default: same as project]";
+    echo "Options:";
+    echo "  -h          Print this help and exit";
+    echo "  -p python   Python interpreter to use [default: ${pc_default_python}]";
+    echo "  -v version  Project version to pin to [default: latest (not pinned)]";
+
+    if [ "${1-}" = "-" ]; then
+        return 0;
+    fi;
+    exit 64;
+}
+
+#
+# Parse options from arguments.
+#
+parse_options_install () {
+    local option;
+    local OPTIND=1;
+    while getopts "hp:v:" option; do
+        case "${option}" in
+            '?') usage_install; ;;
+            'h') usage_install -; exit 0; ;;
+            'p') install_python="${OPTARG}"; ;;
+            'v') install_version="${OPTARG}"; ;;
+        esac;
+    done;
+    shift $((${OPTIND} - 1));
+
+    : ${install_python:=${pc_default_python}};
+    : ${install_version:=latest};
+
+    if [ $# = 0 ]; then
+        usage_install "No project specified";
+    fi;
+    install_project="${1}"; shift;
+
+    if [ $# = 0 ]; then
+        install_commands="${install_project}";
+    else
+        install_commands="$@";
+    fi;
+}
+
+#
+# Entry point
+#
+install_main () {
+    shift;
+    parse_options_install "$@";
+
+    echo                                               \
+        "Installing ${install_commands}"               \
+        "from ${install_project}[${install_version}]"  \
+        "using ${install_python}"                      \
+        ;
+
+    local env="$(env_path "${install_project}" "${install_version}")";
+
+    mkdir -p "${env}";
+
+    "${install_python}" -m virtualenv "${env}";
+
+    local env_bin="${env}/bin";
+    local env_python="${env_bin}/python"
+
+    local install_spec;
+    if [ "${install_version}" = "latest" ]; then
+        install_spec="${install_project}";
+    else
+        install_spec="${install_project}==${install_version}";
+    fi;
+
+    "${env_python}" -m pip install "${install_spec}";
+
+    mkdir -p "${pc_bin}";
+
+    local install_command;
+    local result=0;
+    for install_command in ${install_commands}; do
+        local env_command="${env_bin}/${install_command}";
+
+        if [ ! -x "${env_command}" ]; then
+            echo \
+                "ERROR: Command ${install_command} not found"  \
+                "in ${install_project} (${install_version})"   \
+                >&2;
+            result=1;
+            continue;
+        fi;
+
+        local link_command="$(command_path_no_check "${install_command}")";
+        local   link_dest="$(command_path_link_dest "${install_command}")";
+
+        rm -f "${link_command}";
+        ln -s "${link_dest}" "${link_command}";
+    done;
+
+    return ${result};
+}
+
+
+##
+# Handle the update command line
+##
+
+#
+# Entry point
+#
+update_main () {
+    echo "Unimplemented." >&2;
+    exit 44;
+}
+
+
+##
+# Handle the remove command line
+##
+
+#
+# Print usage and exit.
+# If given, print an error message and exit with EX_USAGE (64).
+#
+usage_remove () {
+    local program="$(basename "$0")";
+
+    if [ "${1--}" != "-" ]; then
+        echo "$@";
+        echo;
+    else
+        echo "Remove a command.";
+        echo "";
+    fi;
+
+    echo "Usage: ${program} ${subcommand} [options] [command ...]";
+    echo "Options:";
+    echo "  -h  Print this help and exit";
+
+    if [ "${1-}" = "-" ]; then
+        return 0;
+    fi;
+    exit 64;
+}
+
+#
+# Parse options from arguments.
+#
+parse_options_remove () {
+    local option;
+    local OPTIND=1;
+    while getopts "h" option; do
+        case "${option}" in
+            '?') usage_remove; ;;
+            'h') usage_remove -; exit 0; ;;
+        esac;
+    done;
+    shift $((${OPTIND} - 1));
+
+    if [ $# = 0 ]; then
+        usage_remove "No command specified";
+    else
+        remove_commands="$@";
+    fi;
+}
+
+#
+# Entry point
+#
+remove_main () {
+    shift;
+    parse_options_remove "$@";
+
+    local remove_command;
+    for remove_command in ${remove_commands}; do
+        if ! have_command "${remove_command}"; then
+            echo "Not installed: ${remove_command}" >&2;
+            continue;
+        fi;
+
+        local link_command="$(command_path "${remove_command}")";
+
+        echo "Removing: $(command_info "${remove_command}")";
+
+        rm -f "${link_command}";
+    done;
+}
+
+
+##
+# Handle the list command line
+##
+
+#
+# Print usage and exit.
+# If given, print an error message and exit with EX_USAGE (64).
+#
+usage_list () {
+    local program="$(basename "$0")";
+
+    if [ "${1--}" != "-" ]; then
+        echo "$@";
+        echo;
+    else
+        echo "List installed commands.";
+        echo "";
+    fi;
+
+    echo "Usage: ${program} ${subcommand} [options]";
+    echo "Options:";
+    echo "  -h  Print this help and exit";
+
+    if [ "${1-}" = "-" ]; then
+        return 0;
+    fi;
+    exit 64;
+}
+
+#
+# Parse options from arguments.
+#
+parse_options_list () {
+    local option;
+    local OPTIND=1;
+    while getopts "h" option; do
+        case "${option}" in
+            '?') usage_list; ;;
+            'h') usage_list -; exit 0; ;;
+        esac;
+    done;
+    shift $((${OPTIND} - 1));
+
+    if [ $# != 0 ]; then
+        usage_list "Unrecognized arguments: $@";
+    fi;
+}
+
+#
+# Entry point
+#
+list_main () {
+    shift;
+    parse_options_list "$@";
+
+    local command;
+    for command in $(list_commands); do
+        command_info "${command}";
+    done;
+}
+
+
+##
+# Do The Right Thing
+##
+
+main "$@";
