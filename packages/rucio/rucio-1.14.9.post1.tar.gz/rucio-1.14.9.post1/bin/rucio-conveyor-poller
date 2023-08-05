@@ -1,0 +1,61 @@
+#!/usr/bin/env python
+# Copyright European Organization for Nuclear Research (CERN)
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# You may not use this file except in compliance with the License.
+# You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
+#
+# Authors:
+# - Vincent Garonne, <vincent.garonne@cern.ch>, 2012
+# - Mario Lassnig, <mario.lassnig@cern.ch>, 2013-2015
+# - Wen Guan, <wen.guan@cern.ch>, 2014-2015
+
+"""
+Conveyor is a daemon to manage file transfers.
+"""
+
+import argparse
+import signal
+
+from rucio.daemons.conveyor.poller import run, stop
+
+if __name__ == "__main__":
+
+    signal.signal(signal.SIGTERM, stop)
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--run-once", action="store_true", default=False,
+                        help='One iteration only')
+    parser.add_argument("--process", action="store", default=0, type=int,
+                        help='Concurrency control: current processes number')
+    parser.add_argument("--total-processes", action="store", default=1, type=int,
+                        help='Concurrency control: total number of processes')
+    parser.add_argument("--total-threads", action="store", default=1, type=int,
+                        help='Concurrency control: total number of threads per process')
+    parser.add_argument("--fts-bulk", action="store", default=100, type=int,
+                        help='Bulk control: number of transfers per FTS query')
+    parser.add_argument("--db-bulk", action="store", default=1000, type=int,
+                        help='Bulk control: number of transfers per db query')
+    parser.add_argument("--older-than", action="store", default=60, type=int,
+                        help='Poll control: older request more than this value to poll')
+    parser.add_argument('--sleep-time', action="store", default=300, type=int,
+                        help='Seconds to sleep if few requests')
+    parser.add_argument('--activities', nargs='+', type=str,
+                        help='Explicit list of activities to include')
+    parser.add_argument('--activity-shares', action='store', default=None, type=str,
+                        help='JSON-encoded string of an activity shares dictionary {"act_1": 0.2, "act_2": 0.4, ...}')
+    args = parser.parse_args()
+
+    try:
+        run(once=args.run_once,
+            process=args.process,
+            total_processes=args.total_processes,
+            total_threads=args.total_threads,
+            fts_bulk=args.fts_bulk,
+            db_bulk=args.db_bulk,
+            older_than=args.older_than,
+            sleep_time=args.sleep_time,
+            activities=args.activities,
+            activity_shares=args.activity_shares)
+    except KeyboardInterrupt:
+        stop()
