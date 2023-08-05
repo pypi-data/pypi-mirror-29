@@ -1,0 +1,99 @@
+import 'normalize.css';
+import React from 'react';
+import ReactDOM from 'react-dom';
+import io from 'socket.io-client';
+import {message} from 'antd';
+import {
+    BrowserRouter,
+    Switch,
+    Route,
+    Link
+} from 'react-router-dom';
+
+{% for viewid in range(1, maxviewid + 1) %}
+import View{{ viewid }} from './view{{ viewid }}';
+{% endfor %}
+
+var msgpack = require('msgpack-lite');
+var socket = io({path: '/{{ socketio }}socket.io'});
+
+class Dashboard extends React.Component {
+    constructor(props) {
+        super(props);
+        this.cache = {};
+        socket.emit('INITIALIZE');
+    }
+
+    saveValue = data => {
+        var arr = new Uint8Array(data['key']);
+        var key = msgpack.decode(arr);
+        var value = new Uint8Array(data['data']).toString();
+        sessionStorage.setItem('cache' + key, value);
+    }
+
+    loadValue = (data, fn) => {
+        var arr = new Uint8Array(data['data']);
+        var key = msgpack.decode(arr);
+        var x = sessionStorage.getItem('cache' + key)
+        if (x === null) {
+            var buffer = new ArrayBuffer(1);
+            var x = new DataView(buffer, 0);
+            // msgpack encodes null to 0xc0
+            x.setUint8(0, 0xc0);
+            fn(buffer);
+        } else {
+            x = new Uint8Array(x.split(','));
+            fn(x.buffer);
+        }
+    }
+
+    componentDidMount() {
+        socket.on('cache_save', this.saveValue);
+        socket.on('cache_load', this.loadValue);
+        {% for page in pages %}
+        socket.on('page#{{ page._uuid }}', function () {socket.emit('resp#{{ page._uuid }}')});
+        {% endfor %}
+        socket.on('message.success', (data) => {
+            var arr = new Uint8Array(data['data']);
+            message.success(msgpack.decode(arr));
+        });
+        socket.on('message.error', (data) => {
+            var arr = new Uint8Array(data['data']);
+            message.error(msgpack.decode(arr));
+        });
+        socket.on('message.info', (data) => {
+            var arr = new Uint8Array(data['data']);
+            message.info(msgpack.decode(arr));
+        });
+        socket.on('message.warning', (data) => {
+            var arr = new Uint8Array(data['data']);
+            message.warning(msgpack.decode(arr));
+        });
+        socket.on('message.loading', (data) => {
+            var arr = new Uint8Array(data['data']);
+            message.loading(msgpack.decode(arr));
+        });
+    }
+
+    render() {
+        return (
+            <BrowserRouter>
+                <Switch>
+                    {% for route in routes %}
+                        <Route
+                            {% if route.exact %}
+                            exact
+                            {% endif %}
+                            path='{{ route.path }}'
+                            render={()=><View{{ route.view._uuid }} socket={socket}/>}
+                        />
+                    {% endfor %}
+                </Switch>
+            </BrowserRouter>
+        );
+    }
+}
+
+ReactDOM.render(<Dashboard />, document.getElementById('app'));
+
+// vim: set ft=javascript.jsx:
