@@ -1,0 +1,585 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>pyamps.sh_utils &#8212; pyAMPS 1.0.0 documentation</title>
+    <link rel="stylesheet" href="../../_static/nature.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '1.0.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+  </head>
+  <body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">pyAMPS 1.0.0 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" accesskey="U">Module code</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for pyamps.sh_utils</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot; tools that are useful for spherical harmonic analysis</span>
+
+<span class="sd">    SHkeys       -- class to contain n and m - the indices of the spherical harmonic terms</span>
+<span class="sd">    nterms       -- function which calculates the number of terms in a </span>
+<span class="sd">                    real expansion of a poloidal (internal + external) and toroidal expansion </span>
+<span class="sd">    legendre -- calculate associated legendre functions - with option for Schmidt semi-normalization</span>
+
+
+
+<span class="sd">MIT License</span>
+
+<span class="sd">Copyright (c) 2017 Karl M. Laundal</span>
+
+<span class="sd">Permission is hereby granted, free of charge, to any person obtaining a copy</span>
+<span class="sd">of this software and associated documentation files (the &quot;Software&quot;), to deal</span>
+<span class="sd">in the Software without restriction, including without limitation the rights</span>
+<span class="sd">to use, copy, modify, merge, publish, distribute, sublicense, and/or sell</span>
+<span class="sd">copies of the Software, and to permit persons to whom the Software is</span>
+<span class="sd">furnished to do so, subject to the following conditions:</span>
+
+<span class="sd">The above copyright notice and this permission notice shall be included in all</span>
+<span class="sd">copies or substantial portions of the Software.</span>
+
+<span class="sd">THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR</span>
+<span class="sd">IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,</span>
+<span class="sd">FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE</span>
+<span class="sd">AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER</span>
+<span class="sd">LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,</span>
+<span class="sd">OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE</span>
+<span class="sd">SOFTWARE.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">apexpy</span>
+<span class="kn">from</span> <span class="nn">.mlt_utils</span> <span class="k">import</span> <span class="n">mlon_to_mlt</span>
+<span class="kn">from</span> <span class="nn">builtins</span> <span class="k">import</span> <span class="nb">range</span>
+
+<span class="n">d2r</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="o">/</span><span class="mi">180</span>
+
+<span class="n">DEFAULT</span> <span class="o">=</span> <span class="nb">object</span><span class="p">()</span>
+<span class="n">refre</span> <span class="o">=</span> <span class="mf">6371.2</span> <span class="c1"># reference radius</span>
+
+<div class="viewcode-block" id="SHkeys"><a class="viewcode-back" href="../../reference.html#pyamps.sh_utils.SHkeys">[docs]</a><span class="k">class</span> <span class="nc">SHkeys</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; container for n and m in spherical harmonics</span>
+
+<span class="sd">        keys = SHkeys(Nmax, Mmax)</span>
+
+<span class="sd">        keys will behave as a tuple of tuples, more or less</span>
+<span class="sd">        keys[&#39;n&#39;] will return a list of the n&#39;s</span>
+<span class="sd">        keys[&#39;m&#39;] will return a list of the m&#39;s</span>
+<span class="sd">        keys[3] will return the fourth n,m tuple</span>
+
+<span class="sd">        keys is also iterable</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">Nmax</span><span class="p">,</span> <span class="n">Mmax</span><span class="p">):</span>
+        <span class="n">keys</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">Nmax</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">Mmax</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+                <span class="n">keys</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">n</span><span class="p">,</span> <span class="n">m</span><span class="p">))</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">keys</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">keys</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">make_arrays</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">index</span> <span class="o">==</span> <span class="s1">&#39;n&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[</span><span class="n">key</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">keys</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">index</span> <span class="o">==</span> <span class="s1">&#39;m&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[</span><span class="n">key</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">keys</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">keys</span><span class="p">[</span><span class="n">index</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">__iter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">keys</span><span class="p">:</span>
+            <span class="k">yield</span> <span class="n">key</span>
+
+    <span class="k">def</span> <span class="nf">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">keys</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="s1">&#39;n, m</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">key</span><span class="p">)[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">keys</span><span class="p">])[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="s1">&#39;n, m</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">key</span><span class="p">)[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">keys</span><span class="p">])[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+<div class="viewcode-block" id="SHkeys.setNmin"><a class="viewcode-back" href="../../reference.html#pyamps.sh_utils.SHkeys.setNmin">[docs]</a>    <span class="k">def</span> <span class="nf">setNmin</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nmin</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; set minimum n &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">keys</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">([</span><span class="n">key</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">keys</span> <span class="k">if</span> <span class="n">key</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="n">nmin</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">make_arrays</span><span class="p">()</span>
+        <span class="k">return</span> <span class="bp">self</span></div>
+
+<div class="viewcode-block" id="SHkeys.MleN"><a class="viewcode-back" href="../../reference.html#pyamps.sh_utils.SHkeys.MleN">[docs]</a>    <span class="k">def</span> <span class="nf">MleN</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; set m &lt;= n &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">keys</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">([</span><span class="n">key</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">keys</span> <span class="k">if</span> <span class="nb">abs</span><span class="p">(</span><span class="n">key</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="o">&lt;=</span> <span class="n">key</span><span class="p">[</span><span class="mi">0</span><span class="p">]])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">make_arrays</span><span class="p">()</span>
+        <span class="k">return</span> <span class="bp">self</span></div>
+
+<div class="viewcode-block" id="SHkeys.Mge"><a class="viewcode-back" href="../../reference.html#pyamps.sh_utils.SHkeys.Mge">[docs]</a>    <span class="k">def</span> <span class="nf">Mge</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">limit</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; set m &gt;= limit  &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">keys</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">([</span><span class="n">key</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">keys</span> <span class="k">if</span> <span class="nb">abs</span><span class="p">(</span><span class="n">key</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="o">&gt;=</span> <span class="n">limit</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">make_arrays</span><span class="p">()</span>
+        <span class="k">return</span> <span class="bp">self</span></div>
+
+<div class="viewcode-block" id="SHkeys.NminusModd"><a class="viewcode-back" href="../../reference.html#pyamps.sh_utils.SHkeys.NminusModd">[docs]</a>    <span class="k">def</span> <span class="nf">NminusModd</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; remove keys if n - m is even &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">keys</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">([</span><span class="n">key</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">keys</span> <span class="k">if</span> <span class="p">(</span><span class="n">key</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="nb">abs</span><span class="p">(</span><span class="n">key</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span> <span class="o">%</span> <span class="mi">2</span> <span class="o">==</span> <span class="mi">1</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">make_arrays</span><span class="p">()</span>
+        <span class="k">return</span> <span class="bp">self</span></div>
+
+<div class="viewcode-block" id="SHkeys.NminusMeven"><a class="viewcode-back" href="../../reference.html#pyamps.sh_utils.SHkeys.NminusMeven">[docs]</a>    <span class="k">def</span> <span class="nf">NminusMeven</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; remove keys if n - m is odd &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">keys</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">([</span><span class="n">key</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">keys</span> <span class="k">if</span> <span class="p">(</span><span class="n">key</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="nb">abs</span><span class="p">(</span><span class="n">key</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span> <span class="o">%</span> <span class="mi">2</span> <span class="o">==</span> <span class="mi">0</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">make_arrays</span><span class="p">()</span>
+        <span class="k">return</span> <span class="bp">self</span></div>
+
+<div class="viewcode-block" id="SHkeys.negative_m"><a class="viewcode-back" href="../../reference.html#pyamps.sh_utils.SHkeys.negative_m">[docs]</a>    <span class="k">def</span> <span class="nf">negative_m</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; add negative m to the keys &quot;&quot;&quot;</span>
+        <span class="n">keys</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">keys</span><span class="p">:</span>
+            <span class="n">keys</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">key</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">keys</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">key</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="o">-</span><span class="n">key</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">keys</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">keys</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">make_arrays</span><span class="p">()</span>
+        
+        <span class="k">return</span> <span class="bp">self</span></div>
+
+
+<div class="viewcode-block" id="SHkeys.make_arrays"><a class="viewcode-back" href="../../reference.html#pyamps.sh_utils.SHkeys.make_arrays">[docs]</a>    <span class="k">def</span> <span class="nf">make_arrays</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; prepare arrays with shape ( 1, len(keys) )</span>
+<span class="sd">            these are used when making G matrices</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">m</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="bp">self</span><span class="p">)[:,</span> <span class="mi">1</span><span class="p">][</span><span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">,</span> <span class="p">:]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">n</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="bp">self</span><span class="p">)[:,</span> <span class="mi">0</span><span class="p">][</span><span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">,</span> <span class="p">:]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">m</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([])[</span><span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">,</span> <span class="p">:]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">n</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([])[</span><span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">,</span> <span class="p">:]</span></div></div>
+
+
+
+<div class="viewcode-block" id="nterms"><a class="viewcode-back" href="../../reference.html#pyamps.sh_utils.nterms">[docs]</a><span class="k">def</span> <span class="nf">nterms</span><span class="p">(</span><span class="n">NT</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">MT</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">NVi</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">MVi</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">NVe</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">MVe</span> <span class="o">=</span> <span class="mi">0</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; return number of coefficients in an expansion in real spherical harmonics of</span>
+<span class="sd">        toroidal magnetic potential truncated at NT, MT</span>
+<span class="sd">        poloidal magnetic potential truncated at NVi, MVi for internal sources</span>
+<span class="sd">        poloidal magnetic potential truncated at NVe, MVe for external sources</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="n">SHkeys</span><span class="p">(</span><span class="n">NT</span> <span class="p">,</span> <span class="n">MT</span> <span class="p">)</span><span class="o">.</span><span class="n">setNmin</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">MleN</span><span class="p">()</span><span class="o">.</span><span class="n">Mge</span><span class="p">(</span><span class="mi">0</span><span class="p">))</span> <span class="o">+</span> \
+           <span class="nb">len</span><span class="p">(</span><span class="n">SHkeys</span><span class="p">(</span><span class="n">NT</span> <span class="p">,</span> <span class="n">MT</span> <span class="p">)</span><span class="o">.</span><span class="n">setNmin</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">MleN</span><span class="p">()</span><span class="o">.</span><span class="n">Mge</span><span class="p">(</span><span class="mi">1</span><span class="p">))</span> <span class="o">+</span> \
+           <span class="nb">len</span><span class="p">(</span><span class="n">SHkeys</span><span class="p">(</span><span class="n">NVe</span><span class="p">,</span> <span class="n">MVe</span><span class="p">)</span><span class="o">.</span><span class="n">setNmin</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">MleN</span><span class="p">()</span><span class="o">.</span><span class="n">Mge</span><span class="p">(</span><span class="mi">0</span><span class="p">))</span> <span class="o">+</span> \
+           <span class="nb">len</span><span class="p">(</span><span class="n">SHkeys</span><span class="p">(</span><span class="n">NVe</span><span class="p">,</span> <span class="n">MVe</span><span class="p">)</span><span class="o">.</span><span class="n">setNmin</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">MleN</span><span class="p">()</span><span class="o">.</span><span class="n">Mge</span><span class="p">(</span><span class="mi">1</span><span class="p">))</span> <span class="o">+</span> \
+           <span class="nb">len</span><span class="p">(</span><span class="n">SHkeys</span><span class="p">(</span><span class="n">NVi</span><span class="p">,</span> <span class="n">MVi</span><span class="p">)</span><span class="o">.</span><span class="n">setNmin</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">MleN</span><span class="p">()</span><span class="o">.</span><span class="n">Mge</span><span class="p">(</span><span class="mi">0</span><span class="p">))</span> <span class="o">+</span> \
+           <span class="nb">len</span><span class="p">(</span><span class="n">SHkeys</span><span class="p">(</span><span class="n">NVi</span><span class="p">,</span> <span class="n">MVi</span><span class="p">)</span><span class="o">.</span><span class="n">setNmin</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">MleN</span><span class="p">()</span><span class="o">.</span><span class="n">Mge</span><span class="p">(</span><span class="mi">1</span><span class="p">))</span></div>
+
+
+
+<div class="viewcode-block" id="legendre"><a class="viewcode-back" href="../../reference.html#pyamps.sh_utils.legendre">[docs]</a><span class="k">def</span> <span class="nf">legendre</span><span class="p">(</span><span class="n">nmax</span><span class="p">,</span> <span class="n">mmax</span><span class="p">,</span> <span class="n">theta</span><span class="p">,</span> <span class="n">schmidtnormalize</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span> <span class="n">keys</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Calculate associated Legendre function P and its derivative</span>
+
+<span class="sd">        Algorithm from &quot;Spacecraft Attitude Determination and Control&quot; by James Richard Wertz</span>
+
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        nmax : int</span>
+<span class="sd">            highest spherical harmonic degree</span>
+<span class="sd">        mmax : int</span>
+<span class="sd">            hightest spherical harmonic order</span>
+<span class="sd">        theta : array, float</span>
+<span class="sd">            colatitude in degrees (shape is not preserved)</span>
+<span class="sd">        schmidtnormalize : bool, optional</span>
+<span class="sd">            True if Schmidth seminormalization is wanted, False otherwise. Default True</span>
+<span class="sd">        keys : SHkeys, optional</span>
+<span class="sd">            If this parameter is set, an array will be returned instead of a dict. </span>
+<span class="sd">            The array will be (N, 2M), where N is the number of elements in `theta`, and </span>
+<span class="sd">            M is the number of keys. The first M columns represents a matrix of P values, </span>
+<span class="sd">            and the last M columns represent values of dP/dtheta</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        P : dict</span>
+<span class="sd">            dictionary of Legendre function evalulated at theta. Dictionary keys are spherical harmonic</span>
+<span class="sd">            wave number tuples (n, m), and values will have shape (N, 1), where N is number of </span>
+<span class="sd">            elements in `theta`. </span>
+<span class="sd">        dP : dict</span>
+<span class="sd">            dictionary of Legendre function derivatives evaluated at theta. Dictionary keys are spherical</span>
+<span class="sd">            harmonic wave number tuples (n, m), and values will have shape (N, 1), where N is number of </span>
+<span class="sd">            elements in theta. </span>
+<span class="sd">        PdP : array (only if keys != None)</span>
+<span class="sd">            if keys != None, PdP is returned instaed of P and dP. PdP is an (N, 2M) array, where N is </span>
+<span class="sd">            the number of elements in `theta`, and M is the number of keys. The first M columns represents </span>
+<span class="sd">            a matrix of P values, and the last M columns represent values of dP/dtheta</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">theta</span> <span class="o">=</span> <span class="n">theta</span><span class="o">.</span><span class="n">flatten</span><span class="p">()[:,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span>
+
+    <span class="n">P</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">dP</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">sinth</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">d2r</span><span class="o">*</span><span class="n">theta</span><span class="p">)</span>
+    <span class="n">costh</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">d2r</span><span class="o">*</span><span class="n">theta</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">schmidtnormalize</span><span class="p">:</span>
+        <span class="n">S</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">S</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.</span>
+
+    <span class="c1"># initialize the functions:</span>
+    <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nmax</span> <span class="o">+</span><span class="mi">1</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nmax</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="n">P</span><span class="p">[</span><span class="n">n</span><span class="p">,</span> <span class="n">m</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">theta</span><span class="p">,</span> <span class="n">dtype</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+            <span class="n">dP</span><span class="p">[</span><span class="n">n</span><span class="p">,</span> <span class="n">m</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">theta</span><span class="p">,</span> <span class="n">dtype</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+
+    <span class="n">P</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">theta</span><span class="p">,</span> <span class="n">dtype</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">nmax</span> <span class="o">+</span><span class="mi">1</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">min</span><span class="p">([</span><span class="n">n</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">mmax</span> <span class="o">+</span> <span class="mi">1</span><span class="p">])):</span>
+            <span class="c1"># do the legendre functions and derivatives</span>
+            <span class="k">if</span> <span class="n">n</span> <span class="o">==</span> <span class="n">m</span><span class="p">:</span>
+                <span class="n">P</span><span class="p">[</span><span class="n">n</span><span class="p">,</span> <span class="n">n</span><span class="p">]</span>  <span class="o">=</span> <span class="n">sinth</span> <span class="o">*</span> <span class="n">P</span><span class="p">[</span><span class="n">n</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">m</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span>
+                <span class="n">dP</span><span class="p">[</span><span class="n">n</span><span class="p">,</span> <span class="n">n</span><span class="p">]</span> <span class="o">=</span> <span class="n">sinth</span> <span class="o">*</span> <span class="n">dP</span><span class="p">[</span><span class="n">n</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">m</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">costh</span> <span class="o">*</span> <span class="n">P</span><span class="p">[</span><span class="n">n</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">n</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+
+                <span class="k">if</span> <span class="n">n</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="n">Knm</span> <span class="o">=</span> <span class="mf">0.</span>
+                    <span class="n">P</span><span class="p">[</span><span class="n">n</span><span class="p">,</span> <span class="n">m</span><span class="p">]</span>  <span class="o">=</span> <span class="n">costh</span> <span class="o">*</span> <span class="n">P</span><span class="p">[</span><span class="n">n</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">m</span><span class="p">]</span>
+                    <span class="n">dP</span><span class="p">[</span><span class="n">n</span><span class="p">,</span> <span class="n">m</span><span class="p">]</span> <span class="o">=</span> <span class="n">costh</span> <span class="o">*</span> <span class="n">dP</span><span class="p">[</span><span class="n">n</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">m</span><span class="p">]</span> <span class="o">-</span> <span class="n">sinth</span> <span class="o">*</span> <span class="n">P</span><span class="p">[</span><span class="n">n</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">m</span><span class="p">]</span>
+
+                <span class="k">elif</span> <span class="n">n</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="n">Knm</span> <span class="o">=</span> <span class="p">((</span><span class="n">n</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span> <span class="o">-</span> <span class="n">m</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span> <span class="o">/</span> <span class="p">((</span><span class="mi">2</span><span class="o">*</span><span class="n">n</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span><span class="o">*</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">n</span> <span class="o">-</span> <span class="mi">3</span><span class="p">))</span>
+                    <span class="n">P</span><span class="p">[</span><span class="n">n</span><span class="p">,</span> <span class="n">m</span><span class="p">]</span>  <span class="o">=</span> <span class="n">costh</span> <span class="o">*</span> <span class="n">P</span><span class="p">[</span><span class="n">n</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">m</span><span class="p">]</span> <span class="o">-</span> <span class="n">Knm</span><span class="o">*</span><span class="n">P</span><span class="p">[</span><span class="n">n</span> <span class="o">-</span> <span class="mi">2</span><span class="p">,</span> <span class="n">m</span><span class="p">]</span>
+                    <span class="n">dP</span><span class="p">[</span><span class="n">n</span><span class="p">,</span> <span class="n">m</span><span class="p">]</span> <span class="o">=</span> <span class="n">costh</span> <span class="o">*</span> <span class="n">dP</span><span class="p">[</span><span class="n">n</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">m</span><span class="p">]</span> <span class="o">-</span> <span class="n">sinth</span> <span class="o">*</span> <span class="n">P</span><span class="p">[</span><span class="n">n</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">m</span><span class="p">]</span> <span class="o">-</span> <span class="n">Knm</span> <span class="o">*</span> <span class="n">dP</span><span class="p">[</span><span class="n">n</span> <span class="o">-</span> <span class="mi">2</span><span class="p">,</span> <span class="n">m</span><span class="p">]</span>
+
+            <span class="k">if</span> <span class="n">schmidtnormalize</span><span class="p">:</span>
+                <span class="c1"># compute Schmidt normalization</span>
+                <span class="k">if</span> <span class="n">m</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">S</span><span class="p">[</span><span class="n">n</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">S</span><span class="p">[</span><span class="n">n</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="mf">2.</span><span class="o">*</span><span class="n">n</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span><span class="o">/</span><span class="n">n</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">S</span><span class="p">[</span><span class="n">n</span><span class="p">,</span> <span class="n">m</span><span class="p">]</span> <span class="o">=</span> <span class="n">S</span><span class="p">[</span><span class="n">n</span><span class="p">,</span> <span class="n">m</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">((</span><span class="n">n</span> <span class="o">-</span> <span class="n">m</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span><span class="o">*</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">m</span> <span class="o">==</span> <span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="mf">1.</span><span class="p">)</span><span class="o">/</span><span class="p">(</span><span class="n">n</span> <span class="o">+</span> <span class="n">m</span><span class="p">))</span>
+
+
+    <span class="k">if</span> <span class="n">schmidtnormalize</span><span class="p">:</span>
+        <span class="c1"># now apply Schmidt normalization</span>
+        <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">nmax</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">min</span><span class="p">([</span><span class="n">n</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">mmax</span> <span class="o">+</span> <span class="mi">1</span><span class="p">])):</span>
+                <span class="n">P</span><span class="p">[</span><span class="n">n</span><span class="p">,</span> <span class="n">m</span><span class="p">]</span>  <span class="o">*=</span> <span class="n">S</span><span class="p">[</span><span class="n">n</span><span class="p">,</span> <span class="n">m</span><span class="p">]</span>
+                <span class="n">dP</span><span class="p">[</span><span class="n">n</span><span class="p">,</span> <span class="n">m</span><span class="p">]</span> <span class="o">*=</span> <span class="n">S</span><span class="p">[</span><span class="n">n</span><span class="p">,</span> <span class="n">m</span><span class="p">]</span>
+
+
+    <span class="k">if</span> <span class="n">keys</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">P</span><span class="p">,</span> <span class="n">dP</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">Pmat</span>  <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">P</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">keys</span><span class="p">))</span>
+        <span class="n">dPmat</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">dP</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">keys</span><span class="p">))</span> 
+    
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span><span class="n">Pmat</span><span class="p">,</span> <span class="n">dPmat</span><span class="p">))</span></div>
+
+
+
+
+<div class="viewcode-block" id="getG0"><a class="viewcode-back" href="../../reference.html#pyamps.sh_utils.getG0">[docs]</a><span class="k">def</span> <span class="nf">getG0</span><span class="p">(</span><span class="n">glat</span><span class="p">,</span> <span class="n">glon</span><span class="p">,</span> <span class="n">height</span><span class="p">,</span> <span class="n">time</span><span class="p">,</span> <span class="n">epoch</span> <span class="o">=</span> <span class="mf">2015.</span><span class="p">,</span> <span class="n">h_R</span> <span class="o">=</span> <span class="mf">110.</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; calculate the G matrix for the constant term in the AMPS model. The constant term is the </span>
+<span class="sd">        term that depends only on the spherical harmonic coefficients that are not scaled by </span>
+<span class="sd">        external parameters. This G matrix can be used to produce the full matrix.</span>
+
+<span class="sd">        The structure of the matrix is such that G0.dot(m), the product of the matrix with the </span>
+<span class="sd">        first 1/19 of the model vector, will be model values of the eastward, northward, and</span>
+<span class="sd">        upward components of the magnetic field, stacked in a column vector.</span>
+
+<span class="sd">        glat, glon, time, and height must all have the same number of elements (let&#39;s call this N)</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        glat : array</span>
+<span class="sd">            Geodetic latitude (degrees)</span>
+<span class="sd">        glon : array</span>
+<span class="sd">            Geographic/geodetic longitude (degrees)</span>
+<span class="sd">        height : array</span>
+<span class="sd">            Geodetic heights, in km</span>
+<span class="sd">        time : array</span>
+<span class="sd">            Array of datetimes correspondign to each point. This is needed to calculate </span>
+<span class="sd">            magnetic local time.</span>
+<span class="sd">        epoch : float, optional</span>
+<span class="sd">            The epoch used for conversion to apex coordinates. Default 2015.</span>
+<span class="sd">        h_R : float, optional</span>
+<span class="sd">            Reference height used in conversion to modified apex coordinates. Default 110 km.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        G0 : array</span>
+<span class="sd">            an 3N by M matrix, where N is the number of elements in the input coordinates. There will be</span>
+<span class="sd">            3 times as many rows G0, since there are 3 components. Partionining G0 in thirds, from top to</span>
+<span class="sd">            bottom, gives the parts that correspond to east, north, and up, respectively. M</span>
+<span class="sd">            is the number of terms in the spherical harmonic expansion of B</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">glat</span>   <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">glat</span><span class="p">)</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+    <span class="n">glon</span>   <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">glon</span><span class="p">)</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+    <span class="n">height</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">height</span><span class="p">)</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+
+    <span class="c1"># convert to magnetic coords and get base vectors</span>
+    <span class="n">a</span> <span class="o">=</span> <span class="n">apexpy</span><span class="o">.</span><span class="n">Apex</span><span class="p">(</span><span class="n">epoch</span><span class="p">,</span> <span class="n">refh</span> <span class="o">=</span> <span class="n">h_R</span><span class="p">)</span>
+    <span class="n">qlat</span><span class="p">,</span> <span class="n">qlon</span> <span class="o">=</span> <span class="n">a</span><span class="o">.</span><span class="n">geo2qd</span><span class="p">(</span>  <span class="n">glat</span><span class="o">.</span><span class="n">flatten</span><span class="p">(),</span> <span class="n">glon</span><span class="o">.</span><span class="n">flatten</span><span class="p">(),</span> <span class="n">height</span><span class="o">.</span><span class="n">flatten</span><span class="p">())</span>
+    <span class="n">alat</span><span class="p">,</span> <span class="n">alon</span> <span class="o">=</span> <span class="n">a</span><span class="o">.</span><span class="n">geo2apex</span><span class="p">(</span><span class="n">glat</span><span class="o">.</span><span class="n">flatten</span><span class="p">(),</span> <span class="n">glon</span><span class="o">.</span><span class="n">flatten</span><span class="p">(),</span> <span class="n">height</span><span class="o">.</span><span class="n">flatten</span><span class="p">())</span>
+    <span class="n">f1</span><span class="p">,</span> <span class="n">f2</span><span class="p">,</span> <span class="n">f3</span><span class="p">,</span> <span class="n">g1</span><span class="p">,</span> <span class="n">g2</span><span class="p">,</span> <span class="n">g3</span><span class="p">,</span> <span class="n">d1</span><span class="p">,</span> <span class="n">d2</span><span class="p">,</span> <span class="n">d3</span><span class="p">,</span> <span class="n">e1</span><span class="p">,</span> <span class="n">e2</span><span class="p">,</span> <span class="n">e3</span> <span class="o">=</span> <span class="n">a</span><span class="o">.</span><span class="n">basevectors_apex</span><span class="p">(</span><span class="n">qlat</span><span class="p">,</span> <span class="n">qlon</span><span class="p">,</span> <span class="n">height</span><span class="p">,</span> <span class="n">coords</span>  <span class="o">=</span> <span class="s1">&#39;qd&#39;</span><span class="p">)</span>
+    <span class="n">f1e</span> <span class="o">=</span> <span class="n">f1</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="c1"># base vector components as column vectors</span>
+    <span class="n">f1n</span> <span class="o">=</span> <span class="n">f1</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">f2e</span> <span class="o">=</span> <span class="n">f2</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">f2n</span> <span class="o">=</span> <span class="n">f2</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">d1e</span> <span class="o">=</span> <span class="n">d1</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">d1n</span> <span class="o">=</span> <span class="n">d1</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">d2e</span> <span class="o">=</span> <span class="n">d2</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">d2n</span> <span class="o">=</span> <span class="n">d2</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+    <span class="c1"># calculate magnetic local time</span>
+    <span class="n">phi</span> <span class="o">=</span> <span class="n">mlon_to_mlt</span><span class="p">(</span><span class="n">qlon</span><span class="p">,</span> <span class="n">time</span><span class="p">,</span> <span class="n">a</span><span class="o">.</span><span class="n">year</span><span class="p">)[:,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span><span class="o">*</span><span class="mi">15</span> <span class="c1"># multiply by 15 to get degrees</span>
+
+    <span class="c1"># turn the coordinate arrays into column vectors:</span>
+    <span class="n">alat</span><span class="p">,</span> <span class="n">qlat</span><span class="p">,</span> <span class="n">h</span> <span class="o">=</span> <span class="nb">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="o">.</span><span class="n">flatten</span><span class="p">()[:,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">],</span> <span class="p">[</span><span class="n">alat</span><span class="p">,</span> <span class="n">qlat</span><span class="p">,</span> <span class="n">height</span><span class="p">])</span>
+
+    <span class="c1"># truncation levels:</span>
+    <span class="n">NT</span><span class="p">,</span> <span class="n">MT</span><span class="p">,</span> <span class="n">NV</span><span class="p">,</span> <span class="n">MV</span> <span class="o">=</span> <span class="mi">65</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">45</span><span class="p">,</span> <span class="mi">3</span>
+
+
+
+    <span class="c1"># generate spherical harmonic keys    </span>
+    <span class="n">keys</span> <span class="o">=</span> <span class="p">{}</span> <span class="c1"># dictionary of spherical harmonic keys</span>
+    <span class="n">keys</span><span class="p">[</span><span class="s1">&#39;cos_T&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">SHkeys</span><span class="p">(</span><span class="n">NT</span><span class="p">,</span> <span class="n">MT</span><span class="p">)</span><span class="o">.</span><span class="n">setNmin</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">MleN</span><span class="p">()</span><span class="o">.</span><span class="n">Mge</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">keys</span><span class="p">[</span><span class="s1">&#39;sin_T&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">SHkeys</span><span class="p">(</span><span class="n">NT</span><span class="p">,</span> <span class="n">MT</span><span class="p">)</span><span class="o">.</span><span class="n">setNmin</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">MleN</span><span class="p">()</span><span class="o">.</span><span class="n">Mge</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">keys</span><span class="p">[</span><span class="s1">&#39;cos_V&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">SHkeys</span><span class="p">(</span><span class="n">NV</span><span class="p">,</span> <span class="n">MV</span><span class="p">)</span><span class="o">.</span><span class="n">setNmin</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">MleN</span><span class="p">()</span><span class="o">.</span><span class="n">Mge</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">keys</span><span class="p">[</span><span class="s1">&#39;sin_V&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">SHkeys</span><span class="p">(</span><span class="n">NV</span><span class="p">,</span> <span class="n">MV</span><span class="p">)</span><span class="o">.</span><span class="n">setNmin</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">MleN</span><span class="p">()</span><span class="o">.</span><span class="n">Mge</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">m_cos_V</span> <span class="o">=</span> <span class="n">keys</span><span class="p">[</span><span class="s1">&#39;cos_V&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">m</span>
+    <span class="n">m_sin_V</span> <span class="o">=</span> <span class="n">keys</span><span class="p">[</span><span class="s1">&#39;sin_V&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">m</span>
+    <span class="n">m_cos_T</span> <span class="o">=</span> <span class="n">keys</span><span class="p">[</span><span class="s1">&#39;cos_T&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">m</span>
+    <span class="n">m_sin_T</span> <span class="o">=</span> <span class="n">keys</span><span class="p">[</span><span class="s1">&#39;sin_T&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">m</span>
+
+    <span class="n">nV</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span><span class="n">keys</span><span class="p">[</span><span class="s1">&#39;cos_V&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">n</span><span class="p">,</span> <span class="n">keys</span><span class="p">[</span><span class="s1">&#39;sin_V&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">n</span><span class="p">))</span>
+
+    <span class="c1"># generate Legendre matrices - first get dicts of arrays, and then stack them in the appropriate fashion</span>
+    <span class="n">legendre_T</span> <span class="o">=</span> <span class="n">legendre</span><span class="p">(</span><span class="n">NT</span><span class="p">,</span> <span class="n">MT</span><span class="p">,</span> <span class="mi">90</span> <span class="o">-</span> <span class="n">alat</span><span class="p">,</span> <span class="n">keys</span> <span class="o">=</span> <span class="n">keys</span><span class="p">[</span><span class="s1">&#39;cos_T&#39;</span><span class="p">])</span>
+    <span class="n">legendre_V</span> <span class="o">=</span> <span class="n">legendre</span><span class="p">(</span><span class="n">NV</span><span class="p">,</span> <span class="n">MV</span><span class="p">,</span> <span class="mi">90</span> <span class="o">-</span> <span class="n">qlat</span><span class="p">,</span> <span class="n">keys</span> <span class="o">=</span> <span class="n">keys</span><span class="p">[</span><span class="s1">&#39;cos_V&#39;</span><span class="p">])</span>
+    <span class="n">P_cos_T</span>  <span class="o">=</span>  <span class="n">legendre_T</span><span class="p">[:,</span> <span class="p">:</span><span class="nb">len</span><span class="p">(</span><span class="n">keys</span><span class="p">[</span><span class="s1">&#39;cos_T&#39;</span><span class="p">])</span> <span class="p">]</span> <span class="c1"># split</span>
+    <span class="n">dP_cos_T</span> <span class="o">=</span> <span class="o">-</span><span class="n">legendre_T</span><span class="p">[:,</span>  <span class="nb">len</span><span class="p">(</span><span class="n">keys</span><span class="p">[</span><span class="s1">&#39;cos_T&#39;</span><span class="p">]):]</span>
+    <span class="n">P_cos_V</span>  <span class="o">=</span>  <span class="n">legendre_V</span><span class="p">[:,</span> <span class="p">:</span><span class="nb">len</span><span class="p">(</span><span class="n">keys</span><span class="p">[</span><span class="s1">&#39;cos_V&#39;</span><span class="p">])</span> <span class="p">]</span> <span class="c1"># split</span>
+    <span class="n">dP_cos_V</span> <span class="o">=</span> <span class="o">-</span><span class="n">legendre_V</span><span class="p">[:,</span>  <span class="nb">len</span><span class="p">(</span><span class="n">keys</span><span class="p">[</span><span class="s1">&#39;cos_V&#39;</span><span class="p">]):]</span>
+    <span class="n">P_sin_T</span>  <span class="o">=</span>  <span class="n">P_cos_T</span><span class="p">[</span> <span class="p">:,</span> <span class="n">keys</span><span class="p">[</span><span class="s1">&#39;cos_T&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">m</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">]</span> 
+    <span class="n">dP_sin_T</span> <span class="o">=</span>  <span class="n">dP_cos_T</span><span class="p">[:,</span> <span class="n">keys</span><span class="p">[</span><span class="s1">&#39;cos_T&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">m</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">]</span>
+    <span class="n">P_sin_V</span>  <span class="o">=</span>  <span class="n">P_cos_V</span><span class="p">[</span> <span class="p">:,</span> <span class="n">keys</span><span class="p">[</span><span class="s1">&#39;cos_V&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">m</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">]</span>
+    <span class="n">dP_sin_V</span> <span class="o">=</span>  <span class="n">dP_cos_V</span><span class="p">[:,</span> <span class="n">keys</span><span class="p">[</span><span class="s1">&#39;cos_V&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">m</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">]</span>  
+
+    <span class="c1"># trig matrices:</span>
+    <span class="n">cos_T</span>  <span class="o">=</span>  <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">phi</span> <span class="o">*</span> <span class="n">d2r</span> <span class="o">*</span> <span class="n">m_cos_T</span><span class="p">)</span>
+    <span class="n">sin_T</span>  <span class="o">=</span>  <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">phi</span> <span class="o">*</span> <span class="n">d2r</span> <span class="o">*</span> <span class="n">m_sin_T</span><span class="p">)</span>
+    <span class="n">cos_V</span>  <span class="o">=</span>  <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">phi</span> <span class="o">*</span> <span class="n">d2r</span> <span class="o">*</span> <span class="n">m_cos_V</span><span class="p">)</span>
+    <span class="n">sin_V</span>  <span class="o">=</span>  <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">phi</span> <span class="o">*</span> <span class="n">d2r</span> <span class="o">*</span> <span class="n">m_sin_V</span><span class="p">)</span>
+    <span class="n">dcos_T</span> <span class="o">=</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">phi</span> <span class="o">*</span> <span class="n">d2r</span> <span class="o">*</span> <span class="n">m_cos_T</span><span class="p">)</span>
+    <span class="n">dsin_T</span> <span class="o">=</span>  <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">phi</span> <span class="o">*</span> <span class="n">d2r</span> <span class="o">*</span> <span class="n">m_sin_T</span><span class="p">)</span>
+    <span class="n">dcos_V</span> <span class="o">=</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">phi</span> <span class="o">*</span> <span class="n">d2r</span> <span class="o">*</span> <span class="n">m_cos_V</span><span class="p">)</span>
+    <span class="n">dsin_V</span> <span class="o">=</span>  <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">phi</span> <span class="o">*</span> <span class="n">d2r</span> <span class="o">*</span> <span class="n">m_sin_V</span><span class="p">)</span>
+
+
+    <span class="n">cos_qlat</span>   <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">qlat</span> <span class="o">*</span> <span class="n">d2r</span><span class="p">)</span>
+    <span class="n">cos_alat</span>   <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">alat</span> <span class="o">*</span> <span class="n">d2r</span><span class="p">)</span>
+
+    <span class="n">sinI</span>  <span class="o">=</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span> <span class="n">alat</span> <span class="o">*</span> <span class="n">d2r</span> <span class="p">)</span><span class="o">/</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">4</span> <span class="o">-</span> <span class="mi">3</span><span class="o">*</span><span class="n">cos_alat</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+
+    <span class="n">r</span>  <span class="o">=</span> <span class="n">refre</span> <span class="o">+</span> <span class="n">h</span>
+    <span class="n">Rtor</span>  <span class="o">=</span> <span class="n">refre</span><span class="o">/</span><span class="n">r</span>
+
+    <span class="n">F</span> <span class="o">=</span> <span class="n">f1e</span><span class="o">*</span><span class="n">f2n</span> <span class="o">-</span> <span class="n">f1n</span><span class="o">*</span><span class="n">f2e</span>
+
+    <span class="c1"># matrix with horizontal spherical harmonic functions in QD coordinates</span>
+    <span class="n">V</span>        <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span><span class="n">P_cos_V</span> <span class="o">*</span> <span class="n">cos_V</span><span class="p">,</span> <span class="n">P_sin_V</span> <span class="o">*</span> <span class="n">sin_V</span> <span class="p">))</span>
+
+    <span class="c1"># matrices with partial derivatives in QD coordinates:</span>
+    <span class="n">dV_dqlon</span>  <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span> <span class="n">P_cos_V</span> <span class="o">*</span> <span class="n">dcos_V</span> <span class="o">*</span> <span class="n">m_cos_V</span><span class="p">,</span>  <span class="n">P_sin_V</span> <span class="o">*</span> <span class="n">dsin_V</span> <span class="o">*</span> <span class="n">m_sin_V</span> <span class="p">))</span>
+    <span class="n">dV_dqlat</span>  <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span><span class="n">dP_cos_V</span> <span class="o">*</span>  <span class="n">cos_V</span>          <span class="p">,</span> <span class="n">dP_sin_V</span> <span class="o">*</span>  <span class="n">sin_V</span>           <span class="p">))</span>
+
+    <span class="c1"># matrices with partial derivatives in MA coordinates:</span>
+    <span class="n">dT_dalon</span>  <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span> <span class="n">P_cos_T</span> <span class="o">*</span> <span class="n">dcos_T</span> <span class="o">*</span> <span class="n">m_cos_T</span><span class="p">,</span>  <span class="n">P_sin_T</span> <span class="o">*</span> <span class="n">dsin_T</span> <span class="o">*</span> <span class="n">m_sin_T</span><span class="p">))</span>
+    <span class="n">dT_dalat</span>  <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span><span class="n">dP_cos_T</span> <span class="o">*</span>  <span class="n">cos_T</span>          <span class="p">,</span> <span class="n">dP_sin_T</span> <span class="o">*</span>  <span class="n">sin_T</span> <span class="o">*</span> <span class="n">m_sin_T</span><span class="p">))</span>
+
+    <span class="c1"># Toroidal field components</span>
+    <span class="n">B_T_e</span>  <span class="o">=</span>   <span class="o">-</span><span class="n">d1n</span> <span class="o">*</span> <span class="n">dT_dalon</span> <span class="o">/</span> <span class="n">cos_alat</span> <span class="o">+</span> <span class="n">d2n</span> <span class="o">*</span> <span class="n">dT_dalat</span> <span class="o">/</span> <span class="n">sinI</span>
+    <span class="n">B_T_n</span>  <span class="o">=</span>    <span class="n">d1e</span> <span class="o">*</span> <span class="n">dT_dalon</span> <span class="o">/</span> <span class="n">cos_alat</span> <span class="o">-</span> <span class="n">d2e</span> <span class="o">*</span> <span class="n">dT_dalat</span> <span class="o">/</span> <span class="n">sinI</span>
+    <span class="n">B_T_u</span>  <span class="o">=</span>    <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">B_T_n</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+
+    <span class="c1"># Poloidal field components:</span>
+    <span class="n">B_V_e</span> <span class="o">=</span> <span class="p">(</span><span class="o">-</span><span class="n">f2n</span> <span class="o">/</span> <span class="p">(</span><span class="n">cos_qlat</span> <span class="o">*</span> <span class="n">r</span><span class="p">)</span> <span class="o">*</span> <span class="n">dV_dqlon</span> <span class="o">+</span> <span class="n">f1n</span> <span class="o">*</span> <span class="n">dV_dqlat</span> <span class="o">/</span> <span class="n">r</span><span class="p">)</span> <span class="o">*</span> <span class="n">refre</span> <span class="o">*</span> <span class="n">Rtor</span> <span class="o">**</span> <span class="p">(</span><span class="n">nV</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">B_V_n</span> <span class="o">=</span> <span class="p">(</span> <span class="n">f2e</span> <span class="o">/</span> <span class="p">(</span><span class="n">cos_qlat</span> <span class="o">*</span> <span class="n">r</span><span class="p">)</span> <span class="o">*</span> <span class="n">dV_dqlon</span> <span class="o">-</span> <span class="n">f1e</span> <span class="o">*</span> <span class="n">dV_dqlat</span> <span class="o">/</span> <span class="n">r</span><span class="p">)</span> <span class="o">*</span> <span class="n">refre</span> <span class="o">*</span> <span class="n">Rtor</span> <span class="o">**</span> <span class="p">(</span><span class="n">nV</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">B_V_u</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">F</span><span class="p">)</span> <span class="o">*</span> <span class="n">V</span>  <span class="o">*</span> <span class="p">(</span><span class="n">nV</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">Rtor</span> <span class="o">**</span> <span class="p">(</span><span class="n">nV</span> <span class="o">+</span> <span class="mi">2</span><span class="p">)</span>
+
+    <span class="c1"># combine:</span>
+    <span class="n">G</span>     <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span><span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">((</span><span class="n">B_T_e</span>  <span class="p">,</span> 
+                                  <span class="n">B_T_n</span>  <span class="p">,</span> 
+                                  <span class="n">B_T_u</span>  <span class="p">)),</span>   <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">((</span><span class="n">B_V_e</span><span class="p">,</span> 
+                                                          <span class="n">B_V_n</span><span class="p">,</span> 
+                                                          <span class="n">B_V_u</span><span class="p">))</span>
+                      <span class="p">))</span>
+
+    <span class="k">return</span> <span class="n">G</span></div>
+
+
+<div class="viewcode-block" id="get_ground_field_G0"><a class="viewcode-back" href="../../reference.html#pyamps.sh_utils.get_ground_field_G0">[docs]</a><span class="k">def</span> <span class="nf">get_ground_field_G0</span><span class="p">(</span><span class="n">qdlat</span><span class="p">,</span> <span class="n">mlt</span><span class="p">,</span> <span class="n">height</span><span class="p">,</span> <span class="n">current_height</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; calculate the G matrix for the constant term in the AMPS model needed to calculate</span>
+<span class="sd">        corresponding ground magnetic field perturbations. The constant term is the </span>
+<span class="sd">        term that depends only on the spherical harmonic coefficients that are not scaled by </span>
+<span class="sd">        external parameters. This G matrix can be used to produce the full matrix.</span>
+
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        qdlat : array</span>
+<span class="sd">            Quasi-dipole latitude (degrees)</span>
+<span class="sd">        MLT : array</span>
+<span class="sd">            Magnetic local time (MLT)</span>
+<span class="sd">        height : float</span>
+<span class="sd">            Geodetic height, in km (0 &lt;= height &lt;= current_height)</span>
+<span class="sd">        current_height : float</span>
+<span class="sd">            height of the current</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        G0 : array</span>
+<span class="sd">            an 3N by M matrix, where N is the number of elements in the input coordinates. There will be</span>
+<span class="sd">            3 times as many rows G0, since there are 3 components. Partionining G0 in thirds, from top to</span>
+<span class="sd">            bottom, gives the parts that correspond to east, north, and up, respectively. M</span>
+<span class="sd">            is the number of terms in the spherical harmonic expansion of B</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">qdlat</span>  <span class="o">=</span> <span class="n">qdlat</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span> <span class="p">[:,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span>
+    <span class="n">mlt</span>    <span class="o">=</span> <span class="n">mlt</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>   <span class="p">[:,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span>
+
+    <span class="c1"># convert mlt to degreees</span>
+    <span class="n">phi</span> <span class="o">=</span> <span class="n">mlt</span><span class="o">*</span><span class="mi">15</span> <span class="c1"># multiply by 15 to get degrees</span>
+
+    <span class="c1"># truncation levels:</span>
+    <span class="n">N</span><span class="p">,</span> <span class="n">M</span> <span class="o">=</span> <span class="mi">45</span><span class="p">,</span> <span class="mi">3</span>
+
+    <span class="c1"># generate spherical harmonic keys    </span>
+    <span class="n">keys</span> <span class="o">=</span> <span class="p">{}</span> <span class="c1"># dictionary of spherical harmonic keys</span>
+    <span class="n">keys</span><span class="p">[</span><span class="s1">&#39;cos&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">SHkeys</span><span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="n">M</span><span class="p">)</span><span class="o">.</span><span class="n">setNmin</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">MleN</span><span class="p">()</span><span class="o">.</span><span class="n">Mge</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">keys</span><span class="p">[</span><span class="s1">&#39;sin&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">SHkeys</span><span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="n">M</span><span class="p">)</span><span class="o">.</span><span class="n">setNmin</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">MleN</span><span class="p">()</span><span class="o">.</span><span class="n">Mge</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">m_cos</span> <span class="o">=</span> <span class="n">keys</span><span class="p">[</span><span class="s1">&#39;cos&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">m</span>
+    <span class="n">m_sin</span> <span class="o">=</span> <span class="n">keys</span><span class="p">[</span><span class="s1">&#39;sin&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">m</span>
+
+    <span class="n">n</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span><span class="n">keys</span><span class="p">[</span><span class="s1">&#39;cos&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">n</span><span class="p">,</span> <span class="n">keys</span><span class="p">[</span><span class="s1">&#39;sin&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">n</span><span class="p">))</span>
+
+    <span class="c1"># generate Legendre matrices - first get dicts of arrays, and then stack them in the appropriate fashion</span>
+    <span class="n">legendre_arr</span> <span class="o">=</span> <span class="n">legendre</span><span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="n">M</span><span class="p">,</span> <span class="mi">90</span> <span class="o">-</span> <span class="n">qdlat</span><span class="p">,</span> <span class="n">keys</span> <span class="o">=</span> <span class="n">keys</span><span class="p">[</span><span class="s1">&#39;cos&#39;</span><span class="p">])</span>
+    <span class="n">P_cos</span>  <span class="o">=</span>  <span class="n">legendre_arr</span><span class="p">[:</span> <span class="p">,</span> <span class="p">:</span><span class="nb">len</span><span class="p">(</span><span class="n">keys</span><span class="p">[</span><span class="s1">&#39;cos&#39;</span><span class="p">])</span> <span class="p">]</span> <span class="c1"># split</span>
+    <span class="n">dP_cos</span> <span class="o">=</span> <span class="o">-</span><span class="n">legendre_arr</span><span class="p">[:</span> <span class="p">,</span>  <span class="nb">len</span><span class="p">(</span><span class="n">keys</span><span class="p">[</span><span class="s1">&#39;cos&#39;</span><span class="p">]):]</span>
+    <span class="n">P_sin</span>  <span class="o">=</span>  <span class="n">P_cos</span>       <span class="p">[:</span> <span class="p">,</span> <span class="n">keys</span><span class="p">[</span><span class="s1">&#39;cos&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">m</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">]</span>
+    <span class="n">dP_sin</span> <span class="o">=</span>  <span class="n">dP_cos</span>      <span class="p">[:</span> <span class="p">,</span> <span class="n">keys</span><span class="p">[</span><span class="s1">&#39;cos&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">m</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">]</span>  
+
+    <span class="c1"># trig matrices:</span>
+    <span class="n">cos</span>  <span class="o">=</span>  <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">phi</span> <span class="o">*</span> <span class="n">d2r</span> <span class="o">*</span> <span class="n">m_cos</span><span class="p">)</span>
+    <span class="n">sin</span>  <span class="o">=</span>  <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">phi</span> <span class="o">*</span> <span class="n">d2r</span> <span class="o">*</span> <span class="n">m_sin</span><span class="p">)</span>
+    <span class="n">dcos</span> <span class="o">=</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">phi</span> <span class="o">*</span> <span class="n">d2r</span> <span class="o">*</span> <span class="n">m_cos</span><span class="p">)</span>
+    <span class="n">dsin</span> <span class="o">=</span>  <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">phi</span> <span class="o">*</span> <span class="n">d2r</span> <span class="o">*</span> <span class="n">m_sin</span><span class="p">)</span>
+
+    <span class="n">cos_qlat</span>   <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">qdlat</span> <span class="o">*</span> <span class="n">d2r</span><span class="p">)</span>
+
+    <span class="n">r</span> <span class="o">=</span> <span class="n">refre</span> <span class="o">+</span> <span class="n">height</span>
+    <span class="n">r_ratio_horizontal</span> <span class="o">=</span> <span class="p">(</span><span class="n">r</span> <span class="o">/</span> <span class="p">(</span><span class="n">refre</span> <span class="o">+</span> <span class="n">current_height</span><span class="p">))</span> <span class="o">**</span> <span class="p">(</span><span class="n">n</span>    <span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">refre</span> <span class="o">/</span> <span class="p">(</span><span class="n">refre</span> <span class="o">+</span> <span class="n">current_height</span><span class="p">))</span> <span class="o">**</span> <span class="p">(</span><span class="n">n</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">n</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">/</span> <span class="n">n</span>
+    <span class="n">r_ratio_vertical</span>   <span class="o">=</span> <span class="p">(</span><span class="n">r</span> <span class="o">/</span> <span class="p">(</span><span class="n">refre</span> <span class="o">+</span> <span class="n">current_height</span><span class="p">))</span> <span class="o">**</span> <span class="p">(</span><span class="n">n</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">refre</span> <span class="o">/</span> <span class="p">(</span><span class="n">refre</span> <span class="o">+</span> <span class="n">current_height</span><span class="p">))</span> <span class="o">**</span> <span class="p">(</span><span class="n">n</span> <span class="o">+</span> <span class="mi">2</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">n</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+
+    <span class="c1"># matrix with trig functions</span>
+    <span class="n">trigs</span>   <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span><span class="n">cos</span><span class="p">,</span> <span class="n">sin</span> <span class="p">))</span>
+
+    <span class="c1"># matrix with derivative of trig functions</span>
+    <span class="n">trigs_d</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span> <span class="n">dcos</span> <span class="o">*</span> <span class="n">m_cos</span><span class="p">,</span> <span class="n">dsin</span> <span class="o">*</span> <span class="n">m_sin</span> <span class="p">))</span>
+
+    <span class="c1"># matrices with P and dP stacked</span>
+    <span class="n">P</span>  <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span><span class="n">P_cos</span> <span class="p">,</span> <span class="n">P_sin</span> <span class="p">))</span>
+    <span class="n">dP</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span><span class="n">dP_cos</span><span class="p">,</span> <span class="n">dP_sin</span><span class="p">))</span>
+
+    <span class="n">G0east</span>  <span class="o">=</span> <span class="n">P</span>  <span class="o">*</span> <span class="n">trigs_d</span> <span class="o">*</span> <span class="n">r_ratio_horizontal</span> <span class="o">/</span> <span class="n">cos_qlat</span>
+    <span class="n">G0north</span> <span class="o">=</span> <span class="n">dP</span> <span class="o">*</span> <span class="n">trigs</span>   <span class="o">*</span> <span class="n">r_ratio_horizontal</span> 
+    <span class="n">G0up</span>    <span class="o">=</span> <span class="n">P</span>  <span class="o">*</span> <span class="n">trigs</span>   <span class="o">*</span> <span class="n">r_ratio_vertical</span>
+
+    <span class="c1"># stack vertically and return </span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">((</span><span class="n">G0east</span><span class="p">,</span> <span class="n">G0north</span><span class="p">,</span> <span class="n">G0up</span><span class="p">))</span></div>
+
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h3><a href="../../index.html">Table Of Contents</a></h3>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../readme.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../reference.html">API Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../reference.html#indices-and-tables">Indices and tables</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../model_coefficients.html">Coefficient file format</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../changelog.html">Changelog</a></li>
+</ul>
+
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">pyAMPS 1.0.0 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" >Module code</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2017, Karl M. Laundal.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.3.
+    </div>
+  </body>
+</html>
