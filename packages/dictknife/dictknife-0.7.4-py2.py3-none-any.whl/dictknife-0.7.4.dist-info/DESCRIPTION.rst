@@ -1,0 +1,86 @@
+dictknife
+========================================
+
+.. image:: https://travis-ci.org/podhmo/dictknife.svg?branch=master
+  :target: https://travis-ci.org/podhmo/dictknife
+
+swiss army knife for handling dict.
+
+doc
+----------------------------------------
+
+http://dictknife.readthedocs.io
+
+
+0.7.2
+
+- add `-sort-keys` option
+- shape command
+
+0.7.0
+
+- support loading csv and tsv
+- rename iterate() to walk() of DictWalker
+
+0.6.0
+
+- drop click
+- many short options (e.g. -o for --output-format)
+- drop legacy LooseDictWalker and dictknife.chain
+- simply for lazy loading module, in dictknife.loading
+
+0.5.0
+
+- lazy loading for loading data (e.g. yaml, toml)
+- dictknife linecat command
+- short error message
+- dictknife diff support array
+
+0.4.7
+
+- loading via envvar with white list
+- jsonknife deref with --unwrap,--wrap option and --ref supports '<unwrap>@<wrap>' expression
+- jsonknife bundle generating ordered output
+
+0.4.5
+
+- dictknife concat with list JSON
+- omitting deprecated commands (extract, lift)
+
+0.4.4
+
+- adjusting commands options
+- changing yaml's multine line string format
+
+0.4.3
+
+- raw format
+
+0.4.2
+
+- deepmerge with override option
+- toml support
+- jsonknife cut command
+
+0.4.1
+
+- some commands have format option
+- some fixes
+
+0.3
+
+- command extras `pip install dictknife[command]`
+- adding dictknife-concat command
+- adding dictknife-transform command
+- adding dictknife-diff command
+
+
+0.2
+
+- external iterator is recommened. (using LooseDictWalkingIterator instead of LooseDictWalker)
+
+0.1
+
+- yaml/json load extras (`pip install dictknife[load]`)
+
+
