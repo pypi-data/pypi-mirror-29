@@ -1,0 +1,241 @@
+Shooju
+=======
+
+*shooju* is the official python client for `Shooju <http://www.shooju.com/>`_ with the following features:
+
+- Authentication via username and api key
+- Getting series points and fields
+- Registering import jobs and writing and removing points and fields
+
+
+Installation
+-------------
+
+Install using pip::
+
+    pip install shooju
+
+Basic Usage
+------------
+
+::
+
+    >>> from shooju import Connection, sid, Point
+    >>> from datetime import date
+    >>> conn = Connection(server = <API_SERVER>, user = <USERNAME>, api_key = <API_KEY>)
+    >>> job = conn.register_job('China Pop.')
+    >>> series_id = sid("users", <USERNAME>, "china", "population")
+    >>> job.put_point(series_id, Point(date(2012, 1, 1), 314.3))
+    >>> job.put_field(series_id, "unit", "millions")
+    >>> print conn.get_point(series_id, date(2012, 1, 1)).value
+    313.3
+    >>> print conn.get_field(series_id, "unit")
+    millions
+
+Source
+-------
+
+https://bitbucket.org/shooju/python-client
+
+Changelist
+-----------
+
+2.0.1
+^^^^^^
+- Bug fixes.
+
+2.0.0
+^^^^^^
+- Added preferred new get_series() method.
+- Moved writes to SJTS format for serialization and transport.
+- Allowed relative date format in df / dt parameters.
+- Big changes in scroll():
+  - date_start -> df  (date_start still works but will be removed in future versions)
+  - date_finish -> dt (date_finish still works but will be removed in future versions)
+  - removed deprecated parameters: query_size, sort_on, sort_order, size
+  - added max_series
+  - added extra_params
+- Deprecated get_point and get_field methods.  These will be removed in future versions.
+- Deprecated search method in favor of scroll.  It will be removed in future versions.
+
+0.9.7
+^^^^^^
+- Python 3 compatibility fixes.
+
+0.9.6
+^^^^^^
+- Points serializers bug fixes.
+
+0.9.5
+^^^^^^
+- Added operators parameter in the pd.search() function.
+- Added reported_date parameter to the get_points() functions.
+- Added job.put_reported_points(series_id, reported_date, points) to write reported points based on a date.
+- Added get_reported_dates(series_id=None, job_id=None, processor=None, df=None, dt=None) to retrieve all reported_dates for one of: series_id, job_id, processor.
+- Added snapshot_date and snapshot_job_id to all get_points() functions.
+- Added serializer parameter to all get_points() functions.  Built-in options are under shooju.points_serializers.*.  The default can be set using shooju.options.point_serializer = shooju.points_serializers.pd_series.
+- Removed pd.get_points() and pd.get_fields().  Use serializer=shooju.points_serializers.pd_series instead.
+
+0.9.1
+^^^^^^
+- Fixed negative epoch times (before year 1970) on non-unix.
+- Now using DatetimeIndex in pandas formatter for faster pandas dataframe serialization.
+- Removed pd.get_points and pd.get_fields functions.  Use pd.search() instead.
+- Now applying options.point_serializer everywhere. (edited)
+
+0.9.0
+^^^^^^
+- Job.delete() is now part of bulk request. Use Job.submit() to run immediately.
+- Connection.delete() and Connection.delete_by_query() have been removed. Use the equivalents in job instead.
+
+0.8.5
+^^^^^^
+- Fixed mget().get_point() bug.
+
+0.8.4
+^^^^^^
+- Bug fixes.
+
+0.8.3
+^^^^^^
+- SJTS bug fixes.
+
+0.8.2
+^^^^^^
+- Bug fixes and json/msgpack/sjts auto support.
+
+0.8.1
+^^^^^^
+- Bug fixes.
+
+0.8.0
+^^^^^^
+- Removed ujson.
+- Using new /series API.
+- Changed size to max_points parameter.  Size is still supported, but switching to max_points is encouraged.
+
+0.7.8
+^^^^^^
+- Optional ujson.
+- Added options.point_serializer (shooju_point / milli_tuple).
+
+0.7.7
+^^^^^^
+- Bug fixes.
+
+0.7.6
+^^^^^^
+- Added options.sjts_stream.
+
+0.7.5
+^^^^^^
+- Added options.sjts_chunk_size.
+- Do not fetch fields when not necessary.
+
+0.7.4
+^^^^^^
+- Added SJTS.
+- Moved internal dates from unix to milli.
+
+0.7.3
+^^^^^^
+- Added internal async.
+
+0.7.2
+^^^^^^
+- Bug fixes.
+
+0.7.1
+^^^^^^
+- Series are now written in the order of put\_* calls.
+- Added retry on lock failures.
+
+0.7.0
+^^^^^^
+- Retry on temporary API failure.
+- Added reported_group concept.
+- Added support for Python 3.
+
+0.6.2
+^^^^^^
+- Add operators parameter to scroll and search functions.  To use, pass in an array of operators without the @.  For example, operators = ['MA'].
+
+
+0.6.1
+^^^^^^
+- Ability to upload files using sess = conn.create_uploader_session() and sess.upload_file()
+- conn.get_points(), get_point(), get_field() and get_fields() now accept snapshot_job_id and snapshot_date parameters. These parameters allow fetching historic snapshots of how the series looked after the job or at specific datetime.
+
+
+0.6.0
+^^^^^^
+- BREAKING CHANGE: search() now returns a list instead of a dictionary.
+- search() and scroll() now accept sort_on and sort_order paramters.
+- If a non-url string is provided to Connection(), https://{}.shooju.com will be attempted.
+- Simpler OAuth interface and instructions have been added.  See bitbucket page for details.
+- Added force parameter to delete_by_query.
+
+0.5.0
+^^^^^^
+- Added job.finish(submit=True) to submit job buffer and mark a job as finished.
+- Added job context to be used like: with connection.register_job('testjob') as job: ...
+
+0.4.8
+^^^^^^
+- Added email and google_oauth_token kwargs to Connection() to allow authentication through Google Oauth.  Environment variables SHOOJU_EMAIL and SHOOJU_GOOGLE_OAUTH_TOKEN can be used instead of parameters.
+- Added Connection.user property to find the currently logged in user.
+
+0.4.7
+^^^^^^
+- Bug fixes.
+
+0.4.6
+^^^^^^
+- Added delete_by_query function.
+- Exposed query_size in scroll().
+- Changed default size from 10 to 0 in scroll().
+
+0.4.5
+^^^^^^
+- Added remove_points and remove_fields methods to RemoteJob to clear the fields/points before sending new data.
+
+0.4.4
+^^^^^^
+- Change Connection search default point size to 0
+
+0.4.3
+^^^^^^
+- Fix another job cache error.
+
+0.4.2
+^^^^^^
+- Added pre and post submit hooks to RemoteJob to perform actions after submitting a job to shooju
+
+
+0.4.1
+^^^^^^
+- Fix job cache error, if exception was raised cache was not flushed
+
+0.4
+^^^^
+- Connection().pd.search_series renamed to search
+- Change way DataFrame is formatted when using Connection().pd.search()
+- Added key_field parameters to Connection().pd.search() to add a custom name for the column using series fields
+
+0.3
+^^^^
+
+- Connection().scroll() fixed
+- Initializing Connection doesn't ping the API
+- If series does not exist get_point, get_points, get_field, get_fields return None
+
+0.2
+^^^^
+
+- Connection().multi_get() renamed to mget()
+- mget().get_points(), get_fields(), get_point() and get_field() return index of their result
+- Connection().register_job() requires a description of more than 3 chars
+- Connection().scroll_series() renamed to scroll()
+- Renamed and rearranged Connection parameters: Connection(server, user, api_key)
+- Field object removed, fields return a simple dict
+- Points can have value of None
