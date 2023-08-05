@@ -1,0 +1,135 @@
+`Getting Started <#getting-started>`__ \| `Releases <#releases>`__ \|
+`Status <#status>`__
+
+NeuroCurator
+============
+
+Desktop application to perform systematic and collaborative curation of
+neuroscientific literature.
+
+This is a Graphical User Interface (GUI) for the Python package
+`NeuroAnnotation Toolbox (NAT) <https://github.com/BlueBrain/nat>`__.
+
+This framework has been described in details in the following
+open-access paper: https://doi.org/10.3389/fninf.2017.00027.
+
+With NeuroCurator, annotations are: - traceable, - reusable across
+projects, - structured with controlled vocabularies.
+
+--------------
+
+Getting Started
+---------------
+
+**Requirements:**
+
+System side:
+
+-  `Git 1.7.0+ <https://git-scm.com/downloads>`__
+-  `ImageMagick
+   6 <http://docs.wand-py.org/en/latest/guide/install.html>`__
+-  `Python 3.4\* <https://www.python.org/downloads/>`__
+-  `Qt
+   4.8.7\* <https://doc.qt.io/archives/qt-4.8/supported-platforms.html>`__
+-  `Miniconda\* <https://conda.io/miniconda.html>`__
+
+Python side:
+
+-  `NAT <https://github.com/BlueBrain/nat>`__
+-  `PySide 1.2.4 <https://wiki.qt.io/PySide>`__
+-  `NumPy <http://www.numpy.org>`__
+-  `pandas <https://pandas.pydata.org>`__
+-  `Wand <http://docs.wand-py.org>`__
+
+\*Miniconda is not required. It simplifies only temporary the
+installation: no need to compile Qt and to install manually Python 3.4.
+It also makes the installation easier on Windows (pandas).
+
+**Installation:**
+
+Instructions for macOS 10.13+, Ubuntu 16.04+, Windows 10+.
+
+Create a virtual environment with Python 3.4:
+
+.. code:: bash
+
+    conda create -y --name nc python=3.4
+
+Switch to the virtual environment:
+
+On macOS and Linux:
+
+.. code:: bash
+
+    source activate nc
+
+On Windows:
+
+.. code:: bash
+
+    activate nc
+
+Install PySide 1.2.4 and Qt 4.8.7 from
+`conda-forge <https://conda-forge.org>`__:
+
+.. code:: bash
+
+    conda install -y pyside --channel conda-forge
+
+Install NAT:
+
+On macOS and Linux:
+
+.. code:: bash
+
+    pip install nat
+
+On Windows:
+
+.. code:: bash
+
+    conda install -y pandas
+    pip install beautifulsoup4 gitpython lxml numpy parse pyzotero quantities scipy wand
+    pip install nat --no-deps
+
+Install NeuroCurator:
+
+.. code:: bash
+
+    pip install neurocurator --no-deps
+
+Launch NeuroCurator:
+
+.. code:: bash
+
+    neurocurator
+
+For the future uses: 1. enter the virtual environment:
+``source activate nc`` or ``activate nc`` 2. launch NeuroCurator:
+``neurocurator`` 3. use NeuroCurator 4. close NeuroCurator 5. exit the
+virtual environment: ``source deactivate`` or ``deactivate``
+
+Releases
+--------
+
+Versions and their notable changes are listed in the `releases
+section <https://github.com/BlueBrain/neurocurator/releases/>`__.
+
+Status
+------
+
+Created during 2016.
+
+Ongoing stabilization and reengineering in the branch
+*refactor-architecture*.
+
+The branch *refactor-architecture* is **not** intended to be used by
+end-users.
+
+New features, bug fixes and improvements are done on the reengineered
+code sections.
+
+When a reengineered code section is stable, it’s merged into the branch
+*master* and a release is published.
+
+
