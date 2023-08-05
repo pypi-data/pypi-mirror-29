@@ -1,0 +1,76 @@
+/* Additional includes go here */
+
+#include "splpy.h"
+#include "splpy_funcop.h"
+
+using namespace streamsx::topology;
+
+<%SPL::CodeGen::implementationPrologue($model);%>
+
+@include "../pyspltuple.cgt"
+<%
+ # Select the Python wrapper function
+ my $pywrapfunc= $pystyle . '_in';
+%>
+
+// Constructor
+MY_OPERATOR::MY_OPERATOR() :
+   funcop_(NULL),
+   pyInNames_(NULL)
+{
+    funcop_ = new SplpyFuncOp(this, "<%=$pywrapfunc%>");
+<% if ($pystyle eq 'dict') { %>
+     SplpyGIL lock;
+     pyInNames_ = streamsx::topology::Splpy::pyAttributeNames(
+               getInputPortAt(0));
+<% } %>
+}
+
+
+// Destructor
+MY_OPERATOR::~MY_OPERATOR() 
+{
+<% if ($pystyle eq 'dict') { %>
+    if (pyInNames_) {
+      SplpyGIL lock;
+      Py_DECREF(pyInNames_);
+    }
+<% } %>
+
+    delete funcop_;
+}
+
+// Notify pending shutdown
+void MY_OPERATOR::prepareToShutdown() 
+{
+    funcop_->prepareToShutdown();
+}
+
+// Tuple processing for non-mutating ports
+void MY_OPERATOR::process(Tuple const & tuple, uint32_t port)
+{
+@include "../pyspltuple2value.cgt"
+
+<%if ($pystyle eq 'dict' || $pystyle eq 'tuple') {%>
+
+  OPort0Type otuple;
+  otuple.assignFrom(<%=$iport->getCppTupleName()%>, false);
+  otuple.set___spl_hash(streamsx::topology::Splpy::pyTupleHash(funcop_->callable(), value));
+
+<%} else { %>
+
+  // value is the first matching attribute and an SPL:: reference
+  OPort0Type otuple(value,
+       streamsx::topology::Splpy::pyTupleHash(funcop_->callable(), value));
+<%}%>
+
+  // submit tuple
+  submit(otuple, 0);
+}
+
+void MY_OPERATOR::process(Punctuation const & punct, uint32_t port)
+{
+   forwardWindowPunctuation(punct);
+}
+
+<%SPL::CodeGen::implementationEpilogue($model);%>
