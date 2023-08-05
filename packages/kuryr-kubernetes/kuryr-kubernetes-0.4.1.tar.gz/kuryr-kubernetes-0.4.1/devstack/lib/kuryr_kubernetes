@@ -1,0 +1,687 @@
+#!/bin/bash
+#
+# lib/kuryr
+# Utilities for kuryr-kubernetes devstack
+# bind_for_kubelet
+#   Description: Creates an OVS internal port so that baremetal kubelet will be
+#                able to make both liveness and readiness http/tcp probes.
+#   Params:
+#      project - Id or name of the project used for kuryr devstack
+
+# Dependencies:
+# (none)
+
+function ovs_bind_for_kubelet() {
+    local port_id
+    local port_mac
+    local port_ips
+    local port_subnets
+    local prefix
+    local project_id
+    local security_group
+    local ifname
+
+    project_id="$1"
+    security_group=$(openstack security group list \
+        --project "$project_id" -f value | \
+        awk '/default/ {print $1}')
+    port_id=$(openstack port create \
+        --device-owner compute:kuryr \
+        --project "$project_id" \
+        --security-group "$security_group" \
+        --host "${HOSTNAME}" \
+        --network "${KURYR_NEUTRON_DEFAULT_POD_NET}" \
+        -f value -c id \
+        kubelet-"${HOSTNAME}")
+    ifname="kubelet${port_id}"
+    ifname="${ifname:0:14}"
+
+    port_mac=$(openstack port show "$port_id" -c mac_address -f value)
+    port_ips=($(openstack port show "$port_id" -f value -c fixed_ips | \
+        awk -F"'" '{print $2}'))
+    port_subnets=($(openstack port show "$port_id" -f value -c fixed_ips | \
+        awk -F"'" '{print $4}'))
+
+    sudo ovs-vsctl -- --may-exist add-port $OVS_BRIDGE "$ifname" \
+        -- set Interface "$ifname" type=internal \
+        -- set Interface "$ifname" external-ids:iface-status=active \
+        -- set Interface "$ifname" external-ids:attached-mac="$port_mac" \
+        -- set Interface "$ifname" external-ids:iface-id="$port_id"
+
+    sudo ip link set dev "$ifname" address "$port_mac"
+    sudo ip link set dev "$ifname" up
+    for ((i=0; i < ${#port_ips[@]}; i++)); do
+        prefix=$(openstack subnet show "${port_subnets[$i]}" \
+            -c cidr -f value | \
+            cut -f2 -d/)
+        sudo ip addr add "${port_ips[$i]}/${prefix}" dev "$ifname"
+    done
+}
+
+# get_container
+#   Description: Pulls a container from Dockerhub
+#   Params:
+#      image_name - the name of the image in docker hub
+#      version    - The version of the image to pull. Defaults to 'latest'
+function get_container {
+    local image
+    local image_name
+    local version
+    image_name="$1"
+    version="${2:-latest}"
+
+    if [ "$image_name" == "" ]; then
+        return 0
+    fi
+
+    image="${image_name}:${version}"
+    if [ -z "$(docker images -q "$image")" ]; then
+        docker pull "$image"
+    fi
+}
+
+# run_container
+#   Description: Runs a container and attaches devstack's logging to it
+#   Params:
+#      name - Name of the container to run
+#      args - arguments to run the container with
+function run_container {
+    # Runs a detached container and uses devstack's run process to monitor
+    # its logs
+    local name
+    local docker_bin
+
+    docker_bin=$(which docker)
+    name="$1"
+    shift
+    args="$@"
+    $docker_bin create --name $name $args
+
+    run_process "$name" \
+        "$docker_bin start --attach $name"
+}
+
+# stop_container
+#   Description: stops a container and its devstack logging
+#   Params:
+#      name - Name of the container to stop
+function stop_container {
+    local name
+    name="$1"
+
+    docker kill "$name"
+    docker rm "$name"
+    stop_process "$name"
+}
+
+
+# prepare_etcd_legacy
+#   Description: Creates datadir for etcd and fetches its container image
+function prepare_etcd_legacy {
+    # Make Etcd data directory
+    sudo install -d -o "$STACK_USER" "$KURYR_ETCD_DATA_DIR"
+
+    # Get Etcd container
+    get_container "$KURYR_ETCD_IMAGE" "$KURYR_ETCD_VERSION"
+}
+
+# run_etcd_legacy
+#   Description: Deprecated way of running etcd for Kubernetes (based on
+#                coreos upstream image.
+function run_etcd_legacy {
+    run_container etcd \
+        --net host \
+        --volume="${KURYR_ETCD_DATA_DIR}:/var/etcd:rw" \
+        "${KURYR_ETCD_IMAGE}:${KURYR_ETCD_VERSION}" \
+            /usr/local/bin/etcd \
+            --name devstack \
+            --data-dir /var/etcd/data \
+            --initial-advertise-peer-urls "$KURYR_ETCD_ADVERTISE_PEER_URL" \
+            --listen-peer-urls "$KURYR_ETCD_LISTEN_PEER_URL" \
+            --listen-client-urls "$KURYR_ETCD_LISTEN_CLIENT_URL" \
+            --advertise-client-urls "$KURYR_ETCD_ADVERTISE_CLIENT_URL" \
+            --initial-cluster-token etcd-cluster-1 \
+            --initial-cluster "devstack=$KURYR_ETCD_ADVERTISE_PEER_URL" \
+            --initial-cluster-state new
+}
+
+# _allocation_range
+#   Description: Writes out tab separated usable ip range for a CIDR
+#   Params:
+#       cidr - The cidr to get the range for
+#       gateway_position - Whether to reserve at 'beginning' or at 'end'
+function _allocation_range {
+  python - <<EOF "$@"
+import sys
+
+from ipaddress import ip_network
+import six
+
+
+n = ip_network(six.text_type(sys.argv[1]))
+gateway_position = sys.argv[2]
+
+if gateway_position == 'beginning':
+    beg_offset = 2
+    end_offset = 2
+elif gateway_position == 'end':
+    beg_offset = 1
+    end_offset = 3
+else:
+    raise ValueError('Disallowed gateway position %s' % gateway_position)
+
+print("%s\\t%s" % (n[beg_offset], n[-end_offset]))
+EOF
+}
+
+# create_k8s_icmp_sg_rules
+#   Description: Creates icmp sg rules for Kuryr-Kubernetes pods
+#   Params:
+#      sg_id       - Kuryr's security group id
+#      direction   - egress or ingress direction
+function create_k8s_icmp_sg_rules {
+    local sg_id=$1
+    local direction="$2"
+    icmp_sg_rules=$(openstack --os-cloud devstack-admin \
+                              --os-region "$REGION_NAME" \
+                              security group rule create \
+                              --protocol icmp \
+                              --"$direction" "$sg_id")
+    die_if_not_set $LINENO icmp_sg_rules \
+        "Failure creating icmp sg ${direction} rule for ${sg_id}"
+}
+
+# create_k8s_subnet
+#   Description: Creates a network and subnet for Kuryr-Kubernetes usage
+#   Params:
+#      project_id    - Kuryr's project uuid
+#      net_name      - Name of the network to create
+#      subnet_name   - Name of the subnet to create
+#      subnetpool_id - uuid of the subnet pool to use
+#      router        - name of the router to plug the subnet to
+function create_k8s_subnet {
+    # REVISIT(apuimedo): add support for IPv6
+    local project_id=$1
+    local net_name="$2"
+    local subnet_name="$3"
+    local subnetpool_id="$4"
+    local router="$5"
+    local subnet_params="--project $project_id "
+    local subnet_cidr
+
+    subnet_params+="--ip-version 4 "
+    subnet_params+="--no-dhcp --gateway none "
+    subnet_params+="--subnet-pool $subnetpool_id "
+
+    local net_id
+    net_id=$(openstack --os-cloud devstack-admin \
+                       --os-region "$REGION_NAME" \
+                       network create --project "$project_id" \
+                       "$net_name" \
+                       -c id -f value)
+    subnet_params+="--network $net_id $subnet_name"
+
+    local subnet_id
+    subnet_id=$(openstack --os-cloud devstack-admin \
+                          --os-region "$REGION_NAME" \
+                          subnet create $subnet_params \
+                          -c id -f value)
+    die_if_not_set $LINENO subnet_id \
+        "Failure creating K8s ${subnet_name} IPv4 subnet for ${project_id}"
+
+    subnet_cidr=$(openstack --os-cloud devstack-admin \
+                             --os-region "$REGION_NAME" \
+                             subnet show "$subnet_id" \
+                             -c cidr -f value)
+    die_if_not_set $LINENO subnet_cidr \
+        "Failure getting K8s ${subnet_name} IPv4 subnet for $project_id"
+
+    # Since K8s has its own IPAM for services and allocates the first IP from
+    # service subnet CIDR to Kubernetes apiserver, we'll always put the router
+    # interface at the end of the range.
+    local router_ip
+    local allocation_start
+    local allocation_end
+    router_ip=$(_cidr_range "$subnet_cidr" | cut -f2)
+    allocation_start=$(_allocation_range "$subnet_cidr" end | cut -f1)
+    allocation_end=$(_allocation_range "$subnet_cidr" end | cut -f2)
+    die_if_not_set $LINENO router_ip \
+        "Failed to determine K8s ${subnet_name} subnet router IP"
+    openstack --os-cloud devstack-admin \
+        --os-region "$REGION_NAME" subnet set \
+        --gateway "$router_ip" --no-allocation-pool "$subnet_id" \
+        || die $LINENO "Failed to update K8s ${subnet_name} subnet"
+    # Set a new allocation pool for the subnet so ports can be created again
+    openstack --os-cloud devstack-admin \
+        --os-region "$REGION_NAME" subnet set \
+        --allocation-pool "start=${allocation_start},end=${allocation_end}" \
+        "$subnet_id" || die $LINENO "Failed to update K8s ${subnet_name} subnet"
+    openstack --os-cloud devstack-admin \
+              --os-region "$REGION_NAME" \
+              router add subnet "$router" "$subnet_id" \
+              || die $LINENO \
+              "Failed to enable routing for K8s ${subnet_name} subnet"
+}
+
+# create_k8s_router_fake_service
+#   Description: Creates an endpoint-less kubernetes service to keep Kubernetes
+#                API server from allocating the service subnet router IP for
+#                another service
+function create_k8s_router_fake_service {
+    local router_ip
+    local existing_svc_ip
+    local fake_svc_name
+
+    fake_svc_name='kuryr-svc-router'
+    router_ip=$(openstack --os-cloud devstack-admin \
+        --os-region "$REGION_NAME" \
+        subnet show "$KURYR_NEUTRON_DEFAULT_SERVICE_SUBNET" \
+        -f value -c gateway_ip)
+    existing_svc_ip=$(/usr/local/bin/kubectl get svc --namespace kube-system -o jsonpath='{.items[?(@.metadata.name=='"\"${fake_svc_name}\""')].spec.clusterIP}')
+
+    if [[ "$existing_svc_ip" == "" ]]; then
+        # Create fake router service so the router clusterIP can't be reassigned
+        cat <<EOF | /usr/local/bin/kubectl create -f -
+kind: Service
+apiVersion: v1
+metadata:
+  name: "${fake_svc_name}"
+  namespace: kube-system
+spec:
+  type: ClusterIP
+  clusterIP: "${router_ip}"
+  ports:
+    - protocol: TCP
+      port: 80
+EOF
+    fi
+}
+
+# build_kuryr_containers
+#   Description: Generates a Kuryr controller and Kuryr CNI docker images in
+#       the local docker registry as kuryr/controller:latest and
+#       kuryr/cni:latest respectively
+function build_kuryr_containers() {
+    local cni_bin_dir
+    local cni_conf_dir
+    local cni_daemon
+    local build_dir
+
+    cni_bin_dir=$1
+    cni_conf_dir=$2
+    cni_daemon=$3
+    build_dir="${DEST}/kuryr-kubernetes"
+    pushd "$build_dir"
+
+    # Build controller image
+    sudo docker build -t kuryr/controller -f "controller.Dockerfile" .
+
+    # Build CNI image
+    sudo ./tools/build_cni_daemonset_image $cni_bin_dir $cni_conf_dir $cni_daemon
+    popd
+}
+
+function indent() {
+    sed 's/^/    /';
+}
+
+function generate_kuryr_configmap() {
+    local output_dir
+    local controller_conf_path
+    local cni_conf_path
+    output_dir=$1
+    controller_conf_path=${2:-""}
+    cni_conf_path=${3:-$controller_conf_path}
+
+    mkdir -p "$output_dir"
+    rm -f ${output_dir}/config_map.yml
+    # kuryr-contoller config
+    cat >> "${output_dir}/config_map.yml" << EOF
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kuryr-config
+  namespace: kube-system
+data:
+  kuryr.conf: |
+EOF
+
+    cat $controller_conf_path | indent >> "${output_dir}/config_map.yml"
+
+    # kuryr-cni config (different token_file location)
+    # token_file = /etc/kuryr/token
+    # ssl_ca_crt_file = /etc/kuryr/ca.crt
+    # ssl_verify_server_crt = true
+    cat >> "${output_dir}/config_map.yml" << EOF
+  kuryr-cni.conf: |
+EOF
+
+    cat $cni_conf_path | indent >> "${output_dir}/config_map.yml"
+}
+
+function generate_kuryr_service_account() {
+    output_dir=$1
+    mkdir -p "$output_dir"
+    rm -f ${output_dir}/service_account.yml
+    cat >> "${output_dir}/service_account.yml" << EOF
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kuryr-controller
+  namespace: kube-system
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1beta1
+metadata:
+  name: kuryr-controller
+rules:
+- apiGroups:
+  - ""
+  verbs: ["*"]
+  resources:
+    - deployments
+    - endpoints
+    - ingress
+    - pods
+    - policies
+    - nodes
+    - services
+    - services/status
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1beta1
+metadata:
+  name: kuryr-controller-global
+subjects:
+- kind: ServiceAccount
+  name: kuryr-controller
+  namespace: kube-system
+roleRef:
+  kind: ClusterRole
+  name: kuryr-controller
+  apiGroup: rbac.authorization.k8s.io
+EOF
+}
+
+function generate_controller_deployment() {
+    output_dir=$1
+    health_server_port=$2
+    mkdir -p "$output_dir"
+    rm -f ${output_dir}/controller_deployment.yml
+    cat >> "${output_dir}/controller_deployment.yml" << EOF
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  labels:
+    name: kuryr-controller
+  name: kuryr-controller
+  namespace: kube-system
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        name: kuryr-controller
+      name: kuryr-controller
+    spec:
+      serviceAccountName: kuryr-controller
+      automountServiceAccountToken: true
+      hostNetwork: true
+      containers:
+      - image: kuryr/controller:latest
+        imagePullPolicy: Never
+        name: controller
+        terminationMessagePath: "/dev/termination-log"
+        volumeMounts:
+        - name: config-volume
+          mountPath: "/etc/kuryr/kuryr.conf"
+          subPath: kuryr.conf
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: ${health_server_port}
+            scheme: HTTP
+          timeoutSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /alive
+            port: ${health_server_port}
+          initialDelaySeconds: 15
+EOF
+
+    cat >> "${output_dir}/controller_deployment.yml" << EOF
+      volumes:
+      - name: config-volume
+        configMap:
+          name: kuryr-config
+      restartPolicy: Always
+EOF
+}
+
+function generate_cni_daemon_set() {
+    output_dir=$1
+    cni_bin_dir=${2:-/opt/cni/bin}
+    cni_conf_dir=${3:-/etc/cni/net.d}
+    mkdir -p "$output_dir"
+    rm -f ${output_dir}/cni_ds.yml
+    cat >> "${output_dir}/cni_ds.yml" << EOF
+apiVersion: extensions/v1beta1
+kind: DaemonSet
+metadata:
+  name: kuryr-cni-ds
+  namespace: kube-system
+  labels:
+    tier: node
+    app: kuryr
+spec:
+  template:
+    metadata:
+      labels:
+        tier: node
+        app: kuryr
+    spec:
+      hostNetwork: true
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        operator: Exists
+        effect: NoSchedule
+      serviceAccountName: kuryr-controller
+      containers:
+      - name: kuryr-cni
+        image: kuryr/cni:latest
+        imagePullPolicy: Never
+        command: [ "cni_ds_init" ]
+        env:
+        - name: KUBERNETES_NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - name: bin
+          mountPath: /opt/cni/bin
+        - name: net-conf
+          mountPath: /etc/cni/net.d
+        - name: config-volume
+          mountPath: /tmp/kuryr/kuryr.conf
+          subPath: kuryr-cni.conf
+        - name: etc
+          mountPath: /etc
+        - name: proc
+          mountPath: /host_proc
+        - name: openvswitch
+          mountPath: /var/run/openvswitch
+      volumes:
+        - name: bin
+          hostPath:
+            path: ${cni_bin_dir}
+        - name: net-conf
+          hostPath:
+            path: ${cni_conf_dir}
+        - name: config-volume
+          configMap:
+            name: kuryr-config
+        - name: etc
+          hostPath:
+            path: /etc
+        - name: proc
+          hostPath:
+            path: /proc
+        - name: openvswitch
+          hostPath:
+            path: /var/run/openvswitch
+EOF
+}
+
+# install_openshift_binary
+#   Description: Fetches the configured binary release of OpenShift and
+#                installs it in the system
+function install_openshift_binary {
+    mkdir -p "$OPENSHIFT_HOME"
+    curl -L "$OPENSHIFT_BINARY_URL" -o "${OPENSHIFT_HOME}/openshift.tar.gz" --retry 2
+    tar xzvf "${OPENSHIFT_HOME}/openshift.tar.gz" --strip 1 -C "$OPENSHIFT_HOME"
+
+    # Make openshift run from its untarred directory
+    cat << EOF | sudo tee /usr/local/bin/openshift
+#!/bin/bash
+cd ${OPENSHIFT_HOME}
+exec ./openshift "\$@"
+EOF
+    sudo chmod a+x /usr/local/bin/openshift
+
+    # Make oc easily available
+    cat << EOF | sudo tee /usr/local/bin/oc
+#!/bin/bash
+CURL_CA_BUNDLE=${OPENSHIFT_DATA_DIR}/ca.crt \
+    KUBECONFIG=${OPENSHIFT_DATA_DIR}/admin.kubeconfig \
+    ${OPENSHIFT_HOME}/oc "\$@"
+EOF
+    sudo chmod a+x /usr/local/bin/oc
+
+    # Make kubectl easily available
+    cat << EOF | sudo tee /usr/local/bin/kubectl
+#!/bin/bash
+CURL_CA_BUNDLE=${OPENSHIFT_DATA_DIR}/ca.crt \
+    KUBECONFIG=${OPENSHIFT_DATA_DIR}/admin.kubeconfig \
+    ${OPENSHIFT_HOME}/kubectl "\$@"
+EOF
+    sudo chmod a+x /usr/local/bin/kubectl
+
+    # Make oadm easily available
+    cat << EOF | sudo tee /usr/local/bin/oadm
+#!/bin/bash
+CURL_CA_BUNDLE=${OPENSHIFT_DATA_DIR}/ca.crt \
+    KUBECONFIG=${OPENSHIFT_DATA_DIR}/admin.kubeconfig \
+    ${OPENSHIFT_HOME}/oadm "\$@"
+EOF
+    sudo chmod a+x /usr/local/bin/oadm
+}
+
+# run_openshift_master
+#   Description: Starts the openshift master
+function run_openshift_master {
+    local cmd
+    local pod_subnet_cidr
+    local service_subnet_cidr
+
+    sudo install -d -o "$STACK_USER" "$OPENSHIFT_DATA_DIR"
+
+    pod_subnet_cidr=$(openstack --os-cloud devstack-admin \
+                         --os-region "$REGION_NAME" \
+                         subnet show "$KURYR_NEUTRON_DEFAULT_POD_SUBNET" \
+                         -c cidr -f value)
+    service_subnet_cidr=$(openstack --os-cloud devstack-admin \
+                         --os-region "$REGION_NAME" \
+                         subnet show "$KURYR_NEUTRON_DEFAULT_SERVICE_SUBNET" \
+                         -c cidr -f value)
+
+    # Generate master config
+    "${OPENSHIFT_HOME}/openshift" start master \
+        "--etcd=${KURYR_ETCD_ADVERTISE_CLIENT_URL}" \
+        "--network-cidr=${pod_subnet_cidr}" \
+        "--portal-net=${service_subnet_cidr}" \
+        "--listen=${OPENSHIFT_API_URL}" \
+        "--master=${OPENSHIFT_API_URL}" \
+        "--write-config=${OPENSHIFT_DATA_DIR}"
+
+    # Reconfigure Kuryr-Kubernetes to use the certs generated
+    iniset "$KURYR_CONFIG" kubernetes api_root "$OPENSHIFT_API_URL"
+    iniset "$KURYR_CONFIG" kubernetes ssl_client_crt_file "${OPENSHIFT_DATA_DIR}/admin.crt"
+    iniset "$KURYR_CONFIG" kubernetes ssl_client_key_file "${OPENSHIFT_DATA_DIR}/admin.key"
+    iniset "$KURYR_CONFIG" kubernetes ssl_ca_crt_file "${OPENSHIFT_DATA_DIR}/ca.crt"
+
+    sudo chown "${STACK_USER}:${STACK_USER}" -R "$OPENSHIFT_DATA_DIR"
+
+    # Generate kubelet kubeconfig
+    "${OPENSHIFT_HOME}/oadm" create-kubeconfig \
+        "--client-key=${OPENSHIFT_DATA_DIR}/master.kubelet-client.key" \
+        "--client-certificate=${OPENSHIFT_DATA_DIR}/master.kubelet-client.crt" \
+        "--certificate-authority=${OPENSHIFT_DATA_DIR}/ca.crt" \
+        "--master=${OPENSHIFT_API_URL}" \
+        "--kubeconfig=${OPENSHIFT_DATA_DIR}/master.kubelet-client.kubeconfig"
+
+    cmd="/usr/local/bin/openshift start master \
+        --config=${OPENSHIFT_DATA_DIR}/master-config.yaml"
+
+    wait_for "etcd" "${KURYR_ETCD_ADVERTISE_CLIENT_URL}/v2/machines"
+
+    if [[ "$USE_SYSTEMD" = "True" ]]; then
+        # If systemd is being used, proceed as normal
+        run_process openshift-master "$cmd" root root
+    else
+        # If screen is being used, there is a possibility that the devstack
+        # environment is on a stable branch. Older versions of run_process have
+        # a different signature. Sudo is used as a workaround that works in
+        # both older and newer versions of devstack.
+        run_process openshift-master "sudo $cmd"
+    fi
+}
+
+# make_admin_cluster_admin
+#   Description: Gives the system:admin permissions over the cluster
+function make_admin_cluster_admin {
+    wait_for "OpenShift API Server" "$OPENSHIFT_API_URL" \
+        "${OPENSHIFT_DATA_DIR}/ca.crt"
+    /usr/local/bin/oadm policy add-cluster-role-to-user cluster-admin admin \
+        "--config=${OPENSHIFT_DATA_DIR}/openshift-master.kubeconfig"
+}
+
+# run_openshift_node
+#   Description: Starts the openshift node
+function run_openshift_node {
+    local command
+
+    #install required CNI loopback driver
+    curl -L "$OPENSHIFT_CNI_BINARY_URL" | sudo tar -C "$CNI_BIN_DIR" -xzvf - ./loopback
+    command="/usr/local/bin/openshift start node \
+        --kubeconfig=${OPENSHIFT_DATA_DIR}/master.kubelet-client.kubeconfig \
+        --enable=kubelet,plugins \
+        --network-plugin=cni"
+
+    # Link master config necessary for bootstrapping
+    # TODO: This needs to be generated so we don't depend on it on multinode
+    mkdir -p "${OPENSHIFT_HOME}/openshift.local.config"
+    ln -fs "${OPENSHIFT_DATA_DIR}" "${OPENSHIFT_HOME}/openshift.local.config/master"
+
+    # Link stack CNI to location expected by openshift node
+    sudo mkdir -p /etc/cni
+    sudo rm -fr /etc/cni/net.d
+    sudo rm -fr /opt/cni/bin
+    sudo ln -fs "${CNI_CONF_DIR}" /etc/cni/net.d
+    sudo mkdir -p /opt/cni
+    sudo ln -fs "${CNI_BIN_DIR}" /opt/cni/bin
+
+
+    if [[ "$USE_SYSTEMD" = "True" ]]; then
+        # If systemd is being used, proceed as normal
+        run_process openshift-node "$command" root root
+    else
+        # If screen is being used, there is a possibility that the devstack
+        # environment is on a stable branch. Older versions of run_process have
+        # a different signature. Sudo is used as a workaround that works in
+        # both older and newer versions of devstack.
+        run_process openshift-node "sudo $command"
+    fi
+}
