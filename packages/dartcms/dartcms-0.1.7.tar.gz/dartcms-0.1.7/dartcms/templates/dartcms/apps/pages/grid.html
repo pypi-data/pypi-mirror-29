@@ -1,0 +1,126 @@
+{% extends 'dartcms/views/grid.html' %}
+
+{% load i18n static %}
+
+{% block js %}
+    {{ block.super }}
+    <script type="text/javascript" src="{% static 'dartcms/assets/easyui/ext/treegrid-dnd.js' %}"></script>
+{% endblock %}
+
+{% block inline_js %}
+    {% include 'dartcms/views/partials/tinymce.html' %}
+    <script>
+        $(function () {
+            var grid = $('#id-datagrid'),
+                    gridToolbar = [
+                        {
+                            text: '{% trans 'Add' %}',
+                            iconCls: 'icon-add',
+                            handler: function () {
+                                var selected = grid.treegrid('getSelected');
+                                if (selected) {
+                                    openFormModal('{{ request.path }}insert/?parent=' + selected.pk, function () {
+                                        grid.treegrid('reload');
+                                    });
+                                }
+                            }
+                        },
+                        {
+                            text: '{% trans 'Edit' %}',
+                            iconCls: 'icon-edit',
+                            handler: function () {
+                                var selected = grid.treegrid('getSelected');
+                                if (selected) {
+                                    openFormModal('{{ index_url }}update/' + selected.pk + '/', function () {
+                                        grid.treegrid('reload');
+                                    });
+                                }
+                            }
+                        },
+                        {
+                            text: '{% trans 'Delete' %}',
+                            iconCls: 'icon-remove',
+                            handler: function () {
+                                var selected = grid.treegrid('getSelected');
+                                if (selected) {
+                                    openFormModal('{{ index_url }}delete/' + selected.pk + '/', function () {
+                                        grid.treegrid('reload');
+                                    });
+                                }
+                            }
+                        }
+                    ];
+
+            grid.treegrid({
+                idField: 'pk',
+                singleSelect: true,
+                fitColumn: true,
+                fit: true,
+                toolbar: gridToolbar,
+                treeField: 'title',
+                url: '{% url 'dartcms:pages:get_tree' %}',
+                onLoadSuccess: function (row) {
+                    $('.grid-loading-indicator').remove();
+                    $('.grid-wrapper').animate({opacity: 1}, 500);
+                    $(this).treegrid('enableDnd', row ? row.pk : null);
+                },
+                onDrop: function (target, source, point) {
+                    var url = '';
+                    if (point == 'append') {
+                        url = '{% url 'dartcms:pages:append' %}' + '?target=' + target.pk + '&source=' + source.pk;
+
+                        $.ajax({
+                            dataType: 'json',
+                            method: 'POST',
+                            url: url
+                        }).done(function (response) {
+                                    if (!response.result) {
+                                        new PNotify({
+                                            title: gettext('Warning'),
+                                            text: gettext('Page can not be appended to target'),
+                                            icon: 'fa fa-warning'
+                                        });
+                                    }
+                                    grid.treegrid('reload');
+                                });
+                    } else {
+                        var position = point == 'bottom' ? 'right' : 'left';
+
+                        url = '{% url 'dartcms:pages:move' %}' + '?target=' + target.pk + '&source=' + source.pk + '&position=' + position;
+
+                        $.ajax({
+                            dataType: 'json',
+                            method: 'POST',
+                            url: url
+                        }).done(function (response) {
+                                    if (!response.result) {
+                                        new PNotify({
+                                            title: gettext('Warning'),
+                                            text: gettext('Page can not be moved'),
+                                            icon: 'fa fa-warning'
+                                        });
+                                    }
+                                    grid.treegrid('reload');
+                                });
+                    }
+                }
+            });
+        });
+    </script>
+{% endblock %}
+
+{% block grid %}
+    {% include 'dartcms/views/partials/loading_indicator.html' %}
+    <div class="grid-wrapper" style="opacity: 0;">
+        <table id="id-datagrid">
+            <thead>
+            <tr>
+                <th data-options="field:'pk', hidden:true">ID</th>
+                {% for column in grid_columns %}
+                    <th data-options="field:'{{ column.field }}'" width="{{ column.width }}">{{ column.label }}</th>
+                {% endfor %}
+            </tr>
+            </thead>
+        </table>
+    </div>
+{% endblock %}
