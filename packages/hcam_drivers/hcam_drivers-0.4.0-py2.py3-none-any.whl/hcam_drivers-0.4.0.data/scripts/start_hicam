@@ -1,0 +1,118 @@
+#!/bin/bash
+
+# usage info
+function show_help {
+cat <<EOF
+Usage: ${0##*/} [-h] [-g] [-w]
+Start the hipercam software.
+
+    -h    display this help and exit
+    -g    start eso engineering GUI (for debugging)
+    -w    run on WHT (no offset script)
+EOF
+}
+
+function test {
+    echo "RUN:  $@"
+    "$@"
+    local status=$?
+    if [ $status -ne 0 ]; then
+        echo "error with $1" >&2
+    fi
+    return $status
+}
+
+gui=0
+OPTIND=1
+offset=1
+while getopts hgw opt; do
+    case $opt in
+        h)
+            show_help
+            exit 0
+            ;;
+        g)  gui=1
+            ;;
+        w)  offset=0
+            ;;
+        *)
+            show_help >&2
+            exit 1
+            ;;
+    esac
+done
+shift "$((OPTIND-1))"
+
+
+test ngcdcsStopServer IRCAM1
+sleep 2
+if [ $gui -eq 1 ]
+then
+    test ngcdcsStartServer IRCAM1 -port $NGC_PORT -gui &
+else
+    test ngcdcsStartServer IRCAM1 -port $NGC_PORT &
+fi
+sleep 2
+test ngcbCmd off
+sleep 1
+
+# load default setup and switch to standby mode
+test ngcbCmd setup DET.SYSCFG hipercam_5ccd.cfg
+test ngcbCmd standby
+
+# set file naming
+test ngcbCmd setup DET.FRAM.NAMING auto
+test ngcbCmd setup DET.FRAM.FILENAME run
+
+
+# make sure initial run number is correct
+NRUNS=`ls -1 /data/run*.fits | wc -l`
+LAST_FRAME=`printf run%04d.fits $NRUNS`
+echo "last written frame was $LAST_FRAME"
+dbWrite "<alias>ngcircon_ircam1:exposure.newDataFileName" $LAST_FRAME
+
+XTERM="xterm -bg white -fg black -aw -vb -sb -sl 5000 -rightbar -geometry 80x16 -fa 'Monospace' -fs 8"
+
+# launch server for GUI communication
+HS=`ps ax | grep hserver | wc -l`
+if [ $HS -le 1 ]
+then
+    echo "starting HServer"
+    $XTERM -title "HServer" -e "hserver" &
+else
+    echo "HServer already running ($HS)"
+fi
+
+# launch server for File Transfer
+username=`whoami`
+FS=`ps ax | grep fileserver | wc -l`
+if [ $FS -le 1 ]
+then
+    echo "starting FileServer"
+    $XTERM -title "FileServer" -e "fileserver --dir /insroot/${username}/SYSTEM/DETDATA/" &
+else
+    echo "fileServer already running ($FS)"
+fi
+
+# launch gtc_offsetter script
+if [ $offset -eq 1 ]
+then
+    OF=`ps ax | grep gtc_offsetter | wc -l`
+    if [ $FS -le 1 ]
+    then
+        echo "starting GTC_Offsetter"
+        $XTERM -title "GTC_Offsetter" -e "gtc_offsetter /insroot/${username}/SYSTEM/DETDATA/" &
+    else
+        echo "GTC_Offsetter already running ($OF)"
+    fi
+fi
+
+# start GUI
+HD=`ps ax | grep hdriver | wc -l`
+if [ $HD -le 1 ]
+then
+    echo "starting GUI"
+    hdriver &
+else
+    echo "GUI already running ($HD)"
+fi
