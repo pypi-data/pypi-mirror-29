@@ -1,0 +1,141 @@
+---
+- name: 'Define tmp directory'
+  set_fact:
+    obal_tmp_dir: "{{ inventory_dir }}/.tmp"
+
+- name: 'Ensure .tmp directory'
+  file:
+    state: 'directory'
+    path: "{{ obal_tmp_dir }}"
+
+- block:
+    - name: 'Extract upstream directory'
+      set_fact:
+        upstream_directory: "{{ upstream.split('/')[-1] }}"
+
+    - name: 'Clone upstream'
+      git:
+        repo: "{{ upstream }}"
+        dest: "{{ obal_tmp_dir }}/{{ upstream_directory }}"
+        version: "{{ branch }}"
+        update: yes
+
+    - name: 'Copy upstream files'
+      synchronize:
+        src: "{{ obal_tmp_dir }}/{{ upstream_directory }}/{{ item }}"
+        dest: "{{ inventory_dir }}/{{ package_base_dir }}/{{ inventory_hostname }}/"
+      with_items: "{{ upstream_files }}"
+  when: #block
+    - upstream.endswith('.git')
+    - downstream_version is not defined
+  rescue: #block
+    - name: 'Remove package directory'
+      file:
+        state: 'absent'
+        path: "{{ inventory_dir }}/{{ package_base_dir }}/{{ inventory_hostname }}"
+
+- block:
+    - name: 'Make package download directory'
+      file:
+        state: 'directory'
+        path: "{{ obal_tmp_dir }}/{{ inventory_hostname }}"
+
+    - name: 'Fetch srpm'
+      get_url:
+        url: "{{ upstream }}"
+        dest: "{{ obal_tmp_dir }}/{{ inventory_hostname }}/"
+
+    - name: 'Find SRPM'
+      find:
+        pattern: "*.src.rpm"
+        paths: "{{ obal_tmp_dir }}/{{ inventory_hostname }}/"
+      register: "srpm"
+
+    - name: 'Explode srpm'
+      shell: "rpm2cpio {{ srpm.files[0].path | basename }} | cpio -idmcv --no-absolute-filenames"
+      args:
+        chdir: "{{ obal_tmp_dir }}/{{ inventory_hostname }}"
+
+    - name: 'Copy upstream files'
+      synchronize:
+        src: "{{ obal_tmp_dir }}/{{ inventory_hostname }}/{{ item }}"
+        dest: "{{ inventory_dir }}/{{ package_base_dir }}/{{ inventory_hostname }}/"
+      with_items: "{{ upstream_files }}"
+  when: #block
+    - upstream.endswith('src.rpm')
+    - downstream_version is not defined
+  rescue: #block
+    - name: 'Remove package directory'
+      file:
+        state: 'absent'
+        path: "./{{ package_base_dir }}/{{ inventory_hostname }}"
+
+- block:
+    - name: get spec file
+      find:
+        pattern: "*.spec"
+        path: "{{ inventory_dir }}/{{ package_base_dir }}/{{ inventory_hostname }}"
+      register: spec_file
+
+    - name: 'Set spec file path and setup flag'
+      set_fact:
+        spec_file_path: "{{ spec_file.files[0].path }}"
+        setup_sources_flags: '-f'
+
+    - name: 'Set downstream release'
+      set_fact:
+        downstream_release: '1'
+      when:
+        - downstream_release is not defined
+
+    - name: 'Set default downstream changelog'
+      set_fact:
+        downstream_changelog: '- Release {{ inventory_hostname }} {{ downstream_version }}'
+      when:
+        - downstream_changelog is not defined
+
+    - name: 'Ensure Source0 specfile points to source server'
+      replace:
+        path: "{{ spec_file_path }}"
+        regexp: '^(?P<prefix>Source0:\s+)http.*/(?P<filename>.*)$'
+        replace: '\g<prefix>{{ source_server }}\g<filename>'
+
+    - name: 'Bump version in specfile'
+      replace:
+        path: "{{ spec_file_path }}"
+        regexp: '^(?P<prefix>{{ item }}\s+)[0-9.]+(?P<suffix>.*)$'
+        replace: '\g<prefix>{{ downstream_version }}\g<suffix>'
+      with_items:
+        - 'Version:'
+        - '%global _version'
+        - '%global mainver'
+
+    - name: 'Bump release in specfile'
+      replace:
+        path: "{{ spec_file_path }}"
+        regexp: '^(?P<prefix>{{ item }}\s+)[0-9.]+(?P<suffix>.*)$'
+        replace: '\g<prefix>{{ downstream_release }}\g<suffix>'
+      with_items:
+        - 'Release:'
+        - '%global _release'
+        - '%global release'
+
+    - name: 'add changelog entry'
+      lineinfile:
+        path: "{{ spec_file_path }}"
+        line: |
+          * {{ lookup('pipe', 'date +"%a %b %d %Y"') }} {{ downstream_changelog_name | default('Satellite6 Jenkins') }} {{ downstream_version }}-{{ downstream_release }}
+          {{ downstream_changelog }}
+        insertafter: '^%changelog'
+
+    - name: 'update source files'
+      include_role:
+        name: setup_sources
+
+  when: #block
+    - downstream_version is defined
+  rescue: #block
+    - name: 'Remove package directory'
+      file:
+        state: 'absent'
+        path: "{{ inventory_dir }}/{{ package_base_dir }}/{{ inventory_hostname }}"
