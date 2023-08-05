@@ -1,0 +1,688 @@
+PyEnsembl
+=========
+
+Python interface to Ensembl reference genome metadata (exons,
+transcripts, &c)
+
+Example Usage
+=============
+
+.. code:: python
+
+    from pyensembl import EnsemblRelease
+
+    # release 77 uses human reference genome GRCh38
+    data = EnsemblRelease(77)
+
+    # will return ['HLA-A']
+    gene_names = data.gene_names_at_locus(contig=6, position=29945884)
+
+    # get all exons associated with HLA-A
+    exon_ids  = data.exon_ids_of_gene_name('HLA-A')
+
+Installation
+============
+
+You can install PyEnsembl using
+`pip <https://pip.pypa.io/en/latest/quickstart.html>`__:
+
+.. code:: sh
+
+    pip install pyensembl
+
+This should also install any required packages, such as
+`datacache <https://github.com/openvax/datacache>`__ and
+`BioPython <http://biopython.org/>`__.
+
+Before using PyEnsembl, run the following command to download and
+install Ensembl data:
+
+::
+
+    pyensembl install --release <list of Ensembl release numbers> --species <species-name>
+
+For example, ``pyensembl install --release 75 76 --species human`` will
+download and install all human reference data from Ensembl releases 75
+and 76.
+
+Alternatively, you can create the ``EnsemblRelease`` object from inside
+a Python process and call ``ensembl_object.download()`` followed by
+``ensembl_object.index()``.
+
+Cache Location
+--------------
+
+By default, PyEnsembl uses the platform-specific ``Cache`` folder and
+caches the files into the ``pyensembl`` sub-directory. You can override
+this default by setting the environment key ``PYENSEMBL_CACHE_DIR`` as
+your preferred location for caching:
+
+.. code:: sh
+
+    export PYENSEMBL_CACHE_DIR=/custom/cache/dir
+
+or
+
+.. code:: python
+
+    import os
+
+    os.environ['PYENSEMBL_CACHE_DIR'] = '/custom/cache/dir'
+    # ... PyEnsembl API usage
+
+Non-Ensembl Data
+================
+
+PyEnsembl also allows arbitrary genomes via the specification of local
+file paths or remote URLs to both Ensembl and non-Ensembl GTF and FASTA
+files. (Warning: GTF formats can vary, and handling of non-Ensembl data
+is still very much in development.)
+
+For example:
+
+.. code:: python
+
+    data = Genome
+        reference_name='GRCh38',
+        annotation_name='my_genome_features',
+        gtf_path_or_url='/My/local/gtf/path_to_my_genome_features.gtf'))
+    # parse GTF and construct database of genomic features
+    data.index()
+    gene_names = data.gene_names_at_locus(contig=6, position=29945884)
+
+API
+===
+
+The ``EnsemblRelease`` object has methods to let you access all possible
+combinations of the annotation features *gene\_name*, *gene\_id*,
+*transcript\_name*, *transcript\_id*, *exon\_id* as well as the location
+of these genomic elements (contig, start position, end position,
+strand).
+
+Genes
+-----
+
+.. raw:: html
+
+   <dl>
+
+.. raw:: html
+
+   <dt>
+
+genes(contig=None, strand=None)
+
+.. raw:: html
+
+   </dt>
+
+.. raw:: html
+
+   <dd>
+
+Returns a list of Gene objects, optionally restricted to a particular
+contig or strand.
+
+.. raw:: html
+
+   </dd>
+
+.. raw:: html
+
+   <dt>
+
+genes\_at\_locus(contig, position, end=None, strand=None)
+
+.. raw:: html
+
+   </dt>
+
+.. raw:: html
+
+   <dd>
+
+Returns a list of Gene objects overlapping a particular position on a
+contig, optionally extend into a range with the end parameter and
+restrict to forward or backward strand by passing strand='+' or
+strand='-'.
+
+.. raw:: html
+
+   </dd>
+
+.. raw:: html
+
+   <dt>
+
+gene\_by\_id(gene\_id)
+
+.. raw:: html
+
+   </dt>
+
+.. raw:: html
+
+   <dd>
+
+Return a Gene object for given Ensembl gene ID (e.g. "ENSG00000068793").
+
+.. raw:: html
+
+   </dd>
+
+.. raw:: html
+
+   <dt>
+
+gene\_names(contig=None, strand=None)
+
+.. raw:: html
+
+   </dt>
+
+.. raw:: html
+
+   <dd>
+
+Returns all gene names in the annotation database, optionally restricted
+to a particular contig or strand.
+
+.. raw:: html
+
+   </dd>
+
+.. raw:: html
+
+   <dt>
+
+genes\_by\_name(gene\_name)
+
+.. raw:: html
+
+   </dt>
+
+.. raw:: html
+
+   <dd>
+
+Get all the unqiue genes with the given name (there might be multiple
+due to copies in the genome), return a list containing a Gene object for
+each distinct ID.
+
+.. raw:: html
+
+   </dd>
+
+.. raw:: html
+
+   <dt>
+
+gene\_by\_protein\_id(protein\_id)
+
+.. raw:: html
+
+   </dt>
+
+.. raw:: html
+
+   <dd>
+
+Find Gene associated with the given Ensembl protein ID (e.g.
+"ENSP00000350283")
+
+.. raw:: html
+
+   </dd>
+
+.. raw:: html
+
+   <dt>
+
+gene\_names\_at\_locus(contig, position, end=None, strand=None)
+
+.. raw:: html
+
+   </dt>
+
+.. raw:: html
+
+   <dd>
+
+Names of genes overlapping with the given locus, optionally restricted
+by strand. (returns a list to account for overlapping genes)
+
+.. raw:: html
+
+   </dd>
+
+.. raw:: html
+
+   <dt>
+
+gene\_name\_of\_gene\_id(gene\_id)
+
+.. raw:: html
+
+   </dt>
+
+.. raw:: html
+
+   <dd>
+
+Returns name of gene with given genen ID.
+
+.. raw:: html
+
+   </dd>
+
+.. raw:: html
+
+   <dt>
+
+gene\_name\_of\_transcript\_id(transcript\_id)
+
+.. raw:: html
+
+   </dt>
+
+.. raw:: html
+
+   <dd>
+
+Returns name of gene associated with given transcript ID.
+
+.. raw:: html
+
+   </dd>
+
+.. raw:: html
+
+   <dt>
+
+gene\_name\_of\_transcript\_name(transcript\_name)
+
+.. raw:: html
+
+   </dt>
+
+.. raw:: html
+
+   <dd>
+
+Returns name of gene associated with given transcript name.
+
+.. raw:: html
+
+   </dd>
+
+.. raw:: html
+
+   <dt>
+
+gene\_name\_of\_exon\_id(exon\_id)
+
+.. raw:: html
+
+   </dt>
+
+.. raw:: html
+
+   <dd>
+
+Returns name of gene associated with given exon ID.
+
+.. raw:: html
+
+   </dd>
+
+.. raw:: html
+
+   <dt>
+
+gene\_ids(contig=None, strand=None)
+
+.. raw:: html
+
+   </dt>
+
+.. raw:: html
+
+   <dd>
+
+Return all gene IDs in the annotation database, optionally restricted by
+chromosome name or strand.
+
+.. raw:: html
+
+   </dd>
+
+.. raw:: html
+
+   <dt>
+
+gene\_ids\_of\_gene\_name(gene\_name)
+
+.. raw:: html
+
+   </dt>
+
+.. raw:: html
+
+   <dd>
+
+Returns all Ensembl gene IDs with the given name.
+
+.. raw:: html
+
+   </dd>
+
+.. raw:: html
+
+   </dl>
+
+Transcripts
+-----------
+
+.. raw:: html
+
+   <dl>
+
+.. raw:: html
+
+   <dt>
+
+transcripts(contig=None, strand=None)
+
+.. raw:: html
+
+   </dt>
+
+.. raw:: html
+
+   <dd>
+
+Returns a list of Transcript objects for all transcript entries in the
+Ensembl database, optionally restricted to a particular contig or
+strand.
+
+.. raw:: html
+
+   </dd>
+
+.. raw:: html
+
+   <dt>
+
+transcript\_by\_id(transcript\_id)
+
+.. raw:: html
+
+   </dt>
+
+.. raw:: html
+
+   <dd>
+
+Construct a Transcript object for given Ensembl transcript ID (e.g.
+"ENST00000369985")
+
+.. raw:: html
+
+   </dd>
+
+.. raw:: html
+
+   <dt>
+
+transcripts\_by\_name(transcript\_name)
+
+.. raw:: html
+
+   </dt>
+
+.. raw:: html
+
+   <dd>
+
+Returns a list of Transcript objects for every transcript matching the
+given name.
+
+.. raw:: html
+
+   </dd>
+
+.. raw:: html
+
+   <dt>
+
+transcript\_names(contig=None, strand=None)
+
+.. raw:: html
+
+   </dt>
+
+.. raw:: html
+
+   <dd>
+
+Returns all transcript names in the annotation database.
+
+.. raw:: html
+
+   </dd>
+
+.. raw:: html
+
+   <dt>
+
+transcript\_ids(contig=None, strand=None)
+
+.. raw:: html
+
+   </dt>
+
+.. raw:: html
+
+   <dd>
+
+Returns all transcript IDs in the annotation database.
+
+.. raw:: html
+
+   </dd>
+
+.. raw:: html
+
+   <dt>
+
+transcript\_ids\_of\_gene\_id(gene\_id)
+
+.. raw:: html
+
+   </dt>
+
+.. raw:: html
+
+   <dd>
+
+Return IDs of all transcripts associated with given gene ID.
+
+.. raw:: html
+
+   </dd>
+
+.. raw:: html
+
+   <dt>
+
+transcript\_ids\_of\_gene\_name(gene\_name)
+
+.. raw:: html
+
+   </dt>
+
+.. raw:: html
+
+   <dd>
+
+Return IDs of all transcripts associated with given gene name.
+
+.. raw:: html
+
+   </dd>
+
+.. raw:: html
+
+   <dt>
+
+transcript\_ids\_of\_transcript\_name(transcript\_name)
+
+.. raw:: html
+
+   </dt>
+
+.. raw:: html
+
+   <dd>
+
+Find all Ensembl transcript IDs with the given name.
+
+.. raw:: html
+
+   </dd>
+
+.. raw:: html
+
+   <dt>
+
+transcript\_ids\_of\_exon\_id(exon\_id)
+
+.. raw:: html
+
+   </dt>
+
+.. raw:: html
+
+   <dd>
+
+Return IDs of all transcripts associatd with given exon ID.
+
+.. raw:: html
+
+   </dd>
+
+.. raw:: html
+
+   </dl>
+
+Exons
+-----
+
+.. raw:: html
+
+   <dl>
+
+.. raw:: html
+
+   <dt>
+
+exon\_ids(contig=None, strand=None)
+
+.. raw:: html
+
+   </dt>
+
+.. raw:: html
+
+   <dd>
+
+Returns a list of exons IDs in the annotation database, optionally
+restricted by the given chromosome and strand.
+
+.. raw:: html
+
+   </dd>
+
+.. raw:: html
+
+   <dt>
+
+exon\_ids\_of\_gene\_id(gene\_id)
+
+.. raw:: html
+
+   </dt>
+
+.. raw:: html
+
+   <dd>
+
+Returns a list of exon IDs associated with a given gene ID.
+
+.. raw:: html
+
+   </dd>
+
+.. raw:: html
+
+   <dt>
+
+exon\_ids\_of\_gene\_name(gene\_name)
+
+.. raw:: html
+
+   </dt>
+
+.. raw:: html
+
+   <dd>
+
+Returns a list of exon IDs associated with a given gene name.
+
+.. raw:: html
+
+   </dd>
+
+.. raw:: html
+
+   <dt>
+
+exon\_ids\_of\_transcript\_id(transcript\_id)
+
+.. raw:: html
+
+   </dt>
+
+.. raw:: html
+
+   <dd>
+
+Returns a list of exon IDs associated with a given transcript ID.
+
+.. raw:: html
+
+   </dd>
+
+.. raw:: html
+
+   <dt>
+
+exon\_ids\_of\_transcript\_name(transcript\_name)
+
+.. raw:: html
+
+   </dt>
+
+.. raw:: html
+
+   <dd>
+
+Returns a list of exon IDs associated with a given transcript name.
+
+.. raw:: html
+
+   </dd>
+
+.. raw:: html
+
+   </dl>
