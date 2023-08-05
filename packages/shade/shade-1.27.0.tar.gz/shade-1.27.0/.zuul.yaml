@@ -1,0 +1,216 @@
+- job:
+    name: shade-tox-py27-tips
+    parent: openstack-tox-py27
+    description: |
+      Run tox python 27 unittests against stable/queens of important libs
+    vars:
+      tox_install_siblings: true
+    # shade in required-projects so that os-client-config and keystoneauth
+    # can add the job as well
+    required-projects:
+      - openstack-infra/shade
+      - openstack/keystoneauth
+      - openstack/python-openstacksdk
+      - openstack/os-client-config
+
+- job:
+    name: shade-tox-py35-tips
+    parent: openstack-tox-py35
+    description: |
+      Run tox python 35 unittests against stable/queens of important libs
+    vars:
+      tox_install_siblings: true
+    # shade in required-projects so that os-client-config and keystoneauth
+    # can add the job as well
+    required-projects:
+      - openstack-infra/shade
+      - openstack/keystoneauth
+      - openstack/python-openstacksdk
+      - openstack/os-client-config
+
+- project-template:
+    name: shade-tox-tips
+    check:
+      jobs:
+        - shade-tox-py27-tips
+        - shade-tox-py35-tips
+    gate:
+      jobs:
+        - shade-tox-py27-tips
+        - shade-tox-py35-tips
+
+- job:
+    name: shade-functional-devstack-base
+    parent: devstack
+    description: |
+      Base job for devstack-based functional tests
+    pre-run: playbooks/devstack/pre.yaml
+    run: playbooks/devstack/run.yaml
+    post-run: playbooks/devstack/post.yaml
+    required-projects:
+      - name: openstack-infra/shade
+      - name: openstack/heat
+      - name: openstack/swift
+    timeout: 9000
+    vars:
+      devstack_localrc:
+        SWIFT_HASH: '1234123412341234'
+      devstack_local_conf:
+        post-config:
+          $CINDER_CONF:
+            DEFAULT:
+              osapi_max_limit: 6
+      devstack_services:
+        ceilometer-acentral: false
+        ceilometer-acompute: false
+        ceilometer-alarm-evaluator: false
+        ceilometer-alarm-notifier: false
+        ceilometer-anotification: false
+        ceilometer-api: false
+        ceilometer-collector: false
+        horizon: false
+        s-account: true
+        s-container: true
+        s-object: true
+        s-proxy: true
+      devstack_plugins:
+        heat: https://git.openstack.org/openstack/heat
+      tox_environment:
+        # Do we really need to set this? It's cargo culted
+        PYTHONUNBUFFERED: 'true'
+        # Is there a way we can query the localconf variable to get these
+        # rather than setting them explicitly?
+        SHADE_HAS_DESIGNATE: 0
+        SHADE_HAS_HEAT: 1
+        SHADE_HAS_MAGNUM: 0
+        SHADE_HAS_NEUTRON: 1
+        SHADE_HAS_SWIFT: 1
+      tox_install_siblings: false
+      tox_envlist: functional
+      zuul_work_dir: src/git.openstack.org/openstack-infra/shade
+
+- job:
+    name: shade-functional-devstack-legacy
+    parent: shade-functional-devstack-base
+    description: |
+      Run shade functional tests against a legacy devstack
+    # TODO(mordred): This does not seem to 
+    voting: false
+    vars:
+      devstack_localrc:
+        ENABLE_IDENTITY_V2: true
+        FLAT_INTERFACE: br_flat
+        PUBLIC_INTERFACE: br_pub
+      tox_environment:
+        SHADE_USE_KEYSTONE_V2: 1
+        SHADE_HAS_NEUTRON: 0
+    override-branch: stable/newton
+
+- job:
+    name: shade-functional-devstack
+    parent: shade-functional-devstack-base
+    description: |
+      Run shade functional tests against a stable/queens devstack
+    vars:
+      devstack_localrc:
+        Q_SERVICE_PLUGIN_CLASSES: qos
+        Q_ML2_PLUGIN_EXT_DRIVERS: qos,port_security
+
+- job:
+    name: shade-functional-devstack-python3
+    parent: shade-functional-devstack
+    description: |
+      Run shade functional tests using python3 against a stable/queens devstack
+    vars:
+      shade_environment:
+        SHADE_TOX_PYTHON: python3
+
+- job:
+    name: shade-functional-devstack-tips
+    parent: shade-functional-devstack
+    description: |
+      Run shade functional tests with tips of library dependencies against a
+      stable/queens devstack.
+    required-projects:
+      - name: openstack/keystoneauth
+      - name: openstack/python-openstacksdk
+      - name: openstack/os-client-config
+    vars:
+      tox_install_siblings: true
+
+- job:
+    name: shade-functional-devstack-tips-python3
+    parent: shade-functional-devstack-tips
+    description: |
+      Run shade functional tests with tips of library dependencies using
+      python3 against a stable/queens devstack.
+    vars:
+      tox_environment:
+        SHADE_TOX_PYTHON: python3
+
+- job:
+    name: shade-functional-devstack-magnum
+    parent: shade-functional-devstack
+    description: |
+      Run shade functional tests against a stable/queens devstack with magnum
+    required-projects:
+      - openstack/magnum
+      - openstack/python-magnumclient
+    vars:
+      devstack_plugins:
+        magnum: https://git.openstack.org/openstack/magnum
+      devstack_localrc:
+        MAGNUM_GUEST_IMAGE_URL: https://tarballs.openstack.org/magnum/images/fedora-atomic-f23-dib.qcow2
+        MAGNUM_IMAGE_NAME: fedora-atomic-f23-dib
+      devstack_services:
+        s-account: false
+        s-container: false
+        s-object: false
+        s-proxy: false
+      tox_environment:
+        SHADE_HAS_SWIFT: 0
+        SHADE_HAS_MAGNUM: 1
+    voting: false
+
+- job:
+    name: shade-ansible-functional-devstack
+    parent: shade-functional-devstack
+    description: |
+      Run shade ansible functional tests against a stable/queens devstack
+      using released version of ansible.
+    vars:
+      tox_envlist: ansible
+
+- project-template:
+    name: shade-functional-tips
+    check:
+      jobs:
+        - shade-functional-devstack-tips
+        - shade-functional-devstack-tips-python3
+    gate:
+      jobs:
+        - shade-functional-devstack-tips
+        - shade-functional-devstack-tips-python3
+
+- project:
+    name: openstack-infra/shade
+    templates:
+      - publish-to-pypi
+      - publish-openstack-sphinx-docs
+      - shade-functional-tips
+      - shade-tox-tips
+    check:
+      jobs:
+        - bifrost-integration-tinyipa
+        - bifrost-integration-tinyipa-opensuse-423
+        - shade-ansible-functional-devstack
+        - shade-functional-devstack
+        - shade-functional-devstack-magnum
+        - shade-functional-devstack-python3
+    gate:
+      jobs:
+        - bifrost-integration-tinyipa
+        - bifrost-integration-tinyipa-opensuse-423
+        - shade-ansible-functional-devstack
+        - shade-functional-devstack
+        - shade-functional-devstack-python3
