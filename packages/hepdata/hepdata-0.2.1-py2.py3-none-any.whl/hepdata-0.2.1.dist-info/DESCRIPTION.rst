@@ -1,0 +1,86 @@
+=================================
+HEPdata Matching Gifts API client
+=================================
+
+.. image:: https://badge.fury.io/py/hepdata.svg
+    :target: http://badge.fury.io/py/hepdata
+
+.. image:: https://travis-ci.org/wellfire/hepdata-matchinggifts.svg?branch=master
+        :target: https://travis-ci.org/wellfire/hepdata-matchinggifts
+
+.. image:: https://img.shields.io/pypi/v/hepdata.svg?style=flat
+        :alt: PyPI Version
+        :target: https://pypi.org/project/hepdata/
+
+A Python wrapper for the `HEPdata Matching Gifts database API <http://www.hepdata.com/>`_.
+
+Install
+=======
+
+>From PyPI:
+
+    pip install hepdata
+
+Testing
+=======
+
+First install `tox <https://tox.readthedocs.io/en/latest/>`_` and then run:
+
+    tox
+
+If you'd prefer not to run the tests from a `tox` environment, ensure you install the package first:
+
+    python setup.py develop
+
+License
+=======
+
+Licensed under the terms of the GPL v2.
+
+
+
+
+History
+-------
+
+0.2.1 (2018-02-15)
+------------------
+
+* Fix bad release
+
+0.2.0 (2018-02-15)
+------------------
+
+* Switch from HTTP to HTTPS for all calls
+
+0.1.5 (2016-12-20)
+------------------
+
+* Fixes missing error code and updates testing/build documentation
+
+0.1.4 (2016-09-19)
+------------------
+
+* Address Python 2 unicode handling bug
+
+0.1.3 (2015-07-24)
+------------------
+
+* Fixes programming error in previous fix
+
+0.1.2 (2015-07-24)
+------------------
+
+* Fixes programming error in previous fix
+
+0.1.1 (2015-07-22)
+------------------
+
+* Enforce consistent type of results (always a list, not a singular dictionary)
+
+0.1.0 (2015-06-15)
+------------------
+
+* First release on PyPI.
+
+
