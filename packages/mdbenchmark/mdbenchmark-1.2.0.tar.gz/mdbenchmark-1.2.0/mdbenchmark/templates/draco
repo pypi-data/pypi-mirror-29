@@ -1,0 +1,35 @@
+#!/bin/bash -l
+# Standard output and error:
+#SBATCH -o ./{{ name }}.out.%j
+#SBATCH -e ./{{ name }}.err.%j
+# Initial working directory:
+#SBATCH -D ./
+# Job Name:
+#SBATCH -J {{ name }}
+#
+# Queue (Partition):
+{%- if gpu %}
+#SBATCH --partition=gpu
+#SBATCH --constraint='gpu'
+{%- else %}
+{%- if time is lessthan 30 or time is equalto 30 %}
+#SBATCH --partition=express
+{%- elif time is greaterthan 30 and time is lessthan 240 or time is equalto 240 %}
+#SBATCH --partition=short
+{%- else %}
+#SBATCH --partition=general
+{%- endif %}
+{%- endif %}
+#
+# Number of nodes and MPI tasks per node:
+#SBATCH --nodes={{ n_nodes }}
+#SBATCH --ntasks-per-node=32
+# Wall clock limit:
+#SBATCH --time={{ formatted_time }}
+
+module purge
+module load impi
+module load {{ module }}
+
+# Run {{ module }} for {{ time  }} minutes
+srun gmx_mpi mdrun -v  -maxh {{ time / 60 }} -deffnm {{ name }}
