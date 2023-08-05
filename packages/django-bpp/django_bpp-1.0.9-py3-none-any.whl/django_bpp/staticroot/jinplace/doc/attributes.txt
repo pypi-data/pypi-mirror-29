@@ -1,0 +1,249 @@
+
+== HTML data attributes ==
+
+All fields on a page that you want to be editable can be marked
+up using HTML data-* attributes.
+The plugin uses these to set up the element so that it can be edited
+on the page and the value submitted to the server. 
+
+The simplest case would look something like this
+
+<pre code=html>
+  <span class="editable" data-url="/api/modify/188/name">Zoe</span>
+</pre>
+
+== HTML data attributes ==
+Here we have the complete list of data attributes that can be set.
+
+===data-url===
+The url to submit the form data to.
+The default is the same url as the page itself.
+It must be a page that can accept submitted form data.
+
+<pre code=html>
+  <span class="editable" data-url="/api/modify/188/name">Jo</span>
+</pre>
+
+===data-type===
+The type of form element to be created. Can be one of 'input' for a
+regular text input, 'select' for a select dropdown box, or 'textarea'
+for a multiline text area.  The default is 'input'.
+
+<pre code=html>
+  <div class="editable" data-url="/api/modify/188/bio"
+  	data-type="textarea" >
+	This could be a long section of text.
+  </div>
+</pre>
+
+===data-activator===
+This is a selector for an element which should be used to activate
+the edit area rather than clicking on the text itself.
+Usually you would use an id to uniquely identify the edit button.
+
+<pre code=html>
+  <div class="editable" data-url="/api/modify/188/bio"
+  	data-type="textarea"
+	data-activator="#bio-edit">
+	This could be a long section of text.
+  </div>
+
+  <span id="bio-edit" class="button">Edit!</span>
+</pre>
+
+In this example clicking on the word 'Edit!' will activate the editing
+control.
+
+===data-data===
+If supplied this is the editable version of the text.
+In the case of a select edit control, it must be a JSON list of value, text pairs.
+If neither data-data nor data-loadurl is supplied, then the editing
+control is initialised with the text from the element.
+
+<pre code=html>
+  <span class="editable" data-url="/api/modify/188/colour"
+  	data-data='[["1", "Red"], ["2", "Green"], ["3", "Blue"]]'>Blue</span>
+</pre>
+
+===data-loadurl===
+If set then it is the url from which to load data.
+A GET http request is made to the 'loadurl' with the
+same parameters that would be sent on submit.
+The server returns data that is used as the initial value of the edit field.
+
+In the example, the dropdown list is supplied by the server.
+
+<pre code=html>
+  <span class="editable" data-url="/api/modify/188/colour"
+  	data-loadurl='/api/lists/colours'>Blue</span>
+</pre>
+
+This is useful if the text is in markdown, textile or other wiki
+like format. The loadurl fetches the wiki text which is edited and
+sent to the server to update.  The server then returns the HTML
+version of the field to display.
+
+===data-ok-button===
+If set, then there will be an OK button next to the input or textarea
+field.  The text on the button will be the value of this option.
+By default there is no submit button, and data is submitted on blur.
+If there is only an OK button, then blur cancels the edit without
+submitting anything to the server.
+
+<pre code=html>
+  <span class="editable" data-url="/api/modify/188/name"
+  	data-ok-button='OK'>Jim</span>
+</pre>
+
+Buttons can only be associated with text inputs, ie 'input' and
+'textarea'.
+
+===data-cancel-button===
+If set, then there will be a cancel button next to the input or textarea
+field.  The text on the button will be the value of this option.
+By default there is no cancel button.
+If there are both OK and cancel buttons, then blur has no effect and
+you must either explicitly click OK or cancel. This is in my opinion
+the best option for large text fields.
+
+<pre code=html>
+  <div class="editable" data-url="/api/modify/188/bio"
+  	data-ok-button='OK'
+	data-cancel-button='Cancel'>
+   Lots of text here.
+  </div>
+</pre>
+
+===data-attribute===
+If set then this value will be sent to the server as part of the post data.
+It is intended to identify the field of a particular object that
+is being set, but you can of course use it however you like.
+
+===data-object===
+If set the this value will be sent to the server as part of the post data.
+It is intended to identify the object to be set, but you can interpret it
+in any way that you like.
+
+<pre code=html>
+  <span class="editable" data-url="/api/modify"
+  	data-ok-button='OK'
+	data-cancel-button='Cancel'
+	data-object="188"
+	data-attribute="name">
+   Pete
+  </span>
+</pre>
+
+===data-text-only===
+If set (which is the default) 
+then data is displayed as text. That is to say '<nowiki><p></nowiki>' would display
+literally and does not cause a paragraph break.
+If you disable it then the data received back from the server will
+be interpreted as html. You are responsible for making sure this
+is safe.
+
+===data-placeholder===
+If the element is empty, then you would not be able to click on it to
+start editing.  So if it is empty, then jinplace will add the placeholder
+text as specified with this attribute or config setting.  When editing,
+this placeholder text is removed.
+The default value is '[ --- ]'
+(This attribute was named 'data-nil' in previous versions)
+
+===data-input-class===
+The input field will have this class.
+There is no default.
+
+== Config settings ==
+You can use any of the data attributes as a config setting when you
+call .jinplace(). The setting name is formed by removing the 'data-'
+prefix and changing hyphenated words with camel case words. So 
+'data-attribute' is 'attribute' and 'data-text-only' is 'textOnly'.
+
+An object can be passed to .jinplace() containing the desired
+settings.
+
+<pre code=js>
+$('editable').jinplace({
+	url: '/api/modify',
+	textOnly: false,
+	placeholder: 'Click to edit',
+	okButton: 'OK',
+	cancelButton: 'Cancel'
+});
+</pre>
+
+You can also set defaults that will apply to all .jinplace() calls.
+
+<pre code=js>
+$.fn.jinplace.defaults.textOnly = false;
+</pre>
+
+Some settings can only be set this way and not via attributes of
+the element you want to edit. These are listed in the remainder
+of this section.
+
+=== submitFunction ===
+This is the function that is called to submit the new data.  The function
+is called with two arguments, first the jinplace options for the element
+and second the new value.  It should return the new value as a string or
+a promise that resolves to a string.
+
+This value will be used to replace the original element text. Inside
+the function, 'this' should be considered to be undefined (it will be window for
+a non-strict mode function).
+
+<pre code=js>
+// Minimum example that does nothing.
+$('.editable').jinplace({
+	submitFunction: function(opts, value) {
+		return value;
+	}
+	});
+</pre>
+
+If the function returns undefined, then the edit is cancelled
+and the element content returns to its original state.
+
+You can also return a 'promise' from the function. This is useful if for
+example you want to make a different kind of ajax call than the default
+one. The promise should resolve to a string value.
+
+<pre code=js>
+// This is roughly what the default processing of submit does.
+$('.editable').jinplace({
+	submitFunction: function(opts, value) {
+		return $.ajax(opts.url, {
+					type: "post",
+					data: {
+					    item: opts.attribute, object: opts.object,
+					    id: opts.elementId, value: value
+					},
+					dataType: 'text',
+				});
+	}
+	});
+</pre>
+
+=== loadFunction ===
+This is the function that is called when editing data is fetched from the
+remote server.  It is called with a single argument which is the jinplace
+options for the element.
+
+Note that you have to have a data-loadurl (or the loadurl setting) for
+this function to be called. So a dummy one must be supplied if you have
+no actual use for it.
+
+The default function is roughly as follows.
+
+<pre code=js>
+$.fn.jinplace.defaults.loadFunction = function(opts) {
+	return $.ajax(opts.loadurl, {
+		data: {
+			id: opts.elementId,
+			object: opts.object
+			attribute: opts.attribute,
+		}
+	});
+}
+</pre>

@@ -1,0 +1,320 @@
+{% load i18n %}
+{% load pagination_tags %}
+
+{% load static %}
+{% load compress %}
+{% load prace %}
+
+{% compress js %}
+    <script src="{% static 'jinplace/js/jinplace.js' %}"></script>
+{% endcompress %}
+
+{% if request.user.is_anonymous %}
+    {#    anonim #}
+    {% if request.GET.all == "1" %}
+        {% autopaginate object_list paging 200 %}
+    {% else %}
+        {% autopaginate object_list paging %}
+    {% endif %}
+{% else %}
+    {#    zalogowany #}
+    {% if request.GET.all == "1" %}
+        {% autopaginate object_list paging 10000 %}
+    {% else %}
+        {% autopaginate object_list paging %}
+    {% endif %}
+
+{% endif %}
+
+{% if request.user.is_anonymous %}
+    {% include "multiseek/paginator.html" with max_rows=200 %}
+{% else %}
+    {% include "multiseek/paginator.html" with max_rows=10000 %}
+{% endif %}
+
+<div style="padding: 10px;">
+
+    {% if description %}
+        <div class="panel info hide-on-print">
+            <strong>Parametry
+                zapytania: </strong>{{ description|default:"brak"|safe }}
+        </div>
+    {% endif %}
+
+    {% if removed_ids %}
+        <script type="text/javascript">
+        function togglePokaz(){
+            $('#rekordy-usuniete').toggle();
+        }
+
+        $(document).ready(function(){
+            $("#rekordy-usuniete").hide();
+        });
+        </script>
+        {% if not print_removed %}
+            <div class="panel info hide-on-print" id="panel-removed-by-hand">
+                Z zapytania usunięto ręcznie <span id="no-removed-recs">{{ removed_ids|length }}</span> rekord(ów).
+                <a id="pokaz-jakie" onclick="togglePokaz()">Pokaż, jakie.</a>
+                | <a onclick="return confirm('Czy na pewno dodać wszystkie ręcznie usunięte prace do wyników wyszukiwania ponownie?');" href="../reenable-removed-ids/">Kliknij tutaj, aby dodać je wszystkie do wyszukiwania z powrotem.</a>
+                | <a href=".">Odśwież stronę</a>
+                | <a href="?print-removed=1&all=1">Pokaż tylko rekordy usunięte ręcznie</a>
+                | <a href="?print=1&print-removed=1&all=1">Wydrukuj tylko rekordy usunięte ręcznie</a>
+
+                <div id="rekordy-usuniete">
+                    <p>
+                    <ul>
+                        {% for elem in removed_ids %}
+                            <li id="multiseek-row-{{ elem.0 }}_{{ elem.1 }}" class="multiseek-row">
+                                <span class="multiseek-element" style="text-decoration: line-through">
+                                {% opis_bibliograficzny_cache elem %}
+                                    </span>
+                                <a onclick="multiseek.removeFromResults('{{ elem.0 }}_{{ elem.1 }}')"
+                                style="font-size: 8pt;">
+                                    &nbsp;✅
+                                </a>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                    </p>
+                </div>
+
+            </div>
+        {% else %}
+           <div class="panel info hide-on-print" id="panel-removed-by-hand">
+           <strong>Wyświetlam listę rekordów usuniętych ręcznie z zapytania. </strong><p></p>
+           <a href=".">Kliknij tutaj, aby wyświetlić wszystkie rekordy.</a>
+            </div>
+        {% endif %}
+    {% endif %}
+
+    {% if request.session.MULTISEEK_TITLE %}
+        <div class="row">
+            <div class="large-12 columns">
+                <h1 class="editable"
+                    data-activator="#edit-activator"
+                    style="display: inline;"
+                    data-input-class="short"
+                    data-text-only="false"
+                    data-url="{% url 'bpp:update_multiseek_title' %}">{{ request.session.MULTISEEK_TITLE }}
+                </h1>
+                <button
+                        title="Kliknij, aby zmienić tytuł wyszukiwania"
+                        id="edit-activator"
+                        src= width="24"
+                        class="button tiny hide-on-print">
+                    edycja
+                    </button>
+
+            </div>
+        </div>
+        </div>
+
+        <script type="text/javascript">
+        $(document).ready(function(){
+            $('.editable').jinplace({
+                submitFunction: function(opts, value) {
+                    return $.ajax(opts.url, {
+                        type: "post",
+                        data: {
+                            item: opts.attribute, object: opts.object,
+                            id: opts.elementId, value: value
+                        },
+                        dataType: 'json'
+                    });
+                }
+            });
+
+        });
+        </script>
+    {% endif %}
+
+
+    {% if report_type == "list" or report_type == "numer_list" or report_type == None %}
+        <ol start="{{ page_obj.start_index }}">
+            {% for element in object_list %}
+
+                <li class="multiseek-row" id="multiseek-row-{{ element.js_safe_pk }}">
+                    <span class="multiseek-element">
+                        <a href="{% url "bpp:browse_praca" element.id.0 element.id.1 %}"
+                           target="_top">
+                            {#                        {% include "opis_bibliograficzny/main.html" with praca=element.get_original_object %}#}
+                            {{ element.opis_bibliograficzny_cache|safe }}
+
+                        </a>
+
+                        {% if report_type == "numer_list" %}
+                            <span style="color: red;">
+                    {{ element.uwagi }}
+                    </span>
+                        {% endif %}
+
+                    </span>
+                {% if not print_removed %}
+                    <span class="multiseek-remove-from-results">
+                        <a onclick="multiseek.removeFromResults('{{ element.js_safe_pk }}'); return false" style="font-size: 8pt;">
+                            ❌
+                        </a>
+                    </span>
+                {% endif %}
+                </li>
+            {% empty %}
+                {% trans "No elements" %}
+            {% endfor %}
+        </ol>
+    {% endif %}
+
+    {% if report_type == "table" %}
+        <table class="kbntab">
+            <tr>
+                <th>Lp.</th>
+                <th>Tytuł, autorzy, źródło</th>
+                <th>IF</th>
+                <th>PK</th>
+                <th>Charakter</th>
+                <th>Typ KBN/MNiSW</th>
+            </tr>
+            {% for element in object_list %}
+                <tr>
+                    <td valign="top">
+                        {{ page_obj.start_index|add:forloop.counter|add:-1 }}.
+                    </td>
+                    <td class="multiseek-row"
+                          id="multiseek-row-{{ element.js_safe_pk }}">
+                    <span class="multiseek-element">
+                    <a href="{% url "bpp:browse_praca" element.id.0 element.id.1 %}"
+                       target="_top">
+                        {#                            {% include "opis_bibliograficzny/main.html" with praca=element.get_original_object %}#}
+                        {{ element.opis_bibliograficzny_cache|safe }}
+
+                    </a>
+                    </span>
+                        {% if not print_removed %}
+                    <span class="multiseek-remove-from-results">
+                        <a onclick="multiseek.removeFromResults('{{ element.js_safe_pk }}'); return false" style="font-size: 8pt;">
+                            ❌
+                        </a>
+                    </span>
+                        {% endif %}
+                    </td>
+                    <td>{{ element.impact_factor }}</td>
+                    <td>{{ element.punkty_kbn }}</td>
+                    <td>{{ element.charakter_formalny }}</td>
+                    <td>{{ element.typ_kbn }}</td>
+                </tr>
+            {% empty %}
+                <tr>
+                    <td>{% trans "No elements" %}
+                    </td>
+                </tr>
+            {% endfor %}
+
+            {% if page_obj.number == page_obj.paginator.num_pages %}
+                <tfoot>
+                <tr>
+                    <td colspan="2">
+                        Suma:
+                    </td>
+                    <td>
+                        {{ sumy.impact_factor__sum|default_if_none:"0.00" }}
+                    </td>
+                    <td>
+                        {{ sumy.punkty_kbn__sum|default_if_none:"0.00" }}
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </tr>
+                </tfoot>
+            {% endif %}
+
+        </table>
+    {% endif %}
+
+    {% if report_type == "pkt_wewn" or report_type == "pkt_wewn_bez" %}
+        <table class="kbntab" width="100%">
+            <tr>
+                <th>Lp.</th>
+                <th>Tytuł, autorzy, źródło</th>
+                <th>IF</th>
+                <th>PK</th>
+                {% if report_type == "pkt_wewn" %}
+                    <th>pkt. wewn.</th>
+                {% endif %}
+                <th>Typ KBN/MNiSW</th>
+            </tr>
+            {% for element in object_list %}
+                <tr>
+                    <td valign="top">
+                        {{ page_obj.start_index|add:forloop.counter|add:-1 }}.
+                    </td>
+                    <td class="multiseek-row"
+                          id="multiseek-row-{{ element.js_safe_pk }}">
+                    <span class="multiseek-element">
+
+                    <a href="{% url "bpp:browse_praca" element.id.0 element.id.1 %}"
+                       target="_top">
+                        {#                            {% include "opis_bibliograficzny/main.html" with praca=element.get_original_object %}#}
+                        {{ element.opis_bibliograficzny_cache|safe }}
+
+                    </a>
+                    </span>
+                        {% if not print_removed %}
+                    <span class="multiseek-remove-from-results">
+                        <a onclick="multiseek.removeFromResults('{{ element.js_safe_pk }}'); return false" style="font-size: 8pt;">
+                            ❌
+                        </a>
+                    </span>
+                        {% endif %}
+                    </td>
+                    <td>{{ element.impact_factor }}</td>
+                    <td>{{ element.punkty_kbn }}</td>
+                    {% if report_type == "pkt_wewn" %}
+                        <td>{{ element.punktacja_wewnetrzna }}</td>
+                    {% endif %}
+                    <td>{{ element.typ_kbn }}</td>
+                </tr>
+            {% empty %}
+                <tr>
+                    <td align="center"
+                        colspan="{% if report_type == "pkt_wewn" %}6{% else %}5{% endif %}">{% trans "No elements" %}
+                    </td>
+                </tr>
+            {% endfor %}
+            {#        Stopka tylko na ostatniej stronie #}
+            {% if page_obj.number == page_obj.paginator.num_pages %}
+                <tfoot>
+                <tr>
+                    <td colspan="2">
+                        Suma:
+                    </td>
+                    <td>
+                        {{ sumy.impact_factor__sum|default_if_none:"0.00" }}
+                    </td>
+                    <td>
+                        {{ sumy.punkty_kbn__sum|default_if_none:"0.00" }}
+                    </td>
+                    {% if report_type == "pkt_wewn" %}
+                        <td>
+                            {{ sumy.punktacja_wewnetrzna__sum|default_if_none:"0.00" }}
+                        </td>
+                    {% endif %}
+                    <td>&nbsp;</td>
+
+                </tr>
+                </tfoot>
+            {% endif %}
+        </table>
+
+    {% endif %}
+
+</div>
+
+{% if request.user.is_anonymous %}
+    {% include "multiseek/paginator.html" with max_rows=200 magellan="no" suffix="_object_list" %}
+{% else %}
+    {% include "multiseek/paginator.html" with max_rows=10000 magellan="no" %}
+{% endif %}
+
+<script type="text/javascript">
+    if (queryDict.print == "1")
+        window.print();
+</script>
