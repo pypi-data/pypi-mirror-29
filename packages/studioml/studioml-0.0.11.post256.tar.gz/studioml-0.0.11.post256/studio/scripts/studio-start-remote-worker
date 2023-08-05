@@ -1,0 +1,128 @@
+#!/bin/bash
+
+# Script that starts remote worker
+# Usage:
+#
+#   studio-start-remote-worker --queue=<queue_name> [--image=<custom_docker_image] [--single-run]
+# 
+#   --queue argument specifies the name of the queue remote worker is listening to
+#   --image optional argument specifies the docker image to be used. Image should have studio installed.
+#           Default is peterzhokhoff/tfstudio
+#           
+#   --single-run optional argument specifies that docker container should not be restarted. 
+#           By default, the container will be restarted after the job is done. 
+
+
+
+docker_cmd=docker
+docker_img=peterzhokhoff/studioml
+timeout=100
+
+while [[ $# -gt 0 ]] 
+do 
+    key="$1"
+    case ${key%%=*} in 
+            -q|--queue)
+            queue_name="${1##*=}"
+            ;;
+
+            -i|--image)
+            docker_img="${1##*=}"
+            ;;
+
+            -s|--single-run)
+            single_run=1
+            echo Single run mode
+            ;;
+
+            -b|--baked-credentials)
+            baked_credentials=1
+            echo "Baked credentials mode (not mounting credentials/keys)"
+            ;;
+
+            -n|--no-cache)
+            no_cache=1
+            echo "Mounting of the cache is disabled"
+            ;;
+
+            -t|--timeout)
+            timeout="${1##*=}"
+    esac
+    shift
+done
+
+if [ -z $queue_name ]
+then
+        echo "Queue name not specified! Use --queue=<queue_name> argument" 
+        exit 1
+fi
+
+echo "Docker image = $docker_img"
+echo "Queue = $queue_name"
+
+eval $docker_cmd
+if [ $? != 0 ]; then
+   echo "Docker not installed! Install docker."
+   exit 1
+fi
+
+eval nvidia-smi
+if [ $? == 0 ]; then
+    eval nvidia-docker
+    if [ $? == 0 ]; then
+        docker_cmd=nvidia-docker
+        bash_cmd=""
+    else
+        echo "Warning! nvidia-docker is not installed correctly, won't be able to use gpus"
+    fi
+fi
+
+echo "docker_cmd = $docker_cmd"
+if [ $docker_cmd == 'docker' ]; then
+    bash_cmd="$bash_cmd python -m pip install -e ./studio && python3 -m pip install -e ./studio && "
+fi
+
+bash_cmd="$bash_cmd studio-remote-worker --queue=$queue_name --verbose=debug --timeout=$timeout --single-run"
+
+: "${GOOGLE_APPLICATION_CREDENTIALS?Need to point GOOGLE_APPLICATION_CREDENTIALS to the google credentials file}"
+: "${queue_name?Queue name is not specified (pass as a script argument}"
+
+gac_path=${GOOGLE_APPLICATION_CREDENTIALS%/*}
+gac_name=${GOOGLE_APPLICATION_CREDENTIALS##*/}
+
+#bash_cmd="git clone $repo && \
+#            cd studio && \
+#            git checkout $branch && \
+#            sudo pip install --upgrade pip && \
+#            sudo pip install -e . --upgrade && \
+#            mkdir /workspace && cd /workspace && \
+#            studio-rworker --queue=$queue_name"
+
+
+# loop until killed
+
+docker_args="run --rm --pid=host "
+if [[ $no_cache -ne 1 ]]; then
+    docker_args="$docker_args -v $HOME/.studioml/experiments:/root/.studioml/experiemnts"
+    docker_args="$docker_args -v $HOME/.studioml/blobcache:/root/.studioml/blobcache"
+fi
+
+if [[ $baked_credentials -ne 1 ]]; then
+    docker_args="$docker_args -v $HOME/.studioml/keys:/root/.studioml/keys"
+    docker_args="$docker_args -v $gac_path:/creds -e GOOGLE_APPLICATION_CREDENTIALS=/creds/$gac_name"
+fi
+
+echo "Docker args = $docker_args"
+echo "Docker image = $docker_img"
+
+while true
+do
+    echo $bash_cmd
+    $docker_cmd pull $docker_img
+    $docker_cmd $docker_args $docker_img /bin/bash -c "$bash_cmd"
+   if [ $single_run ];
+   then
+           exit 0
+   fi
+done
+

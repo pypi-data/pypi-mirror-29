@@ -1,0 +1,237 @@
+{% extends "base.html" %}
+
+{% block content %}
+    
+    <h1 id=header>Experiment {{ experiment }}</h1>
+
+    <p id=project></p>
+    <p id=filename></p>
+    <p id=args></p>
+    <p id=pythonver></p>
+    
+    <div id="container-pyenv" hidden>
+        <p> <a data-toggle="collapse" href="#collapse-pyenv">Python environment:</a> </p>
+        <div id="collapse-pyenv" class="panel-collapse collapse">
+            <ul class="list-group" id="listgroup-pyenv"> </ul>
+        </div>  
+    </div>
+
+    <dl>
+        <div id="container-artifacts" hidden>
+        </div>
+
+        <div id="info" hidden>
+            <dt>Experiment info:</dt>
+
+            <dd id=status hidden><dd>
+            <dd id=timeCreated hidden><dd>
+            <dd id=timeStarted hidden><dd>
+            <dd id=timeFinished hidden><dd>
+            <dd id=git hidden></dd>
+         
+            <div id=extra-info hidden></div>
+            <div id=logtail hidden></div>
+
+        </div>
+
+        <div id="buttons" hidden>
+            <button onclick='stopExperiment( "{{ experiment }}" )' type="button" class="btn btn-danger" id=stopButton>Stop</button>
+            <button onclick='deleteExperiment( "{{ experiment }}" )' type="button" class="btn btn-danger" id=deleteButton>Delete</button>
+            {% if allow_tensorboard %}
+                <button onclick='viewInTensorBoard( "{{ experiment }}" )' type="button" class="btn btn-default" id=tbButton>Tensorboard</button>
+            {%- endif %}
+        </div>
+    <dl>
+    
+
+    <script>
+        $(authWidget(function() {
+            reload(() => data_ajax('get_experiment', data={"key": "{{ experiment }}"}), updateExperimentPage, 1, 120,
+                                   compareExperimentData)
+        }));
+
+        function compareExperimentData(expA, expB) {
+            if (expA == null || expB == null) {
+                return false;
+            }
+            expA = JSON.parse(expA)
+            expB = JSON.parse(expB)
+
+            if (JSON.stringify(expA.experiment.info) == JSON.stringify(expB.experiment.info)) {
+                return true;
+            }
+            return false;
+        }
+
+        function deleteExperiment(key) {
+            if (confirm("The experiment and its artfacts will be lost. Proceed?")) {
+                data_ajax('delete_experiment', data={"key": "{{ experiment }}"}).then((response) => {
+                    data = JSON.parse(response);
+                    if (data.status != 'ok') {
+                        alert(data.status);
+                    } else {
+                        window.location.href = '/';
+                    }
+                });                   
+            }
+        }
+
+        function stopExperiment(key) {
+            if (confirm("The experiment will be sent a stop signal. Proceed?")) {
+                data_ajax('stop_experiment', data={"key": "{{ experiment }}"}).then((response) => {
+                    data = JSON.parse(response);
+                    if (data.status != 'ok') {
+                        alert(data.status);
+                    }       
+                });                   
+            }
+        }
+
+        function viewInTensorBoard(key) {
+            document.getElementById("tbButton").innerHTML="<i class='fa fa-cog fa-spin'></i> Redirecting..."
+            window.location.href = "/tensorboard_exp/" + key
+        } 
+        
+        
+        function qualifiedLocationToBrowsable(key) {
+            if (key.startsWith('gs://')) {
+                url = key.replace('gs://', 'https://console.cloud.google.com/storage/browser/')
+                url = url.replace(/\/[^/]+$/g, '')
+
+            } else {
+                url = null
+            }
+            return url
+        }
+
+        function updateExperimentPage(response) {
+            data = JSON.parse(response)
+            console.log(data)
+            if (data.status == 'ok') { 
+                e = data.experiment
+                if (e.project) {
+                    $('#project').html('Project: <a href="/project/' + e.project + '">' + e.project + '</a>')
+                }
+                
+                $('#filename').html('Filename: ' + e.filename)
+                $('#args').html('Args: ' + e.args)
+                if (e.pythonver) {
+                    $('#pythonver').html('Python: ' + e.pythonver)
+                }
+
+                for (i in e.pythonenv) {
+                    $('#listgroup-pyenv').append('<li class=list-group-item>' + e.pythonenv[i] + '</li>')
+                }
+                $('#container-pyenv').show()
+
+                $('#container-artifacts').html('<dt>Experiemnt artifacts</dt>')
+                for (var key in e.artifacts) {
+                    art = e.artifacts[key]
+                    if (art.url) {
+                        var artifactHtml = '<dd>';
+                        artifactHtml += '<a href="' + art.url + '">' + key + '</a>';
+                    
+                        if (art.qualified && qualifiedLocationToBrowsable(art.qualified)) {
+                            artifactHtml += '<a href="' + qualifiedLocationToBrowsable(art.qualified) + '"> (view in console)</a>';
+                        }
+                        artifactHtml += '</dd>';
+                        console.log(artifactHtml)
+                        $('#container-artifacts').append(artifactHtml)
+                    }
+                }
+                $('#container-artifacts').show()
+            
+                $('#status').html('Status: ' + e.status).show()
+
+                displayTime('timeCreated', e.time_added, 'Time created: ')
+                displayTime('timeStarted', e.time_started, 'Time started: ')
+                displayTime('timeFinished', e.time_finished, 'Time finished: ')               
+
+                displayGit('git', e.git)
+                displayExtraInfo('extra-info', e.info)
+                displayLogtail('logtail', e.info.logtail)
+                
+                $('#info').show()
+
+                if (e.status == 'running') {
+                    $('#stopButton').show()   
+                    $('#deleteButton').hide()   
+                } else {
+                    $('#stopButton').hide()   
+                    $('#deleteButton').show()   
+                }
+                
+                if ('tb' in e.artifacts) {
+                    $('#tbButton').show()
+                } else {    
+                    $('#tbButon').hide()
+                }
+                
+                $('#buttons').show()
+            }
+        }
+       
+        function displayTime(elementId, timestamp, texttag) {
+            el = $('#' + elementId)
+            if (timestamp) {
+                el.html(texttag + new Date(timestamp * 1000))
+                el.show()
+            } else {
+                el.hide()
+            }
+        }
+
+        function displayGit(elementId, gitinfo) {
+            el = $('#' + elementId)
+            if (gitinfo) {
+                el.html('Git: <a href="' + gitinfo.url + '">' + gitinfo.url + '</a>');
+                if (gitinfo.url.match(/https?:\/\/github\.com\//g)) {
+                    el.append('<a href="' + gitinfo.url + '/commit/' + gitinfo.commit + '">' + gitinfo.commit + '</a>');
+                } else if (gitinfo.url.match(/https?:\/\/stash\./g)) {
+                    el.append('<a href="' + gitinfo.url + '/commits/' + gitinfo.commit + '">' + gitinfo.commit + '</a>');
+                } else {
+                    el.append(' ' + gitinfo.commit);
+                }
+                el.show()
+            } else {
+                el.hide()
+            }
+            return el
+        }
+
+        function displayExtraInfo(elementId, info) {
+            el = $('#' + elementId)
+            el.html('')
+            if (info) {
+                for (var key in info) {
+                    if (key != 'logtail') {
+                        el.append('<dd>' + key + ':' + info[key])
+                    }
+                }
+                el.show()
+            } else {
+                el.hide()
+            }
+        }
+
+        function displayLogtail(elementId, logtail) {
+            el = $('#' + elementId) 
+            if (logtail) {
+                el.html('Tail of the log: ')
+                for (var index in logtail) {
+                    el.append('<dd>' + logtail[index] + '</dd>')
+                }
+                el.show()
+            } else {
+                el.hide()
+            }   
+        }
+            
+    </script>
+
+
+
+{% endblock %}
+
+
+
