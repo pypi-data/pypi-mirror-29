@@ -1,0 +1,45 @@
+#!python
+from __future__ import print_function, unicode_literals
+
+import os
+import sys
+import logging
+import optparse
+import yaml
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+import temptation
+from temptation import logger
+
+def get_opts_and_args(argv):
+    loglevelchoices = ['DEBUG', 'INFO', 'WARN', 'ERROR']
+    optparser = optparse.OptionParser(
+        prog = argv[0],
+        usage='Usage: %prog [OPTION] -t template datafile...',
+        description = 'Resolve template for datafiles. Datafiles can be yaml or json',
+        version='%s %s' % ("%prog", temptation.__version__)
+    )
+    optparser.add_option('-t', '--template', dest='templatefilename', help="Template to be resoved")
+    optparser.add_option('-l', '--log-level', type='choice',
+        choices=loglevelchoices, dest='loglevel', default=loglevelchoices[1],
+        help="Log level. Choices: %s; Defaults to %s" % (loglevelchoices, loglevelchoices[1])
+    )
+    return optparser.parse_args(argv[1:])
+
+def get_infile(filename):
+    if filename == '-':
+        return sys.stdin.read()
+    with open(filename) as infile:
+        return infile.read()
+
+def main(argv):
+    opts, args = get_opts_and_args(argv)
+    logger.setLevel(eval('logging.%s' % opts.loglevel))
+    logger.debug("main(%s)" % args)
+    template = temptation.Template(get_infile(opts.templatefilename))
+    for arg in args if args != [] else ['-'] :
+        for doc in yaml.load_all(get_infile(arg)):
+            sys.stdout.write(template.resolve(doc))
+
+if __name__ == "__main__":
+    main(sys.argv)
