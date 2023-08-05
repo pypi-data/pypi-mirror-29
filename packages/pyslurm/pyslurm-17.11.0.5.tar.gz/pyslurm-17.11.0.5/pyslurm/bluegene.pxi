@@ -1,0 +1,2 @@
+DEF BG=1
+DEF BGQ=0
