@@ -1,0 +1,480 @@
+Version 6.0.3 2018-02-16
+========================
+Very minor update.
+
+- Improved installation script.
+
+- Documentation fix.
+
+Version 6.0.2 2017-06-20
+==========================
+The only change in this version is in the documentation, which now includes
+instructions on how to use gvar.dataset.svd_diagnosis (gvar v8.3.1) to
+set SVD cuts (before fitting): see the section on Accurate Fits --- SVD Cuts.
+
+Version 6.0.1 2017-02-13
+=========================
+Fixed bug in Corr3 when using tmin. Thanks Chris!
+
+Version 6.0
+============================
+Although this version involves a substantial rewrite of the code (and
+some of the documentation), the functionality is mostly the same. The
+new code is mostly backwards compatible, but it has new features
+and is generally more robust and better tested than before. Class CorrFitter
+is a slightly specialized version of lsqfit.MultiFitter, which is a new
+feature of lsqfit inspired by the original corrfitter.
+
+- This corrfitter version requires up-to-date versions of
+  gvar (v8.2 or greater) and lsqfit (v9.1.1 or later).
+
+- Corr3 keyword transposed_V is no longer supported. The same functionality
+  is provided using new keyword reverse, which time-reverses the data;
+  code is simpler with the new keyword. reverse is also available for Corr2.
+  transposed_V still works but its days are numbered.
+
+- CorrFitter.simulated_data_iter is replaced by
+  CorrFitter.simulated_pdata_iter, which returns processed data (for use
+  with keyword pdata in CorrFitter.lsqfit and CorrFitter.chained_lsqfit).
+
+- chained_lsqfit keyword parallel no longer exists. To fit models m1, m2 ...
+  in parallel set models=[[m1, m2, m3]].
+
+- Corrfitter.lsqfit option print_fit no longer exists. It isn't clear
+  what to print for chained fits, and, in any case, it is rude of software to
+  print stuff out without permission. Chained fits have an option:
+  print(fit.formatall()) prints out fit information for all the fits in the
+  chain. This also works for non-chain fits, but is the same as
+  print(fit) in that case.
+
+- Chained fits now return the last fit in the chain. They used to return
+  a hybrid object that didn't make a whole lot of sense. The parameter
+  values from the last fit represent the cummulative result of all the
+  fits.
+
+- Corr3 keywords tpa and tpb no longer do anything. They never made sense
+  and so have been disabled. They can still be set, for backwards
+  compatibility, but they are ignored.
+
+- Keyword otherdata is preferred to the older othertags, though the latter
+  still works for now.
+
+- Corr3 has a new keyword reverseddata that allows you to combine data for
+  b->V->a with data for a->V->b in a single Corr3. reverseddata is also
+  available for Corr2.
+
+- Instead of specifying tdata and tfit in Corr2, one can now specify just
+  tmin, and tp and/or tmax. This is simpler but only works if the associated
+  data includes results for all t values in order, starting with t=0
+  (which is very often the case). In Corr3, only T and tmin need be
+  specified; tdata and tfit are generated automatically in that case.
+
+- Given a dataset dset, pdata = process_dataset(dset, model_list) creates
+  *processed data* customized to the models in list model_list. This is
+  fed into CorrFitter.lsqfit using argument pdata=pdata rather than data=data.
+  Doing things this way makes a difference if the models are discarding large
+  amounts of input data since those data are discarded before averaging
+  is done (and in particular before the covariance matrix is calculated).
+  Fits can run substantially faster when the total amount of data is
+  reduced by a large factor.
+
+- In a chained fit of [m1, m2, m3 ...], any of the models m1, m2 ... can
+  be replaced by a tuple of models (s1, s2, ...), which indicates that
+  s1, s2, ... are to be fit together simultaneously, in a single fit. This is
+  a new feature. In the past any of m1, m2 ... could be replaced by
+  a list [p1, p2, ...] of models to be fit separately but in parallel. This
+  is still supported.
+
+- Corr2 and Corr3 have a new parameter ncg (default is ncg=1). When fitting
+  with ncg>1, correlators are coarse-grained by breaking them up into bins
+  of ncg values and replacing each bin by its average. The bin averages are
+  then fit by a coarse-grained version of the fit function. So, for example,
+  a correlator array [G[0], G[1], ...] is replaced by a new array
+  [ (G[0] + G[1])/2, (G[2] + G[3])/ 2 ... ] when ncg=2. The same
+  transformation is applied to the fit function as to the data, so the
+  meaning of the fit parameters is unchanged. In some cases coarse graining
+  does not much affect the accuracy of the fit results, and then is
+  desirable because it reduces the amount of data being fit.
+
+
+Version 5.0.1 2016-08-14
+==========================
+- Made tests, examples and documentation compatible with lsqfit 8.0. You
+  can no longer use, for example, logdE as a parameter name in place
+  of log(dE) when log-normal prior is desired for dE. The parentheses are
+  essential. lsqfit8.0 allows you to define new distributions if you wish,
+  beyond log-normal and sqrt-normal.
+
+  FIX FOR LEGACY CODE: To help convert legacy code with logdE etc,
+  there is a new utility function that adds the needed parentheses: use
+
+    prior = gvar.add_parameter_parentheses(prior)
+
+  to add parentheses to keys in dictionary prior of the form logdE or sqrta
+  (which become log(dE) or sqrt(a)) in dictionary prior.
+
+- 'make time' times the example codes. Is around 60s on my oldish MacBook Air.
+  This is only somewhat reliable, especially if comparing different
+  machine architectures.
+
+Versions 5.0 2015-07-01
+========================
+This is an update so corrfitter works with the most recent lsqfit (v7.0).
+It also replaces corrfitter.fastfit with something much more useful, but
+incompatible with previous code (hence v5.0, by the rules of
+semantic versioning).
+
+- corrfitter.fastfit has been rewritten with a much simpler interface,
+  making it much easier to use. It is a (significantly) souped-up effective
+  mass calculation. It is easier to use than canonical effective masses
+  because one needn't worry about plateaus (since fastfit includes
+  marginalized excited states and so should work for arbitrarily small
+  values of t). The new interface is incompatible with the old interface.
+
+- corrfitter.read_dataset() has new option binsize which causes it to
+  bin data when binsize > 1.
+
+- Some ancient undocumented hacks have been removed. This might affect
+  legacy codes, but shouldn't be an issue for anything written recently.
+
+- Added a fastfit example to the first Annotated Example (etas fitting).
+  Also added a short discussion about correlated data and binning.
+
+- Added an annotated example for meson-meson mixing, at the end
+  of the Annotated Example on transition form factors.
+  The sample code is in examples/Ds-Ds.py.
+
+
+Version 4.1.1 - 2015-06-17
+===========================
+Very minor fixes.
+
+- Fixed tests so that they are compatible with gvar v7.0 and greater.
+
+- EigenBasis.tabulate(p) now works for fit.p as well as fit.transformed_p. It
+  also works for priors that it creates.
+
+- Fixed some examples that became inconsistent with numpy's new rule about
+  random number seeds.
+
+Version 4.1 - 2014-06-30
+==========================
+
+- Additions/refinements to EigenBasis including a new method, Eigenbasis.svd,
+  which transforms data to the eigen-basis, applies an svd cut, and then
+  transforms the data back to the original basis. Applying svd cuts in
+  the eigen-basis can sometimes improve fit stability.
+
+- Added save option to CorrFitter.display_plots so it can save copies of the
+  plots in (separate) files.
+
+
+Version 4.0 - 2014-06-25
+=========================
+The main change here is the new EigenBasis class.
+
+- A series of Annotated Examples have been added to the documentation.
+  Each describes in detail a specific fit code and its results. Code
+  and data for each example are included in the examples/ file. There
+  are three Annotated Examples right now. Eventually there may be one
+  or two more. These are meant to provide code templates for various
+  types of problem. They might also be useful for people who don't like
+  to read documentation. The code that used to be in the examples/
+  directory is now gone. Going forward this directory will be for
+  Annotated Examples only.
+
+- A new class EigenBasis is provided for fits that involve matrix correlators.
+  It does a generalized eigenanalysis of the correlator at moderate values of
+  t, and uses that information to create priors for the amplitudes  and
+  energies associated with the matrix correlator. These "eigen-priors"  can
+  significantly improve the quality of results for the excited states in the
+  matrix correlator. They are easily combined with priors for  other sorts of
+  correlators, and so can be used, for example, in  joint fits of 2-point and
+  3-point correlators. They tend to  stabilize the low-lying excited states in
+  a fit, discouraging  the appearance of spurious states with near-zero
+  amplitudes. Introducing an eigen-prior into an existing code is generally
+  trivial, requiring just a few lines of code (and usually removing many
+  more, since EigenBasis creates a prior for the matrix correlator parameters).
+
+  See the Annotated Example on matrix correlators in the documentation for
+  a code example.
+
+  This class merges the advantages of multi-exponential fitting with  those of
+  the Generalized Eigenvalue approach (which is easily  implement using
+  EigenBasis, if desired). It makes fewer assumptions than the latter and
+  these assumptions are readily checked and altered.  The interface for this
+  class is experimental; it may change in the near future as we gain
+  experience with it.
+
+  This class also requires the scipy library for Python, in addition to
+  numpy.
+
+- The print_fit option to lsqfit can be a dictionary containing arguments
+  for lsqfit.nonlinear_fit.format(). Alternatively it is True or False,
+  as before.
+
+- Beginning with this version of corrfitter, version numbers will be consistent
+  with the rules of "semantic versioning" (http://semver.org). The most
+  important consequence is that any change that is *not* backwards compatible
+  with the current interface (as defined by the documentation) will be signaled
+  by a change in the major version number, where the full version number has the
+  format major.minor.patch (so the major version number is 4 for version 4.0).
+  A side effect of this is that increases in the major version number can
+  be triggered by relatively obscure changes in the interface that will have
+  no effect whatsoever on almost all existing codes.
+
+Version 3.7.1 - 2014-05-30
+===========================
+Small updates.
+
+- Allow tol=(reltol,abstol) in CorrFitter so relative and absolute
+  fit tolerances can be set separately. In the past tol was a single
+  number which was used for both reltol and abstol. This is still
+  supported but one can instead use a tuple to specify them separately.
+  The default tolerance (1e-10) is probably smaller than it should be;
+  1e-4 is probably good enough for many applications.
+
+- New function corrfitter.read_dataset(files) reads Monte Carlo data
+  for correlators into a gvar.dataset.Dataset. Instead of writing
+
+    dset = gvar.dataset.Dataset(files)
+
+  one can now write
+
+    dset = corrfitter.read_dataset(files)
+
+  Either method works, but the second method supports a new file format
+  for correlator data. A lot of simulation code dumps each correlator
+  into a separate file, with each line having a t and G(t). This format
+  can be read by read_data directly, without having to convert to the
+  traditional gvar.dataset.Dataset format. To use this format, argument
+  files has to be a dictionary. Each key k is the name (datatag) of a correlator,
+  and files[k] is the name of the file containing that correlator's data.
+
+Version 3.7 - 2014-05-12
+=========================
+This version was modified to make it consistent with lsqfit v4.8. The
+main change here is that option svdnum is no longer supported (use svdcut
+instead).
+
+- Corrected typo in documentation (annotated example).
+
+Version 3.6.3 - 2014-02-02
+===========================
+
+Small changes in chained_lsqfit to accommodate changes made in
+lsqfit v4.6.1.
+
+Version 3.6.2 - 2014-01-30
+==========================
+
+- Fixed (rare?) bug that caused lsqfit and chained_lsqfit to crash
+  sometimes when nterm was set in the call to lsqfit/chained_lsfit.
+
+Version 3.6.1 - 2013-09-26
+==========================
+
+- Fixed bug in CorrFitter causing it sometimes to ignore othertags in models.
+
+- Added attribute all_datatags to models. This is a list containing the
+  datatag and any tags included in othertags.
+
+- Changes to correct test and example output for changes introduced in
+  lsqfit v4.5.2.
+
+
+Version 3.6 - 2013-07-31
+===================================
+This release adds a new procedure for testing fits: simulated data. Simulated
+data is created from real data by adjusting the mean values to correspond
+to fluctuations around correlators computed with know parameters, p=pexact.
+This means that fits to simulated data should behave quite similarly to the
+original fits, but for simulated data we know what the correct answer is
+for every parameter. This provides a very flexible tool for assessing
+the reliability of a fit and for testing variations on the original fits.
+See CorrFitter.simulated_data_iter. Note that this procedure
+seems superficially similar to bootstrap analysis but it is really quite
+different, very much faster and much more useful.
+
+- Fixed p0 in CorrFitter.chained_fit.
+
+- Minor documentation change (for changes in lsqfit's format function).
+
+Version 3.5.1 - 2013-07-07
+==========================
+
+- Minor bug fix in CorrFitter.chained_lsqfit. More tests (designed
+  to catch bugs like this in the future).
+
+Version 3.5 - 2013-07-07
+========================
+
+CorrFitter.chained_lsqfit continues to evolve in this release. It is
+still somewhat experimental but continues to perform well in a wide
+variety of real-life applications. Experience shows that it can be
+10-100 times faster than CorrFitter.lsqfit for very large fits (eg,
+90+ correlators consisting of 1000+ pieces of correlated data).
+
+- Parameter aux_param in CorrFitter is gone. It is no longer needed since
+  any parameter specified in the prior is included in the fit, whether
+  or not the correlator models use the parameter explicitly. Setting
+  parameter fast=True in CorrFitter.lsqfit or CorrFitter.chained_lsqfit
+  causes the fitter to delete parameters from the prior that are not used
+  explicitly --- this is the old behavior, which can be faster but loses
+  information in cases where the prior containes strong correlations.
+
+- Made major changes to CorrFitter.chained_lsqfit. Setting parameter
+  parallel=True causes fits to be done in parallel, rather than chained.
+  Correlators are still fit one at a time in a parallel fit, but nothing is
+  passed from fit to fit --- each fit uses the input prior. Parallel fits are
+  appropriate when the different models to be fit share few or no parameters.
+  chained_lsqfit also works with structured lists of models
+  (eg, [m1, m2, [m3a,mb3b], m4]) that cause the fitter to alternate
+  between chained and parallel fits  at different levels in the
+  nested list of models.
+
+- Fixed p0 conventions in CorrFitter.lsqfit to be consistent with lsqfit
+  (and therefore more flexible than before).
+
+Verion 3.4.2 - 2013-04-06
+==========================
+
+- Minor tweaks to makefiles and other build files.
+
+- Repackaged examples file with much smaller data files (to reduce the
+  size of the distribution) and more informative file names.
+
+- Minor optimizations to Corr2 and Corr3.
+
+- Small fix to chained_lsqfit --- add time to fit output.
+
+- Improved documentation, including more on chained_lsqfit.
+
+- Tweaks relating to use of lsqfit.transform_p.
+
+- Doesn't really work with python2.6 any more. The main thing missing
+  from 2.6 is OrderedDict. Does work for both python2.7 and python3.3.
+
+Version 3.4.1 - 2013-03-14
+==========================
+
+- Fix small, mostly harmless bug in CorrFitter.chained_lsqfit()
+
+- More documentation including a complete annotated example.
+
+
+Version 3.4 -- 2013-02-16
+=========================
+This version adds a completely new algorithm for fitting multiple
+models: chained fits. These reduce a single multi-correlator fit to a
+(correlated) series of single-correlator fits that are generally
+faster and much more robust than a standard simultaneous
+multi-correlator fit. The need for svd cuts, for example, is
+significantly reduced, and fits rarely get stuck. To use
+a chained fit replace ``fitter.lsqfit(...)`` by
+``fitter.chained_lsqfit(...)``; all else should be the same.
+
+Several of the examples in the examples directory now come
+in two forms, one using standard fits and the other (with -chd
+in its name) using chained fits. It is instructive to compare
+the .out files for corresponding fits.
+
+
+Other changes:
+
+- Tutorial documentation (see doc/html/index.html) was
+  extended and rearranged somewhat.
+
+- Unittests for the chained fitting.
+
+- Python 2.6 less and less viable for corrfitter.
+
+Version 3.3 -- 2013-02-12
+=========================
+
+- Added python3.3 compatibility. This required internal tweaking of
+  CorrFitter. It also requires numpy 1.7 or later.
+
+- Simplified and extended support for non-gaussian priors
+  (eg, log-normal) for fit parameters. This version requires
+  version 4.3.1 of lsqfit.
+
+Version 3.2.5 -- 2013-01-29
+===========================
+
+- New fitter fastfit(...) which estimates E and a*b for the dominant term
+  in a correlator at large t (usually the smallest E). This is done by
+  marginalizing every term in the correlator except for the leading term,
+  and then solving for E using the exact formula for the leading term. This
+  function is useful for a quick estimate and is often almost as accurate
+  as the result of a full fit. Added unittests for this function.
+
+- Removed bugs in marginalization code for anti-periodic functions.
+
+- Polished some of the documentation.
+
+Version 3.2.4 -- 2012-12-20
+=================================
+This is a minor update that has no effect on most applications. It does
+however significantly improve testing.
+
+- 'make tests' now runs a completely new set of tests organized using
+  Python's standard unittest module (so the tests can also be run using the
+  standard 'python -m unittest discover'). Unlike the old tests, the new
+  ones are hardware independent and so should work with pretty much any
+  system. The old tests are now in the directory called 'examples' and are
+  run using 'make run-examples'.
+
+- Fixed a bug where Corr3s with symmetric_V=True caused CorrFitter to crash
+  when using marginalization (i.e., specifying nterm in CorrFitter).
+
+- Allow non-string labels for y-axis in CorrFitter.display_plots().
+
+Version 3.2.3 -- 2012-12-03
+===========================
+This version now works with python 3, which seems slightly faster than
+python 2 but not so much that one needs to convert immediately. Other
+changes:
+
+- Anti-periodic correlators can now be fit by specifying a negative tp in
+  Corr2 (and, less usefully, Corr3).
+
+- The test code was rewritten to make it compliant with python 3. This
+  entails using new serialization code in lsqfit v4.2.6. The tests will
+  fail with earlier version of lsqfit.
+
+Version 3.2.1    2012-07-22
+===========================
+This version updates the output from the tests to deal with format changes
+in lsqfit 4.2.3. The code (corrfitter.py, not necessarily the test files)
+seems to work with python3 but this has not been carefully explored yet.
+
+
+Version 3.2 (2012-05-06)
+========================
+Changes to accommodate changes introduced in lsqfit 4.2:
+
+- svdcut and svdnum can be 2-tuples now (see lsqfit.nonlinear_fit)
+
+- GPrior replaced by gvar.BufferDict
+
+- removed module dataset as it is no longer needed by corrfitter, which now
+  uses gvar.dataset.Dataset and gvar.dataset.avg_data instead. A simplified
+  replacement for the old module is included (called dataset.py) for use
+  with old code. It is not installed by 'make install'; it can be installed
+  if needed (for old code) using "make install-dataset" (or "python
+  dataset-setup.py install --user"). Don't install it if you don't have old
+  code.
+
+# Created by G. Peter Lepage, Cornell University, on 2010-11-26.
+# Copyright (c) 2010-2015 G. Peter Lepage.
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# any later version (see <http://www.gnu.org/licenses/>).
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
