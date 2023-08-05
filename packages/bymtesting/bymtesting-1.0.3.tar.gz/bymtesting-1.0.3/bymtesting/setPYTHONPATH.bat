@@ -1,0 +1,1 @@
+setx -m PYTHONPATH %~dp0
