@@ -1,0 +1,92 @@
+**************************************
+.gov.br: Barra de Identidade
+**************************************
+
+Teste funcional de aplicacao da barra
+========================================
+
+Configurando o teste
+---------------------
+
+Inicialmente definimos variaveis a serem utilizadas durante todo o teste::
+
+    >>> app = layer['app']
+    >>> portal = layer['portal']
+    >>> request = layer['request']
+
+    >>> from plone.app.testing import login
+    >>> from plone.app.testing import logout
+    >>> from plone.app.testing import setRoles
+    >>> from plone.testing.z2 import Browser
+    >>> from plone.app.testing import TEST_USER_ID
+    >>> from plone.app.testing import TEST_USER_NAME
+    >>> from plone.app.testing import SITE_OWNER_NAME
+    >>> from plone.app.testing import SITE_OWNER_PASSWORD
+
+    >>> browser = Browser(app)
+    >>> portalURL = portal.absolute_url()
+
+
+Adiciona barra localmente
+---------------------------
+
+    >>> setRoles(portal, TEST_USER_ID, ['Manager' ])
+    >>> login(portal, TEST_USER_NAME)
+    >>> portal.portal_properties.brasil_gov.local = True
+    >>> import transaction
+    >>> transaction.commit()
+    >>> logout()
+
+
+Acesso anonimo
+---------------------
+
+A barra deve estar visivel para todos os usuarios, inclusive os nao
+autenticados.
+
+Como usuario anonimo acessamos a raiz do site
+
+    >>> browser.open(portalURL)
+
+Validamos que a chamada da barra local foi inserida corretamente::
+
+    >>> '++resource++brasil.gov.barra/barra.js' in browser.contents
+    True
+
+Acesso autenticado
+---------------------
+
+Faremos o login como administrador do site, para isto devemos preencher o
+formulário *login_form*::
+
+    >>> browser.open(portalURL + '/login_form')
+    >>> browser.getControl(name='__ac_name').value = SITE_OWNER_NAME
+    >>> browser.getControl(name='__ac_password').value = SITE_OWNER_PASSWORD
+    >>> browser.getControl(name='submit').click()
+    >>> 'You are now logged in' in browser.contents
+    True
+
+Agora, como usuario autenticado -- e com papel administrativo -- realizaremos
+as mesmas validacoes. Primeiro acessando a capa do site:
+
+    >>> browser.open(portalURL)
+
+Validando o html::
+
+    >>> '++resource++brasil.gov.barra/barra.js' in browser.contents
+    True
+
+Teste barra não carregada
+-------------------------
+
+Testes funcionais nesse framework não possuem javascript: dessa forma, podemos
+testar a viewlet da barra que mostra o texto padrão quando a barra não estiver
+disponível.
+
+    >>> browser.open(portalURL)
+    >>> '<div id="barra-brasil" style="background:#7F7F7F; height: 20px; padding:0 0 0 10px;display:block;">' in browser.contents
+    True
+
+Por que isso é possível? Porque a barra em javascript "sobrescreve" a div
+"barra-brasil", dinamicamente, se estiver carregada. Como não temos javascript,
+a div ainda permanece nos permitindo fazer esse teste.
