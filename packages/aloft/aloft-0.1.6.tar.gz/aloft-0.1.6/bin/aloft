@@ -1,0 +1,89 @@
+#!/usr/bin/env python3
+
+"""
+Usage:
+  aloft create vpc <vpc_id>
+  aloft delete vpc <vpc_id>
+  aloft create cluster <cluster_id>
+  aloft use cluster <cluster_id>
+  aloft validate cluster <cluster_id>
+  aloft delete cluster <cluster_id>
+  aloft get clusters [<domain>] [--output=<output_type>]
+  aloft get current-cluster [--output=<output_type>]
+  aloft use (ns | namespace) <namespace>
+  aloft apply charts <release_id> <chart_set> [--charts=<charts>] [--sandbox=<sandbox_name>]
+  aloft delete charts <release_id> <chart_set> [--charts=<charts>] [--sandbox=<sandbox_name>]
+  aloft lock volumes <release_id> <chart_set> [--charts=<charts>] [--sandbox=<sandbox_name>]
+  aloft unlock volumes <release_id> <chart_set> [--charts=<charts>] [--sandbox=<sandbox_name>]
+
+Options:
+  -h --help                               Show this screen.
+  -v --version                            Show version.
+  -o output_type --output=output_type     Output format type.  yaml|text|name [default: text]
+  -s sandbox_name --sandbox=sandbox_name  Sandbox name to use.
+  --charts=<charts>                       Comma separated list of chart names. Example: "jenkins,nexus"
+
+"""
+from aloft import chart
+from aloft import cluster
+from aloft import k8s
+from aloft import volume
+from aloft import vpc
+from aloft.arguments import *
+from aloft.kubeconfig import kubeconfig
+from docopt import docopt
+
+if __name__ == '__main__':
+    arguments = docopt(__doc__, version='ops 0.1.0')
+    # print(arguments)
+    # exit(1)
+
+    if arguments['vpc']:
+        cluster.assume_role_by_vpc_id(get_vpc_args(arguments))
+
+        if arguments['create']:
+            vpc.get_or_create_vpc(get_create_vpc_args(arguments))
+        elif arguments['delete']:
+            cluster.delete_vpc_if_no_clusters_exist(get_delete_vpc_args(arguments))
+
+    if arguments['cluster'] or arguments['clusters']:
+        if not arguments['get']:
+            cluster.assume_role_by_cluster_id(get_cluster_args(arguments))
+
+        if arguments['create']:
+            cluster_id = get_create_cluster_args(arguments)
+            with kubeconfig(f'~/.kube/config.{cluster_id}') as config:
+                cluster.conditionally_create_vpc_and_cluster(cluster_id)
+                chart.apply_charts(cluster_id, 'system', ['system'])
+        elif arguments['use']:
+            cluster.use_cluster(get_use_cluster_args(arguments))
+        elif arguments['validate']:
+            cluster.validate_cluster(get_validate_cluster_args(arguments))
+        elif arguments['get']:
+            cluster.get_and_print_clusters(*get_get_clusters_args(arguments))
+        elif arguments['delete']:
+            cluster.delete_cluster(get_delete_cluster_args(arguments))
+
+    elif arguments['current-cluster']:
+        if arguments['get']:
+            cluster.get_and_print_current_cluster(get_get_current_cluster_args(arguments))
+
+    if arguments['namespace'] or arguments['ns']:
+        if arguments['use']:
+            k8s.use_namespace(get_use_namespace_args(arguments))
+
+    elif arguments['charts']:
+        cluster.use_cluster_for_release(*get_release_args(arguments))
+
+        if arguments['apply']:
+            chart.apply_charts(*get_apply_chart_args(arguments))
+        elif arguments['delete']:
+            chart.delete_charts(*get_delete_chart_args(arguments))
+
+    elif arguments['volumes']:
+        cluster.use_cluster_for_release(*get_release_args(arguments))
+
+        if arguments['lock']:
+            volume.lock_volumes(*get_lock_volumes_args(arguments))
+        elif arguments['unlock']:
+            volume.unlock_volumes(*get_unlock_volumes_args(arguments))
