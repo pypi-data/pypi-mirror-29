@@ -1,0 +1,837 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>colour_hdri.models.dng &mdash; Colour - HDRI 0.1.4 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+    <link rel="stylesheet" href="../../../_static/custom.css" type="text/css" />
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../search.html"/>
+    <link rel="top" title="Colour - HDRI 0.1.4 documentation" href="../../../index.html"/>
+        <link rel="up" title="Module code" href="../../index.html"/> 
+
+  
+  <script src="../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home"> Colour - HDRI
+          
+
+          
+            
+            <img src="../../../_static/Logo_Small_001.png" class="logo" />
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.1
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../manual.html">Colour - HDRI Manual</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Colour - HDRI</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+      <li>colour_hdri.models.dng</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for colour_hdri.models.dng</h1><div class="highlight"><pre>
+<span></span><span class="c1"># -*- coding: utf-8 -*-</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Adobe DNG SDK Colour Processing</span>
+<span class="sd">===============================</span>
+
+<span class="sd">Defines various objects implementing *Adobe DNG SDK* colour processing:</span>
+
+<span class="sd">-   :func:`colour_hdri.xy_to_camera_neutral`</span>
+<span class="sd">-   :func:`colour_hdri.camera_neutral_to_xy`</span>
+<span class="sd">-   :func:`colour_hdri.XYZ_to_camera_space_matrix`</span>
+<span class="sd">-   :func:`colour_hdri.camera_space_to_XYZ_matrix`</span>
+
+<span class="sd">The *Adobe DNG SDK* defines the following tags relevant for the current</span>
+<span class="sd">implementation:</span>
+
+<span class="sd">-   *CalibrationIlluminant1* : The illuminant used for the first set of</span>
+<span class="sd">    colour calibration tags.</span>
+<span class="sd">-   *CalibrationIlluminant2* : The illuminant used for an optional second set</span>
+<span class="sd">    of colour calibration tags.</span>
+<span class="sd">-   *ColorMatrix1* : *ColorMatrix1* defines a transformation matrix that</span>
+<span class="sd">    converts XYZ values to reference camera native colour space values, under</span>
+<span class="sd">    the first calibration illuminant.</span>
+<span class="sd">-   *ColorMatrix2* : *ColorMatrix2* defines a transformation matrix that</span>
+<span class="sd">    converts XYZ values to reference camera native colour space values, under</span>
+<span class="sd">    the second calibration illuminant.</span>
+<span class="sd">-   *CameraCalibration1* : *CameraCalibration1* defines a calibration matrix</span>
+<span class="sd">    that transforms reference camera native space values to individual camera</span>
+<span class="sd">    native space values under the first calibration illuminant.</span>
+<span class="sd">    This matrix is stored separately from the matrix specified by the</span>
+<span class="sd">    *ColorMatrix1* tag to allow raw converters to swap in replacement colour</span>
+<span class="sd">    matrices based on *UniqueCameraModel* tag, while still taking advantage of</span>
+<span class="sd">    any per-individual camera calibration performed by the camera manufacturer.</span>
+<span class="sd">-   *CameraCalibration2* : *CameraCalibration2* defines a calibration matrix</span>
+<span class="sd">    that transforms reference camera native space values to individual camera</span>
+<span class="sd">    native space values under the second calibration illuminant.</span>
+<span class="sd">    This matrix is stored separately from the matrix specified by the</span>
+<span class="sd">    *ColorMatrix2* tag to allow raw converters to swap in replacement colour</span>
+<span class="sd">    matrices based on *UniqueCameraModel* tag, while still taking advantage of</span>
+<span class="sd">    any per-individual camera calibration performed by the camera manufacturer.</span>
+<span class="sd">-   *ReductionMatrix1* : *ReductionMatrix1* defines a dimensionality reduction</span>
+<span class="sd">    matrix for use as the first stage in converting colour camera native space</span>
+<span class="sd">    values to XYZ values, under the first calibration illuminant. This tag may</span>
+<span class="sd">    only be used if *ColorPlanes* is greater than 3.</span>
+<span class="sd">-   *ReductionMatrix2* : *ReductionMatrix2* defines a dimensionality reduction</span>
+<span class="sd">    matrix for use as the first stage in converting colour camera native space</span>
+<span class="sd">    values to XYZ values, under the second calibration illuminant. This tag</span>
+<span class="sd">    may only be used if *ColorPlanes* is greater than 3.</span>
+<span class="sd">-   *AnalogBalance* : Normally the stored raw values are not white balanced,</span>
+<span class="sd">    since any digital white balancing will reduce the dynamic range of the</span>
+<span class="sd">    final image if the user decides to later adjust the white balance;</span>
+<span class="sd">    however, if camera hardware is capable of white balancing the colour</span>
+<span class="sd">    channels before the signal is digitized, it can improve the dynamic range</span>
+<span class="sd">    of the final image.</span>
+<span class="sd">    *AnalogBalance* defines the gain, either analog (recommended) or digital</span>
+<span class="sd">    (not recommended) that has been applied the stored raw values.</span>
+<span class="sd">-   *AsShotNeutral* : *AsShotNeutral* specifies the selected white balance at</span>
+<span class="sd">    time of capture, encoded as the coordinates of a perfectly neutral colour</span>
+<span class="sd">    in linear reference space values. The inclusion of this tag precludes the</span>
+<span class="sd">    inclusion of the *AsShotWhiteXY* tag.</span>
+<span class="sd">-   *AsShotWhiteXY* : *AsShotWhiteXY* specifies the selected white balance at</span>
+<span class="sd">    time of capture, encoded as x-y chromaticity coordinates. The inclusion of</span>
+<span class="sd">    this tag precludes the inclusion of the *AsShotNeutral* tag.</span>
+<span class="sd">-   *ForwardMatrix1* : This tag defines a matrix that maps white balanced</span>
+<span class="sd">    camera colours to XYZ D50 colours.</span>
+<span class="sd">-   *ForwardMatrix2* : This tag defines a matrix that maps white balanced</span>
+<span class="sd">    camera colours to XYZ D50 colours.</span>
+
+<span class="sd">Notes</span>
+<span class="sd">-----</span>
+<span class="sd">-   At least one of the *ColorMatrix1* or *ColorMatrix2* tags must be included</span>
+<span class="sd">    in the camera profile, the current implementation expects them to be passed</span>
+<span class="sd">    as identity matrices if not included.</span>
+<span class="sd">-   If the *ForwardMatrix1* or *ForwardMatrix2* tags are not included in the</span>
+<span class="sd">    camera profile, the current implementation expects them to be passed as</span>
+<span class="sd">    identity matrices.</span>
+<span class="sd">-   The *ReductionMatrix1* and *ReductionMatrix2* tags are ignored by the</span>
+<span class="sd">    current implementation which expects cameras with 3 colour planes.</span>
+<span class="sd">-   *DNG 1.2.0.0* and later supports different companies creating the camera</span>
+<span class="sd">    calibration tags using different reference cameras.</span>
+<span class="sd">    When rendering a *DNG* file using a camera profile, it is important to</span>
+<span class="sd">    know if the selected camera profile was designed using the same reference</span>
+<span class="sd">    camera used to create the camera calibration tags. If so, then the camera</span>
+<span class="sd">    calibration tags should be used. If not, then it is preferable to ignore</span>
+<span class="sd">    the camera calibration tags and use identity matrices instead in order to</span>
+<span class="sd">    minimize the worse case calibration mismatch error.</span>
+<span class="sd">    This matching is done by comparing the *CameraCalibrationSignature* tag</span>
+<span class="sd">    and the *ProfileCalibrationSignature* tag for the selected camera profile.</span>
+<span class="sd">    If they match, then use the camera calibration tags. If not, then use</span>
+<span class="sd">    identity matrices.</span>
+<span class="sd">-   The Hue/Saturation/Value Mapping Table is ignored by the current</span>
+<span class="sd">    implementation because deemed unsuitable :cite:`McGuffog2012a`.</span>
+<span class="sd">-   The various matrices used in this module are extracted from a</span>
+<span class="sd">    *Canon EOS 5D Mark II* camera.</span>
+
+<span class="sd">References</span>
+<span class="sd">----------</span>
+<span class="sd">-   :cite:`AdobeSystems2012d` : Adobe Systems. (2012). Translating White</span>
+<span class="sd">    Balance xy Coordinates to Camera Neutral Coordinates. In Digital Negative</span>
+<span class="sd">    (DNG) Specification (p. 80).</span>
+<span class="sd">-   :cite:`AdobeSystems2012d` : Adobe Systems. (2012). Translating Camera</span>
+<span class="sd">    Neutral Coordinates to White Balance xy Coordinates. In Digital Negative</span>
+<span class="sd">    (DNG) Specification (pp. 80-81).</span>
+<span class="sd">-   :cite:`AdobeSystems2012f` : Adobe Systems. (2012). Digital Negative (DNG)</span>
+<span class="sd">    Specification.</span>
+<span class="sd">-   :cite:`AdobeSystems2012g` : Adobe Systems. (2012). Camera to XYZ (D50)</span>
+<span class="sd">    Transform. In Digital Negative (DNG) Specification (p. 81).</span>
+<span class="sd">-   :cite:`AdobeSystems2015d` : Adobe Systems. (2015). Adobe DNG SDK 1.4.</span>
+<span class="sd">    Retrieved from http://download.adobe.com/pub/adobe/dng/dng_sdk_1_4.zip</span>
+<span class="sd">-   :cite:`McGuffog2012a` : McGuffog, S. (2012). Hue Twists in DNG Camera</span>
+<span class="sd">    Profiles. Retrieved October 29, 2016, from</span>
+<span class="sd">    http://dcptool.sourceforge.net/Hue Twists.html</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">division</span><span class="p">,</span> <span class="n">unicode_literals</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<span class="kn">from</span> <span class="nn">colour.adaptation</span> <span class="k">import</span> <span class="n">chromatic_adaptation_matrix_VonKries</span>
+<span class="kn">from</span> <span class="nn">colour.algebra</span> <span class="k">import</span> <span class="n">is_identity</span>
+<span class="kn">from</span> <span class="nn">colour.constants</span> <span class="k">import</span> <span class="n">EPSILON</span>
+<span class="kn">from</span> <span class="nn">colour.models</span> <span class="k">import</span> <span class="n">UCS_to_uv</span><span class="p">,</span> <span class="n">XYZ_to_UCS</span><span class="p">,</span> <span class="n">XYZ_to_xy</span><span class="p">,</span> <span class="n">xy_to_XYZ</span>
+<span class="kn">from</span> <span class="nn">colour.utilities</span> <span class="k">import</span> <span class="p">(</span><span class="n">dot_matrix</span><span class="p">,</span> <span class="n">dot_vector</span><span class="p">,</span> <span class="n">linear_conversion</span><span class="p">,</span>
+                              <span class="n">tstack</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">colour.temperature</span> <span class="k">import</span> <span class="n">uv_to_CCT_Robertson1968</span>
+
+<span class="kn">from</span> <span class="nn">colour_hdri.models</span> <span class="k">import</span> <span class="n">ADOBE_DNG_XYZ_ILLUMINANT</span>
+
+<span class="n">__author__</span> <span class="o">=</span> <span class="s1">&#39;Colour Developers&#39;</span>
+<span class="n">__copyright__</span> <span class="o">=</span> <span class="s1">&#39;Copyright (C) 2015-2018 - Colour Developers&#39;</span>
+<span class="n">__license__</span> <span class="o">=</span> <span class="s1">&#39;New BSD License - http://opensource.org/licenses/BSD-3-Clause&#39;</span>
+<span class="n">__maintainer__</span> <span class="o">=</span> <span class="s1">&#39;Colour Developers&#39;</span>
+<span class="n">__email__</span> <span class="o">=</span> <span class="s1">&#39;colour-science@googlegroups.com&#39;</span>
+<span class="n">__status__</span> <span class="o">=</span> <span class="s1">&#39;Production&#39;</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s1">&#39;interpolated_matrix&#39;</span><span class="p">,</span> <span class="s1">&#39;xy_to_camera_neutral&#39;</span><span class="p">,</span> <span class="s1">&#39;camera_neutral_to_xy&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;XYZ_to_camera_space_matrix&#39;</span><span class="p">,</span> <span class="s1">&#39;camera_space_to_XYZ_matrix&#39;</span>
+<span class="p">]</span>
+
+
+<span class="k">def</span> <span class="nf">interpolated_matrix</span><span class="p">(</span><span class="n">CCT</span><span class="p">,</span> <span class="n">CCT_1</span><span class="p">,</span> <span class="n">CCT_2</span><span class="p">,</span> <span class="n">M_1</span><span class="p">,</span> <span class="n">M_2</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Computes the matrix interpolated from :math:`CCT_1` and :math:`CCT_2`</span>
+<span class="sd">    correlated colour temperatures to respectively :math:`M_1` and :math:`M_2`</span>
+<span class="sd">    colour matrices using given correlated colour temperature :math:`CCT`</span>
+<span class="sd">    interpolation value.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    CCT : numeric</span>
+<span class="sd">        Correlated colour temperature :math:`CCT`.</span>
+<span class="sd">    CCT_1 : numeric</span>
+<span class="sd">        Correlated colour temperature :math:`CCT_1`.</span>
+<span class="sd">    CCT_2 : numeric</span>
+<span class="sd">        Correlated colour temperature :math:`CCT_2`.</span>
+<span class="sd">    M_1 : array_like</span>
+<span class="sd">        :math:`M_1` colour matrix.</span>
+<span class="sd">    M_2 : array_like</span>
+<span class="sd">        :math:`M_2` colour matrix.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    ndarray</span>
+<span class="sd">        Interpolated colour matrix :math:`M_i`.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    -   The computation is performed in mired (MIcro REciprocal Degree,</span>
+<span class="sd">        reciprocal megakelvin) :math:`MK^{-1}`.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; CCT = 5000</span>
+<span class="sd">    &gt;&gt;&gt; CCT_1 = 2850</span>
+<span class="sd">    &gt;&gt;&gt; CCT_2 = 6500</span>
+<span class="sd">    &gt;&gt;&gt; M_1 = np.array([</span>
+<span class="sd">    ...     [0.5309, -0.0229, -0.0336],</span>
+<span class="sd">    ...     [-0.6241, 1.3265, 0.3337],</span>
+<span class="sd">    ...     [-0.0817, 0.1215, 0.6664]])</span>
+<span class="sd">    &gt;&gt;&gt; M_2 = np.array([</span>
+<span class="sd">    ...     [0.4716, 0.0603, -0.0830],</span>
+<span class="sd">    ...     [-0.7798, 1.5474, 0.2480],</span>
+<span class="sd">    ...     [-0.1496, 0.1937, 0.6651]])</span>
+<span class="sd">    &gt;&gt;&gt; interpolated_matrix(CCT, CCT_1, CCT_2, M_1, M_2)  # doctest: +ELLIPSIS</span>
+<span class="sd">    array([[ 0.4854908...,  0.0408106..., -0.0714282...],</span>
+<span class="sd">           [-0.7433278...,  1.4956549...,  0.2680749...],</span>
+<span class="sd">           [-0.1336946...,  0.1767874...,  0.6654045...]])</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="n">CCT</span> <span class="o">&lt;=</span> <span class="n">CCT_1</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">M_1</span>
+    <span class="k">elif</span> <span class="n">CCT</span> <span class="o">&gt;=</span> <span class="n">CCT_2</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">M_2</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">linear_conversion</span><span class="p">(</span><span class="mf">1e6</span> <span class="o">/</span> <span class="n">CCT</span><span class="p">,</span> <span class="p">(</span><span class="mf">1e6</span> <span class="o">/</span> <span class="n">CCT_1</span><span class="p">,</span> <span class="mf">1e6</span> <span class="o">/</span> <span class="n">CCT_2</span><span class="p">),</span>
+                                 <span class="n">tstack</span><span class="p">((</span><span class="n">M_1</span><span class="p">,</span> <span class="n">M_2</span><span class="p">)))</span>
+
+
+<div class="viewcode-block" id="xy_to_camera_neutral"><a class="viewcode-back" href="../../../generated/colour_hdri.xy_to_camera_neutral.html#colour_hdri.xy_to_camera_neutral">[docs]</a><span class="k">def</span> <span class="nf">xy_to_camera_neutral</span><span class="p">(</span><span class="n">xy</span><span class="p">,</span> <span class="n">CCT_calibration_illuminant_1</span><span class="p">,</span>
+                         <span class="n">CCT_calibration_illuminant_2</span><span class="p">,</span> <span class="n">M_color_matrix_1</span><span class="p">,</span>
+                         <span class="n">M_color_matrix_2</span><span class="p">,</span> <span class="n">M_camera_calibration_1</span><span class="p">,</span>
+                         <span class="n">M_camera_calibration_2</span><span class="p">,</span> <span class="n">analog_balance</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Converts given *xy* white balance chromaticity coordinates to</span>
+<span class="sd">    *Camera Neutral* coordinates.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    xy : array_like</span>
+<span class="sd">        *xy* white balance chromaticity coordinates.</span>
+<span class="sd">    CCT_calibration_illuminant_1 : numeric</span>
+<span class="sd">        Correlated colour temperature of *CalibrationIlluminant1*.</span>
+<span class="sd">    CCT_calibration_illuminant_2 : numeric</span>
+<span class="sd">        Correlated colour temperature of *CalibrationIlluminant2*.</span>
+<span class="sd">    M_color_matrix_1 : array_like</span>
+<span class="sd">        *ColorMatrix1* tag matrix.</span>
+<span class="sd">    M_color_matrix_2 : array_like</span>
+<span class="sd">        *ColorMatrix2* tag matrix.</span>
+<span class="sd">    M_camera_calibration_1 : array_like</span>
+<span class="sd">        *CameraCalibration1* tag matrix.</span>
+<span class="sd">    M_camera_calibration_2 : array_like</span>
+<span class="sd">        *CameraCalibration2* tag matrix.</span>
+<span class="sd">    analog_balance : array_like</span>
+<span class="sd">        *AnalogBalance* tag vector.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    ndarray</span>
+<span class="sd">        *Camera Neutral* coordinates.</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    -   :cite:`AdobeSystems2012d`</span>
+<span class="sd">    -   :cite:`AdobeSystems2012f`</span>
+<span class="sd">    -   :cite:`AdobeSystems2015d`</span>
+<span class="sd">    -   :cite:`McGuffog2012a`</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; M_color_matrix_1 = np.array(</span>
+<span class="sd">    ...     [[0.5309, -0.0229, -0.0336],</span>
+<span class="sd">    ...      [-0.6241, 1.3265, 0.3337],</span>
+<span class="sd">    ...      [-0.0817, 0.1215, 0.6664]])</span>
+<span class="sd">    &gt;&gt;&gt; M_color_matrix_2 = np.array(</span>
+<span class="sd">    ...     [[0.4716, 0.0603, -0.0830],</span>
+<span class="sd">    ...      [-0.7798, 1.5474, 0.2480],</span>
+<span class="sd">    ...      [-0.1496, 0.1937, 0.6651]])</span>
+<span class="sd">    &gt;&gt;&gt; M_camera_calibration_1 = np.identity(3)</span>
+<span class="sd">    &gt;&gt;&gt; M_camera_calibration_2 = np.identity(3)</span>
+<span class="sd">    &gt;&gt;&gt; analog_balance = np.ones(3)</span>
+<span class="sd">    &gt;&gt;&gt; xy_to_camera_neutral(  # doctest: +ELLIPSIS</span>
+<span class="sd">    ...     np.array([0.32816244, 0.34698169]),</span>
+<span class="sd">    ...     2850,</span>
+<span class="sd">    ...     6500,</span>
+<span class="sd">    ...     M_color_matrix_1,</span>
+<span class="sd">    ...     M_color_matrix_2,</span>
+<span class="sd">    ...     M_camera_calibration_1,</span>
+<span class="sd">    ...     M_camera_calibration_2,</span>
+<span class="sd">    ...     analog_balance)</span>
+<span class="sd">    array([ 0.4130699...,  1...        ,  0.646465...])</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">M_XYZ_to_camera</span> <span class="o">=</span> <span class="n">XYZ_to_camera_space_matrix</span><span class="p">(</span>
+        <span class="n">xy</span><span class="p">,</span> <span class="n">CCT_calibration_illuminant_1</span><span class="p">,</span> <span class="n">CCT_calibration_illuminant_2</span><span class="p">,</span>
+        <span class="n">M_color_matrix_1</span><span class="p">,</span> <span class="n">M_color_matrix_2</span><span class="p">,</span> <span class="n">M_camera_calibration_1</span><span class="p">,</span>
+        <span class="n">M_camera_calibration_2</span><span class="p">,</span> <span class="n">analog_balance</span><span class="p">)</span>
+
+    <span class="n">camera_neutral</span> <span class="o">=</span> <span class="n">dot_vector</span><span class="p">(</span><span class="n">M_XYZ_to_camera</span><span class="p">,</span> <span class="n">xy_to_XYZ</span><span class="p">(</span><span class="n">xy</span><span class="p">))</span>
+    <span class="n">camera_neutral</span> <span class="o">/=</span> <span class="n">camera_neutral</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="k">return</span> <span class="n">camera_neutral</span></div>
+
+
+<div class="viewcode-block" id="camera_neutral_to_xy"><a class="viewcode-back" href="../../../generated/colour_hdri.camera_neutral_to_xy.html#colour_hdri.camera_neutral_to_xy">[docs]</a><span class="k">def</span> <span class="nf">camera_neutral_to_xy</span><span class="p">(</span><span class="n">camera_neutral</span><span class="p">,</span>
+                         <span class="n">CCT_calibration_illuminant_1</span><span class="p">,</span>
+                         <span class="n">CCT_calibration_illuminant_2</span><span class="p">,</span>
+                         <span class="n">M_color_matrix_1</span><span class="p">,</span>
+                         <span class="n">M_color_matrix_2</span><span class="p">,</span>
+                         <span class="n">M_camera_calibration_1</span><span class="p">,</span>
+                         <span class="n">M_camera_calibration_2</span><span class="p">,</span>
+                         <span class="n">analog_balance</span><span class="p">,</span>
+                         <span class="n">epsilon</span><span class="o">=</span><span class="n">EPSILON</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Converts given *Camera Neutral* coordinates to *xy* white balance</span>
+<span class="sd">    chromaticity coordinates.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    camera_neutral : array_like</span>
+<span class="sd">        *Camera Neutral* coordinates.</span>
+<span class="sd">    CCT_calibration_illuminant_1 : numeric</span>
+<span class="sd">        Correlated colour temperature of *CalibrationIlluminant1*.</span>
+<span class="sd">    CCT_calibration_illuminant_2 : numeric</span>
+<span class="sd">        Correlated colour temperature of *CalibrationIlluminant2*.</span>
+<span class="sd">    M_color_matrix_1 : array_like</span>
+<span class="sd">        *ColorMatrix1* tag matrix.</span>
+<span class="sd">    M_color_matrix_2 : array_like</span>
+<span class="sd">        *ColorMatrix2* tag matrix.</span>
+<span class="sd">    M_camera_calibration_1 : array_like</span>
+<span class="sd">        *CameraCalibration1* tag matrix.</span>
+<span class="sd">    M_camera_calibration_2 : array_like</span>
+<span class="sd">        *CameraCalibration2* tag matrix.</span>
+<span class="sd">    analog_balance : array_like</span>
+<span class="sd">        *AnalogBalance* tag vector.</span>
+<span class="sd">    epsilon : numeric, optional</span>
+<span class="sd">        Threshold value for computation convergence.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    ndarray</span>
+<span class="sd">        *xy* white balance chromaticity coordinates.</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    RuntimeError</span>
+<span class="sd">        If the given *Camera Neutral* coordinates did not converge to *xy*</span>
+<span class="sd">        white balance chromaticity coordinates.</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    -   :cite:`AdobeSystems2012e`</span>
+<span class="sd">    -   :cite:`AdobeSystems2012f`</span>
+<span class="sd">    -   :cite:`AdobeSystems2015d`</span>
+<span class="sd">    -   :cite:`McGuffog2012a`</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; M_color_matrix_1 = np.array(</span>
+<span class="sd">    ...     [[0.5309, -0.0229, -0.0336],</span>
+<span class="sd">    ...      [-0.6241, 1.3265, 0.3337],</span>
+<span class="sd">    ...      [-0.0817, 0.1215, 0.6664]])</span>
+<span class="sd">    &gt;&gt;&gt; M_color_matrix_2 = np.array(</span>
+<span class="sd">    ...     [[0.4716, 0.0603, -0.0830],</span>
+<span class="sd">    ...      [-0.7798, 1.5474, 0.2480],</span>
+<span class="sd">    ...      [-0.1496, 0.1937, 0.6651]])</span>
+<span class="sd">    &gt;&gt;&gt; M_camera_calibration_1 = np.identity(3)</span>
+<span class="sd">    &gt;&gt;&gt; M_camera_calibration_2 = np.identity(3)</span>
+<span class="sd">    &gt;&gt;&gt; analog_balance = np.ones(3)</span>
+<span class="sd">    &gt;&gt;&gt; camera_neutral_to_xy(  # doctest: +ELLIPSIS</span>
+<span class="sd">    ...     np.array([0.413070, 1.000000, 0.646465]),</span>
+<span class="sd">    ...     2850,</span>
+<span class="sd">    ...     6500,</span>
+<span class="sd">    ...     M_color_matrix_1,</span>
+<span class="sd">    ...     M_color_matrix_2,</span>
+<span class="sd">    ...     M_camera_calibration_1,</span>
+<span class="sd">    ...     M_camera_calibration_2,</span>
+<span class="sd">    ...     analog_balance)</span>
+<span class="sd">    array([ 0.3281624...,  0.3469816...])</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># Initial *xy* chromaticity coordinates guess.</span>
+    <span class="n">xy</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">((</span><span class="mi">1</span> <span class="o">/</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">1</span> <span class="o">/</span> <span class="mi">3</span><span class="p">))</span>
+
+    <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+        <span class="n">xy_p</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">xy</span><span class="p">)</span>
+        <span class="n">M_XYZ_to_camera</span> <span class="o">=</span> <span class="n">XYZ_to_camera_space_matrix</span><span class="p">(</span>
+            <span class="n">xy</span><span class="p">,</span> <span class="n">CCT_calibration_illuminant_1</span><span class="p">,</span> <span class="n">CCT_calibration_illuminant_2</span><span class="p">,</span>
+            <span class="n">M_color_matrix_1</span><span class="p">,</span> <span class="n">M_color_matrix_2</span><span class="p">,</span> <span class="n">M_camera_calibration_1</span><span class="p">,</span>
+            <span class="n">M_camera_calibration_2</span><span class="p">,</span> <span class="n">analog_balance</span><span class="p">)</span>
+
+        <span class="n">XYZ</span> <span class="o">=</span> <span class="n">dot_vector</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">inv</span><span class="p">(</span><span class="n">M_XYZ_to_camera</span><span class="p">),</span> <span class="n">camera_neutral</span><span class="p">)</span>
+        <span class="n">xy</span> <span class="o">=</span> <span class="n">XYZ_to_xy</span><span class="p">(</span><span class="n">XYZ</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">xy_p</span> <span class="o">-</span> <span class="n">xy</span><span class="p">))</span> <span class="o">&lt;=</span> <span class="n">epsilon</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">xy</span>
+
+    <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+        <span class="s1">&#39;&quot;Camera Neutral&quot; coordinates &quot;</span><span class="si">{0}</span><span class="s1">&quot; did not converge to &quot;xy&quot; white &#39;</span>
+        <span class="s1">&#39;balance chromaticity coordinates!&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">xy</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="XYZ_to_camera_space_matrix"><a class="viewcode-back" href="../../../generated/colour_hdri.XYZ_to_camera_space_matrix.html#colour_hdri.XYZ_to_camera_space_matrix">[docs]</a><span class="k">def</span> <span class="nf">XYZ_to_camera_space_matrix</span><span class="p">(</span><span class="n">xy</span><span class="p">,</span> <span class="n">CCT_calibration_illuminant_1</span><span class="p">,</span>
+                               <span class="n">CCT_calibration_illuminant_2</span><span class="p">,</span> <span class="n">M_color_matrix_1</span><span class="p">,</span>
+                               <span class="n">M_color_matrix_2</span><span class="p">,</span> <span class="n">M_camera_calibration_1</span><span class="p">,</span>
+                               <span class="n">M_camera_calibration_2</span><span class="p">,</span> <span class="n">analog_balance</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns the *CIE XYZ* to *Camera Space* matrix for given *xy* white balance</span>
+<span class="sd">    chromaticity coordinates.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    xy : array_like</span>
+<span class="sd">        *xy* white balance chromaticity coordinates.</span>
+<span class="sd">    CCT_calibration_illuminant_1 : numeric</span>
+<span class="sd">        Correlated colour temperature of *CalibrationIlluminant1*.</span>
+<span class="sd">    CCT_calibration_illuminant_2 : numeric</span>
+<span class="sd">        Correlated colour temperature of *CalibrationIlluminant2*.</span>
+<span class="sd">    M_color_matrix_1 : array_like</span>
+<span class="sd">        *ColorMatrix1* tag matrix.</span>
+<span class="sd">    M_color_matrix_2 : array_like</span>
+<span class="sd">        *ColorMatrix2* tag matrix.</span>
+<span class="sd">    M_camera_calibration_1 : array_like</span>
+<span class="sd">        *CameraCalibration1* tag matrix.</span>
+<span class="sd">    M_camera_calibration_2 : array_like</span>
+<span class="sd">        *CameraCalibration2* tag matrix.</span>
+<span class="sd">    analog_balance : array_like</span>
+<span class="sd">        *AnalogBalance* tag vector.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    ndarray</span>
+<span class="sd">        *CIE XYZ* to *Camera Space* matrix.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    -   The reference illuminant is D50 as defined per</span>
+<span class="sd">        :attr:`colour_hdri.models.dataset.dng.ADOBE_DNG_XYZ_ILLUMINANT`</span>
+<span class="sd">        attribute.</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    -   :cite:`AdobeSystems2012f`</span>
+<span class="sd">    -   :cite:`AdobeSystems2015d`</span>
+<span class="sd">    -   :cite:`McGuffog2012a`</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; M_color_matrix_1 = np.array(</span>
+<span class="sd">    ...     [[0.5309, -0.0229, -0.0336],</span>
+<span class="sd">    ...      [-0.6241, 1.3265, 0.3337],</span>
+<span class="sd">    ...      [-0.0817, 0.1215, 0.6664]])</span>
+<span class="sd">    &gt;&gt;&gt; M_color_matrix_2 = np.array(</span>
+<span class="sd">    ...     [[0.4716, 0.0603, -0.0830],</span>
+<span class="sd">    ...      [-0.7798, 1.5474, 0.2480],</span>
+<span class="sd">    ...      [-0.1496, 0.1937, 0.6651]])</span>
+<span class="sd">    &gt;&gt;&gt; M_camera_calibration_1 = np.identity(3)</span>
+<span class="sd">    &gt;&gt;&gt; M_camera_calibration_2 = np.identity(3)</span>
+<span class="sd">    &gt;&gt;&gt; analog_balance = np.ones(3)</span>
+<span class="sd">    &gt;&gt;&gt; XYZ_to_camera_space_matrix(  # doctest: +ELLIPSIS</span>
+<span class="sd">    ...     np.array([0.34510414, 0.35162252]),</span>
+<span class="sd">    ...     2850,</span>
+<span class="sd">    ...     6500,</span>
+<span class="sd">    ...     M_color_matrix_1,</span>
+<span class="sd">    ...     M_color_matrix_2,</span>
+<span class="sd">    ...     M_camera_calibration_1,</span>
+<span class="sd">    ...     M_camera_calibration_2,</span>
+<span class="sd">    ...     analog_balance)</span>
+<span class="sd">    array([[ 0.4854908...,  0.0408106..., -0.0714282...],</span>
+<span class="sd">           [-0.7433278...,  1.4956549...,  0.2680749...],</span>
+<span class="sd">           [-0.1336946...,  0.1767874...,  0.6654045...]])</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">M_AB</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">diagflat</span><span class="p">(</span><span class="n">analog_balance</span><span class="p">)</span>
+
+    <span class="n">uv</span> <span class="o">=</span> <span class="n">UCS_to_uv</span><span class="p">(</span><span class="n">XYZ_to_UCS</span><span class="p">(</span><span class="n">xy_to_XYZ</span><span class="p">(</span><span class="n">xy</span><span class="p">)))</span>
+    <span class="n">CCT</span><span class="p">,</span> <span class="n">_D_uv</span> <span class="o">=</span> <span class="n">uv_to_CCT_Robertson1968</span><span class="p">(</span><span class="n">uv</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">is_identity</span><span class="p">(</span><span class="n">M_color_matrix_1</span><span class="p">)</span> <span class="ow">or</span> <span class="n">is_identity</span><span class="p">(</span><span class="n">M_color_matrix_2</span><span class="p">):</span>
+        <span class="n">M_CM</span> <span class="o">=</span> <span class="p">(</span><span class="n">M_color_matrix_1</span>
+                <span class="k">if</span> <span class="n">is_identity</span><span class="p">(</span><span class="n">M_color_matrix_2</span><span class="p">)</span> <span class="k">else</span> <span class="n">M_color_matrix_2</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">M_CM</span> <span class="o">=</span> <span class="n">interpolated_matrix</span><span class="p">(</span><span class="n">CCT</span><span class="p">,</span> <span class="n">CCT_calibration_illuminant_1</span><span class="p">,</span>
+                                   <span class="n">CCT_calibration_illuminant_2</span><span class="p">,</span>
+                                   <span class="n">M_color_matrix_1</span><span class="p">,</span> <span class="n">M_color_matrix_2</span><span class="p">)</span>
+
+    <span class="n">M_CC</span> <span class="o">=</span> <span class="n">interpolated_matrix</span><span class="p">(</span><span class="n">CCT</span><span class="p">,</span> <span class="n">CCT_calibration_illuminant_1</span><span class="p">,</span>
+                               <span class="n">CCT_calibration_illuminant_2</span><span class="p">,</span>
+                               <span class="n">M_camera_calibration_1</span><span class="p">,</span> <span class="n">M_camera_calibration_2</span><span class="p">)</span>
+
+    <span class="n">M_XYZ_to_camera_space</span> <span class="o">=</span> <span class="n">dot_matrix</span><span class="p">(</span><span class="n">dot_matrix</span><span class="p">(</span><span class="n">M_AB</span><span class="p">,</span> <span class="n">M_CC</span><span class="p">),</span> <span class="n">M_CM</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">M_XYZ_to_camera_space</span></div>
+
+
+<div class="viewcode-block" id="camera_space_to_XYZ_matrix"><a class="viewcode-back" href="../../../generated/colour_hdri.camera_space_to_XYZ_matrix.html#colour_hdri.camera_space_to_XYZ_matrix">[docs]</a><span class="k">def</span> <span class="nf">camera_space_to_XYZ_matrix</span><span class="p">(</span><span class="n">xy</span><span class="p">,</span>
+                               <span class="n">CCT_calibration_illuminant_1</span><span class="p">,</span>
+                               <span class="n">CCT_calibration_illuminant_2</span><span class="p">,</span>
+                               <span class="n">M_color_matrix_1</span><span class="p">,</span>
+                               <span class="n">M_color_matrix_2</span><span class="p">,</span>
+                               <span class="n">M_camera_calibration_1</span><span class="p">,</span>
+                               <span class="n">M_camera_calibration_2</span><span class="p">,</span>
+                               <span class="n">analog_balance</span><span class="p">,</span>
+                               <span class="n">M_forward_matrix_1</span><span class="p">,</span>
+                               <span class="n">M_forward_matrix_2</span><span class="p">,</span>
+                               <span class="n">chromatic_adaptation_transform</span><span class="o">=</span><span class="s1">&#39;Bradford&#39;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns the *Camera Space* to *CIE XYZ* matrix for given *xy* white</span>
+<span class="sd">    balance chromaticity coordinates.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    xy : array_like</span>
+<span class="sd">        *xy* white balance chromaticity coordinates.</span>
+<span class="sd">    CCT_calibration_illuminant_1 : numeric</span>
+<span class="sd">        Correlated colour temperature of *CalibrationIlluminant1*.</span>
+<span class="sd">    CCT_calibration_illuminant_2 : numeric</span>
+<span class="sd">        Correlated colour temperature of *CalibrationIlluminant2*.</span>
+<span class="sd">    M_color_matrix_1 : array_like</span>
+<span class="sd">        *ColorMatrix1* tag matrix.</span>
+<span class="sd">    M_color_matrix_2 : array_like</span>
+<span class="sd">        *ColorMatrix2* tag matrix.</span>
+<span class="sd">    M_camera_calibration_1 : array_like</span>
+<span class="sd">        *CameraCalibration1* tag matrix.</span>
+<span class="sd">    M_camera_calibration_2 : array_like</span>
+<span class="sd">        *CameraCalibration2* tag matrix.</span>
+<span class="sd">    analog_balance : array_like</span>
+<span class="sd">        *AnalogBalance* tag vector.</span>
+<span class="sd">    M_forward_matrix_1 : array_like</span>
+<span class="sd">        *ForwardMatrix1* tag matrix.</span>
+<span class="sd">    M_forward_matrix_2 : array_like</span>
+<span class="sd">        *ForwardMatrix2* tag matrix.</span>
+<span class="sd">    chromatic_adaptation_transform : unicode, optional</span>
+<span class="sd">        **{&#39;CAT02&#39;, &#39;XYZ Scaling&#39;, &#39;Von Kries&#39;, &#39;Bradford&#39;, &#39;Sharp&#39;,</span>
+<span class="sd">        &#39;Fairchild&#39;, &#39;CMCCAT97&#39;, &#39;CMCCAT2000&#39;, &#39;CAT02_BRILL_CAT&#39;, &#39;Bianco&#39;,</span>
+<span class="sd">        &#39;Bianco PC&#39;}**,</span>
+<span class="sd">        Chromatic adaptation transform.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    ndarray</span>
+<span class="sd">        *Camera Space* to *CIE XYZ* matrix.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    -   The reference illuminant is D50 as defined per</span>
+<span class="sd">        :attr:`colour_hdri.models.dataset.dng.ADOBE_DNG_XYZ_ILLUMINANT`</span>
+<span class="sd">        attribute.</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    -   :cite:`AdobeSystems2012f`</span>
+<span class="sd">    -   :cite:`AdobeSystems2012g`</span>
+<span class="sd">    -   :cite:`AdobeSystems2015d`</span>
+<span class="sd">    -   :cite:`McGuffog2012a`</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; M_color_matrix_1 = np.array(</span>
+<span class="sd">    ...     [[0.5309, -0.0229, -0.0336],</span>
+<span class="sd">    ...      [-0.6241, 1.3265, 0.3337],</span>
+<span class="sd">    ...      [-0.0817, 0.1215, 0.6664]])</span>
+<span class="sd">    &gt;&gt;&gt; M_color_matrix_2 = np.array(</span>
+<span class="sd">    ...     [[0.4716, 0.0603, -0.0830],</span>
+<span class="sd">    ...      [-0.7798, 1.5474, 0.2480],</span>
+<span class="sd">    ...      [-0.1496, 0.1937, 0.6651]])</span>
+<span class="sd">    &gt;&gt;&gt; M_camera_calibration_1 = np.identity(3)</span>
+<span class="sd">    &gt;&gt;&gt; M_camera_calibration_2 = np.identity(3)</span>
+<span class="sd">    &gt;&gt;&gt; analog_balance = np.ones(3)</span>
+<span class="sd">    &gt;&gt;&gt; M_forward_matrix_1 = np.array(</span>
+<span class="sd">    ...     [[0.8924, -0.1041, 0.1760],</span>
+<span class="sd">    ...      [0.4351, 0.6621, -0.0972],</span>
+<span class="sd">    ...      [0.0505, -0.1562, 0.9308]])</span>
+<span class="sd">    &gt;&gt;&gt; M_forward_matrix_2 = np.array(</span>
+<span class="sd">    ...     [[0.8924, -0.1041, 0.1760],</span>
+<span class="sd">    ...      [0.4351, 0.6621, -0.0972],</span>
+<span class="sd">    ...      [0.0505, -0.1562, 0.9308]])</span>
+<span class="sd">    &gt;&gt;&gt; camera_space_to_XYZ_matrix(  # doctest: +ELLIPSIS</span>
+<span class="sd">    ...     np.array([0.32816244, 0.34698169]),</span>
+<span class="sd">    ...     2850,</span>
+<span class="sd">    ...     6500,</span>
+<span class="sd">    ...     M_color_matrix_1,</span>
+<span class="sd">    ...     M_color_matrix_2,</span>
+<span class="sd">    ...     M_camera_calibration_1,</span>
+<span class="sd">    ...     M_camera_calibration_2,</span>
+<span class="sd">    ...     analog_balance,</span>
+<span class="sd">    ...     M_forward_matrix_1,</span>
+<span class="sd">    ...     M_forward_matrix_2)</span>
+<span class="sd">    array([[ 2.1604087..., -0.1041...    ,  0.2722498...],</span>
+<span class="sd">           [ 1.0533324...,  0.6621...    , -0.1503561...],</span>
+<span class="sd">           [ 0.1222553..., -0.1562...    ,  1.4398304...]])</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># *ForwardMatrix1* and *ForwardMatrix2* are not included in the camera</span>
+    <span class="c1"># profile.</span>
+    <span class="k">if</span> <span class="n">is_identity</span><span class="p">(</span><span class="n">M_forward_matrix_1</span><span class="p">)</span> <span class="ow">and</span> <span class="n">is_identity</span><span class="p">(</span><span class="n">M_forward_matrix_2</span><span class="p">):</span>
+        <span class="n">M_camera_to_XYZ</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">inv</span><span class="p">(</span>
+            <span class="n">XYZ_to_camera_space_matrix</span><span class="p">(</span>
+                <span class="n">xy</span><span class="p">,</span> <span class="n">CCT_calibration_illuminant_1</span><span class="p">,</span> <span class="n">CCT_calibration_illuminant_2</span><span class="p">,</span>
+                <span class="n">M_color_matrix_1</span><span class="p">,</span> <span class="n">M_color_matrix_2</span><span class="p">,</span> <span class="n">M_camera_calibration_1</span><span class="p">,</span>
+                <span class="n">M_camera_calibration_2</span><span class="p">,</span> <span class="n">analog_balance</span><span class="p">))</span>
+        <span class="n">M_CAT</span> <span class="o">=</span> <span class="n">chromatic_adaptation_matrix_VonKries</span><span class="p">(</span>
+            <span class="n">xy_to_XYZ</span><span class="p">(</span><span class="n">xy</span><span class="p">),</span>
+            <span class="n">xy_to_XYZ</span><span class="p">(</span><span class="n">ADOBE_DNG_XYZ_ILLUMINANT</span><span class="p">),</span>
+            <span class="n">chromatic_adaptation_transform</span><span class="p">)</span>
+        <span class="n">M_camera_space_to_XYZ</span> <span class="o">=</span> <span class="n">dot_matrix</span><span class="p">(</span><span class="n">M_CAT</span><span class="p">,</span> <span class="n">M_camera_to_XYZ</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">uv</span> <span class="o">=</span> <span class="n">UCS_to_uv</span><span class="p">(</span><span class="n">XYZ_to_UCS</span><span class="p">(</span><span class="n">xy_to_XYZ</span><span class="p">(</span><span class="n">xy</span><span class="p">)))</span>
+        <span class="n">CCT</span><span class="p">,</span> <span class="n">_D_uv</span> <span class="o">=</span> <span class="n">uv_to_CCT_Robertson1968</span><span class="p">(</span><span class="n">uv</span><span class="p">)</span>
+
+        <span class="n">M_CC</span> <span class="o">=</span> <span class="n">interpolated_matrix</span><span class="p">(</span>
+            <span class="n">CCT</span><span class="p">,</span> <span class="n">CCT_calibration_illuminant_1</span><span class="p">,</span> <span class="n">CCT_calibration_illuminant_2</span><span class="p">,</span>
+            <span class="n">M_camera_calibration_1</span><span class="p">,</span> <span class="n">M_camera_calibration_2</span><span class="p">)</span>
+
+        <span class="c1"># The reference implementation :cite:`AdobeSystems2015d` diverges from</span>
+        <span class="c1"># the white-paper :cite:`AdobeSystems2012f`:</span>
+        <span class="c1"># The reference implementation directly computes the camera neutral by</span>
+        <span class="c1"># multiplying directly the interpolated colour matrix :math:`CM` with</span>
+        <span class="c1"># the tristimulus values of the *xy* white balance chromaticity</span>
+        <span class="c1"># coordinates.</span>
+        <span class="c1"># The current implementation is based on the white-paper so that the</span>
+        <span class="c1"># interpolated camera calibration matrix :math:`CC` and the</span>
+        <span class="c1"># analog balance matrix :math:`AB` are accounted for.</span>
+        <span class="n">camera_neutral</span> <span class="o">=</span> <span class="n">xy_to_camera_neutral</span><span class="p">(</span>
+            <span class="n">xy</span><span class="p">,</span> <span class="n">CCT_calibration_illuminant_1</span><span class="p">,</span> <span class="n">CCT_calibration_illuminant_2</span><span class="p">,</span>
+            <span class="n">M_color_matrix_1</span><span class="p">,</span> <span class="n">M_color_matrix_2</span><span class="p">,</span> <span class="n">M_camera_calibration_1</span><span class="p">,</span>
+            <span class="n">M_camera_calibration_2</span><span class="p">,</span> <span class="n">analog_balance</span><span class="p">)</span>
+
+        <span class="n">M_AB</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">diagflat</span><span class="p">(</span><span class="n">analog_balance</span><span class="p">)</span>
+
+        <span class="n">M_reference_neutral</span> <span class="o">=</span> <span class="n">dot_vector</span><span class="p">(</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">inv</span><span class="p">(</span><span class="n">dot_matrix</span><span class="p">(</span><span class="n">M_AB</span><span class="p">,</span> <span class="n">M_CC</span><span class="p">)),</span> <span class="n">camera_neutral</span><span class="p">)</span>
+        <span class="n">M_D</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">inv</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">diagflat</span><span class="p">(</span><span class="n">M_reference_neutral</span><span class="p">))</span>
+        <span class="n">M_FM</span> <span class="o">=</span> <span class="n">interpolated_matrix</span><span class="p">(</span><span class="n">CCT</span><span class="p">,</span> <span class="n">CCT_calibration_illuminant_1</span><span class="p">,</span>
+                                   <span class="n">CCT_calibration_illuminant_2</span><span class="p">,</span>
+                                   <span class="n">M_forward_matrix_1</span><span class="p">,</span> <span class="n">M_forward_matrix_2</span><span class="p">)</span>
+        <span class="n">M_camera_space_to_XYZ</span> <span class="o">=</span> <span class="n">dot_matrix</span><span class="p">(</span>
+            <span class="n">dot_matrix</span><span class="p">(</span><span class="n">M_FM</span><span class="p">,</span> <span class="n">M_D</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">inv</span><span class="p">(</span><span class="n">dot_matrix</span><span class="p">(</span><span class="n">M_AB</span><span class="p">,</span> <span class="n">M_CC</span><span class="p">)))</span>
+
+    <span class="k">return</span> <span class="n">M_camera_space_to_XYZ</span></div>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright  2015-2018 - Colour Developers.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../',
+            VERSION:'0.1.4',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

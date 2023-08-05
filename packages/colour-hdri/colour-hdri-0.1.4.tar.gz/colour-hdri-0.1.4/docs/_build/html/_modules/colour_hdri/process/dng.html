@@ -1,0 +1,533 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>colour_hdri.process.dng &mdash; Colour - HDRI 0.1.4 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+    <link rel="stylesheet" href="../../../_static/custom.css" type="text/css" />
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../search.html"/>
+    <link rel="top" title="Colour - HDRI 0.1.4 documentation" href="../../../index.html"/>
+        <link rel="up" title="Module code" href="../../index.html"/> 
+
+  
+  <script src="../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home"> Colour - HDRI
+          
+
+          
+            
+            <img src="../../../_static/Logo_Small_001.png" class="logo" />
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.1
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../manual.html">Colour - HDRI Manual</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Colour - HDRI</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+      <li>colour_hdri.process.dng</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for colour_hdri.process.dng</h1><div class="highlight"><pre>
+<span></span><span class="c1"># -*- coding: utf-8 -*-</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Adobe DNG SDK Conversion Process</span>
+<span class="sd">================================</span>
+
+<span class="sd">Defines various objects implementing raw conversion based on *Adobe DNG SDK*</span>
+<span class="sd">and *dcraw*:</span>
+
+<span class="sd">-   :func:`colour_hdri.convert_raw_files_to_dng_files`</span>
+<span class="sd">-   :func:`colour_hdri.convert_dng_files_to_intermediate_files`</span>
+<span class="sd">-   :func:`colour_hdri.read_dng_files_exif_tags`</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">division</span><span class="p">,</span> <span class="n">unicode_literals</span>
+
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">platform</span>
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">import</span> <span class="nn">shlex</span>
+<span class="kn">import</span> <span class="nn">subprocess</span>
+<span class="kn">from</span> <span class="nn">copy</span> <span class="k">import</span> <span class="n">deepcopy</span>
+
+<span class="kn">from</span> <span class="nn">colour.utilities</span> <span class="k">import</span> <span class="n">CaseInsensitiveMapping</span><span class="p">,</span> <span class="n">warning</span>
+<span class="kn">from</span> <span class="nn">colour.utilities.documentation</span> <span class="k">import</span> <span class="n">DocstringText</span>
+
+<span class="kn">from</span> <span class="nn">colour_hdri.utilities</span> <span class="k">import</span> <span class="p">(</span><span class="n">ExifTag</span><span class="p">,</span> <span class="n">parse_exif_array</span><span class="p">,</span>
+                                   <span class="n">parse_exif_numeric</span><span class="p">,</span> <span class="n">parse_exif_string</span><span class="p">,</span>
+                                   <span class="n">path_exists</span><span class="p">,</span> <span class="n">read_exif_tags</span><span class="p">)</span>
+
+<span class="n">__author__</span> <span class="o">=</span> <span class="s1">&#39;Colour Developers&#39;</span>
+<span class="n">__copyright__</span> <span class="o">=</span> <span class="s1">&#39;Copyright (C) 2015-2018 - Colour Developers&#39;</span>
+<span class="n">__license__</span> <span class="o">=</span> <span class="s1">&#39;New BSD License - http://opensource.org/licenses/BSD-3-Clause&#39;</span>
+<span class="n">__maintainer__</span> <span class="o">=</span> <span class="s1">&#39;Colour Developers&#39;</span>
+<span class="n">__email__</span> <span class="o">=</span> <span class="s1">&#39;colour-science@googlegroups.com&#39;</span>
+<span class="n">__status__</span> <span class="o">=</span> <span class="s1">&#39;Production&#39;</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s1">&#39;RAW_CONVERTER&#39;</span><span class="p">,</span> <span class="s1">&#39;RAW_CONVERSION_ARGUMENTS&#39;</span><span class="p">,</span> <span class="s1">&#39;RAW_D_CONVERSION_ARGUMENTS&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;DNG_CONVERTER&#39;</span><span class="p">,</span> <span class="s1">&#39;DNG_CONVERSION_ARGUMENTS&#39;</span><span class="p">,</span> <span class="s1">&#39;DNG_EXIF_TAGS_BINDING&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;convert_raw_files_to_dng_files&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;convert_dng_files_to_intermediate_files&#39;</span><span class="p">,</span> <span class="s1">&#39;read_dng_files_exif_tags&#39;</span>
+<span class="p">]</span>
+
+<span class="n">LOGGER</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+<span class="n">RAW_CONVERTER</span> <span class="o">=</span> <span class="n">DocstringText</span><span class="p">(</span><span class="s1">&#39;dcraw&#39;</span><span class="p">)</span>
+<span class="n">RAW_CONVERTER</span><span class="o">.</span><span class="vm">__doc__</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">Command line raw conversion application, usually Dave Coffin&#39;s *dcraw*.</span>
+
+<span class="s2">RAW_CONVERTER : unicode</span>
+<span class="s2">&quot;&quot;&quot;</span>
+
+<span class="n">RAW_CONVERSION_ARGUMENTS</span> <span class="o">=</span> <span class="n">DocstringText</span><span class="p">(</span><span class="s1">&#39;-t 0 -D -W -4 -T &quot;</span><span class="si">{0}</span><span class="s1">&quot;&#39;</span><span class="p">)</span>
+<span class="k">if</span> <span class="n">platform</span><span class="o">.</span><span class="n">system</span><span class="p">()</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;Windows&#39;</span><span class="p">,</span> <span class="s1">&#39;Microsoft&#39;</span><span class="p">):</span>
+    <span class="n">RAW_CONVERSION_ARGUMENTS</span> <span class="o">=</span> <span class="n">RAW_CONVERSION_ARGUMENTS</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;&quot;&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span>
+<span class="n">RAW_CONVERSION_ARGUMENTS</span><span class="o">.</span><span class="vm">__doc__</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">Arguments for the command line raw conversion application for non demosaiced</span>
+<span class="s2">linear *tiff* file format output.</span>
+
+<span class="s2">RAW_CONVERSION_ARGUMENTS : unicode</span>
+<span class="s2">&quot;&quot;&quot;</span>
+
+<span class="n">RAW_D_CONVERSION_ARGUMENTS</span> <span class="o">=</span> <span class="n">DocstringText</span><span class="p">(</span>
+    <span class="s1">&#39;-t 0 -H 1 -r 1 1 1 1 -4 -q 3 -o 0 -T &quot;</span><span class="si">{0}</span><span class="s1">&quot;&#39;</span><span class="p">)</span>
+<span class="k">if</span> <span class="n">platform</span><span class="o">.</span><span class="n">system</span><span class="p">()</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;Windows&#39;</span><span class="p">,</span> <span class="s1">&#39;Microsoft&#39;</span><span class="p">):</span>
+    <span class="n">RAW_D_CONVERSION_ARGUMENTS</span> <span class="o">=</span> <span class="n">RAW_D_CONVERSION_ARGUMENTS</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;&quot;&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span>
+<span class="n">RAW_D_CONVERSION_ARGUMENTS</span><span class="o">.</span><span class="vm">__doc__</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">Arguments for the command line raw conversion application for demosaiced</span>
+<span class="s2">linear *tiff* file format output.</span>
+
+<span class="s2">RAW_D_CONVERSION_ARGUMENTS : unicode</span>
+<span class="s2">&quot;&quot;&quot;</span>
+
+<span class="k">if</span> <span class="n">platform</span><span class="o">.</span><span class="n">system</span><span class="p">()</span> <span class="o">==</span> <span class="s1">&#39;Darwin&#39;</span><span class="p">:</span>
+    <span class="n">DNG_CONVERTER</span> <span class="o">=</span> <span class="n">DocstringText</span><span class="p">(</span>
+        <span class="s1">&#39;/Applications/Adobe DNG Converter.app/Contents/&#39;</span>
+        <span class="s1">&#39;MacOS/Adobe DNG Converter&#39;</span><span class="p">)</span>
+<span class="k">elif</span> <span class="n">platform</span><span class="o">.</span><span class="n">system</span><span class="p">()</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;Windows&#39;</span><span class="p">,</span> <span class="s1">&#39;Microsoft&#39;</span><span class="p">):</span>
+    <span class="n">DNG_CONVERTER</span> <span class="o">=</span> <span class="n">DocstringText</span><span class="p">(</span>
+        <span class="s1">&#39;C:</span><span class="se">\\</span><span class="s1">Program Files (x86)</span><span class="se">\\</span><span class="s1">Adobe</span><span class="se">\\</span><span class="s1">Adobe DNG Converter.exe&#39;</span><span class="p">)</span>
+<span class="k">else</span><span class="p">:</span>
+    <span class="n">DNG_CONVERTER</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">warning</span><span class="p">(</span><span class="s1">&#39;&quot;Adobe DNG Converter&quot; is not available on your platform!&#39;</span><span class="p">)</span>
+
+<span class="k">if</span> <span class="n">DNG_CONVERTER</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">DNG_CONVERTER</span><span class="o">.</span><span class="vm">__doc__</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">Command line *DNG* conversion application, usually *Adobe DNG Converter*.</span>
+
+<span class="s2">DNG_CONVERTER : unicode</span>
+<span class="s2">&quot;&quot;&quot;</span>
+
+<span class="n">DNG_CONVERSION_ARGUMENTS</span> <span class="o">=</span> <span class="n">DocstringText</span><span class="p">(</span><span class="s1">&#39;-l -d &quot;</span><span class="si">{0}</span><span class="s1">&quot; &quot;</span><span class="si">{1}</span><span class="s1">&quot;&#39;</span><span class="p">)</span>
+<span class="k">if</span> <span class="n">platform</span><span class="o">.</span><span class="n">system</span><span class="p">()</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;Windows&#39;</span><span class="p">,</span> <span class="s1">&#39;Microsoft&#39;</span><span class="p">):</span>
+    <span class="n">DNG_CONVERSION_ARGUMENTS</span> <span class="o">=</span> <span class="n">DNG_CONVERSION_ARGUMENTS</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;&quot;&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span>
+<span class="n">DNG_CONVERSION_ARGUMENTS</span><span class="o">.</span><span class="vm">__doc__</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">Arguments for the command line *dng* conversion application.</span>
+
+<span class="s2">DNG_CONVERSION_ARGUMENTS : unicode</span>
+<span class="s2">&quot;&quot;&quot;</span>
+
+<span class="n">DNG_EXIF_TAGS_BINDING</span> <span class="o">=</span> <span class="n">CaseInsensitiveMapping</span><span class="p">({</span>
+    <span class="s1">&#39;EXIF&#39;</span><span class="p">:</span>
+        <span class="n">CaseInsensitiveMapping</span><span class="p">({</span>
+            <span class="s1">&#39;Make&#39;</span><span class="p">:</span> <span class="p">(</span><span class="n">parse_exif_string</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+            <span class="s1">&#39;Camera Model Name&#39;</span><span class="p">:</span> <span class="p">(</span><span class="n">parse_exif_string</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+            <span class="s1">&#39;Camera Serial Number&#39;</span><span class="p">:</span> <span class="p">(</span><span class="n">parse_exif_string</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+            <span class="s1">&#39;Lens Model&#39;</span><span class="p">:</span> <span class="p">(</span><span class="n">parse_exif_string</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+            <span class="s1">&#39;DNG Lens Info&#39;</span><span class="p">:</span> <span class="p">(</span><span class="n">parse_exif_string</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+            <span class="s1">&#39;Focal Length&#39;</span><span class="p">:</span> <span class="p">(</span><span class="n">parse_exif_numeric</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+            <span class="s1">&#39;Exposure Time&#39;</span><span class="p">:</span> <span class="p">(</span><span class="n">parse_exif_numeric</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+            <span class="s1">&#39;F Number&#39;</span><span class="p">:</span> <span class="p">(</span><span class="n">parse_exif_numeric</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+            <span class="s1">&#39;ISO&#39;</span><span class="p">:</span> <span class="p">(</span><span class="n">parse_exif_numeric</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+            <span class="s1">&#39;CFA Pattern 2&#39;</span><span class="p">:</span> <span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">parse_exif_array</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">int_</span><span class="p">),</span> <span class="kc">None</span><span class="p">),</span>
+            <span class="s1">&#39;CFA Plane Color&#39;</span><span class="p">:</span> <span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">parse_exif_array</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">int_</span><span class="p">),</span> <span class="kc">None</span><span class="p">),</span>
+            <span class="s1">&#39;Black Level Repeat Dim&#39;</span><span class="p">:</span> <span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">parse_exif_array</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">int_</span><span class="p">),</span>
+                                       <span class="kc">None</span><span class="p">),</span>
+            <span class="s1">&#39;Black Level&#39;</span><span class="p">:</span> <span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">parse_exif_array</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">int_</span><span class="p">),</span> <span class="kc">None</span><span class="p">),</span>
+            <span class="s1">&#39;White Level&#39;</span><span class="p">:</span> <span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">parse_exif_array</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">int_</span><span class="p">),</span> <span class="kc">None</span><span class="p">),</span>
+            <span class="s1">&#39;Samples Per Pixel&#39;</span><span class="p">:</span> <span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">parse_exif_numeric</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">int_</span><span class="p">),</span>
+                                  <span class="kc">None</span><span class="p">),</span>
+            <span class="s1">&#39;Active Area&#39;</span><span class="p">:</span> <span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">parse_exif_array</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">int_</span><span class="p">),</span> <span class="kc">None</span><span class="p">),</span>
+            <span class="s1">&#39;Orientation&#39;</span><span class="p">:</span> <span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">parse_exif_numeric</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">int_</span><span class="p">),</span> <span class="kc">None</span><span class="p">),</span>
+            <span class="s1">&#39;Camera Calibration Sig&#39;</span><span class="p">:</span> <span class="p">(</span><span class="n">parse_exif_string</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+            <span class="s1">&#39;Profile Calibration Sig&#39;</span><span class="p">:</span> <span class="p">(</span><span class="n">parse_exif_string</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+            <span class="s1">&#39;Calibration Illuminant 1&#39;</span><span class="p">:</span> <span class="p">(</span>
+                <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">parse_exif_numeric</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">int_</span><span class="p">),</span> <span class="mi">17</span><span class="p">),</span>
+            <span class="s1">&#39;Calibration Illuminant 2&#39;</span><span class="p">:</span> <span class="p">(</span>
+                <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">parse_exif_numeric</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">int_</span><span class="p">),</span> <span class="mi">21</span><span class="p">),</span>
+            <span class="s1">&#39;Color Matrix 1&#39;</span><span class="p">:</span> <span class="p">(</span>
+                <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">parse_exif_array</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">float_</span><span class="p">,</span> <span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">)),</span>
+                <span class="s1">&#39;1 0 0 0 1 0 0 0 1&#39;</span><span class="p">),</span>
+            <span class="s1">&#39;Color Matrix 2&#39;</span><span class="p">:</span> <span class="p">(</span>
+                <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">parse_exif_array</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">float_</span><span class="p">,</span> <span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">)),</span>
+                <span class="s1">&#39;1 0 0 0 1 0 0 0 1&#39;</span><span class="p">),</span>
+            <span class="s1">&#39;Camera Calibration 1&#39;</span><span class="p">:</span> <span class="p">(</span>
+                <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">parse_exif_array</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">float_</span><span class="p">,</span> <span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">)),</span>
+                <span class="s1">&#39;1 0 0 0 1 0 0 0 1&#39;</span><span class="p">),</span>
+            <span class="s1">&#39;Camera Calibration 2&#39;</span><span class="p">:</span> <span class="p">(</span>
+                <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">parse_exif_array</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">float_</span><span class="p">,</span> <span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">)),</span>
+                <span class="s1">&#39;1 0 0 0 1 0 0 0 1&#39;</span><span class="p">),</span>
+            <span class="s1">&#39;Analog Balance&#39;</span><span class="p">:</span> <span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">parse_exif_array</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">float_</span><span class="p">),</span>
+                               <span class="s1">&#39;1 1 1&#39;</span><span class="p">),</span>
+            <span class="s1">&#39;Reduction Matrix 1&#39;</span><span class="p">:</span> <span class="p">(</span>
+                <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">parse_exif_array</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">float_</span><span class="p">,</span> <span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">)),</span>
+                <span class="s1">&#39;1 0 0 0 1 0 0 0 1&#39;</span><span class="p">),</span>
+            <span class="s1">&#39;Reduction Matrix 2&#39;</span><span class="p">:</span> <span class="p">(</span>
+                <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">parse_exif_array</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">float_</span><span class="p">,</span> <span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">)),</span>
+                <span class="s1">&#39;1 0 0 0 1 0 0 0 1&#39;</span><span class="p">),</span>
+            <span class="s1">&#39;Forward Matrix 1&#39;</span><span class="p">:</span> <span class="p">(</span>
+                <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">parse_exif_array</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">float_</span><span class="p">,</span> <span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">)),</span>
+                <span class="s1">&#39;1 0 0 0 1 0 0 0 1&#39;</span><span class="p">),</span>
+            <span class="s1">&#39;Forward Matrix 2&#39;</span><span class="p">:</span> <span class="p">(</span>
+                <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">parse_exif_array</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">float_</span><span class="p">,</span> <span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">)),</span>
+                <span class="s1">&#39;1 0 0 0 1 0 0 0 1&#39;</span><span class="p">),</span>
+            <span class="s1">&#39;As Shot Neutral&#39;</span><span class="p">:</span> <span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">parse_exif_array</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">float_</span><span class="p">),</span>
+                                <span class="s1">&#39;1 1 1&#39;</span><span class="p">),</span>
+            <span class="s1">&#39;Baseline Exposure&#39;</span><span class="p">:</span> <span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">parse_exif_numeric</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">float_</span><span class="p">),</span>
+                                  <span class="kc">None</span><span class="p">),</span>
+            <span class="s1">&#39;Baseline Noise&#39;</span><span class="p">:</span> <span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">parse_exif_numeric</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">float_</span><span class="p">),</span>
+                               <span class="kc">None</span><span class="p">)</span>
+        <span class="p">})</span>
+<span class="p">})</span>
+<span class="n">DNG_EXIF_TAGS_BINDING</span><span class="o">.</span><span class="vm">__doc__</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">Exif tags binding for a *dng* file.</span>
+
+<span class="s2">DNG_EXIF_TAGS_BINDING : CaseInsensitiveMapping</span>
+<span class="s2">&quot;&quot;&quot;</span>
+
+
+<div class="viewcode-block" id="convert_raw_files_to_dng_files"><a class="viewcode-back" href="../../../generated/colour_hdri.convert_raw_files_to_dng_files.html#colour_hdri.convert_raw_files_to_dng_files">[docs]</a><span class="k">def</span> <span class="nf">convert_raw_files_to_dng_files</span><span class="p">(</span><span class="n">raw_files</span><span class="p">,</span> <span class="n">output_directory</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Converts given raw files to *dng* files using given output directory.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    raw_files : array_like</span>
+<span class="sd">        Raw files to convert to *dng* files.</span>
+<span class="sd">    output_directory : unicode</span>
+<span class="sd">        Output directory.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    list</span>
+<span class="sd">        *dng* files.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">dng_files</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">raw_file</span> <span class="ow">in</span> <span class="n">raw_files</span><span class="p">:</span>
+        <span class="n">raw_file_extension</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">splitext</span><span class="p">(</span><span class="n">raw_file</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">dng_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+            <span class="n">output_directory</span><span class="p">,</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span>
+                <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">{0}</span><span class="s1">$&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">raw_file_extension</span><span class="p">),</span> <span class="s1">&#39;.dng&#39;</span><span class="p">,</span> <span class="n">raw_file</span><span class="p">)))</span>
+
+        <span class="k">if</span> <span class="n">path_exists</span><span class="p">(</span><span class="n">dng_file</span><span class="p">):</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">dng_file</span><span class="p">)</span>
+
+        <span class="n">LOGGER</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+            <span class="s1">&#39;Converting &quot;</span><span class="si">{0}</span><span class="s1">&quot; file to &quot;</span><span class="si">{1}</span><span class="s1">&quot; file.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">raw_file</span><span class="p">,</span> <span class="n">dng_file</span><span class="p">))</span>
+
+        <span class="n">command</span> <span class="o">=</span> <span class="p">[</span><span class="n">DNG_CONVERTER</span><span class="p">]</span> <span class="o">+</span> <span class="n">shlex</span><span class="o">.</span><span class="n">split</span><span class="p">(</span>
+            <span class="n">DNG_CONVERSION_ARGUMENTS</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">output_directory</span><span class="p">,</span> <span class="n">raw_file</span><span class="p">),</span>
+            <span class="n">posix</span><span class="o">=</span><span class="p">(</span><span class="kc">False</span>
+                   <span class="k">if</span> <span class="n">platform</span><span class="o">.</span><span class="n">system</span><span class="p">()</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;Windows&#39;</span><span class="p">,</span> <span class="s1">&#39;Microsoft&#39;</span><span class="p">)</span> <span class="k">else</span> <span class="kc">True</span><span class="p">))</span>
+
+        <span class="n">subprocess</span><span class="o">.</span><span class="n">call</span><span class="p">(</span><span class="n">command</span><span class="p">)</span>
+
+        <span class="n">dng_files</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">dng_file</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">dng_files</span></div>
+
+
+<div class="viewcode-block" id="convert_dng_files_to_intermediate_files"><a class="viewcode-back" href="../../../generated/colour_hdri.convert_dng_files_to_intermediate_files.html#colour_hdri.convert_dng_files_to_intermediate_files">[docs]</a><span class="k">def</span> <span class="nf">convert_dng_files_to_intermediate_files</span><span class="p">(</span><span class="n">dng_files</span><span class="p">,</span>
+                                            <span class="n">output_directory</span><span class="p">,</span>
+                                            <span class="n">demosaicing</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Converts given *dng* files to intermediate *tiff* files using given output</span>
+<span class="sd">    directory.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    dng_files : array_like</span>
+<span class="sd">        *dng* files to convert to intermediate *tiff* files.</span>
+<span class="sd">    output_directory : str</span>
+<span class="sd">        Output directory.</span>
+<span class="sd">    demosaicing : bool</span>
+<span class="sd">        Perform demosaicing on conversion.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    list</span>
+<span class="sd">        Intermediate *tiff* files.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">intermediate_files</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">dng_file</span> <span class="ow">in</span> <span class="n">dng_files</span><span class="p">:</span>
+        <span class="n">intermediate_file</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="s1">&#39;\.dng$&#39;</span><span class="p">,</span> <span class="s1">&#39;.tiff&#39;</span><span class="p">,</span> <span class="n">dng_file</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">path_exists</span><span class="p">(</span><span class="n">intermediate_file</span><span class="p">):</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">intermediate_file</span><span class="p">)</span>
+
+        <span class="n">LOGGER</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Converting &quot;</span><span class="si">{0}</span><span class="s1">&quot; file to &quot;</span><span class="si">{1}</span><span class="s1">&quot; file.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="n">dng_file</span><span class="p">,</span> <span class="n">intermediate_file</span><span class="p">))</span>
+
+        <span class="n">raw_conversion_arguments</span> <span class="o">=</span> <span class="p">(</span><span class="n">RAW_D_CONVERSION_ARGUMENTS</span> <span class="k">if</span> <span class="n">demosaicing</span>
+                                    <span class="k">else</span> <span class="n">RAW_CONVERSION_ARGUMENTS</span><span class="p">)</span>
+        <span class="n">command</span> <span class="o">=</span> <span class="p">[</span><span class="n">RAW_CONVERTER</span><span class="p">]</span> <span class="o">+</span> <span class="n">shlex</span><span class="o">.</span><span class="n">split</span><span class="p">(</span>
+            <span class="n">raw_conversion_arguments</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">dng_file</span><span class="p">),</span>
+            <span class="n">posix</span><span class="o">=</span><span class="p">(</span><span class="kc">False</span>
+                   <span class="k">if</span> <span class="n">platform</span><span class="o">.</span><span class="n">system</span><span class="p">()</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;Windows&#39;</span><span class="p">,</span> <span class="s1">&#39;Microsoft&#39;</span><span class="p">)</span> <span class="k">else</span> <span class="kc">True</span><span class="p">))</span>
+
+        <span class="n">subprocess</span><span class="o">.</span><span class="n">call</span><span class="p">(</span><span class="n">command</span><span class="p">)</span>
+
+        <span class="n">tiff_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">output_directory</span><span class="p">,</span>
+                                 <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">intermediate_file</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">tiff_file</span> <span class="o">!=</span> <span class="n">intermediate_file</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">path_exists</span><span class="p">(</span><span class="n">tiff_file</span><span class="p">):</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">tiff_file</span><span class="p">)</span>
+
+            <span class="n">os</span><span class="o">.</span><span class="n">rename</span><span class="p">(</span><span class="n">intermediate_file</span><span class="p">,</span> <span class="n">tiff_file</span><span class="p">)</span>
+
+        <span class="n">intermediate_files</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">tiff_file</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">intermediate_files</span></div>
+
+
+<div class="viewcode-block" id="read_dng_files_exif_tags"><a class="viewcode-back" href="../../../generated/colour_hdri.read_dng_files_exif_tags.html#colour_hdri.read_dng_files_exif_tags">[docs]</a><span class="k">def</span> <span class="nf">read_dng_files_exif_tags</span><span class="p">(</span><span class="n">dng_files</span><span class="p">,</span>
+                             <span class="n">exif_tags_binding</span><span class="o">=</span><span class="n">DNG_EXIF_TAGS_BINDING</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Reads given *dng* files exif tags using given binding.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    dng_files : array_like</span>
+<span class="sd">        *dng* files to read the exif tags from.</span>
+<span class="sd">    exif_tags_binding : dict_like</span>
+<span class="sd">        Exif tags binding.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    list</span>
+<span class="sd">        *dng* files exif tags.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">dng_files_exif_tags</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">dng_file</span> <span class="ow">in</span> <span class="n">dng_files</span><span class="p">:</span>
+        <span class="n">exif_tags</span> <span class="o">=</span> <span class="n">read_exif_tags</span><span class="p">(</span><span class="n">dng_file</span><span class="p">)</span>
+        <span class="n">binding</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">exif_tags_binding</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">group</span><span class="p">,</span> <span class="n">tags</span> <span class="ow">in</span> <span class="n">binding</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">for</span> <span class="n">tag</span> <span class="ow">in</span> <span class="n">tags</span><span class="p">:</span>
+                <span class="n">exif_tag</span> <span class="o">=</span> <span class="n">exif_tags</span><span class="p">[</span><span class="n">group</span><span class="p">]</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">tag</span><span class="p">)</span>
+                <span class="n">parser</span> <span class="o">=</span> <span class="n">binding</span><span class="p">[</span><span class="n">group</span><span class="p">][</span><span class="n">tag</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">exif_tag</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">default</span> <span class="o">=</span> <span class="n">binding</span><span class="p">[</span><span class="n">group</span><span class="p">][</span><span class="n">tag</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span>
+                    <span class="n">binding</span><span class="p">[</span><span class="n">group</span><span class="p">][</span><span class="n">tag</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+                        <span class="n">default</span> <span class="k">if</span> <span class="n">default</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span>
+                        <span class="n">parser</span><span class="p">(</span><span class="n">ExifTag</span><span class="p">(</span><span class="n">value</span><span class="o">=</span><span class="n">binding</span><span class="p">[</span><span class="n">group</span><span class="p">][</span><span class="n">tag</span><span class="p">][</span><span class="mi">1</span><span class="p">])))</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">binding</span><span class="p">[</span><span class="n">group</span><span class="p">][</span><span class="n">tag</span><span class="p">]</span> <span class="o">=</span> <span class="n">parser</span><span class="p">(</span><span class="n">exif_tag</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+
+        <span class="n">dng_files_exif_tags</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">binding</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">dng_files_exif_tags</span></div>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright  2015-2018 - Colour Developers.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../',
+            VERSION:'0.1.4',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

@@ -1,0 +1,573 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>colour_hdri.utilities.exif &mdash; Colour - HDRI 0.1.4 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+    <link rel="stylesheet" href="../../../_static/custom.css" type="text/css" />
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../search.html"/>
+    <link rel="top" title="Colour - HDRI 0.1.4 documentation" href="../../../index.html"/>
+        <link rel="up" title="Module code" href="../../index.html"/> 
+
+  
+  <script src="../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home"> Colour - HDRI
+          
+
+          
+            
+            <img src="../../../_static/Logo_Small_001.png" class="logo" />
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.1
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../manual.html">Colour - HDRI Manual</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Colour - HDRI</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+      <li>colour_hdri.utilities.exif</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for colour_hdri.utilities.exif</h1><div class="highlight"><pre>
+<span></span><span class="c1"># -*- coding: utf-8 -*-</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">EXIF Data Manipulation</span>
+<span class="sd">======================</span>
+
+<span class="sd">Exif data manipulation routines based on *exiftool*:</span>
+
+<span class="sd">-   :func:`colour_hdri.parse_exif_data`</span>
+<span class="sd">-   :func:`colour_hdri.read_exif_tags`</span>
+<span class="sd">-   :func:`colour_hdri.copy_exif_tags`</span>
+<span class="sd">-   :func:`colour_hdri.update_exif_tags`</span>
+<span class="sd">-   :func:`colour_hdri.delete_exif_tags`</span>
+<span class="sd">-   :func:`colour_hdri.read_exif_tag`</span>
+<span class="sd">-   :func:`colour_hdri.write_exif_tag`</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">division</span><span class="p">,</span> <span class="n">unicode_literals</span>
+
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">import</span> <span class="nn">subprocess</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">namedtuple</span>
+<span class="kn">from</span> <span class="nn">fractions</span> <span class="k">import</span> <span class="n">Fraction</span>
+<span class="kn">from</span> <span class="nn">six</span> <span class="k">import</span> <span class="n">text_type</span>
+
+<span class="kn">from</span> <span class="nn">colour.utilities.documentation</span> <span class="k">import</span> <span class="n">DocstringText</span>
+
+<span class="kn">from</span> <span class="nn">colour_hdri.utilities</span> <span class="k">import</span> <span class="n">vivification</span>
+
+<span class="n">__author__</span> <span class="o">=</span> <span class="s1">&#39;Colour Developers&#39;</span>
+<span class="n">__copyright__</span> <span class="o">=</span> <span class="s1">&#39;Copyright (C) 2015-2018 - Colour Developers&#39;</span>
+<span class="n">__license__</span> <span class="o">=</span> <span class="s1">&#39;New BSD License - http://opensource.org/licenses/BSD-3-Clause&#39;</span>
+<span class="n">__maintainer__</span> <span class="o">=</span> <span class="s1">&#39;Colour Developers&#39;</span>
+<span class="n">__email__</span> <span class="o">=</span> <span class="s1">&#39;colour-science@googlegroups.com&#39;</span>
+<span class="n">__status__</span> <span class="o">=</span> <span class="s1">&#39;Production&#39;</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s1">&#39;EXIF_EXECUTABLE&#39;</span><span class="p">,</span> <span class="s1">&#39;ExifTag&#39;</span><span class="p">,</span> <span class="s1">&#39;parse_exif_string&#39;</span><span class="p">,</span> <span class="s1">&#39;parse_exif_numeric&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;parse_exif_fraction&#39;</span><span class="p">,</span> <span class="s1">&#39;parse_exif_array&#39;</span><span class="p">,</span> <span class="s1">&#39;parse_exif_data&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;read_exif_tags&#39;</span><span class="p">,</span> <span class="s1">&#39;copy_exif_tags&#39;</span><span class="p">,</span> <span class="s1">&#39;update_exif_tags&#39;</span><span class="p">,</span> <span class="s1">&#39;delete_exif_tags&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;read_exif_tag&#39;</span><span class="p">,</span> <span class="s1">&#39;write_exif_tag&#39;</span>
+<span class="p">]</span>
+
+<span class="n">LOGGER</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+<span class="n">EXIF_EXECUTABLE</span> <span class="o">=</span> <span class="n">DocstringText</span><span class="p">(</span><span class="s1">&#39;exiftool&#39;</span><span class="p">)</span>
+<span class="n">EXIF_EXECUTABLE</span><span class="o">.</span><span class="vm">__doc__</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">Command line exif manipulation application, usually Phil Harvey&#39;s *ExifTool*.</span>
+
+<span class="s2">EXIF_EXECUTABLE : unicode</span>
+<span class="s2">&quot;&quot;&quot;</span>
+
+
+<div class="viewcode-block" id="ExifTag"><a class="viewcode-back" href="../../../generated/colour_hdri.ExifTag.html#colour_hdri.ExifTag">[docs]</a><span class="k">class</span> <span class="nc">ExifTag</span><span class="p">(</span><span class="n">namedtuple</span><span class="p">(</span><span class="s1">&#39;ExifTag&#39;</span><span class="p">,</span> <span class="p">(</span><span class="s1">&#39;group&#39;</span><span class="p">,</span> <span class="s1">&#39;name&#39;</span><span class="p">,</span> <span class="s1">&#39;value&#39;</span><span class="p">,</span> <span class="s1">&#39;identifier&#39;</span><span class="p">))):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Hunt colour appearance model induction factors.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    group : unicode, optional</span>
+<span class="sd">        Exif tag group name.</span>
+<span class="sd">    name : unicode, optional</span>
+<span class="sd">        Exif tag name.</span>
+<span class="sd">    value : object, optional</span>
+<span class="sd">        Exif tag value.</span>
+<span class="sd">    identifier : numeric, optional</span>
+<span class="sd">        Exif tag identifier.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">group</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">identifier</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns a new instance of the :class:`colour_hdri.ExifTag` class.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">ExifTag</span><span class="p">,</span> <span class="bp">cls</span><span class="p">)</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">group</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">identifier</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="parse_exif_string"><a class="viewcode-back" href="../../../generated/colour_hdri.parse_exif_string.html#colour_hdri.parse_exif_string">[docs]</a><span class="k">def</span> <span class="nf">parse_exif_string</span><span class="p">(</span><span class="n">exif_tag</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Parses given exif tag assuming it is a string and return its value.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    exif_tag : ExifTag</span>
+<span class="sd">        Exif tag to parse.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    unicode</span>
+<span class="sd">        Parsed exif tag value.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">return</span> <span class="n">text_type</span><span class="p">(</span><span class="n">exif_tag</span><span class="o">.</span><span class="n">value</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="parse_exif_numeric"><a class="viewcode-back" href="../../../generated/colour_hdri.parse_exif_numeric.html#colour_hdri.parse_exif_numeric">[docs]</a><span class="k">def</span> <span class="nf">parse_exif_numeric</span><span class="p">(</span><span class="n">exif_tag</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float_</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Parses given exif tag assuming it is a numeric type and return its value.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    exif_tag : ExifTag</span>
+<span class="sd">        Exif tag to parse.</span>
+<span class="sd">    dtype : object, optional</span>
+<span class="sd">        Return value data type.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    numeric</span>
+<span class="sd">        Parsed exif tag value.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">return</span> <span class="n">dtype</span><span class="p">(</span><span class="n">exif_tag</span><span class="o">.</span><span class="n">value</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="parse_exif_fraction"><a class="viewcode-back" href="../../../generated/colour_hdri.parse_exif_fraction.html#colour_hdri.parse_exif_fraction">[docs]</a><span class="k">def</span> <span class="nf">parse_exif_fraction</span><span class="p">(</span><span class="n">exif_tag</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float_</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Parses given exif tag assuming it is a fraction and return its value.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    exif_tag : ExifTag</span>
+<span class="sd">        Exif tag to parse.</span>
+<span class="sd">    dtype : object, optional</span>
+<span class="sd">        Return value data type.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    numeric</span>
+<span class="sd">        Parsed exif tag value.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">return</span> <span class="n">dtype</span><span class="p">(</span><span class="n">Fraction</span><span class="p">(</span><span class="n">exif_tag</span><span class="o">.</span><span class="n">value</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="parse_exif_array"><a class="viewcode-back" href="../../../generated/colour_hdri.parse_exif_array.html#colour_hdri.parse_exif_array">[docs]</a><span class="k">def</span> <span class="nf">parse_exif_array</span><span class="p">(</span><span class="n">exif_tag</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float_</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Parses given exif tag assuming it is an array and return its value.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    exif_tag : ExifTag</span>
+<span class="sd">        Exif tag to parse.</span>
+<span class="sd">    dtype : object, optional</span>
+<span class="sd">        Return value data type.</span>
+<span class="sd">    shape : array_like, optional</span>
+<span class="sd">        Shape of</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    ndarray</span>
+<span class="sd">        Parsed exif tag value.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">exif_tag</span><span class="o">.</span><span class="n">value</span><span class="o">.</span><span class="n">split</span><span class="p">())</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">dtype</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="parse_exif_data"><a class="viewcode-back" href="../../../generated/colour_hdri.parse_exif_data.html#colour_hdri.parse_exif_data">[docs]</a><span class="k">def</span> <span class="nf">parse_exif_data</span><span class="p">(</span><span class="n">data</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Parses given exif data output from *exiftool*.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    data : unicode</span>
+<span class="sd">        Exif data.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    list</span>
+<span class="sd">        Parsed exif data.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">search</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">search</span><span class="p">(</span>
+        <span class="sa">r</span><span class="s1">&#39;\[(?P&lt;group&gt;\w+)\]\s*(?P&lt;id&gt;(\d+|-))?(?P&lt;tag&gt;.*?):(?P&lt;value&gt;.*$)&#39;</span><span class="p">,</span>
+        <span class="n">data</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="nb">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="k">if</span> <span class="n">x</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">x</span><span class="p">,</span>
+               <span class="p">(</span><span class="n">search</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;group&#39;</span><span class="p">),</span> <span class="n">search</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;id&#39;</span><span class="p">),</span> <span class="n">search</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;tag&#39;</span><span class="p">),</span>
+                <span class="n">search</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;value&#39;</span><span class="p">)))</span></div>
+
+
+<div class="viewcode-block" id="read_exif_tags"><a class="viewcode-back" href="../../../generated/colour_hdri.read_exif_tags.html#colour_hdri.read_exif_tags">[docs]</a><span class="k">def</span> <span class="nf">read_exif_tags</span><span class="p">(</span><span class="n">image</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns given image exif image tags.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    image : unicode</span>
+<span class="sd">        Image file.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    defaultdict</span>
+<span class="sd">        Exif tags.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">LOGGER</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Reading &#39;</span><span class="si">{0}</span><span class="s2">&#39; image exif data.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">image</span><span class="p">))</span>
+
+    <span class="n">exif_tags</span> <span class="o">=</span> <span class="n">vivification</span><span class="p">()</span>
+    <span class="n">lines</span> <span class="o">=</span> <span class="n">text_type</span><span class="p">(</span>
+        <span class="n">subprocess</span><span class="o">.</span><span class="n">check_output</span><span class="p">(</span>
+            <span class="p">[</span><span class="n">EXIF_EXECUTABLE</span><span class="p">,</span> <span class="s1">&#39;-D&#39;</span><span class="p">,</span> <span class="s1">&#39;-G&#39;</span><span class="p">,</span> <span class="s1">&#39;-a&#39;</span><span class="p">,</span> <span class="s1">&#39;-u&#39;</span><span class="p">,</span> <span class="s1">&#39;-n&#39;</span><span class="p">,</span> <span class="n">image</span><span class="p">]),</span> <span class="s1">&#39;utf-8&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;ignore&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">lines</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">line</span><span class="o">.</span><span class="n">strip</span><span class="p">():</span>
+            <span class="k">continue</span>
+
+        <span class="n">group</span><span class="p">,</span> <span class="n">identifier</span><span class="p">,</span> <span class="n">tag</span><span class="p">,</span> <span class="n">value</span> <span class="o">=</span> <span class="n">parse_exif_data</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">exif_tags</span><span class="p">[</span><span class="n">group</span><span class="p">][</span><span class="n">tag</span><span class="p">]:</span>
+            <span class="n">exif_tags</span><span class="p">[</span><span class="n">group</span><span class="p">][</span><span class="n">tag</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="n">exif_tags</span><span class="p">[</span><span class="n">group</span><span class="p">][</span><span class="n">tag</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ExifTag</span><span class="p">(</span><span class="n">group</span><span class="p">,</span> <span class="n">tag</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">identifier</span><span class="p">))</span>
+
+    <span class="k">return</span> <span class="n">exif_tags</span></div>
+
+
+<div class="viewcode-block" id="copy_exif_tags"><a class="viewcode-back" href="../../../generated/colour_hdri.copy_exif_tags.html#colour_hdri.copy_exif_tags">[docs]</a><span class="k">def</span> <span class="nf">copy_exif_tags</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">target</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Copies given source image file exif tag to given image target.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    source : unicode</span>
+<span class="sd">        Source image file.</span>
+<span class="sd">    target : unicode</span>
+<span class="sd">        Target image file.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    bool</span>
+<span class="sd">        Definition success.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">LOGGER</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+        <span class="s2">&quot;Copying &#39;</span><span class="si">{0}</span><span class="s2">&#39; file exif data to &#39;</span><span class="si">{1}</span><span class="s2">&#39; file.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">target</span><span class="p">))</span>
+
+    <span class="n">arguments</span> <span class="o">=</span> <span class="p">[</span><span class="n">EXIF_EXECUTABLE</span><span class="p">,</span> <span class="s1">&#39;-overwrite_original&#39;</span><span class="p">,</span> <span class="s1">&#39;-TagsFromFile&#39;</span><span class="p">]</span>
+    <span class="n">arguments</span> <span class="o">+=</span> <span class="p">[</span><span class="n">source</span><span class="p">,</span> <span class="n">target</span><span class="p">]</span>
+    <span class="n">subprocess</span><span class="o">.</span><span class="n">check_output</span><span class="p">(</span><span class="n">arguments</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="kc">True</span></div>
+
+
+<div class="viewcode-block" id="update_exif_tags"><a class="viewcode-back" href="../../../generated/colour_hdri.update_exif_tags.html#colour_hdri.update_exif_tags">[docs]</a><span class="k">def</span> <span class="nf">update_exif_tags</span><span class="p">(</span><span class="n">images</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Updates given images siblings images pairs exif tags.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    images : list</span>
+<span class="sd">        Image files to update.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    bool</span>
+<span class="sd">        Definition success.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">success</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="k">for</span> <span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">target</span><span class="p">)</span> <span class="ow">in</span> <span class="n">images</span><span class="p">:</span>
+        <span class="n">success</span> <span class="o">*=</span> <span class="n">copy_exif_tags</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">target</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">success</span></div>
+
+
+<div class="viewcode-block" id="delete_exif_tags"><a class="viewcode-back" href="../../../generated/colour_hdri.delete_exif_tags.html#colour_hdri.delete_exif_tags">[docs]</a><span class="k">def</span> <span class="nf">delete_exif_tags</span><span class="p">(</span><span class="n">image</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Deletes all given image exif tags.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    image : unicode</span>
+<span class="sd">        Image file.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    bool</span>
+<span class="sd">        Definition success.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">LOGGER</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Deleting &#39;</span><span class="si">{0}</span><span class="s2">&#39; image exif tags.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">image</span><span class="p">))</span>
+
+    <span class="n">subprocess</span><span class="o">.</span><span class="n">check_output</span><span class="p">(</span>
+        <span class="p">[</span><span class="n">EXIF_EXECUTABLE</span><span class="p">,</span> <span class="s1">&#39;-overwrite_original&#39;</span><span class="p">,</span> <span class="s1">&#39;-all=&#39;</span><span class="p">,</span> <span class="n">image</span><span class="p">])</span>
+
+    <span class="k">return</span> <span class="kc">True</span></div>
+
+
+<div class="viewcode-block" id="read_exif_tag"><a class="viewcode-back" href="../../../generated/colour_hdri.read_exif_tag.html#colour_hdri.read_exif_tag">[docs]</a><span class="k">def</span> <span class="nf">read_exif_tag</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="n">tag</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns given image exif tag value.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    image : unicode</span>
+<span class="sd">        Image file.</span>
+<span class="sd">    tag : unicode</span>
+<span class="sd">        Tag.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    unicode</span>
+<span class="sd">        Tag value.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">value</span> <span class="o">=</span> <span class="n">text_type</span><span class="p">(</span>
+        <span class="n">subprocess</span><span class="o">.</span><span class="n">check_output</span><span class="p">([</span><span class="n">EXIF_EXECUTABLE</span><span class="p">,</span> <span class="s1">&#39;-</span><span class="si">{0}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">tag</span><span class="p">),</span> <span class="n">image</span><span class="p">]),</span>
+        <span class="s1">&#39;utf-8&#39;</span><span class="p">,</span> <span class="s1">&#39;ignore&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;:&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+
+    <span class="n">LOGGER</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Reading &#39;</span><span class="si">{0}</span><span class="s2">&#39; image &#39;</span><span class="si">{1}</span><span class="s2">&#39; exif tag value: &#39;</span><span class="si">{2}</span><span class="s2">&#39;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+        <span class="n">image</span><span class="p">,</span> <span class="n">tag</span><span class="p">,</span> <span class="n">value</span><span class="p">))</span>
+
+    <span class="k">return</span> <span class="n">value</span></div>
+
+
+<div class="viewcode-block" id="write_exif_tag"><a class="viewcode-back" href="../../../generated/colour_hdri.write_exif_tag.html#colour_hdri.write_exif_tag">[docs]</a><span class="k">def</span> <span class="nf">write_exif_tag</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="n">tag</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Sets given image exif tag value.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    image : unicode</span>
+<span class="sd">        Image file.</span>
+<span class="sd">    tag : unicode</span>
+<span class="sd">        Tag.</span>
+<span class="sd">    value : unicode</span>
+<span class="sd">        Value.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    bool</span>
+<span class="sd">        Definition success.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">LOGGER</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Writing &#39;</span><span class="si">{0}</span><span class="s2">&#39; image &#39;</span><span class="si">{1}</span><span class="s2">&#39; exif tag with &#39;</span><span class="si">{2}</span><span class="s2">&#39; value.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+        <span class="n">image</span><span class="p">,</span> <span class="n">tag</span><span class="p">,</span> <span class="n">value</span><span class="p">))</span>
+
+    <span class="n">arguments</span> <span class="o">=</span> <span class="p">[</span><span class="n">EXIF_EXECUTABLE</span><span class="p">,</span> <span class="s1">&#39;-overwrite_original&#39;</span><span class="p">]</span>
+    <span class="n">arguments</span> <span class="o">+=</span> <span class="p">[</span><span class="s1">&#39;-</span><span class="si">{0}</span><span class="s1">=</span><span class="si">{1}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">tag</span><span class="p">,</span> <span class="n">value</span><span class="p">),</span> <span class="n">image</span><span class="p">]</span>
+    <span class="n">subprocess</span><span class="o">.</span><span class="n">check_output</span><span class="p">(</span><span class="n">arguments</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="kc">True</span></div>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright  2015-2018 - Colour Developers.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../',
+            VERSION:'0.1.4',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>
