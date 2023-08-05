@@ -1,0 +1,67 @@
+#!/usr/bin/python
+"""bin/iceman entrypoint
+"""
+import argparse
+import importlib
+import sys
+
+import iceman #pylint: disable=import-self
+from iceman.configuration import Configuration
+from iceman.interceptor import Interceptor
+from iceman.traffic.traffic import Traffic
+from iceman.traffic.traffic_null import TrafficNull
+
+def intercept(args):
+    """loads configuration, initializes the encryption cipher,
+    and starts the packet handler
+    """
+    config = Configuration()
+    traffic = None
+    if args.crypto_strategy == 'null':
+        config.cipher_suite = None
+        traffic = TrafficNull(int(args.egress_queue),
+                               int(args.ingress_queue),
+                               config.cipher_suite,
+                               config.encryption_enabled)
+    else:
+        config.cipher_suite = config.initialize_cipher_suite(args.crypto_strategy)
+
+        traffic = Traffic(int(args.egress_queue),
+                          int(args.ingress_queue),
+                          config.cipher_suite,
+                          config.encryption_enabled)
+
+    Interceptor.intercept(traffic)
+
+
+def main():
+    """main entrypoint
+    """
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-v',
+                        '--version',
+                        action='version',
+                        version=iceman.__version__)
+
+    subparsers = parser.add_subparsers(help='commands')
+
+    intercept_parser = subparsers.add_parser('intercept')
+    intercept_parser.add_argument('-p',
+                                  '--protocol',
+                                  choices=Configuration.PROTOCOLS)
+    intercept_parser.add_argument('-s',
+                                  '--crypto-strategy',
+                                  choices=Configuration.CRYPTO_STRATEGIES,
+                                  default='fernet')
+
+    intercept_parser.add_argument('-e', '--egress-queue', required=True)
+    intercept_parser.add_argument('-i', '--ingress-queue', required=True)
+    intercept_parser.set_defaults(func=intercept)
+
+    args = parser.parse_args()
+    args.func(args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
