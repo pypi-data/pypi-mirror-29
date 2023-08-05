@@ -1,0 +1,6003 @@
+.\" Man page generated from reStructuredText.
+.
+.TH "AIOREDIS" "1" "Feb 16, 2018" "1.1" "aioredis"
+.SH NAME
+aioredis \- aioredis Documentation
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.sp
+asyncio (\fI\%PEP 3156\fP) Redis client library.
+.sp
+The library is intended to provide simple and clear interface to Redis
+based on asyncio\&.
+.SH FEATURES
+.TS
+center;
+|l|l|.
+_
+T{
+hiredis parser
+T}	T{
+Yes
+T}
+_
+T{
+Pure\-python parser
+T}	T{
+Yes
+T}
+_
+T{
+Low\-level & High\-level APIs
+T}	T{
+Yes
+T}
+_
+T{
+Connections Pool
+T}	T{
+Yes
+T}
+_
+T{
+Pipelining support
+T}	T{
+Yes
+T}
+_
+T{
+Pub/Sub support
+T}	T{
+Yes
+T}
+_
+T{
+Sentinel support
+T}	T{
+Yes [1]
+T}
+_
+T{
+Redis Cluster support
+T}	T{
+WIP
+T}
+_
+T{
+Trollius (python 2.7)
+T}	T{
+No
+T}
+_
+T{
+Tested CPython versions
+T}	T{
+\fI\%3.5, 3.6\fP [2]
+T}
+_
+T{
+Tested PyPy3 versions
+T}	T{
+\fI\%5.9.0\fP
+T}
+_
+T{
+Tested for Redis server
+T}	T{
+\fI\%2.6, 2.8, 3.0, 3.2, 4.0\fP
+T}
+_
+T{
+Support for dev Redis server
+T}	T{
+through low\-level API
+T}
+_
+.TE
+.IP [1] 5
+Sentinel support is available in master branch.
+This feature is not yet stable and may have some issues.
+.IP [2] 5
+For Python 3.3, 3.4 support use aioredis v0.3.
+.SH INSTALLATION
+.sp
+The easiest way to install aioredis is by using the package on PyPi:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+pip install aioredis
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH REQUIREMENTS
+.INDENT 0.0
+.IP \(bu 2
+Python 3.5.3+
+.IP \(bu 2
+hiredis
+.UNINDENT
+.SH BENCHMARKS
+.sp
+Benchmarks can be found here: \fI\%https://github.com/popravich/python\-redis\-benchmark\fP
+.SH CONTRIBUTE
+.INDENT 0.0
+.IP \(bu 2
+Issue Tracker: \fI\%https://github.com/aio\-libs/aioredis/issues\fP
+.IP \(bu 2
+Source Code: \fI\%https://github.com/aio\-libs/aioredis\fP
+.IP \(bu 2
+Contributor\(aqs guide: devel
+.UNINDENT
+.sp
+Feel free to file an issue or make pull request if you find any bugs or have
+some suggestions for library improvement.
+.SH LICENSE
+.sp
+The aioredis is offered under \fI\%MIT license\fP\&.
+
+.sp
+.ce
+----
+
+.ce 0
+.sp
+.SH GETTING STARTED
+.SS Commands Pipelining
+.sp
+Commands pipelining is built\-in.
+.sp
+Every command is sent to transport at\-once
+(ofcourse if no \fBTypeError\fP/\fBValueError\fP was raised)
+.sp
+When you making a call with \fBawait\fP / \fByield from\fP you will be waiting result,
+and then gather results.
+.sp
+Simple example show both cases (\fBget source code\fP):
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# No pipelining;
+async def wait_each_command():
+    val = await redis.get(\(aqfoo\(aq)    # wait until \(gaval\(ga is available
+    cnt = await redis.incr(\(aqbar\(aq)   # wait until \(gacnt\(ga is available
+    return val, cnt
+
+# Sending multiple commands and then gathering results
+async def pipelined():
+    fut1 = redis.get(\(aqfoo\(aq)      # issue command and return future
+    fut2 = redis.incr(\(aqbar\(aq)     # issue command and return future
+    # block until results are available
+    val, cnt = await asyncio.gather(fut1, fut2)
+    return val, cnt
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+For convenience \fBaioredis\fP provides
+\fBpipeline()\fP
+method allowing to execute bulk of commands as one
+(\fBget source code\fP):
+.INDENT 0.0
+.INDENT 3.5
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# Explicit pipeline
+async def explicit_pipeline():
+    pipe = redis.pipeline()
+    fut1 = pipe.get(\(aqfoo\(aq)
+    fut2 = pipe.incr(\(aqbar\(aq)
+    result = await pipe.execute()
+    val, cnt = await asyncio.gather(fut1, fut2)
+    assert result == [val, cnt]
+    return val, cnt
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.SS Multi/Exec transactions
+.sp
+\fBaioredis\fP provides several ways for executing transactions:
+.INDENT 0.0
+.IP \(bu 2
+when using raw connection you can issue \fBMulti\fP/\fBExec\fP commands
+manually;
+.IP \(bu 2
+when using \fBaioredis.Redis\fP instance you can use
+\fBmulti_exec()\fP transaction pipeline.
+.UNINDENT
+.sp
+\fBmulti_exec()\fP method creates and returns new
+\fBMultiExec\fP object which is used for buffering commands and
+then executing them inside MULTI/EXEC block.
+.sp
+Here is a simple example
+(\fBget source code\fP):
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+async def transaction():
+    tr = redis.multi_exec()
+    future1 = tr.set(\(aqfoo\(aq, \(aq123\(aq)
+    future2 = tr.set(\(aqbar\(aq, \(aq321\(aq)
+    result = await tr.execute()
+    assert result == await asyncio.gather(future1, future2)
+    return result
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+As you can notice \fBawait\fP is \fBonly\fP used at line 5 with \fBtr.execute\fP
+and \fBnot with\fP \fBtr.set(...)\fP calls.
+.sp
+\fBWARNING:\fP
+.INDENT 0.0
+.INDENT 3.5
+It is very important not to \fBawait\fP buffered command
+(ie \fBtr.set(\(aqfoo\(aq, \(aq123\(aq)\fP) as it will block forever.
+.sp
+The following code will block forever:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+tr = redis.multi_exec()
+await tr.incr(\(aqfoo\(aq)   # that\(aqs all. we\(aqve stuck!
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.SS Pub/Sub mode
+.sp
+\fBaioredis\fP provides support for Redis Publish/Subscribe messaging.
+.sp
+To switch connection to subscribe mode you must execute \fBsubscribe\fP command
+by yield\(aqing from \fBsubscribe()\fP it returns a list of
+\fBChannel\fP objects representing subscribed channels.
+.sp
+As soon as connection is switched to subscribed mode the channel will receive
+and store messages
+(the \fBChannel\fP object is basically a wrapper around \fI\%asyncio.Queue\fP).
+To read messages from channel you need to use \fBget()\fP
+or \fBget_json()\fP coroutines.
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+In Pub/Sub mode redis connection can only receive messages or issue
+(P)SUBSCRIBE / (P)UNSUBSCRIBE commands.
+.UNINDENT
+.UNINDENT
+.sp
+Pub/Sub example (\fBget source code\fP):
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+sub = await aioredis.create_redis(
+     \(aqredis://localhost\(aq)
+
+ch1, ch2 = await sub.subscribe(\(aqchannel:1\(aq, \(aqchannel:2\(aq)
+assert isinstance(ch1, aioredis.Channel)
+assert isinstance(ch2, aioredis.Channel)
+
+async def async_reader(channel):
+    while await channel.wait_message():
+        msg = await channel.get(encoding=\(aqutf\-8\(aq)
+        # ... process message ...
+        print("message in {}: {}".format(channel.name, msg))
+
+tsk1 = asyncio.ensure_future(async_reader(ch1))
+
+# Or alternatively:
+
+async def async_reader2(channel):
+    while True:
+        msg = await channel.get(encoding=\(aqutf\-8\(aq)
+        if msg is None:
+            break
+        # ... process message ...
+        print("message in {}: {}".format(channel.name, msg))
+
+tsk2 = asyncio.ensure_future(async_reader2(ch2))
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Pub/Sub example (\fBget source code\fP):
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+async def reader(channel):
+    while (await channel.wait_message()):
+        msg = await channel.get(encoding=\(aqutf\-8\(aq)
+        # ... process message ...
+        print("message in {}: {}".format(channel.name, msg))
+
+        if msg == STOPWORD:
+            return
+
+with await pool as conn:
+    await conn.execute_pubsub(\(aqsubscribe\(aq, \(aqchannel:1\(aq)
+    channel = conn.pubsub_channels[\(aqchannel:1\(aq]
+    await reader(channel)  # wait for reader to complete
+    await conn.execute_pubsub(\(aqunsubscribe\(aq, \(aqchannel:1\(aq)
+
+# Explicit connection usage
+conn = await pool.acquire()
+try:
+    await conn.execute_pubsub(\(aqsubscribe\(aq, \(aqchannel:1\(aq)
+    channel = conn.pubsub_channels[\(aqchannel:1\(aq]
+    await reader(channel)  # wait for reader to complete
+    await conn.execute_pubsub(\(aqunsubscribe\(aq, \(aqchannel:1\(aq)
+finally:
+    pool.release(conn)
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Python 3.5 \fBasync with\fP / \fBasync for\fP support
+.sp
+\fBaioredis\fP is compatible with \fI\%PEP 492\fP\&.
+.sp
+\fBPool\fP can be used with \fI\%async with\fP
+(\fBget source code\fP):
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+pool = await aioredis.create_pool(
+    \(aqredis://localhost\(aq)
+async with pool.get() as conn:
+    value = await conn.execute(\(aqget\(aq, \(aqmy\-key\(aq)
+    print(\(aqraw value:\(aq, value)
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+It also can be used with \fBawait\fP:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+pool = await aioredis.create_pool(
+    \(aqredis://localhost\(aq)
+# This is exactly the same as:
+#   with (yield from pool) as conn:
+with (await pool) as conn:
+    value = await conn.execute(\(aqget\(aq, \(aqmy\-key\(aq)
+    print(\(aqraw value:\(aq, value)
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+New \fBscan\fP\-family commands added with support of \fI\%async for\fP
+(\fBget source code\fP):
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+redis = await aioredis.create_redis(
+    \(aqredis://localhost\(aq)
+
+async for key in redis.iscan(match=\(aqsomething*\(aq):
+    print(\(aqMatched:\(aq, key)
+
+async for name, val in redis.ihscan(key, match=\(aqsomething*\(aq):
+    print(\(aqMatched:\(aq, name, \(aq\->\(aq, val)
+
+async for val in redis.isscan(key, match=\(aqsomething*\(aq):
+    print(\(aqMatched:\(aq, val)
+
+async for val, score in redis.izscan(key, match=\(aqsomething*\(aq):
+    print(\(aqMatched:\(aq, val, \(aq:\(aq, score)
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS SSL/TLS support
+.sp
+Though Redis server \fI\%does not support data encryption\fP
+it is still possible to setup Redis server behind SSL proxy. For such cases
+\fBaioredis\fP library support secure connections through \fI\%asyncio\fP
+SSL support. See \fI\%BaseEventLoop.create_connection\fP for details.
+.SH MIGRATING FROM V0.3 TO V1.0
+.SS API changes and backward incompatible changes:
+.INDENT 0.0
+.IP \(bu 2
+\fI\%aioredis.create_pool\fP
+.IP \(bu 2
+\fI\%aioredis.create_reconnecting_redis\fP
+.IP \(bu 2
+\fI\%aioredis.Redis\fP
+.IP \(bu 2
+\fI\%Blocking operations and connection sharing\fP
+.IP \(bu 2
+\fI\%Sorted set commands return values\fP
+.IP \(bu 2
+\fI\%Hash hscan command now returns list of tuples\fP
+.UNINDENT
+
+.sp
+.ce
+----
+
+.ce 0
+.sp
+.SS aioredis.create_pool
+.sp
+\fBcreate_pool()\fP now returns \fBConnectionsPool\fP
+instead of \fBRedisPool\fP\&.
+.sp
+This means that pool now operates with \fBRedisConnection\fP
+objects and not \fBRedis\fP\&.
+.TS
+center;
+|l|l|.
+_
+T{
+v0.3
+T}	T{
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+pool = await aioredis.create_pool((\(aqlocalhost\(aq, 6379))
+
+with await pool as redis:
+    # calling methods of Redis class
+    await redis.lpush(\(aqlist\-key\(aq, \(aqitem1\(aq, \(aqitem2\(aq)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+T}
+_
+T{
+v1.0
+T}	T{
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+pool = await aioredis.create_pool((\(aqlocalhost\(aq, 6379))
+
+with await pool as conn:
+    # calling conn.lpush will raise AttributeError exception
+    await conn.execute(\(aqlpush\(aq, \(aqlist\-key\(aq, \(aqitem1\(aq, \(aqitem2\(aq)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+T}
+_
+.TE
+.SS aioredis.create_reconnecting_redis
+.sp
+\fBcreate_reconnecting_redis()\fP has been dropped.
+.sp
+\fBcreate_redis_pool()\fP can be used instead of former function.
+.TS
+center;
+|l|l|.
+_
+T{
+v0.3
+T}	T{
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+redis = await aioredis.create_reconnecting_redis(
+    (\(aqlocalhost\(aq, 6379))
+
+await redis.lpush(\(aqlist\-key\(aq, \(aqitem1\(aq, \(aqitem2\(aq)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+T}
+_
+T{
+v1.0
+T}	T{
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+redis = await aioredis.create_redis_pool(
+    (\(aqlocalhost\(aq, 6379))
+
+await redis.lpush(\(aqlist\-key\(aq, \(aqitem1\(aq, \(aqitem2\(aq)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+T}
+_
+.TE
+.sp
+\fBcreate_redis_pool\fP returns \fBRedis\fP initialized with
+\fBConnectionsPool\fP which is responsible for reconnecting to server.
+.sp
+Also \fBcreate_reconnecting_redis\fP was patching the \fBRedisConnection\fP and
+breaking \fBclosed\fP property (it was always \fBTrue\fP).
+.SS aioredis.Redis
+.sp
+\fBRedis\fP class now operates with objects implementing
+\fBaioredis.abc.AbcConnection\fP interface.
+\fBRedisConnection\fP and \fBConnectionsPool\fP are
+both implementing \fBAbcConnection\fP so it is become possible to use same API
+when working with either single connection or connections pool.
+.TS
+center;
+|l|l|.
+_
+T{
+v0.3
+T}	T{
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+redis = await aioredis.create_redis((\(aqlocalhost\(aq, 6379))
+await redis.lpush(\(aqlist\-key\(aq, \(aqitem1\(aq, \(aqitem2\(aq)
+
+pool = await aioredis.create_pool((\(aqlocalhost\(aq, 6379))
+redis = await pool.acquire()  # get Redis object
+await redis.lpush(\(aqlist\-key\(aq, \(aqitem1\(aq, \(aqitem2\(aq)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+T}
+_
+T{
+v1.0
+T}	T{
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+redis = await aioredis.create_redis((\(aqlocalhost\(aq, 6379))
+await redis.lpush(\(aqlist\-key\(aq, \(aqitem1\(aq, \(aqitem2\(aq)
+
+redis = await aioredis.create_redis_pool((\(aqlocalhost\(aq, 6379))
+await redis.lpush(\(aqlist\-key\(aq, \(aqitem1\(aq, \(aqitem2\(aq)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+T}
+_
+.TE
+.SS Blocking operations and connection sharing
+.sp
+Current implementation of \fBConnectionsPool\fP by default \fBexecute
+every command on random connection\fP\&. The \fIPros\fP of this is that it allowed
+implementing \fBAbcConnection\fP interface and hide pool inside \fBRedis\fP class,
+and also keep pipelining feature (like RedisConnection.execute).
+The \fICons\fP of this is that \fBdifferent tasks may use same connection and block
+it\fP with some long\-running command.
+.sp
+We can call it \fBShared Mode\fP \-\-\- commands are sent to random connections
+in pool without need to lock [connection]:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+redis = await aioredis.create_redis_pool(
+    (\(aqlocalhost\(aq, 6379),
+    minsize=1,
+    maxsize=1)
+
+async def task():
+    # Shared mode
+    await redis.set(\(aqkey\(aq, \(aqval\(aq)
+
+asyncio.ensure_future(task())
+asyncio.ensure_future(task())
+# Both tasks will send commands through same connection
+# without acquiring (locking) it first.
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Blocking operations (like \fBblpop\fP, \fBbrpop\fP or long\-running LUA scripts)
+in \fBshared mode\fP mode will block connection and thus may lead to whole
+program malfunction.
+.sp
+This \fIblocking\fP issue can be easily solved by using exclusive connection
+for such operations:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+redis = await aioredis.create_redis_pool(
+    (\(aqlocalhost\(aq, 6379),
+    minsize=1,
+    maxsize=1)
+
+async def task():
+   # Exclusive mode
+   with await redis as r:
+       await r.set(\(aqkey\(aq, \(aqval\(aq)
+asyncio.ensure_future(task())
+asyncio.ensure_future(task())
+# Both tasks will first acquire connection.
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+We can call this \fBExclusive Mode\fP \-\-\- context manager is used to
+acquire (lock) exclusive connection from pool and send all commands through it.
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+This technique is similar to v0.3 pool usage:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# in aioredis v0.3
+pool = await aioredis.create_pool((\(aqlocalhost\(aq, 6379))
+with await pool as redis:
+    # Redis is bound to exclusive connection
+    redis.set(\(aqkey\(aq, \(aqval\(aq)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.SS Sorted set commands return values
+.sp
+Sorted set commands (like \fBzrange\fP, \fBzrevrange\fP and others) that accept
+\fBwithscores\fP argument now \fBreturn list of tuples\fP instead of plain list.
+.TS
+center;
+|l|l|.
+_
+T{
+v0.3
+T}	T{
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+redis = await aioredis.create_redis((\(aqlocalhost\(aq, 6379))
+await redis.zadd(\(aqzset\-key\(aq, 1, \(aqone\(aq, 2, \(aqtwo\(aq)
+res = await redis.zrage(\(aqzset\-key\(aq, withscores=True)
+assert res == [b\(aqone\(aq, 1, b\(aqtwo\(aq, 2]
+
+# not an esiest way to make a dict
+it = iter(res)
+assert dict(zip(it, it)) == {b\(aqone\(aq: 1, b\(aqtwo\(aq: 2}
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+T}
+_
+T{
+v1.0
+T}	T{
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+redis = await aioredis.create_redis((\(aqlocalhost\(aq, 6379))
+await redis.zadd(\(aqzset\-key\(aq, 1, \(aqone\(aq, 2, \(aqtwo\(aq)
+res = await redis.zrage(\(aqzset\-key\(aq, withscores=True)
+assert res == [(b\(aqone\(aq, 1), (b\(aqtwo\(aq, 2)]
+
+# now its easier to make a dict of it
+assert dict(res) == {b\(aqone\(aq: 1, b\(aqtwo\(aq: 2}
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+T}
+_
+.TE
+.SS Hash \fBhscan\fP command now returns list of tuples
+.sp
+\fBhscan\fP updated to return a list of tuples instead of plain
+mixed key/value list.
+.TS
+center;
+|l|l|.
+_
+T{
+v0.3
+T}	T{
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+redis = await aioredis.create_redis((\(aqlocalhost\(aq, 6379))
+await redis.hmset(\(aqhash\(aq, \(aqone\(aq, 1, \(aqtwo\(aq, 2)
+cur, data = await redis.hscan(\(aqhash\(aq)
+assert data == [b\(aqone\(aq, b\(aq1\(aq, b\(aqtwo\(aq, b\(aq2\(aq]
+
+# not an esiest way to make a dict
+it = iter(data)
+assert dict(zip(it, it)) == {b\(aqone\(aq: b\(aq1\(aq, b\(aqtwo\(aq: b\(aq2\(aq}
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+T}
+_
+T{
+v1.0
+T}	T{
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+redis = await aioredis.create_redis((\(aqlocalhost\(aq, 6379))
+await redis.hmset(\(aqhash\(aq, \(aqone\(aq, 1, \(aqtwo\(aq, 2)
+cur, data = await redis.hscan(\(aqhash\(aq)
+assert data == [(b\(aqone\(aq, b\(aq1\(aq), (b\(aqtwo\(aq, b\(aq2\(aq)]
+
+# now its easier to make a dict of it
+assert dict(data) == {b\(aqone\(aq: b\(aq1\(aq: b\(aqtwo\(aq: b\(aq2\(aq}
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+T}
+_
+.TE
+.SH AIOREDIS --- API REFERENCE
+.SS Connection
+.sp
+Redis Connection is the core function of the library.
+Connection instances can be used as is or through
+\fI\%pool\fP or \fI\%high\-level API\fP\&.
+.sp
+Connection usage is as simple as:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+import asyncio
+import aioredis
+
+async def connect_uri():
+    conn = await aioredis\&.create_connection(
+        \(aqredis://localhost/0\(aq)
+    val = await conn\&.execute(\(aqGET\(aq, \(aqmy\-key\(aq)
+
+async def connect_tcp():
+    conn = await aioredis\&.create_connection(
+        (\(aqlocalhost\(aq, 6379))
+    val = await conn\&.execute(\(aqGET\(aq, \(aqmy\-key\(aq)
+
+async def connect_unixsocket():
+    conn = await aioredis\&.create_connection(
+        \(aq/path/to/redis/socket\(aq)
+    # or uri \(aqunix:///path/to/redis/socket?db=1\(aq
+    val = await conn\&.execute(\(aqGET\(aq, \(aqmy\-key\(aq)
+
+asyncio\&.get_event_loop()\&.run_until_complete(connect_tcp())
+asyncio\&.get_event_loop()\&.run_until_complete(connect_unixsocket())
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B coroutine aioredis.create_connection(address, *, db=0, password=None, ssl=None, encoding=None, parser=None, loop=None, timeout=None)
+Creates Redis connection.
+.sp
+Changed in version v0.3.1: \fBtimeout\fP argument added.
+
+.sp
+Changed in version v1.0: \fBparser\fP argument added.
+
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBaddress\fP (\fI\%tuple\fP\fI or \fP\fI\%str\fP) \-\- 
+.sp
+An address where to connect.
+Can be one of the following:
+.INDENT 2.0
+.IP \(bu 2
+a Redis URI \-\-\- \fB"redis://host:6379/0?encoding=utf\-8"\fP;
+.IP \(bu 2
+a (host, port) tuple \-\-\- \fB(\(aqlocalhost\(aq, 6379)\fP;
+.IP \(bu 2
+or a unix domain socket path string \-\-\- \fB"/path/to/redis.sock"\fP\&.
+.UNINDENT
+
+.IP \(bu 2
+\fBdb\fP (\fI\%int\fP) \-\- Redis database index to switch to when connected.
+.IP \(bu 2
+\fBpassword\fP (\fI\%str\fP\fI or \fP\fINone\fP) \-\- Password to use if redis server instance requires
+authorization.
+.IP \(bu 2
+\fBssl\fP (\fI\%ssl.SSLContext\fP or True or None) \-\- SSL context that is passed through to
+\fBasyncio.BaseEventLoop.create_connection()\fP\&.
+.IP \(bu 2
+\fBencoding\fP (\fI\%str\fP\fI or \fP\fINone\fP) \-\- Codec to use for response decoding.
+.IP \(bu 2
+\fBparser\fP (\fIcallable\fP\fI or \fP\fINone\fP) \-\- Protocol parser class. Can be used to set custom protocol
+reader; expected same interface as \fBhiredis.Reader\fP\&.
+.IP \(bu 2
+\fBloop\fP (\fI\%EventLoop\fP) \-\- An optional \fIevent loop\fP instance
+(uses \fI\%asyncio.get_event_loop()\fP if not specified).
+.IP \(bu 2
+\fBtimeout\fP (\fIfloat greater than 0\fP\fI or \fP\fINone\fP) \-\- Max time to open a connection, otherwise
+raise \fI\%asyncio.TimeoutError\fP exception.
+\fBNone\fP by default
+.UNINDENT
+.TP
+.B Returns
+\fI\%RedisConnection\fP instance.
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B class aioredis.RedisConnection
+Bases: \fBabc.AbcConnection\fP
+.sp
+Redis connection interface.
+.INDENT 7.0
+.TP
+.B address
+Redis server address; either IP\-port tuple or unix socket str (\fIread\-only\fP).
+IP is either IPv4 or IPv6 depending on resolved host part in initial address.
+.sp
+New in version v0.2.8.
+
+.UNINDENT
+.INDENT 7.0
+.TP
+.B db
+Current database index (\fIread\-only\fP).
+.UNINDENT
+.INDENT 7.0
+.TP
+.B encoding
+Current codec for response decoding (\fIread\-only\fP).
+.UNINDENT
+.INDENT 7.0
+.TP
+.B closed
+Set to \fBTrue\fP if connection is closed (\fIread\-only\fP).
+.UNINDENT
+.INDENT 7.0
+.TP
+.B in_transaction
+Set to \fBTrue\fP when MULTI command was issued (\fIread\-only\fP).
+.UNINDENT
+.INDENT 7.0
+.TP
+.B pubsub_channels
+\fIRead\-only\fP dict with subscribed channels.
+Keys are bytes, values are \fI\%Channel\fP instances.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B pubsub_patterns
+\fIRead\-only\fP dict with subscribed patterns.
+Keys are bytes, values are \fI\%Channel\fP instances.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B in_pubsub
+Indicates that connection is in PUB/SUB mode.
+Provides the number of subscribed channels. \fIRead\-only\fP\&.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B execute(command, *args, encoding=_NOTSET)
+Execute Redis command.
+.sp
+The method is \fBnot a coroutine\fP itself but instead it
+writes to underlying transport and returns a \fI\%asyncio.Future\fP
+waiting for result.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBcommand\fP (\fI\%str\fP\fI, \fP\fI\%bytes\fP\fI, \fP\fI\%bytearray\fP) \-\- Command to execute
+.IP \(bu 2
+\fBencoding\fP (\fI\%str\fP\fI or \fP\fINone\fP) \-\- Keyword\-only argument for overriding response decoding.
+By default will use connection\-wide encoding.
+May be set to None to skip response decoding.
+.UNINDENT
+.TP
+.B Raises
+.INDENT 7.0
+.IP \(bu 2
+\fI\%TypeError\fP \-\- When any of arguments is None or
+can not be encoded as bytes.
+.IP \(bu 2
+\fBaioredis.ReplyError\fP \-\- For redis error replies.
+.IP \(bu 2
+\fBaioredis.ProtocolError\fP \-\- When response can not be decoded
+and/or connection is broken.
+.UNINDENT
+.TP
+.B Returns
+Returns bytes or int reply (or str if encoding was set)
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B execute_pubsub(command, *channels_or_patterns)
+Method to execute Pub/Sub commands.
+The method is not a coroutine itself but returns a \fI\%asyncio.gather()\fP
+coroutine.
+Method also accept \fI\%aioredis.Channel\fP instances as command
+arguments:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+>>> ch1 = Channel(\(aqA\(aq, is_pattern=False, loop=loop)
+>>> await conn.execute_pubsub(\(aqsubscribe\(aq, ch1)
+[[b\(aqsubscribe\(aq, b\(aqA\(aq, 1]]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Changed in version v0.3: The method accept \fI\%Channel\fP instances.
+
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBcommand\fP (\fI\%str\fP\fI, \fP\fI\%bytes\fP\fI, \fP\fI\%bytearray\fP) \-\- One of the following Pub/Sub commands:
+\fBsubscribe\fP, \fBunsubscribe\fP,
+\fBpsubscribe\fP, \fBpunsubscribe\fP\&.
+.IP \(bu 2
+\fB*channels_or_patterns\fP \-\- Channels or patterns to subscribe connection
+to or unsubscribe from.
+At least one channel/pattern is required.
+.UNINDENT
+.TP
+.B Returns
+Returns a list of subscribe/unsubscribe messages,
+ex:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+>>> await conn.execute_pubsub(\(aqsubscribe\(aq, \(aqA\(aq, \(aqB\(aq)
+[[b\(aqsubscribe\(aq, b\(aqA\(aq, 1], [b\(aqsubscribe\(aq, b\(aqB\(aq, 2]]
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B close()
+Closes connection.
+.sp
+Mark connection as closed and schedule cleanup procedure.
+.sp
+All pending commands will be canceled with
+\fI\%ConnectionForcedCloseError\fP\&.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B wait_closed()
+Coroutine waiting for connection to get closed.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B select(db)
+Changes current db index to new one.
+.INDENT 7.0
+.TP
+.B Parameters
+\fBdb\fP (\fI\%int\fP) \-\- New redis database index.
+.TP
+.B Raises
+.INDENT 7.0
+.IP \(bu 2
+\fI\%TypeError\fP \-\- When \fBdb\fP parameter is not int.
+.IP \(bu 2
+\fI\%ValueError\fP \-\- When \fBdb\fP parameter is less then 0.
+.UNINDENT
+.TP
+.B Return True
+Always returns True or raises exception.
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B auth(password)
+Send AUTH command.
+.INDENT 7.0
+.TP
+.B Parameters
+\fBpassword\fP (\fI\%str\fP) \-\- Plain\-text password
+.TP
+.B Return bool
+True if redis replied with \(aqOK\(aq.
+.UNINDENT
+.UNINDENT
+.UNINDENT
+
+.sp
+.ce
+----
+
+.ce 0
+.sp
+.SS Connections Pool
+.sp
+The library provides connections pool. The basic usage is as follows:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+import aioredis
+
+async def sample_pool():
+    pool = await aioredis\&.create_pool(\(aqredis://localhost\(aq)
+    val = await pool\&.execute(\(aqget\(aq, \(aqmy\-key\(aq)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B aioredis.create_pool(address, *, db=0, password=None, ssl=None, encoding=None, minsize=1, maxsize=10, parser=None, loop=None, create_connection_timeout=None, pool_cls=None, connection_cls=None)
+A \fI\%coroutine\fP that instantiates a pool of
+\fI\%RedisConnection\fP\&.
+.sp
+Changed in version v0.2.7: \fBminsize\fP default value changed from 10 to 1.
+
+.sp
+Changed in version v0.2.8: Disallow arbitrary ConnectionsPool maxsize.
+
+.sp
+Deprecated since version v0.2.9: \fIcommands_factory\fP argument is deprecated and will be removed in \fIv1.0\fP\&.
+
+.sp
+Changed in version v0.3.2: \fBcreate_connection_timeout\fP argument added.
+
+.sp
+New in version v1.0: \fBparser\fP, \fBpool_cls\fP and \fBconnection_cls\fP arguments added.
+
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBaddress\fP (\fI\%tuple\fP\fI or \fP\fI\%str\fP) \-\- 
+.sp
+An address where to connect.
+Can be one of the following:
+.INDENT 2.0
+.IP \(bu 2
+a Redis URI \-\-\- \fB"redis://host:6379/0?encoding=utf\-8"\fP;
+.IP \(bu 2
+a (host, port) tuple \-\-\- \fB(\(aqlocalhost\(aq, 6379)\fP;
+.IP \(bu 2
+or a unix domain socket path string \-\-\- \fB"/path/to/redis.sock"\fP\&.
+.UNINDENT
+
+.IP \(bu 2
+\fBdb\fP (\fI\%int\fP) \-\- Redis database index to switch to when connected.
+.IP \(bu 2
+\fBpassword\fP (\fI\%str\fP\fI or \fP\fINone\fP) \-\- Password to use if redis server instance requires
+authorization.
+.IP \(bu 2
+\fBssl\fP (\fI\%ssl.SSLContext\fP or True or None) \-\- SSL context that is passed through to
+\fBasyncio.BaseEventLoop.create_connection()\fP\&.
+.IP \(bu 2
+\fBencoding\fP (\fI\%str\fP\fI or \fP\fINone\fP) \-\- Codec to use for response decoding.
+.IP \(bu 2
+\fBminsize\fP (\fI\%int\fP) \-\- Minimum number of free connection to create in pool.
+\fB1\fP by default.
+.IP \(bu 2
+\fBmaxsize\fP (\fI\%int\fP) \-\- Maximum number of connection to keep in pool.
+\fB10\fP by default.
+Must be greater then \fB0\fP\&. \fBNone\fP is disallowed.
+.IP \(bu 2
+\fBparser\fP (\fIcallable\fP\fI or \fP\fINone\fP) \-\- Protocol parser class. Can be used to set custom protocol
+reader; expected same interface as \fBhiredis.Reader\fP\&.
+.IP \(bu 2
+\fBloop\fP (\fI\%EventLoop\fP) \-\- An optional \fIevent loop\fP instance
+(uses \fI\%asyncio.get_event_loop()\fP if not specified).
+.IP \(bu 2
+\fBcreate_connection_timeout\fP (\fIfloat greater than 0\fP\fI or \fP\fINone\fP) \-\- Max time to open a connection,
+otherwise raise an \fI\%asyncio.TimeoutError\fP\&. \fBNone\fP by default.
+.IP \(bu 2
+\fBpool_cls\fP (\fIaioredis.abc.AbcPool\fP) \-\- Can be used to instantiate custom pool class.
+This argument \fBmust be\fP a subclass of \fBAbcPool\fP\&.
+.IP \(bu 2
+\fBconnection_cls\fP (\fIaioredis.abc.AbcConnection\fP) \-\- Can be used to make pool instantiate custom
+connection classes. This argument \fBmust be\fP a subclass of
+\fBAbcConnection\fP\&.
+.UNINDENT
+.TP
+.B Returns
+\fI\%ConnectionsPool\fP instance.
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B class aioredis.ConnectionsPool
+Bases: \fBabc.AbcPool\fP
+.sp
+Redis connections pool.
+.INDENT 7.0
+.TP
+.B minsize
+A minimum size of the pool (\fIread\-only\fP).
+.UNINDENT
+.INDENT 7.0
+.TP
+.B maxsize
+A maximum size of the pool (\fIread\-only\fP).
+.UNINDENT
+.INDENT 7.0
+.TP
+.B size
+Current pool size \-\-\- number of free and used connections (\fIread\-only\fP).
+.UNINDENT
+.INDENT 7.0
+.TP
+.B freesize
+Current number of free connections (\fIread\-only\fP).
+.UNINDENT
+.INDENT 7.0
+.TP
+.B db
+Currently selected db index (\fIread\-only\fP).
+.UNINDENT
+.INDENT 7.0
+.TP
+.B encoding
+Current codec for response decoding (\fIread\-only\fP).
+.UNINDENT
+.INDENT 7.0
+.TP
+.B closed
+\fBTrue\fP if pool is closed.
+.sp
+New in version v0.2.8.
+
+.UNINDENT
+.INDENT 7.0
+.TP
+.B execute(command, *args, **kwargs)
+Execute Redis command in a free connection and return
+\fI\%asyncio.Future\fP waiting for result.
+.sp
+This method tries to pick a free connection from pool and send
+command through it at once (keeping pipelining feature provided
+by \fI\%aioredis.RedisConnection.execute()\fP).
+If no connection is found \-\-\- returns coroutine waiting for free
+connection to execute command.
+.sp
+New in version v1.0.
+
+.UNINDENT
+.INDENT 7.0
+.TP
+.B execute_pubsub(command, *channels)
+Execute Redis (p)subscribe/(p)unsubscribe command.
+.sp
+\fBConnectionsPool\fP picks separate free connection for pub/sub
+and uses it until pool is closed or connection is disconnected
+(unsubscribing from all channels/pattern will leave connection
+locked for pub/sub use).
+.sp
+There is no auto\-reconnect for Pub/Sub connection as this will
+hide from user messages loss.
+.sp
+Has similar to \fI\%execute()\fP behavior, ie: tries to pick free
+connection from pool and switch it to pub/sub mode; or fallback
+to coroutine waiting for free connection and repeating operation.
+.sp
+New in version v1.0.
+
+.UNINDENT
+.INDENT 7.0
+.TP
+.B get_connection(command, args=())
+Gets free connection from pool returning tuple of (connection, address).
+.sp
+If no free connection is found \-\- None is returned in place of connection.
+.INDENT 7.0
+.TP
+.B Return type
+tuple(\fI\%RedisConnection\fP or None, str)
+.UNINDENT
+.sp
+New in version v1.0.
+
+.UNINDENT
+.INDENT 7.0
+.TP
+.B coroutine clear()
+Closes and removes all free connections in the pool.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B coroutine select(db)
+Changes db index for all free connections in the pool.
+.INDENT 7.0
+.TP
+.B Parameters
+\fBdb\fP (\fI\%int\fP) \-\- New database index.
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B coroutine acquire(command=None, args=())
+Acquires a connection from \fIfree pool\fP\&. Creates new connection if needed.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBcommand\fP \-\- reserved for future.
+.IP \(bu 2
+\fBargs\fP \-\- reserved for future.
+.UNINDENT
+.TP
+.B Raises
+\fBaioredis.PoolClosedError\fP \-\- if pool is already closed
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B release(conn)
+Returns used connection back into pool.
+.sp
+When returned connection has db index that differs from one in pool
+the connection will be dropped.
+When queue of free connections is full the connection will be dropped.
+.sp
+\fBNOTE:\fP
+.INDENT 7.0
+.INDENT 3.5
+This method is \fBnot a coroutine\fP\&.
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B Parameters
+\fBconn\fP (\fIaioredis.RedisConnection\fP) \-\- A RedisConnection instance.
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B close()
+Close all free and in\-progress connections and mark pool as closed.
+.sp
+New in version v0.2.8.
+
+.UNINDENT
+.INDENT 7.0
+.TP
+.B coroutine wait_closed()
+Wait until pool gets closed (when all connections are closed).
+.sp
+New in version v0.2.8.
+
+.UNINDENT
+.UNINDENT
+
+.sp
+.ce
+----
+
+.ce 0
+.sp
+.SS Pub/Sub Channel object
+.sp
+\fIChannel\fP object is a wrapper around queue for storing received pub/sub messages.
+.INDENT 0.0
+.TP
+.B class aioredis.Channel(name, is_pattern, loop=None)
+Bases: \fBabc.AbcChannel\fP
+.sp
+Object representing Pub/Sub messages queue.
+It\(aqs basically a wrapper around \fI\%asyncio.Queue\fP\&.
+.INDENT 7.0
+.TP
+.B name
+Holds encoded channel/pattern name.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B is_pattern
+Set to True for pattern channels.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B is_active
+Set to True if there are messages in queue and connection is still
+subscribed to this channel.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B coroutine get(*, encoding=None, decoder=None)
+Coroutine that waits for and returns a message.
+.sp
+Return value is message received or \fBNone\fP signifying that channel has
+been unsubscribed and no more messages will be received.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBencoding\fP (\fI\%str\fP) \-\- If not None used to decode resulting bytes message.
+.IP \(bu 2
+\fBdecoder\fP (\fIcallable\fP) \-\- If specified used to decode message,
+ex. \fI\%json.loads()\fP
+.UNINDENT
+.TP
+.B Raises
+\fBaioredis.ChannelClosedError\fP \-\- If channel is unsubscribed and
+has no more messages.
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B get_json(*, encoding="utf\-8")
+Shortcut to \fBget(encoding="utf\-8", decoder=json.loads)\fP
+.UNINDENT
+.INDENT 7.0
+.TP
+.B coroutine wait_message()
+Waits for message to become available in channel
+or channel is closed (unsubscribed).
+.sp
+Main idea is to use it in loops:
+.sp
+.nf
+.ft C
+>>> ch = redis.channels[\(aqchannel:1\(aq]
+>>> while await ch.wait_message():
+\&...     msg = await ch.get()
+.ft P
+.fi
+.INDENT 7.0
+.TP
+.B Return type
+\fI\%bool\fP
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B coroutine async\-for iter(*, encoding=None, decoder=None)
+Same as \fI\%get()\fP method but it is a native coroutine.
+.sp
+Usage example:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+>>> async for msg in ch.iter():
+\&...     print(msg)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+New in version 0.2.5: Available for Python 3.5 only
+
+.UNINDENT
+.UNINDENT
+
+.sp
+.ce
+----
+
+.ce 0
+.sp
+.SS Exceptions
+.INDENT 0.0
+.TP
+.B exception aioredis.RedisError
+.INDENT 7.0
+.TP
+.B Bases
+\fI\%Exception\fP
+.UNINDENT
+.sp
+Base exception class for aioredis exceptions.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B exception aioredis.ProtocolError
+.INDENT 7.0
+.TP
+.B Bases
+\fI\%RedisError\fP
+.UNINDENT
+.sp
+Raised when protocol error occurs.
+When this type of exception is raised connection must be considered
+broken and must be closed.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B exception aioredis.ReplyError
+.INDENT 7.0
+.TP
+.B Bases
+\fI\%RedisError\fP
+.UNINDENT
+.sp
+Raised for Redis error replies\&.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B exception aioredis.MaxClientsError
+.INDENT 7.0
+.TP
+.B Bases
+\fI\%ReplyError\fP
+.UNINDENT
+.sp
+Raised when maximum number of clients has been reached
+(Redis server configured value).
+.UNINDENT
+.INDENT 0.0
+.TP
+.B exception aioredis.AuthError
+.INDENT 7.0
+.TP
+.B Bases
+\fI\%ReplyError\fP
+.UNINDENT
+.sp
+Raised when authentication errors occur.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B exception aioredis.ConnectionClosedError
+.INDENT 7.0
+.TP
+.B Bases
+\fI\%RedisError\fP
+.UNINDENT
+.sp
+Raised if connection to server was lost/closed.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B exception aioredis.ConnectionForcedCloseError
+.INDENT 7.0
+.TP
+.B Bases
+\fI\%ConnectionClosedError\fP
+.UNINDENT
+.sp
+Raised if connection was closed with \fI\%RedisConnection.close()\fP method.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B exception aioredis.PipelineError
+.INDENT 7.0
+.TP
+.B Bases
+\fI\%RedisError\fP
+.UNINDENT
+.sp
+Raised from \fBpipeline()\fP
+if any pipelined command raised error.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B exception aioredis.MultiExecError
+.INDENT 7.0
+.TP
+.B Bases
+\fI\%PipelineError\fP
+.UNINDENT
+.sp
+Same as \fI\%PipelineError\fP but raised when executing multi_exec
+block.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B exception aioredis.WatchVariableError
+.INDENT 7.0
+.TP
+.B Bases
+\fI\%MultiExecError\fP
+.UNINDENT
+.sp
+Raised if watched variable changed (EXEC returns None).
+Subclass of \fI\%MultiExecError\fP\&.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B exception aioredis.ChannelClosedError
+.INDENT 7.0
+.TP
+.B Bases
+\fI\%RedisError\fP
+.UNINDENT
+.sp
+Raised from \fI\%aioredis.Channel.get()\fP when Pub/Sub channel is
+unsubscribed and messages queue is empty.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B exception aioredis.PoolClosedError
+.INDENT 7.0
+.TP
+.B Bases
+\fI\%RedisError\fP
+.UNINDENT
+.sp
+Raised from \fI\%aioredis.ConnectionsPool.acquire()\fP
+when pool is already closed.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B exception aioredis.ReadOnlyError
+.INDENT 7.0
+.TP
+.B Bases
+\fI\%RedisError\fP
+.UNINDENT
+.sp
+Raised from slave when read\-only mode is enabled.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B exception aioredis.MasterNotFoundError
+.INDENT 7.0
+.TP
+.B Bases
+\fI\%RedisError\fP
+.UNINDENT
+.sp
+Raised by Sentinel client if it can not find requested master.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B exception aioredis.SlaveNotFoundError
+.INDENT 7.0
+.TP
+.B Bases
+\fI\%RedisError\fP
+.UNINDENT
+.sp
+Raised by Sentinel client if it can not find requested slave.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B exception aioredis.MasterReplyError
+.INDENT 7.0
+.TP
+.B Bases
+\fI\%RedisError\fP
+.UNINDENT
+.sp
+Raised if establishing connection to master failed with \fBRedisError\fP,
+for instance because of required or wrong authentication.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B exception aioredis.SlaveReplyError
+.INDENT 7.0
+.TP
+.B Bases
+\fI\%RedisError\fP
+.UNINDENT
+.sp
+Raised if establishing connection to slave failed with \fBRedisError\fP,
+for instance because of required or wrong authentication.
+.UNINDENT
+.SS Exceptions Hierarchy
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+Exception
+   RedisError
+      ProtocolError
+      ReplyError
+         MaxClientsError
+         AuthError
+      PipelineError
+         MultiExecError
+            WatchVariableError
+      ChannelClosedError
+      ConnectionClosedError
+         ConnectionForcedCloseError
+      PoolClosedError
+      ReadOnlyError
+      MasterNotFoundError
+      SlaveNotFoundError
+      MasterReplyError
+      SlaveReplyError
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+
+.sp
+.ce
+----
+
+.ce 0
+.sp
+.SS Commands Interface
+.sp
+The library provides high\-level API implementing simple interface
+to Redis commands.
+.sp
+The usage is as simple as:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+import aioredis
+
+# Create Redis client bound to single non\-reconnecting connection.
+async def single_connection():
+   redis = await aioredis\&.create_redis(
+      \(aqredis://localhost\(aq)
+   val = await redis\&.get(\(aqmy\-key\(aq)
+
+# Create Redis client bound to connections pool.
+async def pool_of_connections():
+   redis = await aioredis\&.create_redis_pool(
+      \(aqredis://localhost\(aq)
+   val = await redis\&.get(\(aqmy\-key\(aq)
+
+   # we can also use pub/sub as underlying pool
+   #  has several free connections:
+   ch1, ch2 = await redis\&.subscribe(\(aqchan:1\(aq, \(aqchan:2\(aq)
+   # publish using free connection
+   await redis\&.publish(\(aqchan:1\(aq, \(aqHello\(aq)
+   await ch1\&.get()
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+For commands reference \-\-\-
+see commands mixins reference\&.
+.INDENT 0.0
+.TP
+.B coroutine aioredis.create_redis(address, *, db=0, password=None, ssl=None, encoding=None, commands_factory=Redis, parser=None, timeout=None, connection_cls=None, loop=None)
+This \fI\%coroutine\fP creates high\-level Redis
+interface instance bound to single Redis connection
+(without auto\-reconnect).
+.sp
+New in version v1.0: \fBparser\fP, \fBtimeout\fP and \fBconnection_cls\fP arguments added.
+
+.sp
+See also \fI\%RedisConnection\fP for parameters description.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBaddress\fP (\fI\%tuple\fP\fI or \fP\fI\%str\fP) \-\- An address where to connect. Can be a (host, port) tuple,
+unix domain socket path string or a Redis URI string.
+.IP \(bu 2
+\fBdb\fP (\fI\%int\fP) \-\- Redis database index to switch to when connected.
+.IP \(bu 2
+\fBpassword\fP (\fI\%str\fP\fI or \fP\fI\%bytes\fP\fI or \fP\fINone\fP) \-\- Password to use if Redis server instance requires
+authorization.
+.IP \(bu 2
+\fBssl\fP (\fI\%ssl.SSLContext\fP or True or None) \-\- SSL context that is passed through to
+\fBasyncio.BaseEventLoop.create_connection()\fP\&.
+.IP \(bu 2
+\fBencoding\fP (\fI\%str\fP\fI or \fP\fINone\fP) \-\- Codec to use for response decoding.
+.IP \(bu 2
+\fBcommands_factory\fP (\fIcallable\fP) \-\- A factory accepting single parameter \-\-
+object implementing \fBAbcConnection\fP
+and returning an instance providing
+high\-level interface to Redis. \fBRedis\fP by default.
+.IP \(bu 2
+\fBparser\fP (\fIcallable\fP\fI or \fP\fINone\fP) \-\- Protocol parser class. Can be used to set custom protocol
+reader; expected same interface as \fBhiredis.Reader\fP\&.
+.IP \(bu 2
+\fBtimeout\fP (\fIfloat greater than 0\fP\fI or \fP\fINone\fP) \-\- Max time to open a connection, otherwise
+raise \fI\%asyncio.TimeoutError\fP exception.
+\fBNone\fP by default
+.IP \(bu 2
+\fBconnection_cls\fP (\fIaioredis.abc.AbcConnection\fP) \-\- Can be used to instantiate custom
+connection class. This argument \fBmust be\fP a subclass of
+\fBAbcConnection\fP\&.
+.IP \(bu 2
+\fBloop\fP (\fI\%EventLoop\fP) \-\- An optional \fIevent loop\fP instance
+(uses \fI\%asyncio.get_event_loop()\fP if not specified).
+.UNINDENT
+.TP
+.B Returns
+Redis client (result of \fBcommands_factory\fP call),
+\fBRedis\fP by default.
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B coroutine aioredis.create_redis_pool(address, *, db=0, password=None, ssl=None, encoding=None, commands_factory=Redis, minsize=1, maxsize=10, parser=None, timeout=None, pool_cls=None, connection_cls=None, loop=None)
+This \fI\%coroutine\fP create high\-level Redis client instance
+bound to connections pool (this allows auto\-reconnect and simple pub/sub
+use).
+.sp
+See also \fI\%ConnectionsPool\fP for parameters description.
+.sp
+Changed in version v1.0: \fBparser\fP, \fBtimeout\fP, \fBpool_cls\fP and \fBconnection_cls\fP
+arguments added.
+
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBaddress\fP (\fI\%tuple\fP\fI or \fP\fI\%str\fP) \-\- An address where to connect. Can be a (host, port) tuple,
+unix domain socket path string or a Redis URI string.
+.IP \(bu 2
+\fBdb\fP (\fI\%int\fP) \-\- Redis database index to switch to when connected.
+.IP \(bu 2
+\fBpassword\fP (\fI\%str\fP\fI or \fP\fI\%bytes\fP\fI or \fP\fINone\fP) \-\- Password to use if Redis server instance requires
+authorization.
+.IP \(bu 2
+\fBssl\fP (\fI\%ssl.SSLContext\fP or True or None) \-\- SSL context that is passed through to
+\fBasyncio.BaseEventLoop.create_connection()\fP\&.
+.IP \(bu 2
+\fBencoding\fP (\fI\%str\fP\fI or \fP\fINone\fP) \-\- Codec to use for response decoding.
+.IP \(bu 2
+\fBcommands_factory\fP (\fIcallable\fP) \-\- A factory accepting single parameter \-\-
+object implementing \fBAbcConnection\fP interface
+and returning an instance providing
+high\-level interface to Redis. \fBRedis\fP by default.
+.IP \(bu 2
+\fBminsize\fP (\fI\%int\fP) \-\- Minimum number of connections to initialize
+and keep in pool. Default is 1.
+.IP \(bu 2
+\fBmaxsize\fP (\fI\%int\fP) \-\- Maximum number of connections that can be created
+in pool. Default is 10.
+.IP \(bu 2
+\fBparser\fP (\fIcallable\fP\fI or \fP\fINone\fP) \-\- Protocol parser class. Can be used to set custom protocol
+reader; expected same interface as \fBhiredis.Reader\fP\&.
+.IP \(bu 2
+\fBtimeout\fP (\fIfloat greater than 0\fP\fI or \fP\fINone\fP) \-\- Max time to open a connection, otherwise
+raise \fI\%asyncio.TimeoutError\fP exception.
+\fBNone\fP by default
+.IP \(bu 2
+\fBpool_cls\fP (\fIaioredis.abc.AbcPool\fP) \-\- Can be used to instantiate custom pool class.
+This argument \fBmust be\fP a subclass of \fBAbcPool\fP\&.
+.IP \(bu 2
+\fBconnection_cls\fP (\fIaioredis.abc.AbcConnection\fP) \-\- Can be used to make pool instantiate custom
+connection classes. This argument \fBmust be\fP a subclass of
+\fBAbcConnection\fP\&.
+.IP \(bu 2
+\fBloop\fP (\fI\%EventLoop\fP) \-\- An optional \fIevent loop\fP instance
+(uses \fI\%asyncio.get_event_loop()\fP if not specified).
+.UNINDENT
+.TP
+.B Returns
+Redis client (result of \fBcommands_factory\fP call),
+\fBRedis\fP by default.
+.UNINDENT
+.UNINDENT
+.SH AIOREDIS.REDIS --- COMMANDS MIXINS REFERENCE
+.sp
+This section contains reference for mixins implementing Redis commands.
+.sp
+Descriptions are taken from \fBdocstrings\fP so may not contain proper markup.
+.INDENT 0.0
+.TP
+.B class aioredis.Redis(pool_or_conn)
+High\-level Redis interface.
+.sp
+Gathers in one place Redis commands implemented in mixins.
+.sp
+For commands details see: \fI\%http://redis.io/commands/#connection\fP
+.INDENT 7.0
+.TP
+.B Parameters
+\fBpool_or_conn\fP (\fBAbcConnection\fP) \-\- Can be either \fBRedisConnection\fP
+or \fBConnectionsPool\fP\&.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B address
+Redis connection address (if applicable).
+.UNINDENT
+.INDENT 7.0
+.TP
+.B auth(password)
+Authenticate to server.
+.sp
+This method wraps call to \fBaioredis.RedisConnection.auth()\fP
+.UNINDENT
+.INDENT 7.0
+.TP
+.B close()
+Close client connections.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B closed
+True if connection is closed.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B connection
+Either \fBaioredis.RedisConnection\fP,
+or \fBaioredis.ConnectionsPool\fP instance.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B db
+Currently selected db index.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B echo(message, *, encoding=<object object>)
+Echo the given string.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B encoding
+Current set codec or None.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B in_transaction
+Set to True when MULTI command was issued.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B ping(message=<object object>, *, encoding=<object object>)
+Ping the server.
+.sp
+Accept optional echo message.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B quit()
+Close the connection.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B select(db)
+Change the selected database for the current connection.
+.sp
+This method wraps call to \fBaioredis.RedisConnection.select()\fP
+.UNINDENT
+.INDENT 7.0
+.TP
+.B coroutine wait_closed()
+Coroutine waiting until underlying connections are closed.
+.UNINDENT
+.UNINDENT
+.SS Generic commands
+.INDENT 0.0
+.TP
+.B class aioredis.commands.GenericCommandsMixin
+Generic commands mixin.
+.sp
+For commands details see: \fI\%http://redis.io/commands/#generic\fP
+.INDENT 7.0
+.TP
+.B delete(key, *keys)
+Delete a key.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B dump(key)
+Dump a key.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B exists(key, *keys)
+Check if key(s) exists.
+.sp
+Changed in version v0.2.9: Accept multiple keys; \fBreturn\fP type \fBchanged\fP from bool to int.
+
+.UNINDENT
+.INDENT 7.0
+.TP
+.B expire(key, timeout)
+Set a timeout on key.
+.sp
+if timeout is float it will be multiplied by 1000
+coerced to int and passed to \fIpexpire\fP method.
+.sp
+Otherwise raises TypeError if timeout argument is not int.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B expireat(key, timestamp)
+Set expire timestamp on a key.
+.sp
+if timeout is float it will be multiplied by 1000
+coerced to int and passed to \fIpexpireat\fP method.
+.sp
+Otherwise raises TypeError if timestamp argument is not int.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B iscan(match=None, count=None)
+Incrementally iterate the keys space using async for.
+.sp
+Usage example:
+.sp
+.nf
+.ft C
+>>> async for key in redis.iscan(match=\(aqsomething*\(aq):
+\&...     print(\(aqMatched:\(aq, key)
+.ft P
+.fi
+.UNINDENT
+.INDENT 7.0
+.TP
+.B keys(pattern, *, encoding=<object object>)
+Returns all keys matching pattern.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B migrate(host, port, key, dest_db, timeout, *, copy=False, replace=False)
+Atomically transfer a key from a Redis instance to another one.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B migrate_keys(host, port, keys, dest_db, timeout, *, copy=False, replace=False)
+Atomically transfer keys from one Redis instance to another one.
+.sp
+Keys argument must be list/tuple of keys to migrate.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B move(key, db)
+Move key from currently selected database to specified destination.
+.INDENT 7.0
+.TP
+.B Raises
+.INDENT 7.0
+.IP \(bu 2
+\fI\%TypeError\fP \-\- if db is not int
+.IP \(bu 2
+\fI\%ValueError\fP \-\- if db is less then 0
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B object_encoding(key)
+Returns the kind of internal representation used in order
+to store the value associated with a key (OBJECT ENCODING).
+.UNINDENT
+.INDENT 7.0
+.TP
+.B object_idletime(key)
+Returns the number of seconds since the object is not requested
+by read or write operations (OBJECT IDLETIME).
+.UNINDENT
+.INDENT 7.0
+.TP
+.B object_refcount(key)
+Returns the number of references of the value associated
+with the specified key (OBJECT REFCOUNT).
+.UNINDENT
+.INDENT 7.0
+.TP
+.B persist(key)
+Remove the existing timeout on key.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B pexpire(key, timeout)
+Set a milliseconds timeout on key.
+.INDENT 7.0
+.TP
+.B Raises
+\fI\%TypeError\fP \-\- if timeout is not int
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B pexpireat(key, timestamp)
+Set expire timestamp on key, timestamp in milliseconds.
+.INDENT 7.0
+.TP
+.B Raises
+\fI\%TypeError\fP \-\- if timeout is not int
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B pttl(key)
+Returns time\-to\-live for a key, in milliseconds.
+.sp
+Special return values (starting with Redis 2.8):
+.INDENT 7.0
+.IP \(bu 2
+command returns \-2 if the key does not exist.
+.IP \(bu 2
+command returns \-1 if the key exists but has no associated expire.
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B randomkey(encoding=<object object>)
+Return a random key from the currently selected database.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B rename(key, newkey)
+Renames key to newkey.
+.INDENT 7.0
+.TP
+.B Raises
+\fI\%ValueError\fP \-\- if key == newkey
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B renamenx(key, newkey)
+Renames key to newkey only if newkey does not exist.
+.INDENT 7.0
+.TP
+.B Raises
+\fI\%ValueError\fP \-\- if key == newkey
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B restore(key, ttl, value)
+Creates a key associated with a value that is obtained via DUMP.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B scan(cursor=0, match=None, count=None)
+Incrementally iterate the keys space.
+.sp
+Usage example:
+.sp
+.nf
+.ft C
+>>> match = \(aqsomething*\(aq
+>>> cur = b\(aq0\(aq
+>>> while cur:
+\&...     cur, keys = await redis.scan(cur, match=match)
+\&...     for key in keys:
+\&...         print(\(aqMatched:\(aq, key)
+.ft P
+.fi
+.UNINDENT
+.INDENT 7.0
+.TP
+.B sort(key, *get_patterns, by=None, offset=None, count=None, asc=None, alpha=False, store=None)
+Sort the elements in a list, set or sorted set.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B touch(key, *keys)
+Alters the last access time of a key(s).
+.sp
+Returns the number of keys that were touched.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B ttl(key)
+Returns time\-to\-live for a key, in seconds.
+.sp
+Special return values (starting with Redis 2.8):
+* command returns \-2 if the key does not exist.
+* command returns \-1 if the key exists but has no associated expire.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B type(key)
+Returns the string representation of the value\(aqs type stored at key.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B unlink(key, *keys)
+Delete a key asynchronously in another thread.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B wait(numslaves, timeout)
+Wait for the synchronous replication of all the write
+commands sent in the context of the current connection.
+.UNINDENT
+.UNINDENT
+.SS Geo commands
+.sp
+New in version v0.3.0.
+
+.INDENT 0.0
+.TP
+.B class aioredis.commands.GeoCommandsMixin
+Geo commands mixin.
+.sp
+For commands details see: \fI\%http://redis.io/commands#geo\fP
+.INDENT 7.0
+.TP
+.B geoadd(key, longitude, latitude, member, *args, **kwargs)
+Add one or more geospatial items in the geospatial index represented
+using a sorted set.
+.INDENT 7.0
+.TP
+.B Return type
+\fI\%int\fP
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B geodist(key, member1, member2, unit=\(aqm\(aq)
+Returns the distance between two members of a geospatial index.
+.INDENT 7.0
+.TP
+.B Return type
+\fI\%list\fP[\fI\%float\fP or None]
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B geohash(key, member, *members, **kwargs)
+Returns members of a geospatial index as standard geohash strings.
+.INDENT 7.0
+.TP
+.B Return type
+\fI\%list\fP[\fI\%str\fP or \fI\%bytes\fP or None]
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B geopos(key, member, *members, **kwargs)
+Returns longitude and latitude of members of a geospatial index.
+.INDENT 7.0
+.TP
+.B Return type
+\fI\%list\fP[GeoPoint or None]
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B georadius(key, longitude, latitude, radius, unit=\(aqm\(aq, *, with_dist=False, with_hash=False, with_coord=False, count=None, sort=None, encoding=<object object>)
+Query a sorted set representing a geospatial index to fetch members
+matching a given maximum distance from a point.
+.sp
+Return value follows Redis convention:
+.INDENT 7.0
+.IP \(bu 2
+if none of \fBWITH*\fP flags are set \-\- list of strings returned:
+.sp
+.nf
+.ft C
+>>> await redis.georadius(\(aqSicily\(aq, 15, 37, 200, \(aqkm\(aq)
+[b"Palermo", b"Catania"]
+.ft P
+.fi
+.IP \(bu 2
+if any flag (or all) is set \-\- list of named tuples returned:
+.sp
+.nf
+.ft C
+>>> await redis.georadius(\(aqSicily\(aq, 15, 37, 200, \(aqkm\(aq,
+\&...                       with_dist=True)
+[GeoMember(name=b"Palermo", dist=190.4424, hash=None, coord=None),
+ GeoMember(name=b"Catania", dist=56.4413, hash=None, coord=None)]
+.ft P
+.fi
+.UNINDENT
+.INDENT 7.0
+.TP
+.B Raises
+.INDENT 7.0
+.IP \(bu 2
+\fI\%TypeError\fP \-\- radius is not float or int
+.IP \(bu 2
+\fI\%TypeError\fP \-\- count is not int
+.IP \(bu 2
+\fI\%ValueError\fP \-\- if unit not equal \fBm\fP, \fBkm\fP, \fBmi\fP or \fBft\fP
+.IP \(bu 2
+\fI\%ValueError\fP \-\- if sort not equal \fBASC\fP or \fBDESC\fP
+.UNINDENT
+.TP
+.B Return type
+\fI\%list\fP[\fI\%str\fP] or \fI\%list\fP[GeoMember]
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B georadiusbymember(key, member, radius, unit=\(aqm\(aq, *, with_dist=False, with_hash=False, with_coord=False, count=None, sort=None, encoding=<object object>)
+Query a sorted set representing a geospatial index to fetch members
+matching a given maximum distance from a member.
+.sp
+Return value follows Redis convention:
+.INDENT 7.0
+.IP \(bu 2
+if none of \fBWITH*\fP flags are set \-\- list of strings returned:
+.sp
+.nf
+.ft C
+>>> await redis.georadiusbymember(\(aqSicily\(aq, \(aqPalermo\(aq, 200, \(aqkm\(aq)
+[b"Palermo", b"Catania"]
+.ft P
+.fi
+.IP \(bu 2
+if any flag (or all) is set \-\- list of named tuples returned:
+.sp
+.nf
+.ft C
+>>> await redis.georadiusbymember(\(aqSicily\(aq, \(aqPalermo\(aq, 200, \(aqkm\(aq,
+\&...                               with_dist=True)
+[GeoMember(name=b"Palermo", dist=190.4424, hash=None, coord=None),
+ GeoMember(name=b"Catania", dist=56.4413, hash=None, coord=None)]
+.ft P
+.fi
+.UNINDENT
+.INDENT 7.0
+.TP
+.B Raises
+.INDENT 7.0
+.IP \(bu 2
+\fI\%TypeError\fP \-\- radius is not float or int
+.IP \(bu 2
+\fI\%TypeError\fP \-\- count is not int
+.IP \(bu 2
+\fI\%ValueError\fP \-\- if unit not equal \fBm\fP, \fBkm\fP, \fBmi\fP or \fBft\fP
+.IP \(bu 2
+\fI\%ValueError\fP \-\- if sort not equal \fBASC\fP or \fBDESC\fP
+.UNINDENT
+.TP
+.B Return type
+\fI\%list\fP[\fI\%str\fP] or \fI\%list\fP[GeoMember]
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.SS Geo commands result wrappers
+.INDENT 0.0
+.TP
+.B class aioredis.commands.GeoPoint(longitude, latitude)
+Bases: \fI\%tuple\fP
+.sp
+Named tuple representing result returned by \fBGEOPOS\fP and \fBGEORADIUS\fP
+commands.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBlongitude\fP (\fI\%float\fP) \-\- longitude value.
+.IP \(bu 2
+\fBlatitude\fP (\fI\%float\fP) \-\- latitude value.
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B class aioredis.commands.GeoMember(member, dist, hash, coord)
+Bases: \fI\%tuple\fP
+.sp
+Named tuple representing result returned by \fBGEORADIUS\fP and
+\fBGEORADIUSBYMEMBER\fP commands.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBmember\fP (\fI\%str\fP\fI or \fP\fI\%bytes\fP) \-\- Value of geo sorted set item;
+.IP \(bu 2
+\fBdist\fP (\fINone\fP\fI or \fP\fI\%float\fP) \-\- Distance in units passed to call.
+\fBNone\fP if \fBwith_dist\fP was not set
+in \fI\%georadius()\fP call.
+.IP \(bu 2
+\fBhash\fP (\fINone\fP\fI or \fP\fI\%int\fP) \-\- Geo\-hash represented as number.
+\fBNone\fP if \fBwith_hash\fP
+was not in \fI\%georadius()\fP call.
+.IP \(bu 2
+\fBcoord\fP (\fINone\fP\fI or \fP\fIGeoPoint\fP) \-\- Coordinate of geospatial index member.
+\fBNone\fP if \fBwith_coord\fP was not set
+in \fI\%georadius()\fP call.
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.SS Strings commands
+.INDENT 0.0
+.TP
+.B class aioredis.commands.StringCommandsMixin
+String commands mixin.
+.sp
+For commands details see: \fI\%http://redis.io/commands/#string\fP
+.INDENT 7.0
+.TP
+.B append(key, value)
+Append a value to key.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B bitcount(key, start=None, end=None)
+Count set bits in a string.
+.INDENT 7.0
+.TP
+.B Raises
+\fI\%TypeError\fP \-\- if only start or end specified.
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B bitop_and(dest, key, *keys)
+Perform bitwise AND operations between strings.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B bitop_not(dest, key)
+Perform bitwise NOT operations between strings.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B bitop_or(dest, key, *keys)
+Perform bitwise OR operations between strings.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B bitop_xor(dest, key, *keys)
+Perform bitwise XOR operations between strings.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B bitpos(key, bit, start=None, end=None)
+Find first bit set or clear in a string.
+.INDENT 7.0
+.TP
+.B Raises
+\fI\%ValueError\fP \-\- if bit is not 0 or 1
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B decr(key)
+Decrement the integer value of a key by one.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B decrby(key, decrement)
+Decrement the integer value of a key by the given number.
+.INDENT 7.0
+.TP
+.B Raises
+\fI\%TypeError\fP \-\- if decrement is not int
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B get(key, *, encoding=<object object>)
+Get the value of a key.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B getbit(key, offset)
+Returns the bit value at offset in the string value stored at key.
+.INDENT 7.0
+.TP
+.B Raises
+.INDENT 7.0
+.IP \(bu 2
+\fI\%TypeError\fP \-\- if offset is not int
+.IP \(bu 2
+\fI\%ValueError\fP \-\- if offset is less then 0
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B getrange(key, start, end, *, encoding=<object object>)
+Get a substring of the string stored at a key.
+.INDENT 7.0
+.TP
+.B Raises
+\fI\%TypeError\fP \-\- if start or end is not int
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B getset(key, value, *, encoding=<object object>)
+Set the string value of a key and return its old value.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B incr(key)
+Increment the integer value of a key by one.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B incrby(key, increment)
+Increment the integer value of a key by the given amount.
+.INDENT 7.0
+.TP
+.B Raises
+\fI\%TypeError\fP \-\- if increment is not int
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B incrbyfloat(key, increment)
+Increment the float value of a key by the given amount.
+.INDENT 7.0
+.TP
+.B Raises
+\fI\%TypeError\fP \-\- if increment is not int
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B mget(key, *keys, encoding=<object object>)
+Get the values of all the given keys.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B mset(key, value, *pairs)
+Set multiple keys to multiple values.
+.INDENT 7.0
+.TP
+.B Raises
+\fI\%TypeError\fP \-\- if len of pairs is not event number
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B msetnx(key, value, *pairs)
+Set multiple keys to multiple values,
+only if none of the keys exist.
+.INDENT 7.0
+.TP
+.B Raises
+\fI\%TypeError\fP \-\- if len of pairs is not event number
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B psetex(key, milliseconds, value)
+Set the value and expiration in milliseconds of a key.
+.INDENT 7.0
+.TP
+.B Raises
+\fI\%TypeError\fP \-\- if milliseconds is not int
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B set(key, value, *, expire=0, pexpire=0, exist=None)
+Set the string value of a key.
+.INDENT 7.0
+.TP
+.B Raises
+\fI\%TypeError\fP \-\- if expire or pexpire is not int
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B setbit(key, offset, value)
+Sets or clears the bit at offset in the string value stored at key.
+.INDENT 7.0
+.TP
+.B Raises
+.INDENT 7.0
+.IP \(bu 2
+\fI\%TypeError\fP \-\- if offset is not int
+.IP \(bu 2
+\fI\%ValueError\fP \-\- if offset is less then 0 or value is not 0 or 1
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B setex(key, seconds, value)
+Set the value and expiration of a key.
+.sp
+If seconds is float it will be multiplied by 1000
+coerced to int and passed to \fIpsetex\fP method.
+.INDENT 7.0
+.TP
+.B Raises
+\fI\%TypeError\fP \-\- if seconds is neither int nor float
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B setnx(key, value)
+Set the value of a key, only if the key does not exist.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B setrange(key, offset, value)
+Overwrite part of a string at key starting at the specified offset.
+.INDENT 7.0
+.TP
+.B Raises
+.INDENT 7.0
+.IP \(bu 2
+\fI\%TypeError\fP \-\- if offset is not int
+.IP \(bu 2
+\fI\%ValueError\fP \-\- if offset less then 0
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B strlen(key)
+Get the length of the value stored in a key.
+.UNINDENT
+.UNINDENT
+.SS Hash commands
+.INDENT 0.0
+.TP
+.B class aioredis.commands.HashCommandsMixin
+Hash commands mixin.
+.sp
+For commands details see: \fI\%http://redis.io/commands#hash\fP
+.INDENT 7.0
+.TP
+.B hdel(key, field, *fields)
+Delete one or more hash fields.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B hexists(key, field)
+Determine if hash field exists.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B hget(key, field, *, encoding=<object object>)
+Get the value of a hash field.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B hgetall(key, *, encoding=<object object>)
+Get all the fields and values in a hash.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B hincrby(key, field, increment=1)
+Increment the integer value of a hash field by the given number.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B hincrbyfloat(key, field, increment=1.0)
+Increment the float value of a hash field by the given number.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B hkeys(key, *, encoding=<object object>)
+Get all the fields in a hash.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B hlen(key)
+Get the number of fields in a hash.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B hmget(key, field, *fields, encoding=<object object>)
+Get the values of all the given fields.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B hmset(key, field, value, *pairs)
+Set multiple hash fields to multiple values.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B hmset_dict(key, *args, **kwargs)
+Set multiple hash fields to multiple values.
+.sp
+dict can be passed as first positional argument:
+.sp
+.nf
+.ft C
+>>> await redis.hmset_dict(
+\&...     \(aqkey\(aq, {\(aqfield1\(aq: \(aqvalue1\(aq, \(aqfield2\(aq: \(aqvalue2\(aq})
+.ft P
+.fi
+.sp
+or keyword arguments can be used:
+.sp
+.nf
+.ft C
+>>> await redis.hmset_dict(
+\&...     \(aqkey\(aq, field1=\(aqvalue1\(aq, field2=\(aqvalue2\(aq)
+.ft P
+.fi
+.sp
+or dict argument can be mixed with kwargs:
+.sp
+.nf
+.ft C
+>>> await redis.hmset_dict(
+\&...     \(aqkey\(aq, {\(aqfield1\(aq: \(aqvalue1\(aq}, field2=\(aqvalue2\(aq)
+.ft P
+.fi
+.sp
+\fBNOTE:\fP
+.INDENT 7.0
+.INDENT 3.5
+\fBdict\fP and \fBkwargs\fP not get mixed into single dictionary,
+if both specified and both have same key(s) \-\- \fBkwargs\fP will win:
+.sp
+.nf
+.ft C
+>>> await redis.hmset_dict(\(aqkey\(aq, {\(aqfoo\(aq: \(aqbar\(aq}, foo=\(aqbaz\(aq)
+>>> await redis.hget(\(aqkey\(aq, \(aqfoo\(aq, encoding=\(aqutf\-8\(aq)
+\(aqbaz\(aq
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B hscan(key, cursor=0, match=None, count=None)
+Incrementally iterate hash fields and associated values.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B hset(key, field, value)
+Set the string value of a hash field.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B hsetnx(key, field, value)
+Set the value of a hash field, only if the field does not exist.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B hstrlen(key, field)
+Get the length of the value of a hash field.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B hvals(key, *, encoding=<object object>)
+Get all the values in a hash.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B ihscan(key, *, match=None, count=None)
+Incrementally iterate sorted set items using async for.
+.sp
+Usage example:
+.sp
+.nf
+.ft C
+>>> async for name, val in redis.ihscan(key, match=\(aqsomething*\(aq):
+\&...     print(\(aqMatched:\(aq, name, \(aq\->\(aq, val)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS List commands
+.INDENT 0.0
+.TP
+.B class aioredis.commands.ListCommandsMixin
+List commands mixin.
+.sp
+For commands details see: \fI\%http://redis.io/commands#list\fP
+.INDENT 7.0
+.TP
+.B blpop(key, *keys, timeout=0, encoding=<object object>)
+Remove and get the first element in a list, or block until
+one is available.
+.INDENT 7.0
+.TP
+.B Raises
+.INDENT 7.0
+.IP \(bu 2
+\fI\%TypeError\fP \-\- if timeout is not int
+.IP \(bu 2
+\fI\%ValueError\fP \-\- if timeout is less then 0
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B brpop(key, *keys, timeout=0, encoding=<object object>)
+Remove and get the last element in a list, or block until one
+is available.
+.INDENT 7.0
+.TP
+.B Raises
+.INDENT 7.0
+.IP \(bu 2
+\fI\%TypeError\fP \-\- if timeout is not int
+.IP \(bu 2
+\fI\%ValueError\fP \-\- if timeout is less then 0
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B brpoplpush(sourcekey, destkey, timeout=0, encoding=<object object>)
+Remove and get the last element in a list, or block until one
+is available.
+.INDENT 7.0
+.TP
+.B Raises
+.INDENT 7.0
+.IP \(bu 2
+\fI\%TypeError\fP \-\- if timeout is not int
+.IP \(bu 2
+\fI\%ValueError\fP \-\- if timeout is less then 0
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B lindex(key, index, *, encoding=<object object>)
+Get an element from a list by its index.
+.INDENT 7.0
+.TP
+.B Raises
+\fI\%TypeError\fP \-\- if index is not int
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B linsert(key, pivot, value, before=False)
+Inserts value in the list stored at key either before or
+after the reference value pivot.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B llen(key)
+Returns the length of the list stored at key.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B lpop(key, *, encoding=<object object>)
+Removes and returns the first element of the list stored at key.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B lpush(key, value, *values)
+Insert all the specified values at the head of the list
+stored at key.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B lpushx(key, value)
+Inserts value at the head of the list stored at key, only if key
+already exists and holds a list.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B lrange(key, start, stop, *, encoding=<object object>)
+Returns the specified elements of the list stored at key.
+.INDENT 7.0
+.TP
+.B Raises
+\fI\%TypeError\fP \-\- if start or stop is not int
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B lrem(key, count, value)
+Removes the first count occurrences of elements equal to value
+from the list stored at key.
+.INDENT 7.0
+.TP
+.B Raises
+\fI\%TypeError\fP \-\- if count is not int
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B lset(key, index, value)
+Sets the list element at index to value.
+.INDENT 7.0
+.TP
+.B Raises
+\fI\%TypeError\fP \-\- if index is not int
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B ltrim(key, start, stop)
+Trim an existing list so that it will contain only the specified
+range of elements specified.
+.INDENT 7.0
+.TP
+.B Raises
+\fI\%TypeError\fP \-\- if start or stop is not int
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B rpop(key, *, encoding=<object object>)
+Removes and returns the last element of the list stored at key.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B rpoplpush(sourcekey, destkey, *, encoding=<object object>)
+Atomically returns and removes the last element (tail) of the
+list stored at source, and pushes the element at the first element
+(head) of the list stored at destination.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B rpush(key, value, *values)
+Insert all the specified values at the tail of the list
+stored at key.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B rpushx(key, value)
+Inserts value at the tail of the list stored at key, only if
+key already exists and holds a list.
+.UNINDENT
+.UNINDENT
+.SS Set commands
+.INDENT 0.0
+.TP
+.B class aioredis.commands.SetCommandsMixin
+Set commands mixin.
+.sp
+For commands details see: \fI\%http://redis.io/commands#set\fP
+.INDENT 7.0
+.TP
+.B isscan(key, *, match=None, count=None)
+Incrementally iterate set elements using async for.
+.sp
+Usage example:
+.sp
+.nf
+.ft C
+>>> async for val in redis.isscan(key, match=\(aqsomething*\(aq):
+\&...     print(\(aqMatched:\(aq, val)
+.ft P
+.fi
+.UNINDENT
+.INDENT 7.0
+.TP
+.B sadd(key, member, *members)
+Add one or more members to a set.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B scard(key)
+Get the number of members in a set.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B sdiff(key, *keys)
+Subtract multiple sets.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B sdiffstore(destkey, key, *keys)
+Subtract multiple sets and store the resulting set in a key.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B sinter(key, *keys)
+Intersect multiple sets.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B sinterstore(destkey, key, *keys)
+Intersect multiple sets and store the resulting set in a key.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B sismember(key, member)
+Determine if a given value is a member of a set.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B smembers(key, *, encoding=<object object>)
+Get all the members in a set.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B smove(sourcekey, destkey, member)
+Move a member from one set to another.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B spop(key, *, encoding=<object object>)
+Remove and return a random member from a set.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B srandmember(key, count=None, *, encoding=<object object>)
+Get one or multiple random members from a set.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B srem(key, member, *members)
+Remove one or more members from a set.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B sscan(key, cursor=0, match=None, count=None)
+Incrementally iterate Set elements.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B sunion(key, *keys)
+Add multiple sets.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B sunionstore(destkey, key, *keys)
+Add multiple sets and store the resulting set in a key.
+.UNINDENT
+.UNINDENT
+.SS Sorted Set commands
+.INDENT 0.0
+.TP
+.B class aioredis.commands.SortedSetCommandsMixin
+Sorted Sets commands mixin.
+.sp
+For commands details see: \fI\%http://redis.io/commands/#sorted_set\fP
+.INDENT 7.0
+.TP
+.B izscan(key, *, match=None, count=None)
+Incrementally iterate sorted set items using async for.
+.sp
+Usage example:
+.sp
+.nf
+.ft C
+>>> async for val, score in redis.izscan(key, match=\(aqsomething*\(aq):
+\&...     print(\(aqMatched:\(aq, val, \(aq:\(aq, score)
+.ft P
+.fi
+.UNINDENT
+.INDENT 7.0
+.TP
+.B zadd(key, score, member, *pairs, exist=None)
+Add one or more members to a sorted set or update its score.
+.INDENT 7.0
+.TP
+.B Raises
+.INDENT 7.0
+.IP \(bu 2
+\fI\%TypeError\fP \-\- score not int or float
+.IP \(bu 2
+\fI\%TypeError\fP \-\- length of pairs is not even number
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B zcard(key)
+Get the number of members in a sorted set.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B zcount(key, min=\-inf, max=inf, *, exclude=None)
+Count the members in a sorted set with scores
+within the given values.
+.INDENT 7.0
+.TP
+.B Raises
+.INDENT 7.0
+.IP \(bu 2
+\fI\%TypeError\fP \-\- min or max is not float or int
+.IP \(bu 2
+\fI\%ValueError\fP \-\- if min grater then max
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B zincrby(key, increment, member)
+Increment the score of a member in a sorted set.
+.INDENT 7.0
+.TP
+.B Raises
+\fI\%TypeError\fP \-\- increment is not float or int
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B zinterstore(destkey, key, *keys, with_weights=False, aggregate=None)
+Intersect multiple sorted sets and store result in a new key.
+.INDENT 7.0
+.TP
+.B Parameters
+\fBwith_weights\fP (\fI\%bool\fP) \-\- when set to true each key must be a tuple
+in form of (key, weight)
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B zlexcount(key, min=b\(aq\-\(aq, max=b\(aq+\(aq, include_min=True, include_max=True)
+Count the number of members in a sorted set between a given
+lexicographical range.
+.INDENT 7.0
+.TP
+.B Raises
+.INDENT 7.0
+.IP \(bu 2
+\fI\%TypeError\fP \-\- if min is not bytes
+.IP \(bu 2
+\fI\%TypeError\fP \-\- if max is not bytes
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B zrange(key, start=0, stop=\-1, withscores=False, encoding=<object object>)
+Return a range of members in a sorted set, by index.
+.INDENT 7.0
+.TP
+.B Raises
+.INDENT 7.0
+.IP \(bu 2
+\fI\%TypeError\fP \-\- if start is not int
+.IP \(bu 2
+\fI\%TypeError\fP \-\- if stop is not int
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B zrangebylex(key, min=b\(aq\-\(aq, max=b\(aq+\(aq, include_min=True, include_max=True, offset=None, count=None, encoding=<object object>)
+Return a range of members in a sorted set, by lexicographical range.
+.INDENT 7.0
+.TP
+.B Raises
+.INDENT 7.0
+.IP \(bu 2
+\fI\%TypeError\fP \-\- if min is not bytes
+.IP \(bu 2
+\fI\%TypeError\fP \-\- if max is not bytes
+.IP \(bu 2
+\fI\%TypeError\fP \-\- if both offset and count are not specified
+.IP \(bu 2
+\fI\%TypeError\fP \-\- if offset is not bytes
+.IP \(bu 2
+\fI\%TypeError\fP \-\- if count is not bytes
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B zrangebyscore(key, min=\-inf, max=inf, withscores=False, offset=None, count=None, *, exclude=None, encoding=<object object>)
+Return a range of members in a sorted set, by score.
+.INDENT 7.0
+.TP
+.B Raises
+.INDENT 7.0
+.IP \(bu 2
+\fI\%TypeError\fP \-\- if min or max is not float or int
+.IP \(bu 2
+\fI\%TypeError\fP \-\- if both offset and count are not specified
+.IP \(bu 2
+\fI\%TypeError\fP \-\- if offset is not int
+.IP \(bu 2
+\fI\%TypeError\fP \-\- if count is not int
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B zrank(key, member)
+Determine the index of a member in a sorted set.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B zrem(key, member, *members)
+Remove one or more members from a sorted set.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B zremrangebylex(key, min=b\(aq\-\(aq, max=b\(aq+\(aq, include_min=True, include_max=True)
+Remove all members in a sorted set between the given
+lexicographical range.
+.INDENT 7.0
+.TP
+.B Raises
+.INDENT 7.0
+.IP \(bu 2
+\fI\%TypeError\fP \-\- if min is not bytes
+.IP \(bu 2
+\fI\%TypeError\fP \-\- if max is not bytes
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B zremrangebyrank(key, start, stop)
+Remove all members in a sorted set within the given indexes.
+.INDENT 7.0
+.TP
+.B Raises
+.INDENT 7.0
+.IP \(bu 2
+\fI\%TypeError\fP \-\- if start is not int
+.IP \(bu 2
+\fI\%TypeError\fP \-\- if stop is not int
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B zremrangebyscore(key, min=\-inf, max=inf, *, exclude=None)
+Remove all members in a sorted set within the given scores.
+.INDENT 7.0
+.TP
+.B Raises
+\fI\%TypeError\fP \-\- if min or max is not int or float
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B zrevrange(key, start, stop, withscores=False, encoding=<object object>)
+Return a range of members in a sorted set, by index,
+with scores ordered from high to low.
+.INDENT 7.0
+.TP
+.B Raises
+\fI\%TypeError\fP \-\- if start or stop is not int
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B zrevrangebylex(key, min=b\(aq\-\(aq, max=b\(aq+\(aq, include_min=True, include_max=True, offset=None, count=None, encoding=<object object>)
+Return a range of members in a sorted set, by lexicographical range
+from high to low.
+.INDENT 7.0
+.TP
+.B Raises
+.INDENT 7.0
+.IP \(bu 2
+\fI\%TypeError\fP \-\- if min is not bytes
+.IP \(bu 2
+\fI\%TypeError\fP \-\- if max is not bytes
+.IP \(bu 2
+\fI\%TypeError\fP \-\- if both offset and count are not specified
+.IP \(bu 2
+\fI\%TypeError\fP \-\- if offset is not bytes
+.IP \(bu 2
+\fI\%TypeError\fP \-\- if count is not bytes
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B zrevrangebyscore(key, max=inf, min=\-inf, *, exclude=None, withscores=False, offset=None, count=None, encoding=<object object>)
+Return a range of members in a sorted set, by score,
+with scores ordered from high to low.
+.INDENT 7.0
+.TP
+.B Raises
+.INDENT 7.0
+.IP \(bu 2
+\fI\%TypeError\fP \-\- if min or max is not float or int
+.IP \(bu 2
+\fI\%TypeError\fP \-\- if both offset and count are not specified
+.IP \(bu 2
+\fI\%TypeError\fP \-\- if offset is not int
+.IP \(bu 2
+\fI\%TypeError\fP \-\- if count is not int
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B zrevrank(key, member)
+Determine the index of a member in a sorted set, with
+scores ordered from high to low.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B zscan(key, cursor=0, match=None, count=None)
+Incrementally iterate sorted sets elements and associated scores.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B zscore(key, member)
+Get the score associated with the given member in a sorted set.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B zunionstore(destkey, key, *keys, with_weights=False, aggregate=None)
+Add multiple sorted sets and store result in a new key.
+.UNINDENT
+.UNINDENT
+.SS Server commands
+.INDENT 0.0
+.TP
+.B class aioredis.commands.ServerCommandsMixin
+Server commands mixin.
+.sp
+For commands details see: \fI\%http://redis.io/commands/#server\fP
+.INDENT 7.0
+.TP
+.B bgrewriteaof()
+Asynchronously rewrite the append\-only file.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B bgsave()
+Asynchronously save the dataset to disk.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B client_getname(encoding=<object object>)
+Get the current connection name.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B client_kill()
+Kill the connection of a client.
+.sp
+\fBWARNING:\fP
+.INDENT 7.0
+.INDENT 3.5
+Not Implemented
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B client_list()
+Get the list of client connections.
+.sp
+Returns list of ClientInfo named tuples.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B client_pause(timeout)
+Stop processing commands from clients for \fItimeout\fP milliseconds.
+.INDENT 7.0
+.TP
+.B Raises
+.INDENT 7.0
+.IP \(bu 2
+\fI\%TypeError\fP \-\- if timeout is not int
+.IP \(bu 2
+\fI\%ValueError\fP \-\- if timeout is less then 0
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B client_setname(name)
+Set the current connection name.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B command()
+Get array of Redis commands.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B command_count()
+Get total number of Redis commands.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B command_getkeys(command, *args, encoding=\(aqutf\-8\(aq)
+Extract keys given a full Redis command.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B command_info(command, *commands)
+Get array of specific Redis command details.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B config_get(parameter=\(aq*\(aq)
+Get the value of a configuration parameter(s).
+.sp
+If called without argument will return all parameters.
+.INDENT 7.0
+.TP
+.B Raises
+\fI\%TypeError\fP \-\- if parameter is not string
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B config_resetstat()
+Reset the stats returned by INFO.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B config_rewrite()
+Rewrite the configuration file with the in memory configuration.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B config_set(parameter, value)
+Set a configuration parameter to the given value.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B dbsize()
+Return the number of keys in the selected database.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B debug_object(key)
+Get debugging information about a key.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B debug_segfault(key)
+Make the server crash.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B debug_sleep(timeout)
+Suspend connection for timeout seconds.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B flushall(async_op=False)
+Remove all keys from all databases.
+.INDENT 7.0
+.TP
+.B Parameters
+\fBasync_op\fP \-\- lets the entire dataset to be freed asynchronously.         Defaults to False
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B flushdb(async_op=False)
+Remove all keys from the current database.
+.INDENT 7.0
+.TP
+.B Parameters
+\fBasync_op\fP \-\- lets a single database to be freed asynchronously.         Defaults to False
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B info(section=\(aqdefault\(aq)
+Get information and statistics about the server.
+.sp
+If called without argument will return default set of sections.
+For available sections, see \fI\%http://redis.io/commands/INFO\fP
+.INDENT 7.0
+.TP
+.B Raises
+\fI\%ValueError\fP \-\- if section is invalid
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B lastsave()
+Get the UNIX time stamp of the last successful save to disk.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B monitor()
+Listen for all requests received by the server in real time.
+.sp
+\fBWARNING:\fP
+.INDENT 7.0
+.INDENT 3.5
+Will not be implemented for now.
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B role()
+Return the role of the server instance.
+.sp
+Returns named tuples describing role of the instance.
+For fields information see \fI\%http://redis.io/commands/role#output\-format\fP
+.UNINDENT
+.INDENT 7.0
+.TP
+.B save()
+Synchronously save the dataset to disk.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B shutdown(save=None)
+Synchronously save the dataset to disk and then
+shut down the server.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B slaveof(host=<object object>, port=None)
+Make the server a slave of another instance,
+or promote it as master.
+.sp
+Calling \fBslaveof(None)\fP will send \fBSLAVEOF NO ONE\fP\&.
+.sp
+Changed in version v0.2.6: \fBslaveof()\fP form deprecated
+in favour of explicit \fBslaveof(None)\fP\&.
+
+.UNINDENT
+.INDENT 7.0
+.TP
+.B slowlog_get(length=None)
+Returns the Redis slow queries log.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B slowlog_len()
+Returns length of Redis slow queries log.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B slowlog_reset()
+Resets Redis slow queries log.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B sync()
+Redis\-server internal command used for replication.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B time()
+Return current server time.
+.UNINDENT
+.UNINDENT
+.SS HyperLogLog commands
+.INDENT 0.0
+.TP
+.B class aioredis.commands.HyperLogLogCommandsMixin
+HyperLogLog commands mixin.
+.sp
+For commands details see: \fI\%http://redis.io/commands#hyperloglog\fP
+.INDENT 7.0
+.TP
+.B pfadd(key, value, *values)
+Adds the specified elements to the specified HyperLogLog.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B pfcount(key, *keys)
+Return the approximated cardinality of
+the set(s) observed by the HyperLogLog at key(s).
+.UNINDENT
+.INDENT 7.0
+.TP
+.B pfmerge(destkey, sourcekey, *sourcekeys)
+Merge N different HyperLogLogs into a single one.
+.UNINDENT
+.UNINDENT
+.SS Transaction commands
+.INDENT 0.0
+.TP
+.B class aioredis.commands.TransactionsCommandsMixin
+Transaction commands mixin.
+.sp
+For commands details see: \fI\%http://redis.io/commands/#transactions\fP
+.sp
+Transactions HOWTO:
+.sp
+.nf
+.ft C
+>>> tr = redis.multi_exec()
+>>> result_future1 = tr.incr(\(aqfoo\(aq)
+>>> result_future2 = tr.incr(\(aqbar\(aq)
+>>> try:
+\&...     result = await tr.execute()
+\&... except MultiExecError:
+\&...     pass    # check what happened
+>>> result1 = await result_future1
+>>> result2 = await result_future2
+>>> assert result == [result1, result2]
+.ft P
+.fi
+.INDENT 7.0
+.TP
+.B multi_exec()
+Returns MULTI/EXEC pipeline wrapper.
+.sp
+Usage:
+.sp
+.nf
+.ft C
+>>> tr = redis.multi_exec()
+>>> fut1 = tr.incr(\(aqfoo\(aq)   # NO \(gaawait\(ga as it will block forever!
+>>> fut2 = tr.incr(\(aqbar\(aq)
+>>> result = await tr.execute()
+>>> result
+[1, 1]
+>>> await asyncio.gather(fut1, fut2)
+[1, 1]
+.ft P
+.fi
+.UNINDENT
+.INDENT 7.0
+.TP
+.B pipeline()
+Returns \fI\%Pipeline\fP object to execute bulk of commands.
+.sp
+It is provided for convenience.
+Commands can be pipelined without it.
+.sp
+Example:
+.sp
+.nf
+.ft C
+>>> pipe = redis.pipeline()
+>>> fut1 = pipe.incr(\(aqfoo\(aq) # NO \(gaawait\(ga as it will block forever!
+>>> fut2 = pipe.incr(\(aqbar\(aq)
+>>> result = await pipe.execute()
+>>> result
+[1, 1]
+>>> await asyncio.gather(fut1, fut2)
+[1, 1]
+>>> #
+>>> # The same can be done without pipeline:
+>>> #
+>>> fut1 = redis.incr(\(aqfoo\(aq)    # the \(aqINCRY foo\(aq command already sent
+>>> fut2 = redis.incr(\(aqbar\(aq)
+>>> await asyncio.gather(fut1, fut2)
+[2, 2]
+.ft P
+.fi
+.UNINDENT
+.INDENT 7.0
+.TP
+.B unwatch()
+Forget about all watched keys.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B watch(key, *keys)
+Watch the given keys to determine execution of the MULTI/EXEC block.
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B class aioredis.commands.Pipeline(connection, commands_factory=lambda conn: conn, *, loop=None)
+Commands pipeline.
+.sp
+Buffers commands for execution in bulk.
+.sp
+This class implements \fI__getattr__\fP method allowing to call methods
+on instance created with \fBcommands_factory\fP\&.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBconnection\fP (\fIaioredis.RedisConnection\fP) \-\- Redis connection
+.IP \(bu 2
+\fBcommands_factory\fP (\fIcallable\fP) \-\- Commands factory to get methods from.
+.IP \(bu 2
+\fBloop\fP (\fI\%EventLoop\fP) \-\- An optional \fIevent loop\fP instance
+(uses \fI\%asyncio.get_event_loop()\fP if not specified).
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B coroutine execute(*, return_exceptions=False)
+Executes all buffered commands and returns result.
+.sp
+Any exception that is raised by any command is caught and
+raised later when processing results.
+.sp
+If \fBreturn_exceptions\fP is set to \fBTrue\fP then all collected errors
+are returned in resulting list otherwise single
+\fBaioredis.PipelineError\fP exception is raised
+(containing all collected errors).
+.INDENT 7.0
+.TP
+.B Parameters
+\fBreturn_exceptions\fP (\fI\%bool\fP) \-\- Raise or return exceptions.
+.TP
+.B Raises
+\fBaioredis.PipelineError\fP \-\- Raised when any command caused error.
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B class aioredis.commands.MultiExec(connection, commands_factory=lambda conn: conn, *, loop=None)
+Bases: \fI\%Pipeline\fP\&.
+.sp
+Multi/Exec pipeline wrapper.
+.sp
+See \fI\%Pipeline\fP for parameters description.
+.INDENT 7.0
+.TP
+.B coroutine execute(*, return_exceptions=False)
+Executes all buffered commands and returns result.
+.sp
+see \fI\%Pipeline.execute()\fP for details.
+.INDENT 7.0
+.TP
+.B Parameters
+\fBreturn_exceptions\fP (\fI\%bool\fP) \-\- Raise or return exceptions.
+.TP
+.B Raises
+.INDENT 7.0
+.IP \(bu 2
+\fBaioredis.MultiExecError\fP \-\- Raised instead of \fBaioredis.PipelineError\fP
+.IP \(bu 2
+\fBaioredis.WatchVariableError\fP \-\- If watched variable is changed
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.SS Scripting commands
+.INDENT 0.0
+.TP
+.B class aioredis.commands.ScriptingCommandsMixin
+Set commands mixin.
+.sp
+For commands details see: \fI\%http://redis.io/commands#scripting\fP
+.INDENT 7.0
+.TP
+.B eval(script, keys=[], args=[])
+Execute a Lua script server side.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B evalsha(digest, keys=[], args=[])
+Execute a Lua script server side by its SHA1 digest.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B script_exists(digest, *digests)
+Check existence of scripts in the script cache.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B script_flush()
+Remove all the scripts from the script cache.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B script_kill()
+Kill the script currently in execution.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B script_load(script)
+Load the specified Lua script into the script cache.
+.UNINDENT
+.UNINDENT
+.SS Server commands
+.INDENT 0.0
+.TP
+.B class aioredis.commands.ServerCommandsMixin
+Server commands mixin.
+.sp
+For commands details see: \fI\%http://redis.io/commands/#server\fP
+.INDENT 7.0
+.TP
+.B bgrewriteaof()
+Asynchronously rewrite the append\-only file.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B bgsave()
+Asynchronously save the dataset to disk.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B client_getname(encoding=<object object>)
+Get the current connection name.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B client_kill()
+Kill the connection of a client.
+.sp
+\fBWARNING:\fP
+.INDENT 7.0
+.INDENT 3.5
+Not Implemented
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B client_list()
+Get the list of client connections.
+.sp
+Returns list of ClientInfo named tuples.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B client_pause(timeout)
+Stop processing commands from clients for \fItimeout\fP milliseconds.
+.INDENT 7.0
+.TP
+.B Raises
+.INDENT 7.0
+.IP \(bu 2
+\fI\%TypeError\fP \-\- if timeout is not int
+.IP \(bu 2
+\fI\%ValueError\fP \-\- if timeout is less then 0
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B client_setname(name)
+Set the current connection name.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B command()
+Get array of Redis commands.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B command_count()
+Get total number of Redis commands.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B command_getkeys(command, *args, encoding=\(aqutf\-8\(aq)
+Extract keys given a full Redis command.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B command_info(command, *commands)
+Get array of specific Redis command details.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B config_get(parameter=\(aq*\(aq)
+Get the value of a configuration parameter(s).
+.sp
+If called without argument will return all parameters.
+.INDENT 7.0
+.TP
+.B Raises
+\fI\%TypeError\fP \-\- if parameter is not string
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B config_resetstat()
+Reset the stats returned by INFO.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B config_rewrite()
+Rewrite the configuration file with the in memory configuration.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B config_set(parameter, value)
+Set a configuration parameter to the given value.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B dbsize()
+Return the number of keys in the selected database.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B debug_object(key)
+Get debugging information about a key.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B debug_segfault(key)
+Make the server crash.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B debug_sleep(timeout)
+Suspend connection for timeout seconds.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B flushall(async_op=False)
+Remove all keys from all databases.
+.INDENT 7.0
+.TP
+.B Parameters
+\fBasync_op\fP \-\- lets the entire dataset to be freed asynchronously.         Defaults to False
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B flushdb(async_op=False)
+Remove all keys from the current database.
+.INDENT 7.0
+.TP
+.B Parameters
+\fBasync_op\fP \-\- lets a single database to be freed asynchronously.         Defaults to False
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B info(section=\(aqdefault\(aq)
+Get information and statistics about the server.
+.sp
+If called without argument will return default set of sections.
+For available sections, see \fI\%http://redis.io/commands/INFO\fP
+.INDENT 7.0
+.TP
+.B Raises
+\fI\%ValueError\fP \-\- if section is invalid
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B lastsave()
+Get the UNIX time stamp of the last successful save to disk.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B monitor()
+Listen for all requests received by the server in real time.
+.sp
+\fBWARNING:\fP
+.INDENT 7.0
+.INDENT 3.5
+Will not be implemented for now.
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B role()
+Return the role of the server instance.
+.sp
+Returns named tuples describing role of the instance.
+For fields information see \fI\%http://redis.io/commands/role#output\-format\fP
+.UNINDENT
+.INDENT 7.0
+.TP
+.B save()
+Synchronously save the dataset to disk.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B shutdown(save=None)
+Synchronously save the dataset to disk and then
+shut down the server.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B slaveof(host=<object object>, port=None)
+Make the server a slave of another instance,
+or promote it as master.
+.sp
+Calling \fBslaveof(None)\fP will send \fBSLAVEOF NO ONE\fP\&.
+.sp
+Changed in version v0.2.6: \fBslaveof()\fP form deprecated
+in favour of explicit \fBslaveof(None)\fP\&.
+
+.UNINDENT
+.INDENT 7.0
+.TP
+.B slowlog_get(length=None)
+Returns the Redis slow queries log.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B slowlog_len()
+Returns length of Redis slow queries log.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B slowlog_reset()
+Resets Redis slow queries log.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B sync()
+Redis\-server internal command used for replication.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B time()
+Return current server time.
+.UNINDENT
+.UNINDENT
+.SS Pub/Sub commands
+.sp
+Also see aioredis.Channel\&.
+.INDENT 0.0
+.TP
+.B class aioredis.commands.PubSubCommandsMixin
+Pub/Sub commands mixin.
+.sp
+For commands details see: \fI\%http://redis.io/commands/#pubsub\fP
+.INDENT 7.0
+.TP
+.B channels
+Returns read\-only channels dict.
+.sp
+See \fBpubsub_channels\fP
+.UNINDENT
+.INDENT 7.0
+.TP
+.B in_pubsub
+Indicates that connection is in PUB/SUB mode.
+.sp
+Provides the number of subscribed channels.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B patterns
+Returns read\-only patterns dict.
+.sp
+See \fBpubsub_patterns\fP
+.UNINDENT
+.INDENT 7.0
+.TP
+.B psubscribe(pattern, *patterns)
+Switch connection to Pub/Sub mode and
+subscribe to specified patterns.
+.sp
+Arguments can be instances of \fBChannel\fP\&.
+.sp
+Returns \fI\%asyncio.gather()\fP coroutine which when done will return
+a list of subscribed \fBChannel\fP objects with
+\fBis_pattern\fP property set to \fBTrue\fP\&.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B publish(channel, message)
+Post a message to channel.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B publish_json(channel, obj)
+Post a JSON\-encoded message to channel.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B pubsub_channels(pattern=None)
+Lists the currently active channels.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B pubsub_numpat()
+Returns the number of subscriptions to patterns.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B pubsub_numsub(*channels)
+Returns the number of subscribers for the specified channels.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B punsubscribe(pattern, *patterns)
+Unsubscribe from specific patterns.
+.sp
+Arguments can be instances of \fBChannel\fP\&.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B subscribe(channel, *channels)
+Switch connection to Pub/Sub mode and
+subscribe to specified channels.
+.sp
+Arguments can be instances of \fBChannel\fP\&.
+.sp
+Returns \fI\%asyncio.gather()\fP coroutine which when done will return
+a list of \fBChannel\fP objects.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B unsubscribe(channel, *channels)
+Unsubscribe from specific channels.
+.sp
+Arguments can be instances of \fBChannel\fP\&.
+.UNINDENT
+.UNINDENT
+.SS Cluster commands
+.sp
+\fBWARNING:\fP
+.INDENT 0.0
+.INDENT 3.5
+Current release (1.1.0) of the library \fBdoes not support\fP
+\fI\%Redis Cluster\fP in a full manner.
+It provides only several API methods which may be changed in future.
+.UNINDENT
+.UNINDENT
+.SH AIOREDIS.ABC --- INTERFACES REFERENCE
+.sp
+This module defines several abstract classes that must be used
+when implementing custom connection managers or other features.
+.INDENT 0.0
+.TP
+.B class aioredis.abc.AbcConnection
+Bases: \fI\%abc.ABC\fP
+.sp
+Abstract connection interface.
+.INDENT 7.0
+.TP
+.B address
+Connection address.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B close()
+Perform connection(s) close and resources cleanup.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B closed
+Flag indicating if connection is closing or already closed.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B db
+Current selected DB index.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B encoding
+Current set connection codec.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B execute(command, *args, **kwargs)
+Execute redis command.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B execute_pubsub(command, *args, **kwargs)
+Execute Redis (p)subscribe/(p)unsubscribe commands.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B in_pubsub
+Returns number of subscribed channels.
+.sp
+Can be tested as bool indicating Pub/Sub mode state.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B pubsub_channels
+Read\-only channels dict.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B pubsub_patterns
+Read\-only patterns dict.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B coroutine wait_closed()
+Coroutine waiting until all resources are closed/released/cleaned up.
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B class aioredis.abc.AbcPool
+Bases: \fI\%aioredis.abc.AbcConnection\fP
+.sp
+Abstract connections pool interface.
+.sp
+Inherited from AbcConnection so both have common interface
+for executing Redis commands.
+.INDENT 7.0
+.TP
+.B coroutine acquire()
+Acquires connection from pool.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B address
+Connection address or None.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B get_connection()
+Gets free connection from pool in a sync way.
+.sp
+If no connection available — returns None.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B release(conn)
+Releases connection to pool.
+.INDENT 7.0
+.TP
+.B Parameters
+\fBconn\fP (\fIAbcConnection\fP) \-\- Owned connection to be released.
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B class aioredis.abc.AbcChannel
+Bases: \fI\%abc.ABC\fP
+.sp
+Abstract Pub/Sub Channel interface.
+.INDENT 7.0
+.TP
+.B close(exc=None)
+Marks Channel as closed, no more messages will be sent to it.
+.sp
+Called by RedisConnection when channel is unsubscribed
+or connection is closed.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B coroutine get()
+Wait and return new message.
+.sp
+Will raise \fBChannelClosedError\fP if channel is not active.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B is_active
+Flag indicating that channel has unreceived messages
+and not marked as closed.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B is_pattern
+Boolean flag indicating if channel is pattern channel.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B name
+Encoded channel name or pattern.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B put_nowait(data)
+Send data to channel.
+.sp
+Called by RedisConnection when new message received.
+For pattern subscriptions data will be a tuple of
+channel name and message itself.
+.UNINDENT
+.UNINDENT
+.SH AIOREDIS.PUBSUB --- PUB/SUB TOOLS REFERENCE
+.sp
+Module provides a Pub/Sub listener interface implementing
+multi\-producers, single\-consumer queue pattern.
+.INDENT 0.0
+.TP
+.B class aioredis.pubsub.Receiver(loop=None, on_close=None)
+Multi\-producers, single\-consumer Pub/Sub queue.
+.sp
+Can be used in cases where a single consumer task
+must read messages from several different channels
+(where pattern subscriptions may not work well
+or channels can be added/removed dynamically).
+.sp
+Example use case:
+.sp
+.nf
+.ft C
+>>> from aioredis.pubsub import Receiver
+>>> from aioredis.abc import AbcChannel
+>>> mpsc = Receiver(loop=loop)
+>>> async def reader(mpsc):
+\&...     async for channel, msg in mpsc.iter():
+\&...         assert isinstance(channel, AbcChannel)
+\&...         print("Got {!r} in channel {!r}".format(msg, channel))
+>>> asyncio.ensure_future(reader(mpsc))
+>>> await redis.subscribe(mpsc.channel(\(aqchannel:1\(aq),
+\&...                       mpsc.channel(\(aqchannel:3\(aq))
+\&...                       mpsc.channel(\(aqchannel:5\(aq))
+>>> await redis.psubscribe(mpsc.pattern(\(aqhello\(aq))
+>>> # publishing \(aqHello world\(aq into \(aqhello\-channel\(aq
+>>> # will print this message:
+Got b\(aqHello world\(aq in channel b\(aqhello\-channel\(aq
+>>> # when all is done:
+>>> await redis.unsubscribe(\(aqchannel:1\(aq, \(aqchannel:3\(aq, \(aqchannel:5\(aq)
+>>> await redis.punsubscribe(\(aqhello\(aq)
+>>> mpsc.stop()
+>>> # any message received after stop() will be ignored.
+.ft P
+.fi
+.sp
+\fBWARNING:\fP
+.INDENT 7.0
+.INDENT 3.5
+Currently subscriptions implementation has few issues that will
+be solved eventually, but until then developer must be aware of the
+following:
+.INDENT 0.0
+.IP \(bu 2
+Single \fBReceiver\fP instance can not be shared between two (or more)
+connections (or client instances) because any of them can close
+\fB_Sender\fP\&.
+.IP \(bu 2
+Several \fBReceiver\fP instances can not subscribe to the same
+channel or pattern. This is a flaw in subscription mode implementation:
+subsequent subscriptions to some channel always return first\-created
+Channel object.
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B channel(name)
+Create a channel.
+.sp
+Returns \fB_Sender\fP object implementing
+\fBAbcChannel\fP\&.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B channels
+Read\-only channels dict.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B check_stop(channel, exc=None)
+TBD
+.UNINDENT
+.INDENT 7.0
+.TP
+.B coroutine get(encoding=None, decoder=None)
+Wait for and return pub/sub message from one of channels.
+.sp
+Return value is either:
+.INDENT 7.0
+.IP \(bu 2
+tuple of two elements: channel & message;
+.IP \(bu 2
+tuple of three elements: pattern channel, (target channel & message);
+.IP \(bu 2
+or None in case Receiver is not active or has just been stopped.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B Raises
+\fBaioredis.ChannelClosedError\fP \-\- If listener is stopped
+and all messages have been received.
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B is_active
+Returns True if listener has any active subscription.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B iter(encoding=None, decoder=None)
+Returns async iterator.
+.sp
+Usage example:
+.sp
+.nf
+.ft C
+>>> async for ch, msg in mpsc.iter():
+\&...     print(ch, msg)
+.ft P
+.fi
+.UNINDENT
+.INDENT 7.0
+.TP
+.B pattern(pattern)
+Create a pattern channel.
+.sp
+Returns \fB_Sender\fP object implementing
+\fBAbcChannel\fP\&.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B patterns
+Read\-only patterns dict.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B stop()
+Stop receiving messages.
+.sp
+All new messages after this call will be ignored,
+so you must call unsubscribe before stopping this listener.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B coroutine wait_message()
+Blocks until new message appear.
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B class aioredis.pubsub._Sender(receiver, name, is_pattern)
+Write\-Only Channel.
+.sp
+Does not allow direct \fB\&.get()\fP calls.
+.sp
+Bases: \fBaioredis.abc.AbcChannel\fP
+.sp
+\fBNot to be used directly\fP, returned by \fI\%Receiver.channel()\fP or
+\fI\%Receiver.pattern()\fP calls.
+.UNINDENT
+.SH AIOREDIS.SENTINEL --- SENTINEL CLIENT REFERENCE
+.sp
+This section contains reference for Redis Sentinel client.
+.sp
+Sample usage:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+import aioredis
+
+sentinel = await aioredis\&.create_sentinel(
+   [(\(aqsentinel.host1\(aq, 26379), (\(aqsentinel.host2\(aq, 26379)])
+
+redis = sentinel\&.master_for(\(aqmymaster\(aq)
+assert await redis\&.set(\(aqkey\(aq, \(aqvalue\(aq)
+assert await redis\&.get(\(aqkey\(aq, encoding=\(aqutf\-8\(aq) == \(aqvalue\(aq
+
+# redis client will reconnect/reconfigure automatically
+#  by sentinel client instance
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS \fBRedisSentinel\fP
+.INDENT 0.0
+.TP
+.B coroutine aioredis.sentinel.create_sentinel(sentinels, *, db=None, password=None, encoding=None, minsize=1, maxsize=10, ssl=None, parser=None, loop=None)
+Creates Redis Sentinel client.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBsentinels\fP (\fI\%list\fP\fI[\fP\fI\%tuple\fP\fI]\fP) \-\- A list of Sentinel node addresses.
+.IP \(bu 2
+\fBdb\fP (\fI\%int\fP) \-\- Redis database index to select for every master/slave
+connections.
+.IP \(bu 2
+\fBpassword\fP (\fI\%str\fP\fI or \fP\fI\%bytes\fP\fI or \fP\fINone\fP) \-\- Password to use if Redis server instance requires
+authorization.
+.IP \(bu 2
+\fBencoding\fP (\fI\%str\fP\fI or \fP\fINone\fP) \-\- Codec to use for response decoding.
+.IP \(bu 2
+\fBminsize\fP (\fI\%int\fP) \-\- Minimum number of connections (to master or slave)
+to initialize and keep in pool. Default is 1.
+.IP \(bu 2
+\fBmaxsize\fP (\fI\%int\fP) \-\- Maximum number of connections (to master or slave)
+that can be created in pool. Default is 10.
+.IP \(bu 2
+\fBssl\fP (\fI\%ssl.SSLContext\fP or True or None) \-\- SSL context that is passed through to
+\fBasyncio.BaseEventLoop.create_connection()\fP\&.
+.IP \(bu 2
+\fBparser\fP (\fIcallable\fP\fI or \fP\fINone\fP) \-\- Protocol parser class. Can be used to set custom protocol
+reader; expected same interface as \fBhiredis.Reader\fP\&.
+.IP \(bu 2
+\fBloop\fP (\fI\%EventLoop\fP) \-\- An optional \fIevent loop\fP instance
+(uses \fI\%asyncio.get_event_loop()\fP if not specified).
+.UNINDENT
+.TP
+.B Return type
+RedisSentinel
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B class aioredis.sentinel.RedisSentinel
+Redis Sentinel client.
+.sp
+The class provides interface to Redis Sentinel commands as well as
+few methods to acquire managed Redis clients, see below.
+.INDENT 7.0
+.TP
+.B closed
+\fBTrue\fP if client is closed.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B master_for(name)
+Get \fBRedis\fP client to named master.
+The client is instantiated with special connections pool which
+is controlled by \fI\%SentinelPool\fP\&.
+\fBThis method is not a coroutine.\fP
+.INDENT 7.0
+.TP
+.B Parameters
+\fBname\fP (\fI\%str\fP) \-\- Service name.
+.TP
+.B Return type
+aioredis.Redis
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B slave_for(name)
+Get \fBRedis\fP client to named slave.
+The client is instantiated with special connections pool which
+is controlled by \fI\%SentinelPool\fP\&.
+\fBThis method is not a coroutine.\fP
+.INDENT 7.0
+.TP
+.B Parameters
+\fBname\fP (\fI\%str\fP) \-\- Service name.
+.TP
+.B Return type
+aioredis.Redis
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B execute(command, *args, **kwargs)
+Execute Sentinel command. Every command is prefixed with \fBSENTINEL\fP
+automatically.
+.INDENT 7.0
+.TP
+.B Return type
+\fI\%asyncio.Future\fP
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B coroutine ping()
+Send PING to Sentinel instance.
+Currently the ping command will be sent to first sentinel in pool,
+this may change in future.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B master(name)
+Returns a dictionary containing the specified master\(aqs state.
+Please refer to Redis documentation for more info on returned data.
+.INDENT 7.0
+.TP
+.B Return type
+\fI\%asyncio.Future\fP
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B master_address(name)
+Returns a \fB(host, port)\fP pair for the given service name.
+.INDENT 7.0
+.TP
+.B Return type
+\fI\%asyncio.Future\fP
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B masters()
+Returns a list of dictionaries containing all masters\(aq states.
+.INDENT 7.0
+.TP
+.B Return type
+\fI\%asyncio.Future\fP
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B slaves(name)
+Returns a list of slaves for the given service name.
+.INDENT 7.0
+.TP
+.B Return type
+\fI\%asyncio.Future\fP
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B sentinels(name)
+Returns a list of Sentinels for the given service name.
+.INDENT 7.0
+.TP
+.B Return type
+\fI\%asyncio.Future\fP
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B monitor(name, ip, port, quorum)
+Add a new master to be monitored by this Sentinel.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBname\fP (\fI\%str\fP) \-\- Service name.
+.IP \(bu 2
+\fBip\fP (\fI\%str\fP) \-\- New node\(aqs IP address.
+.IP \(bu 2
+\fBport\fP (\fI\%int\fP) \-\- Node\(aqs TCP port.
+.IP \(bu 2
+\fBquorum\fP (\fI\%int\fP) \-\- Sentinel quorum.
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B remove(name)
+Remove a master from Sentinel\(aqs monitoring.
+.INDENT 7.0
+.TP
+.B Parameters
+\fBname\fP (\fI\%str\fP) \-\- Service name
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B set(name, option, value)
+Set Sentinel monitoring parameter for a given master.
+Please refer to Redis documentation for more info on options.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBname\fP (\fI\%str\fP) \-\- Master\(aqs name.
+.IP \(bu 2
+\fBoption\fP (\fI\%str\fP) \-\- Monitoring option name.
+.IP \(bu 2
+\fBvalue\fP (\fI\%str\fP) \-\- Monitoring option value.
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B failover(name)
+Force a failover of a named master.
+.INDENT 7.0
+.TP
+.B Parameters
+\fBname\fP (\fI\%str\fP) \-\- Master\(aqs name.
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B check_quorum(name)
+Check if the current Sentinel configuration is able
+to reach the quorum needed to failover a master,
+and the majority needed to authorize the failover.
+.INDENT 7.0
+.TP
+.B Parameters
+\fBname\fP (\fI\%str\fP) \-\- Master\(aqs name.
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B close()
+Close all opened connections.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B coroutine wait_closed()
+Wait until all connections are closed.
+.UNINDENT
+.UNINDENT
+.SS \fBSentinelPool\fP
+.sp
+\fBWARNING:\fP
+.INDENT 0.0
+.INDENT 3.5
+This API has not yet stabilized and may change in future releases.
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B coroutine aioredis.sentinel.create_sentinel_pool(sentinels, *, db=None, password=None, encoding=None, minsize=1, maxsize=10, ssl=None, parser=None, loop=None)
+Creates Sentinel connections pool.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B class aioredis.sentinel.SentinelPool
+Sentinel connections pool.
+.sp
+This pool manages both sentinel connections and Redis master/slave
+connections.
+.INDENT 7.0
+.TP
+.B closed
+\fBTrue\fP if pool and all connections are closed.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B master_for(name)
+Returns a managed connections pool for requested service name.
+.INDENT 7.0
+.TP
+.B Parameters
+\fBname\fP (\fI\%str\fP) \-\- Service name.
+.TP
+.B Return type
+\fBManagedPool\fP
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B slave_for(name)
+Returns a managed connections pool for requested service name.
+.INDENT 7.0
+.TP
+.B Parameters
+\fBname\fP (\fI\%str\fP) \-\- Service name.
+.TP
+.B Return type
+\fBManagedPool\fP
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B execute(command, *args, **kwargs)
+Execute Sentinel command.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B coroutine discover(timeout=0.2)
+Discover Sentinels and all monitored services within given timeout.
+.sp
+This will reset internal state of this pool.
+.UNINDENT
+.INDENT 7.0
+.TP
+.B coroutine discover_master(service, timeout)
+Perform named master discovery.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBservice\fP (\fI\%str\fP) \-\- Service name.
+.IP \(bu 2
+\fBtimeout\fP (\fI\%float\fP) \-\- Operation timeout
+.UNINDENT
+.TP
+.B Return type
+aioredis.RedisConnection
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B coroutine discover_slave(service, timeout)
+Perform slave discovery.
+.INDENT 7.0
+.TP
+.B Parameters
+.INDENT 7.0
+.IP \(bu 2
+\fBservice\fP (\fI\%str\fP) \-\- Service name.
+.IP \(bu 2
+\fBtimeout\fP (\fI\%float\fP) \-\- Operation timeout
+.UNINDENT
+.TP
+.B Return type
+aioredis.RedisConnection
+.UNINDENT
+.UNINDENT
+.INDENT 7.0
+.TP
+.B close()
+Close all controlled connections (both to sentinel and redis).
+.UNINDENT
+.INDENT 7.0
+.TP
+.B coroutine wait_closed()
+Wait until pool gets closed.
+.UNINDENT
+.UNINDENT
+.SH EXAMPLES OF AIOREDIS USAGE
+.sp
+Below is a list of examples from \fI\%aioredis/examples\fP
+(see for more).
+.sp
+Every example is a correct python program that can be executed.
+.SS Low\-level connection usage example
+.sp
+\fBget source code\fP
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+import asyncio
+import aioredis
+
+
+async def main():
+    conn = await aioredis.create_connection(
+        \(aqredis://localhost\(aq, encoding=\(aqutf\-8\(aq)
+
+    ok = await conn.execute(\(aqset\(aq, \(aqmy\-key\(aq, \(aqsome value\(aq)
+    assert ok == \(aqOK\(aq, ok
+
+    str_value = await conn.execute(\(aqget\(aq, \(aqmy\-key\(aq)
+    raw_value = await conn.execute(\(aqget\(aq, \(aqmy\-key\(aq, encoding=None)
+    assert str_value == \(aqsome value\(aq
+    assert raw_value == b\(aqsome value\(aq
+
+    print(\(aqstr value:\(aq, str_value)
+    print(\(aqraw value:\(aq, raw_value)
+
+    # optionally close connection
+    conn.close()
+    await conn.wait_closed()
+
+
+if __name__ == \(aq__main__\(aq:
+    asyncio.get_event_loop().run_until_complete(main())
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Connections pool example
+.sp
+\fBget source code\fP
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+import asyncio
+import aioredis
+
+
+async def main():
+    pool = await aioredis.create_pool(
+        \(aqredis://localhost\(aq,
+        minsize=5, maxsize=10)
+    with await pool as conn:    # low\-level redis connection
+        await conn.execute(\(aqset\(aq, \(aqmy\-key\(aq, \(aqvalue\(aq)
+        val = await conn.execute(\(aqget\(aq, \(aqmy\-key\(aq)
+    print(\(aqraw value:\(aq, val)
+    pool.close()
+    await pool.wait_closed()    # closing all open connections
+
+
+if __name__ == \(aq__main__\(aq:
+    asyncio.get_event_loop().run_until_complete(main())
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Commands example
+.sp
+\fBget source code\fP
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+import asyncio
+import aioredis
+
+
+async def main():
+    # Redis client bound to single connection (no auto reconnection).
+    redis = await aioredis.create_redis(
+        \(aqredis://localhost\(aq)
+    await redis.set(\(aqmy\-key\(aq, \(aqvalue\(aq)
+    val = await redis.get(\(aqmy\-key\(aq)
+    print(val)
+
+    # gracefully closing underlying connection
+    redis.close()
+    await redis.wait_closed()
+
+
+async def redis_pool():
+    # Redis client bound to pool of connections (auto\-reconnecting).
+    redis = await aioredis.create_redis_pool(
+        \(aqredis://localhost\(aq)
+    await redis.set(\(aqmy\-key\(aq, \(aqvalue\(aq)
+    val = await redis.get(\(aqmy\-key\(aq)
+    print(val)
+
+    # gracefully closing underlying connection
+    redis.close()
+    await redis.wait_closed()
+
+
+if __name__ == \(aq__main__\(aq:
+    asyncio.get_event_loop().run_until_complete(main())
+    asyncio.get_event_loop().run_until_complete(redis_pool())
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Transaction example
+.sp
+\fBget source code\fP
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+import asyncio
+import aioredis
+
+
+async def main():
+    redis = await aioredis.create_redis(
+        \(aqredis://localhost\(aq)
+    await redis.delete(\(aqfoo\(aq, \(aqbar\(aq)
+    tr = redis.multi_exec()
+    fut1 = tr.incr(\(aqfoo\(aq)
+    fut2 = tr.incr(\(aqbar\(aq)
+    res = await tr.execute()
+    res2 = await asyncio.gather(fut1, fut2)
+    print(res)
+    assert res == res2
+
+    redis.close()
+    await redis.wait_closed()
+
+
+if __name__ == \(aq__main__\(aq:
+    asyncio.get_event_loop().run_until_complete(main())
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Pub/Sub example
+.sp
+\fBget source code\fP
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+import asyncio
+import aioredis
+
+
+async def reader(ch):
+    while (await ch.wait_message()):
+        msg = await ch.get_json()
+        print("Got Message:", msg)
+
+
+async def main():
+    pub = await aioredis.create_redis(
+        \(aqredis://localhost\(aq)
+    sub = await aioredis.create_redis(
+        \(aqredis://localhost\(aq)
+    res = await sub.subscribe(\(aqchan:1\(aq)
+    ch1 = res[0]
+
+    tsk = asyncio.ensure_future(reader(ch1))
+
+    res = await pub.publish_json(\(aqchan:1\(aq, ["Hello", "world"])
+    assert res == 1
+
+    await sub.unsubscribe(\(aqchan:1\(aq)
+    await tsk
+    sub.close()
+    pub.close()
+
+
+if __name__ == \(aq__main__\(aq:
+    asyncio.get_event_loop().run_until_complete(main())
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Scan command example
+.sp
+\fBget source code\fP
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+import asyncio
+import aioredis
+
+
+async def main():
+    """Scan command example."""
+    redis = await aioredis.create_redis(
+        \(aqredis://localhost\(aq)
+
+    await redis.mset(\(aqkey:1\(aq, \(aqvalue1\(aq, \(aqkey:2\(aq, \(aqvalue2\(aq)
+    cur = b\(aq0\(aq  # set initial cursor to 0
+    while cur:
+        cur, keys = await redis.scan(cur, match=\(aqkey:*\(aq)
+        print("Iteration results:", keys)
+
+    redis.close()
+    await redis.wait_closed()
+
+
+if __name__ == \(aq__main__\(aq:
+    import os
+    if \(aqredis_version:2.6\(aq not in os.environ.get(\(aqREDIS_VERSION\(aq, \(aq\(aq):
+        asyncio.get_event_loop().run_until_complete(main())
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Sentinel client
+.sp
+\fBget source code\fP
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+import asyncio
+import aioredis
+
+
+async def main():
+    sentinel_client = await aioredis.create_sentinel(
+        [(\(aqlocalhost\(aq, 26379)])
+
+    master_redis = sentinel_client.master_for(\(aqmymaster\(aq)
+    info = await master_redis.role()
+    print("Master role:", info)
+    assert info.role == \(aqmaster\(aq
+
+    sentinel_client.close()
+    await sentinel_client.wait_closed()
+
+
+if __name__ == \(aq__main__\(aq:
+    asyncio.get_event_loop().run_until_complete(main())
+
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH CONTRIBUTING
+.sp
+To start contributing you must read all the following.
+.sp
+First you must fork/clone repo from \fI\%github\fP:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+$ git clone git@github.com:aio\-libs/aioredis.git
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Next, you should install all python dependencies, it is as easy as running
+single command:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+$ make devel
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+this command will install:
+.INDENT 0.0
+.IP \(bu 2
+\fBsphinx\fP for building documentation;
+.IP \(bu 2
+\fBpytest\fP for running tests;
+.IP \(bu 2
+\fBflake8\fP for code linting;
+.IP \(bu 2
+and few other packages.
+.UNINDENT
+.SS Code style
+.sp
+Code \fBmust\fP be pep8 compliant.
+.sp
+You can check it with following command:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+$ make flake
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Running tests
+.sp
+You can run tests in any of the following ways:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# will run tests in a verbose mode
+$ make test
+# or
+$ py.test
+
+# will run tests with coverage report
+$ make cov
+# or
+$ py.test \-\-cov
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS SSL tests
+.sp
+Running SSL tests requires following additional programs to be installed:
+.INDENT 0.0
+.IP \(bu 2
+\fBopenssl\fP \-\- to generate test key and certificate;
+.IP \(bu 2
+\fBsocat\fP \-\- to make SSL proxy;
+.UNINDENT
+.sp
+To install these on Ubuntu and generate test key & certificate run:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+$ sudo apt\-get install socat openssl
+$ make certificate
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Different Redis server versions
+.sp
+To run tests against different redises use \fB\-\-redis\-server\fP command line
+option:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+$ py.test \-\-redis\-server=/path/to/custom/redis\-server
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS UVLoop
+.sp
+To run tests with uvloop:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+$ pip install uvloop
+$ py.test \-\-uvloop
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+Until Python 3.5.2 EventLoop has no \fBcreate_future\fP method
+so aioredis won\(aqt benefit from uvloop\(aqs futures.
+.UNINDENT
+.UNINDENT
+.SS Writing tests
+.sp
+\fBaioredis\fP uses pytest tool.
+.sp
+Tests are located under \fB/tests\fP directory.
+.sp
+Pure Python 3.5 tests (ie the ones using \fBasync\fP/\fBawait\fP syntax) must be
+prefixed with \fBpy35_\fP, for instance see:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+tests/py35_generic_commands_tests.py
+tests/py35_pool_test.py
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Fixtures
+.sp
+There is a number of fixtures that can be used to write tests:
+.INDENT 0.0
+.TP
+.B loop
+Current event loop used for test.
+This is a function\-scope fixture.
+Using this fixture will always create new event loop and
+set global one to None.
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+def test_with_loop(loop):
+    @asyncio.coroutine
+    def do_something():
+        pass
+    loop.run_until_complete(do_something())
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B unused_port()
+Finds and returns free TCP port.
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+def test_bind(unused_port):
+    port = unused_port()
+    assert 1024 < port <= 65535
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B coroutine create_connection(*args, **kw)
+Wrapper around \fBaioredis.create_connection()\fP\&.
+Only difference is that it registers connection to be closed after test case,
+so you should not be worried about unclosed connections.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B coroutine create_redis(*args, **kw)
+Wrapper around \fBaioredis.create_redis()\fP\&.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B coroutine create_pool(*args, **kw)
+Wrapper around \fBaioredis.create_pool()\fP\&.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B redis
+Redis client instance.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B pool
+RedisPool instance.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B server
+Redis server instance info. Namedtuple with following properties:
+.INDENT 7.0
+.INDENT 3.5
+.INDENT 0.0
+.TP
+.B name
+server instance name.
+.TP
+.B port
+Bind port.
+.TP
+.B unixsocket
+Bind unixsocket path.
+.TP
+.B version
+Redis server version tuple.
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B serverB
+Second predefined Redis server instance info.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B start_server(name)
+Start Redis server instance.
+Redis instances are cached by name.
+.INDENT 7.0
+.TP
+.B Returns
+server info tuple, see \fI\%server\fP\&.
+.TP
+.B Return type
+\fI\%tuple\fP
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B ssl_proxy(unsecure_port)
+Start SSL proxy.
+.INDENT 7.0
+.TP
+.B Parameters
+\fBunsecure_port\fP (\fI\%int\fP) \-\- Redis server instance port
+.TP
+.B Returns
+secure_port and ssl_context pair
+.TP
+.B Return type
+\fI\%tuple\fP
+.UNINDENT
+.UNINDENT
+.SS Helpers
+.sp
+\fBaioredis\fP also updates pytest\(aqs namespace with several helpers.
+.INDENT 0.0
+.TP
+.B pytest.redis_version(*version, reason)
+Marks test with minimum redis version to run.
+.sp
+Example:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+@pytest.redis_version(3, 2, 0, reason="HSTRLEN new in redis 3.2.0")
+def test_hstrlen(redis):
+    pass
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B pytest.logs(logger, level=None)
+Adopted version of \fI\%unittest.TestCase.assertEqual()\fP,
+see it for details.
+.sp
+Example:
+.INDENT 7.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+def test_logs(create_connection, server):
+    with pytest.logs(\(aqaioredis\(aq, \(aqDEBUG\(aq) as cm:
+        conn yield from create_connection(server.tcp_address)
+    assert cm.output[0].startswith(
+      \(aqDEBUG:aioredis:Creating tcp connection\(aq)
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B pytest.assert_almost_equal(first, second, places=None, msg=None, delta=None)
+Adopted version of \fI\%unittest.TestCase.assertAlmostEqual()\fP\&.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B pytest.raises_regex(exc_type, message)
+Adopted version of \fI\%unittest.TestCase.assertRaisesRegex()\fP\&.
+.UNINDENT
+.SH RELEASES
+.SS 1.1.0 (2018\-02\-16)
+.sp
+\fBNEW\fP:
+.INDENT 0.0
+.IP \(bu 2
+Implement new commands: \fBwait\fP, \fBtouch\fP, \fBswapdb\fP, \fBunlink\fP
+(see \fI\%#376\fP);
+.IP \(bu 2
+Add \fBasync_op\fP argument to \fBflushall\fP and \fBflushdb\fP commands
+(see \fI\%#364\fP,
+and \fI\%#370\fP);
+.UNINDENT
+.sp
+\fBFIX\fP:
+.INDENT 0.0
+.IP \(bu 2
+\fBImportant!\fP Fix Sentinel sentinel client with pool \fBminsize\fP
+greater than 1
+(see \fI\%#380\fP);
+.IP \(bu 2
+Fix \fBSentinelPool.discover_timeout\fP usage
+(see \fI\%#379\fP);
+.IP \(bu 2
+Fix \fBReceiver\fP hang on disconnect
+(see \fI\%#354\fP,
+and \fI\%#366\fP);
+.IP \(bu 2
+Fix an issue with \fBsubscribe\fP/\fBpsubscribe\fP with empty pool
+(see \fI\%#351\fP,
+and \fI\%#355\fP);
+.IP \(bu 2
+Fix an issue when \fBStreamReader\fP\(aqs feed_data is called before set_parser
+(see \fI\%#347\fP);
+.UNINDENT
+.sp
+\fBMISC\fP:
+.INDENT 0.0
+.IP \(bu 2
+Update dependencies versions;
+.IP \(bu 2
+Multiple test fixes;
+.UNINDENT
+.SS 1.0.0 (2017\-11\-17)
+.sp
+\fBNEW\fP:
+.INDENT 0.0
+.IP \(bu 2
+\fBImportant!\fP Drop Python 3.3, 3.4 support;
+(see \fI\%#321\fP,
+\fI\%#323\fP
+and \fI\%#326\fP);
+.IP \(bu 2
+\fBImportant!\fP Connections pool has been refactored; now \fBcreate_redis\fP
+function will yield \fBRedis\fP instance instead of \fBRedisPool\fP
+(see \fI\%#129\fP);
+.IP \(bu 2
+\fBImportant!\fP Change sorted set commands reply format:
+return list of tuples instead of plain list for commands
+accepting \fBwithscores\fP argument
+(see \fI\%#334\fP);
+.IP \(bu 2
+\fBImportant!\fP Change \fBhscan\fP command reply format:
+return list of tuples instead of mixed key\-value list
+(see \fI\%#335\fP);
+.IP \(bu 2
+Implement Redis URI support as supported \fBaddress\fP argument value
+(see \fI\%#322\fP);
+.IP \(bu 2
+Dropped \fBcreate_reconnecting_redis\fP, \fBcreate_redis_pool\fP should be
+used instead;
+.IP \(bu 2
+Implement custom \fBStreamReader\fP
+(see \fI\%#273\fP);
+.IP \(bu 2
+Implement Sentinel support
+(see \fI\%#181\fP);
+.IP \(bu 2
+Implement pure\-python parser
+(see \fI\%#212\fP);
+.IP \(bu 2
+Add \fBmigrate_keys\fP command
+(see \fI\%#187\fP);
+.IP \(bu 2
+Add \fBzrevrangebylex\fP command
+(see \fI\%#201\fP);
+.IP \(bu 2
+Add \fBcommand\fP, \fBcommand_count\fP, \fBcommand_getkeys\fP and
+\fBcommand_info\fP commands
+(see \fI\%#229\fP);
+.IP \(bu 2
+Add \fBping\fP support in pubsub connection
+(see \fI\%#264\fP);
+.IP \(bu 2
+Add \fBexist\fP parameter to \fBzadd\fP command
+(see \fI\%#288\fP);
+.IP \(bu 2
+Add \fBMaxClientsError\fP and implement \fBReplyError\fP specialization
+(see \fI\%#325\fP);
+.IP \(bu 2
+Add \fBencoding\fP parameter to sorted set commands
+(see \fI\%#289\fP);
+.UNINDENT
+.sp
+\fBFIX\fP:
+.INDENT 0.0
+.IP \(bu 2
+Fix \fBCancelledError\fP in \fBconn._reader_task\fP
+(see \fI\%#301\fP);
+.IP \(bu 2
+Fix pending commands cancellation with \fBCancelledError\fP,
+use explicit exception instead of calling \fBcancel()\fP method
+(see \fI\%#316\fP);
+.IP \(bu 2
+Correct error message on Sentinel discovery of master/slave with password
+(see \fI\%#327\fP);
+.IP \(bu 2
+Fix \fBbytearray\fP support as command argument
+(see \fI\%#329\fP);
+.IP \(bu 2
+Fix critical bug in patched asyncio.Lock
+(see \fI\%#256\fP);
+.IP \(bu 2
+Fix Multi/Exec transaction canceled error
+(see \fI\%#225\fP);
+.IP \(bu 2
+Add missing arguments to \fBcreate_redis\fP and \fBcreate_redis_pool\fP;
+.IP \(bu 2
+Fix deprecation warning
+(see \fI\%#191\fP);
+.IP \(bu 2
+Make correct \fB__aiter__()\fP
+(see \fI\%#192\fP);
+.IP \(bu 2
+Backward compatibility fix for \fBwith (yield from pool) as conn:\fP
+(see \fI\%#205\fP);
+.IP \(bu 2
+Fixed pubsub receiver stop()
+(see \fI\%#211\fP);
+.UNINDENT
+.sp
+\fBMISC\fP:
+.INDENT 0.0
+.IP \(bu 2
+Multiple test fixes;
+.IP \(bu 2
+Add PyPy3 to build matrix;
+.IP \(bu 2
+Update dependencies versions;
+.IP \(bu 2
+Add missing Python 3.6 classifier;
+.UNINDENT
+.SS 0.3.5 (2017\-11\-08)
+.sp
+\fBFIX\fP:
+.INDENT 0.0
+.IP \(bu 2
+Fix for indistinguishable futures cancellation with
+\fBasyncio.CancelledError\fP
+(see \fI\%#316\fP),
+cherry\-picked from master;
+.UNINDENT
+.SS 0.3.4 (2017\-10\-25)
+.sp
+\fBFIX\fP:
+.INDENT 0.0
+.IP \(bu 2
+Fix time command result decoding when using connection\-wide encoding setting
+(see \fI\%#266\fP);
+.UNINDENT
+.SS 0.3.3 (2017\-06\-30)
+.sp
+\fBFIX\fP:
+.INDENT 0.0
+.IP \(bu 2
+Critical bug fixed in patched asyncio.Lock
+(see \fI\%#256\fP);
+.UNINDENT
+.SS 0.3.2 (2017\-06\-21)
+.sp
+\fBNEW\fP:
+.INDENT 0.0
+.IP \(bu 2
+Added \fBzrevrangebylex\fP command
+(see \fI\%#201\fP),
+cherry\-picked from master;
+.IP \(bu 2
+Add connection timeout
+(see \fI\%#221\fP),
+cherry\-picked from master;
+.UNINDENT
+.sp
+\fBFIX\fP:
+.INDENT 0.0
+.IP \(bu 2
+Fixed pool close warning
+(see \fI\%#239\fP
+and \fI\%#236\fP),
+cherry\-picked from master;
+.IP \(bu 2
+Fixed asyncio Lock deadlock issue
+(see \fI\%#231\fP
+and \fI\%#241\fP);
+.UNINDENT
+.SS 0.3.1 (2017\-05\-09)
+.sp
+\fBFIX\fP:
+.INDENT 0.0
+.IP \(bu 2
+Fix pubsub Receiver missing iter() method
+(see \fI\%#203\fP);
+.UNINDENT
+.SS 0.3.0 (2017\-01\-11)
+.sp
+\fBNEW\fP:
+.INDENT 0.0
+.IP \(bu 2
+Pub/Sub connection commands accept \fBChannel\fP instances
+(see \fI\%#168\fP);
+.IP \(bu 2
+Implement new Pub/Sub MPSC (multi\-producers, single\-consumer) Queue \-\-
+\fBaioredis.pubsub.Receiver\fP
+(see \fI\%#176\fP);
+.IP \(bu 2
+Add \fBaioredis.abc\fP module providing abstract base classes
+defining interface for basic lib components;
+(see \fI\%#176\fP);
+.IP \(bu 2
+Implement Geo commands support
+(see \fI\%#177\fP
+and \fI\%#179\fP);
+.UNINDENT
+.sp
+\fBFIX\fP:
+.INDENT 0.0
+.IP \(bu 2
+Minor tests fixes;
+.UNINDENT
+.sp
+\fBMISC\fP:
+.INDENT 0.0
+.IP \(bu 2
+Update examples and docs to use \fBasync\fP/\fBawait\fP syntax
+also keeping \fByield from\fP examples for history
+(see \fI\%#173\fP);
+.IP \(bu 2
+Reflow Travis CI configuration; add Python 3.6 section
+(see \fI\%#170\fP);
+.IP \(bu 2
+Add AppVeyor integration to run tests on Windows
+(see \fI\%#180\fP);
+.IP \(bu 2
+Update multiple development requirements;
+.UNINDENT
+.SS 0.2.9 (2016\-10\-24)
+.sp
+\fBNEW\fP:
+.INDENT 0.0
+.IP \(bu 2
+Allow multiple keys in \fBEXISTS\fP command
+(see \fI\%#156\fP
+and \fI\%#157\fP);
+.UNINDENT
+.sp
+\fBFIX\fP:
+.INDENT 0.0
+.IP \(bu 2
+Close RedisPool when connection to Redis failed
+(see \fI\%#136\fP);
+.IP \(bu 2
+Add simple \fBINFO\fP command argument validation
+(see \fI\%#140\fP);
+.IP \(bu 2
+Remove invalid uses of \fBnext()\fP
+.UNINDENT
+.sp
+\fBMISC\fP:
+.INDENT 0.0
+.IP \(bu 2
+Update devel.rst docs; update Pub/Sub Channel docs (cross\-refs);
+.IP \(bu 2
+Update MANIFEST.in to include docs, examples and tests in source bundle;
+.UNINDENT
+.SS 0.2.8 (2016\-07\-22)
+.sp
+\fBNEW\fP:
+.INDENT 0.0
+.IP \(bu 2
+Add \fBhmset_dict\fP command
+(see \fI\%#130\fP);
+.IP \(bu 2
+Add \fBRedisConnection.address\fP property;
+.IP \(bu 2
+RedisPool \fBminsize\fP/\fBmaxsize\fP must not be \fBNone\fP;
+.IP \(bu 2
+Implement \fBclose()\fP/\fBwait_closed()\fP/\fBclosed\fP interface for pool
+(see \fI\%#128\fP);
+.UNINDENT
+.sp
+\fBFIX\fP:
+.INDENT 0.0
+.IP \(bu 2
+Add test for \fBhstrlen\fP;
+.IP \(bu 2
+Test fixes
+.UNINDENT
+.sp
+\fBMISC\fP:
+.INDENT 0.0
+.IP \(bu 2
+Enable Redis 3.2.0 on Travis;
+.IP \(bu 2
+Add spell checking when building docs
+(see \fI\%#132\fP);
+.IP \(bu 2
+Documentation updated;
+.UNINDENT
+.SS 0.2.7 (2016\-05\-27)
+.INDENT 0.0
+.IP \(bu 2
+\fBcreate_pool()\fP minsize default value changed to 1;
+.IP \(bu 2
+Fixed cancellation of wait_closed
+(see \fI\%#118\fP);
+.IP \(bu 2
+Fixed \fBtime()\fP convertion to float
+(see \fI\%#126\fP);
+.IP \(bu 2
+Fixed \fBhmset()\fP method to return bool instead of \fBb\(aqOK\(aq\fP
+(see \fI\%#126\fP);
+.IP \(bu 2
+Fixed multi/exec + watch issue (changed watch variable was causing
+\fBtr.execute()\fP to fail)
+(see \fI\%#121\fP);
+.IP \(bu 2
+Replace \fBasyncio.Future\fP uses with utility method
+(get ready to Python 3.5.2 \fBloop.create_future()\fP);
+.IP \(bu 2
+Tests switched from unittest to pytest (see \fI\%#126\fP);
+.IP \(bu 2
+Documentation updates;
+.UNINDENT
+.SS 0.2.6 (2016\-03\-30)
+.INDENT 0.0
+.IP \(bu 2
+Fixed Multi/Exec transactions cancellation issue
+(see \fI\%#110\fP
+and \fI\%#114\fP);
+.IP \(bu 2
+Fixed Pub/Sub subscribe concurrency issue
+(see \fI\%#113\fP
+and \fI\%#115\fP);
+.IP \(bu 2
+Add SSL/TLS support
+(see  \fI\%#116\fP);
+.IP \(bu 2
+\fBaioredis.ConnectionClosedError\fP raised in \fBexecute_pubsub\fP as well
+(see \fI\%#108\fP);
+.IP \(bu 2
+\fBRedis.slaveof()\fP method signature changed: now to disable
+replication one should call \fBredis.slaveof(None)\fP instead of \fBredis.slaveof()\fP;
+.IP \(bu 2
+More tests added;
+.UNINDENT
+.SS 0.2.5 (2016\-03\-02)
+.INDENT 0.0
+.IP \(bu 2
+Close all Pub/Sub channels on connection close
+(see \fI\%#88\fP);
+.IP \(bu 2
+Add \fBiter()\fP method to \fBaioredis.Channel\fP allowing to use it
+with \fBasync for\fP
+(see \fI\%#89\fP);
+.IP \(bu 2
+Inline code samples in docs made runnable and downloadable
+(see \fI\%#92\fP);
+.IP \(bu 2
+Python 3.5 examples converted to use \fBasync\fP/\fBawait\fP syntax
+(see \fI\%#93\fP);
+.IP \(bu 2
+Fix Multi/Exec to honor encoding parameter
+(see \fI\%#94\fP
+and \fI\%#97\fP);
+.IP \(bu 2
+Add debug message in \fBcreate_connection\fP
+(see \fI\%#90\fP);
+.IP \(bu 2
+Replace \fBasyncio.async\fP calls with wrapper that respects asyncio version
+(see \fI\%#101\fP);
+.IP \(bu 2
+Use NODELAY option for TCP sockets
+(see \fI\%#105\fP);
+.IP \(bu 2
+New \fBaioredis.ConnectionClosedError\fP exception added. Raised if
+connection to Redis server is lost
+(see \fI\%#108\fP
+and \fI\%#109\fP);
+.IP \(bu 2
+Fix RedisPool to close and drop connection in subscribe mode on release;
+.IP \(bu 2
+Fix \fBaioredis.util.decode\fP to recursively decode list responses;
+.IP \(bu 2
+More examples added and docs updated;
+.IP \(bu 2
+Add google groups link to README;
+.IP \(bu 2
+Bump year in LICENSE and docs;
+.UNINDENT
+.SS 0.2.4 (2015\-10\-13)
+.INDENT 0.0
+.IP \(bu 2
+Python 3.5 \fBasync\fP support:
+.INDENT 2.0
+.IP \(bu 2
+New scan commands API (\fBiscan\fP, \fBizscan\fP, \fBihscan\fP);
+.IP \(bu 2
+Pool made awaitable (allowing \fBwith await pool: ...\fP and \fBasync
+with pool.get() as conn:\fP constructs);
+.UNINDENT
+.IP \(bu 2
+Fixed dropping closed connections from free pool
+(see \fI\%#83\fP);
+.IP \(bu 2
+Docs updated;
+.UNINDENT
+.SS 0.2.3 (2015\-08\-14)
+.INDENT 0.0
+.IP \(bu 2
+Redis cluster support work in progress;
+.IP \(bu 2
+Fixed pool issue causing pool growth over max size & \fBacquire\fP call hangs
+(see \fI\%#71\fP);
+.IP \(bu 2
+\fBinfo\fP server command result parsing implemented;
+.IP \(bu 2
+Fixed behavior of util functions
+(see \fI\%#70\fP);
+.IP \(bu 2
+\fBhstrlen\fP command added;
+.IP \(bu 2
+Few fixes in examples;
+.IP \(bu 2
+Few fixes in documentation;
+.UNINDENT
+.SS 0.2.2 (2015\-07\-07)
+.INDENT 0.0
+.IP \(bu 2
+Decoding data with \fBencoding\fP parameter now takes into account
+list (array) replies
+(see \fI\%#68\fP);
+.IP \(bu 2
+\fBencoding\fP parameter added to following commands:
+.INDENT 2.0
+.IP \(bu 2
+generic commands: keys, randomkey;
+.IP \(bu 2
+hash commands: hgetall, hkeys, hmget, hvals;
+.IP \(bu 2
+list commands: blpop, brpop, brpoplpush, lindex, lpop, lrange, rpop, rpoplpush;
+.IP \(bu 2
+set commands: smembers, spop, srandmember;
+.IP \(bu 2
+string commands: getrange, getset, mget;
+.UNINDENT
+.IP \(bu 2
+Backward incompatibility:
+.sp
+\fBltrim\fP command now returns bool value instead of \(aqOK\(aq;
+.IP \(bu 2
+Tests updated;
+.UNINDENT
+.SS 0.2.1 (2015\-07\-06)
+.INDENT 0.0
+.IP \(bu 2
+Logging added (aioredis.log module);
+.IP \(bu 2
+Fixed issue with \fBwait_message\fP in pub/sub
+(see \fI\%#66\fP);
+.UNINDENT
+.SS 0.2.0 (2015\-06\-04)
+.INDENT 0.0
+.IP \(bu 2
+Pub/Sub support added;
+.IP \(bu 2
+Fix in \fBzrevrangebyscore\fP command
+(see \fI\%#62\fP);
+.IP \(bu 2
+Fixes/tests/docs;
+.UNINDENT
+.SS 0.1.5 (2014\-12\-09)
+.INDENT 0.0
+.IP \(bu 2
+AutoConnector added;
+.IP \(bu 2
+wait_closed method added for clean connections shutdown;
+.IP \(bu 2
+\fBzscore\fP command fixed;
+.IP \(bu 2
+Test fixes;
+.UNINDENT
+.SS 0.1.4 (2014\-09\-22)
+.INDENT 0.0
+.IP \(bu 2
+Dropped following Redis methods \-\- \fBRedis.multi()\fP,
+\fBRedis.exec()\fP, \fBRedis.discard()\fP;
+.IP \(bu 2
+\fBRedis.multi_exec\fP hack\(aqish property removed;
+.IP \(bu 2
+\fBRedis.multi_exec()\fP method added;
+.IP \(bu 2
+High\-level commands implemented:
+.INDENT 2.0
+.IP \(bu 2
+generic commands (tests);
+.IP \(bu 2
+transactions commands (api stabilization).
+.UNINDENT
+.IP \(bu 2
+Backward incompatibilities:
+.INDENT 2.0
+.IP \(bu 2
+Following sorted set commands\(aq API changed:
+.sp
+\fBzcount\fP, \fBzrangebyscore\fP, \fBzremrangebyscore\fP, \fBzrevrangebyscore\fP;
+.IP \(bu 2
+set string command\(aq API changed;
+.UNINDENT
+.UNINDENT
+.SS 0.1.3 (2014\-08\-08)
+.INDENT 0.0
+.IP \(bu 2
+RedisConnection.execute refactored to support commands pipelining
+(see \fI\%#33\fP);
+.IP \(bu 2
+Several fixes;
+.IP \(bu 2
+WIP on transactions and commands interface;
+.IP \(bu 2
+High\-level commands implemented and tested:
+.INDENT 2.0
+.IP \(bu 2
+hash commands;
+.IP \(bu 2
+hyperloglog commands;
+.IP \(bu 2
+set commands;
+.IP \(bu 2
+scripting commands;
+.IP \(bu 2
+string commands;
+.IP \(bu 2
+list commands;
+.UNINDENT
+.UNINDENT
+.SS 0.1.2 (2014\-07\-31)
+.INDENT 0.0
+.IP \(bu 2
+\fBcreate_connection\fP, \fBcreate_pool\fP, \fBcreate_redis\fP functions updated:
+db and password arguments made keyword\-only
+(see \fI\%#26\fP);
+.IP \(bu 2
+Fixed transaction handling
+(see \fI\%#32\fP);
+.IP \(bu 2
+Response decoding
+(see \fI\%#16\fP);
+.UNINDENT
+.SS 0.1.1 (2014\-07\-07)
+.INDENT 0.0
+.IP \(bu 2
+Transactions support (in connection, high\-level commands have some issues);
+.IP \(bu 2
+Docs & tests updated.
+.UNINDENT
+.SS 0.1.0 (2014\-06\-24)
+.INDENT 0.0
+.IP \(bu 2
+Initial release;
+.IP \(bu 2
+RedisConnection implemented;
+.IP \(bu 2
+RedisPool implemented;
+.IP \(bu 2
+Docs for RedisConnection & RedisPool;
+.IP \(bu 2
+WIP on high\-level API.
+.UNINDENT
+.SH GLOSSARY
+.INDENT 0.0
+.TP
+.B asyncio
+Reference implementation of \fI\%PEP 3156\fP
+.sp
+See \fI\%https://pypi.python.org/pypi/asyncio\fP
+.TP
+.B error replies
+Redis server replies that start with \- (minus) char.
+Usually starts with \fB\-ERR\fP\&.
+.TP
+.B hiredis
+Python extension that wraps protocol parsing code in \fI\%hiredis\fP\&.
+.sp
+See \fI\%https://pypi.python.org/pypi/hiredis\fP
+.TP
+.B pytest
+A mature full\-featured Python testing tool.
+See \fI\%http://pytest.org/latest/\fP
+.TP
+.B uvloop
+Is an ultra fast implementation of asyncio event loop on top of libuv.
+See \fI\%https://github.com/MagicStack/uvloop\fP
+.UNINDENT
+.INDENT 0.0
+.IP \(bu 2
+genindex
+.IP \(bu 2
+modindex
+.IP \(bu 2
+search
+.UNINDENT
+.SH AUTHOR
+Alexey Popravka
+.SH COPYRIGHT
+2014-2018, Alexey Popravka
+.\" Generated by docutils manpage writer.
+.
