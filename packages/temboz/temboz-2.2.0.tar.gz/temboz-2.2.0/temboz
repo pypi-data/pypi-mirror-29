@@ -1,0 +1,89 @@
+#!/usr/bin/env python
+import sys, os, datetime
+
+def usage():
+  print """usage: %s [options]
+  --refresh            : refresh the subscribed feeds
+  --import <opml_file> : import subscriptions from a OPML file
+  --server             : run the built-in web server
+  --kill               : kill the server
+  --cleanup            : perform database housekeeping and cleanup
+  -v                   : be more verbose (can be repeated)
+  -h, --help           : print this help text
+  """ % sys.argv[0]
+  sys.exit(0)
+
+if __name__ == '__main__':
+  started = datetime.datetime.now()
+  import getopt
+  try:
+    os.stat('rss.db')
+  except:
+    import tembozapp.bootstrap
+    tembozapp.bootstrap.do_bootstrap()
+  try:
+    import tembozapp.transform
+  except ImportError:
+    print >> sys.stderr, 'You must create a transform.py file, possibly using',
+    print >> sys.stderr, 'transform.py.sample as an example'
+    sys.exit(0)
+  import tembozapp.util
+  opts, args = getopt.getopt(
+    sys.argv[1:], 'vh',
+    ['refresh', 'resync', 'server', 'import=', 'kill', 'help',
+     'clean', 'cleanup', 'sop'])
+  if opts == []:
+    # try to detect if we are being called as a CGI script
+    cgi_ver = os.getenv('GATEWAY_INTERFACE')
+    if cgi_ver and cgi_ver.startswith('CGI/'):
+      import tembozapp.server
+      tembozapp.server.do_cgi()
+    else:
+      usage()
+  for opt, val in opts:
+    if opt in ['-h', '--help']:
+      usage()
+    if opt == '--refresh':
+      import tembozapp.update
+      try:
+        tembozapp.update.update()
+      except:
+        tembozapp.util.print_stack()
+        sys.exit(1)
+    if opt == '--resync':
+      import tembozapp.update
+      try:
+        tembozapp.update.update('and feed_errors > 0')
+      except:
+        tembozapp.util.print_stack()
+        sys.exit(1)
+    elif opt == '--import':
+      import tembozapp.opml
+      tembozapp.opml.import_opml(val)
+    elif opt == '--daemon':
+      # close stdin file descriptor
+      try:
+        import posix
+        posix.close(0)
+        posix.open('/dev/null', posix.O_RDONLY)
+      except ImportError:
+        pass
+    elif opt == '--server':
+      import tembozapp.update, tembozapp.server
+      updater = tembozapp.update.PeriodicUpdater()
+      updater.start()
+      rater = tembozapp.update.RatingsWorker(tembozapp.update.ratings_q)
+      rater.start()
+      tembozapp.server.run()
+    elif opt == '--kill':
+      import os
+      pid = int(open('temboz.pid').readline().strip())
+      os.kill(pid, 9)
+      os.remove('temboz.pid')
+    elif opt in ['--clean', '--cleanup']:
+      import tembozapp.update
+      try:
+        tembozapp.update.cleanup()
+      except:
+        tembozapp.util.print_stack()
+        sys.exit(1)
