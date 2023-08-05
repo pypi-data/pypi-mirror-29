@@ -1,0 +1,108 @@
+#!/usr/bin/env python
+
+from __future__ import print_function
+
+from configargparse import Action, ArgParser
+from requests.exceptions import ConnectionError
+import sys
+
+from variantgrid_api.add_classification import add_classification_handle_args 
+from variantgrid_api.annotation import annotation_handle_args
+from variantgrid_api.classifications import classifications_handle_args
+from variantgrid_api.gene_list import gene_list_handle_args
+
+
+class ClassificationAction(Action):
+    VALID_CLASSIFICATIONS = range(1, 6)
+    def __call__(self, parser, namespace, values, option_string=None):
+        if values not in self.VALID_CLASSIFICATIONS:
+            valid_classifications_str = ','.join(map(str, self.VALID_CLASSIFICATIONS))
+            raise ValueError("classification must be one of %s" % valid_classifications_str)
+        setattr(namespace, self.dest, values)
+
+def add_authentication(parser, required):
+    parser.add("--login", required=required, env_var='VG_LOGIN')
+    parser.add("--password", required=required, env_var='VG_PASSWORD')
+
+
+def get_args():
+    CLASSIFICATION_HELP = 'HGNC classifications: 1 - Benign, 2 - Likely benign, 3 - VUS, 4 - Likely Pathogenic, 5 - Pathogenic'
+    
+    parser = ArgParser(default_config_files=['~/.vg_api'])
+    parser.add('-c', '--config', is_config_file=True, help='config file path')
+
+    # Global settings
+    parser.add("--host", default='variantgrid.com', env_var='VG_HOST', help='Server Address (default=variantgrid.com)')
+    parser.add("--port", default=80, type=int, env_var='VG_PORT', help='Server port (default=80)')
+    parser.add("--verbose", default=False, action='store_true', env_var='VG_VERBOSE', help='Print debugging information')
+
+
+    subparsers = parser.add_subparsers(help='sub-command help', dest='command')
+    
+    # Add Classification
+    add_classification_parser = subparsers.add_parser('add_classification', help='Add new classification for a variant')
+    add_authentication(add_classification_parser, required=True)
+    variant_group = add_classification_parser.add_mutually_exclusive_group(required=True)
+    variant_group.add_argument('--variant', help='hg19 coordinate eg "1:169519049 T>C"') 
+    variant_group.add_argument('--dbsnp', help='dbSNP rsId eg "rs6025"')
+    variant_group.add_argument('--hgvs', help='HGVS string eg "F5 (NM_000130) p.Gln534Arg/c.1601A>G"')   
+
+
+    add_classification_parser.add_argument('--classification', type=int, action=ClassificationAction, help=CLASSIFICATION_HELP) 
+    add_classification_parser.add_argument('--public', action='store_true', default=False, help="Classification is public (default=False)") 
+
+    # Classifications
+    classifications_parser = subparsers.add_parser('classifications', help='Get classification from VariantGrid')
+    add_authentication(classifications_parser, required=False)
+    classifications_parser.add_argument("--classification", type=int, action=ClassificationAction)
+
+    group = classifications_parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("--all", action='store_true')
+    group.add_argument("--dbsnp")
+    group.add_argument("--gene")
+    group.add_argument("--locus")
+    group.add_argument("--variant")
+
+    # Annotation
+    annotation_parser = subparsers.add_parser('annotation', help='Get VariantGrid Annotations')
+
+    group = annotation_parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("--gene-id")
+    group.add_argument("--gene")
+    group.add_argument("--variant")
+    # TODO: Annotation Versions??
+    
+    # Gene List
+    gene_list_parser = subparsers.add_parser('gene_list', help='Get Gene List')
+    add_authentication(gene_list_parser, required=False)
+    gene_list_parser.add_argument("--category", default='Uploaded', help="One of 'Diagnostic', 'Uploaded'")
+    group = gene_list_parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("--pk")
+    group.add_argument("--name")
+
+    return parser.parse_args()
+
+
+def main(args):
+    SUBCOMMAND_HANDLERS = {
+        "annotation" : annotation_handle_args,
+        "add_classification" : add_classification_handle_args,
+        "classifications" : classifications_handle_args,
+        "gene_list" : gene_list_handle_args,
+    }
+    
+    handler = SUBCOMMAND_HANDLERS[args.command]
+    try:
+        return handler(args)
+    except ConnectionError as nce:
+        if args.verbose:
+            msg = str(nce)
+        else:
+            msg = "Could not connect to server." 
+        print(msg, file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    args = get_args()
+    main(args)
