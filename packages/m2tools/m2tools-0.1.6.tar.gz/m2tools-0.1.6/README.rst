@@ -1,0 +1,1 @@
+Library to deal with Magento 2 instance and extensions
