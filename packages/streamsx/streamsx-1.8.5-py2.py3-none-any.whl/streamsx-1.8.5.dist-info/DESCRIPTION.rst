@@ -1,0 +1,40 @@
+Python APIs for use with Streaming Analytics service on
+IBM® Bluemix cloud platform and on-premises IBM Streams.
+
+ * `Streaming Analytics service <https://console.ng.bluemix.net/catalog/services/streaming-analytics>`_
+ * `IBM Streams developer community <https://developer.ibm.com/streamsdev/>`_
+
+Python Application API for Streams
+==================================
+Module that allows the definition and execution of streaming
+applications implemented in Python. Applications use Python code to process
+tuples and tuples are Python objects.
+
+See `streamsx.topology <http://ibmstreams.github.io/streamsx.topology/doc/releases/1.7/pythondoc/streamsx.topology.html#module-streamsx.topology>`_
+
+Python functions as SPL operators
+=================================
+A Python function or class can be simply turned into an SPL primitive operator
+to allow tuple processing using Python in an SPL application.
+
+SPL (Streams Processing Language) is a domain specific language for streaming
+analytics supported by IBM Streams.
+
+See `streamsx.spl <http://ibmstreams.github.io/streamsx.topology/doc/releases/1.7/pythondoc/streamsx.spl.html#module-streamsx.spl>`_
+
+Streams Python REST API
+=======================
+
+Module that allows interaction with an running Streams instance or service
+through HTTPS REST APIs.
+
+See `streamsx.rest <http://ibmstreams.github.io/streamsx.topology/doc/releases/1.7/pythondoc/streamsx.rest.html#module-streamsx.rest>`_
+
+Documentation
+=============
+
+`Full package documentation. <http://ibmstreams.github.io/streamsx.topology/doc/releases/1.7/pythondoc/index.html>`_
+
+
+
+
