@@ -1,0 +1,35 @@
+{% macro get_name(pattern, name, default) -%}
+    {%- if name and salt.match.pcre(pattern, name) -%}
+        {{ name }}
+    {%- elif default and salt.match.pcre(pattern, default) -%}
+        {{ default }}
+    {%- endif -%}
+{%- endmacro %}
+
+{%- set name = get_name(
+    salt.pillar.get('name-computer:lookup:pattern') | default('.*', true),
+    salt.grains.get('name-computer:computername') | default('', true),
+    salt.pillar.get('name-computer:lookup:computername') | default('', true)
+) %}
+
+{%- load_yaml as salt_states %}
+RedHat:
+  state_name: 'network.system'
+  state_opts:
+  # TODO: `network.system` doesn't yet understand quoted values in
+  # `/etc/sysconfig/network`. Using `enabled: True` is a workaround for the
+  # bad code-path. Revisit at some point.
+      - enabled: True
+      - hostname: {{ name }}
+      - apply_hostname: True
+      - retain_settings: True
+Windows:
+  state_name: 'system.computer_name'
+  state_opts:
+      - name: {{ name }}
+{%- endload %}
+
+{%- set name_computer = salt['grains.filter_by'](
+    salt_states,
+    grain='os_family'
+) if name else {} %}
