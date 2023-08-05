@@ -1,0 +1,71 @@
+#!/usr/bin/env python
+
+import sys
+from collections import defaultdict
+
+import pandas as pd
+
+from bitwallet.currency_utils import load_cached
+from bitwallet.exchanges import load_exchanges
+from bitwallet.fiat import UsdRates
+
+
+class Formatter(object):
+
+    def __init__(self, balances, usd_rates):
+        self.balances = balances
+        self.usd_rates = usd_rates
+
+    def to_dataframe(self):
+        group_by_coin = defaultdict(lambda: 0.)
+        group_by_exchange = defaultdict(dict)
+        total = 0
+
+        for exchange, exchange_balances in self.balances.iteritems():
+
+            for coin in set(exchange_balances) - set(usd_rates.keys()):
+                print("no price for currency: {} on exchange: {}"
+                      .format(coin, exchange))
+
+            for coin in set(exchange_balances) & set(usd_rates.keys()):
+                usd = exchange_balances[coin] / usd_rates[coin]
+                group_by_coin[coin] += usd
+                group_by_exchange[coin][exchange] = usd
+                total += usd
+
+        data = []
+        for coin in sorted(group_by_coin, key=lambda i: -group_by_coin[i]):
+            first_column = coin
+            usd = group_by_exchange[coin]
+            for exchange in sorted(usd, key=lambda i: -usd[i]):
+                data.append([first_column,
+                             exchange,
+                             '{:20.3f}'.format(self.balances[exchange][coin]),
+                             '{:20.2f}'.format(usd[exchange])])
+                first_column = ""
+
+        data.append(["", "", "", '{:20.2f}'.format(total)])
+
+        return pd.DataFrame(data, columns=['coin', 'exchange', 'q', 'usd'])
+
+if __name__ == "__main__":
+    assert sys.argv[1] == "balances"
+
+    who = sys.argv[2]
+
+    cache_files = "{}_balances.pkl".format(who)
+    yaml_file = "{}.yaml".format(who)
+
+    balances = load_cached(cache_files, lambda: load_exchanges(yaml_file))
+
+    currencies = list(set((coin for exchange in balances.values()
+                           for coin in exchange.keys())))
+
+    usd_rates = UsdRates(currencies,
+                         backup_rates={"TEL": 253.7},
+                         translations={"IOTA": "IOT"})
+
+    formatter = Formatter(balances, usd_rates)
+
+    print usd_rates
+    print formatter.to_dataframe().to_string(index=False)
