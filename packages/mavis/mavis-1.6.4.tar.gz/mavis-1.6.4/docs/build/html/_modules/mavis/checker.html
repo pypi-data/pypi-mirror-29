@@ -1,0 +1,667 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>mavis.checker &mdash; MAVIS  documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  
+
+  
+    <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+
+  
+        <link rel="author" title="About these documents"
+              href="../../about.html"/>
+        <link rel="index" title="Index"
+              href="../../genindex.html"/>
+        <link rel="search" title="Search" href="../../search.html"/>
+    <link rel="top" title="MAVIS  documentation" href="../../index.html"/>
+        <link rel="up" title="Module code" href="../index.html"/> 
+
+  
+  <script src="../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../index.html" class="icon icon-home"> MAVIS
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                1.6.4
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../about.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../pipeline.html">Running the Pipeline</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../mavis_input.html">MAVIS standard input file format</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../reference.html">Reference Input Files</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../configuration.html">Configuration and Settings</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tools_supported.html">Supported SV Callers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../illustrations.html">Illustrations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../faqs.html">Frequently Asked Questions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../theory.html">Theory and Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../development.html">Guidelines for Contributors</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../package.html">Package Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../citations.html">Literature</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">MAVIS</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../index.html">Module code</a> &raquo;</li>
+        
+      <li>mavis.checker</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for mavis.checker</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">module responsible for checking MAVIS output. Determines if jobs completed correctly and</span>
+<span class="sd">what the status of the pipeline is</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">import</span> <span class="nn">glob</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">re</span>
+
+<span class="kn">from</span> <span class="nn">.constants</span> <span class="k">import</span> <span class="n">COMPLETE_STAMP</span><span class="p">,</span> <span class="n">DISEASE_STATUS</span><span class="p">,</span> <span class="n">SUBCOMMAND</span><span class="p">,</span> <span class="n">PROTOCOL</span>
+<span class="kn">from</span> <span class="nn">.util</span> <span class="k">import</span> <span class="n">bash_expands</span><span class="p">,</span> <span class="n">log</span><span class="p">,</span> <span class="n">MavisNamespace</span><span class="p">,</span> <span class="n">unique_exists</span>
+
+
+<span class="n">LIBRARY_DIR_REGEX</span> <span class="o">=</span> <span class="sa">r</span><span class="s1">&#39;^[\w-]+_(</span><span class="si">{}</span><span class="s1">)_(</span><span class="si">{}</span><span class="s1">)$&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="s1">&#39;|&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">DISEASE_STATUS</span><span class="o">.</span><span class="n">values</span><span class="p">()),</span> <span class="s1">&#39;|&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">PROTOCOL</span><span class="o">.</span><span class="n">values</span><span class="p">()))</span>
+<span class="n">SGE_LOG_PATTERN</span> <span class="o">=</span> <span class="sa">r</span><span class="s1">&#39;*.o*&#39;</span>
+<span class="n">LOG_PATTERN</span> <span class="o">=</span> <span class="sa">r</span><span class="s1">&#39;*.log&#39;</span>
+<span class="n">BATCH_ID_PATTERN</span> <span class="o">=</span> <span class="s1">&#39;batch-[0-9a-zA-Z-]+&#39;</span>
+
+<span class="n">LOGFILE_STATUS</span> <span class="o">=</span> <span class="n">MavisNamespace</span><span class="p">(</span>
+    <span class="n">EMPTY</span><span class="o">=</span><span class="s1">&#39;empty&#39;</span><span class="p">,</span>
+    <span class="n">CRASH</span><span class="o">=</span><span class="s1">&#39;crash&#39;</span><span class="p">,</span>
+    <span class="n">INCOMPLETE</span><span class="o">=</span><span class="s1">&#39;incomplete&#39;</span><span class="p">,</span>
+    <span class="n">COMPLETE</span><span class="o">=</span><span class="s1">&#39;complete&#39;</span>
+<span class="p">)</span>
+
+
+<div class="viewcode-block" id="LogDetails"><a class="viewcode-back" href="../../auto/mavis.checker.html#mavis.checker.LogDetails">[docs]</a><span class="k">class</span> <span class="nc">LogDetails</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    stores information about the log status</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">filename</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">filename</span> <span class="o">=</span> <span class="n">filename</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">status</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">message</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">run_time</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">last_mod</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fh</span><span class="p">:</span>
+            <span class="n">lines</span> <span class="o">=</span> <span class="n">fh</span><span class="o">.</span><span class="n">readlines</span><span class="p">()</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">lines</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">status</span> <span class="o">=</span> <span class="n">LOGFILE_STATUS</span><span class="o">.</span><span class="n">EMPTY</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">lines</span><span class="p">[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]:</span>
+                    <span class="n">line</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+                    <span class="k">if</span> <span class="n">line</span><span class="p">:</span>
+                        <span class="n">non_empty_line</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+                        <span class="k">break</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">non_empty_line</span> <span class="o">=</span> <span class="n">lines</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+                <span class="k">if</span> <span class="n">re</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;\b(error|fault|fatal|aborted|core dumped|killed|died|^\S+error)\b&#39;</span><span class="p">,</span> <span class="n">non_empty_line</span><span class="p">):</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">status</span> <span class="o">=</span> <span class="n">LOGFILE_STATUS</span><span class="o">.</span><span class="n">CRASH</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">message</span> <span class="o">=</span> <span class="n">non_empty_line</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">run_time</span> <span class="o">=</span> <span class="kc">None</span>
+                    <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">lines</span><span class="p">[</span><span class="o">-</span><span class="mi">10</span><span class="p">:]:</span>
+                        <span class="n">match</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;^\s*run time \(s\): (\d+)\s*$&#39;</span><span class="p">,</span> <span class="n">line</span><span class="p">)</span>
+                        <span class="k">if</span> <span class="n">match</span><span class="p">:</span>
+                            <span class="n">run_time</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">))</span>
+                            <span class="k">break</span>
+                    <span class="k">if</span> <span class="n">run_time</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">status</span> <span class="o">=</span> <span class="n">LOGFILE_STATUS</span><span class="o">.</span><span class="n">INCOMPLETE</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">message</span> <span class="o">=</span> <span class="n">lines</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">last_mod</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">getmtime</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">run_time</span> <span class="o">=</span> <span class="n">run_time</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">status</span> <span class="o">=</span> <span class="n">LOGFILE_STATUS</span><span class="o">.</span><span class="n">COMPLETE</span></div>
+
+
+<div class="viewcode-block" id="parse_run_time"><a class="viewcode-back" href="../../auto/mavis.checker.html#mavis.checker.parse_run_time">[docs]</a><span class="k">def</span> <span class="nf">parse_run_time</span><span class="p">(</span><span class="n">filename</span><span class="p">):</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fh</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">fh</span><span class="o">.</span><span class="n">readlines</span><span class="p">()[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]:</span>
+            <span class="n">match</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;^\s*run time \(s\): (\d+)\s*$&#39;</span><span class="p">,</span> <span class="n">line</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">match</span><span class="p">:</span>
+                <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">))</span>
+    <span class="k">return</span> <span class="kc">None</span></div>
+
+
+<div class="viewcode-block" id="PipelineStageRun"><a class="viewcode-back" href="../../auto/mavis.checker.html#mavis.checker.PipelineStageRun">[docs]</a><span class="k">class</span> <span class="nc">PipelineStageRun</span><span class="p">:</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">output_dir</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">output_dir</span> <span class="o">=</span> <span class="n">output_dir</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">output_dir</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">OSError</span><span class="p">(</span><span class="s1">&#39;missing output_dir&#39;</span><span class="p">,</span> <span class="n">output_dir</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">times</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logs</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">stamps</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">job_ids</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">single</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">max_run_time</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">total_run_time</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">avg_run_time</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="ow">in</span> <span class="p">[</span><span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">ANNOTATE</span><span class="p">,</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">VALIDATE</span><span class="p">,</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">CLUSTER</span><span class="p">]:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">single</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="k">for</span> <span class="n">dirname</span> <span class="ow">in</span> <span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">output_dir</span><span class="p">,</span> <span class="s1">&#39;*&#39;</span><span class="p">)):</span>
+                <span class="n">name</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">dirname</span><span class="p">)</span>
+                <span class="n">match</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;^&#39;</span> <span class="o">+</span> <span class="n">BATCH_ID_PATTERN</span> <span class="o">+</span> <span class="sa">r</span><span class="s1">&#39;-(\d+)(\.tab)?$&#39;</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">match</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">job_ids</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">)))</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">job_ids</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">job_ids</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+
+<div class="viewcode-block" id="PipelineStageRun.report"><a class="viewcode-back" href="../../auto/mavis.checker.html#mavis.checker.PipelineStageRun.report">[docs]</a>    <span class="k">def</span> <span class="nf">report</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">indent</span><span class="o">=</span><span class="s1">&#39;  &#39;</span><span class="p">,</span> <span class="n">indent_level</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">time_stamp</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        parses log files and checks for complete stamps. Reports any errors observed</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            bool: success</span>
+<span class="sd">                - True: no errors or incomplete files were found</span>
+<span class="sd">                - False: some errors or incomplete files</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">job_task_id</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">job_ids</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">collect_log</span><span class="p">(</span><span class="n">job_task_id</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">collect_stamp</span><span class="p">(</span><span class="n">job_task_id</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">single</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">collect_log</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">collect_stamp</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">job_ids</span> <span class="o">=</span> <span class="p">{</span><span class="kc">None</span><span class="p">}</span>
+
+        <span class="n">incomplete_jobs</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="n">missing_logs</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="n">missing_stamp</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="n">missing_both</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="n">errors</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="n">run_times</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="k">for</span> <span class="n">job_task_id</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">job_ids</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">job_task_id</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">stamps</span><span class="p">:</span>
+                <span class="n">runtime</span> <span class="o">=</span> <span class="n">parse_run_time</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">stamps</span><span class="p">[</span><span class="n">job_task_id</span><span class="p">])</span>
+                <span class="k">if</span> <span class="n">runtime</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">run_times</span><span class="p">[</span><span class="n">job_task_id</span><span class="p">]</span> <span class="o">=</span> <span class="n">runtime</span>
+                <span class="k">if</span> <span class="n">job_task_id</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">logs</span><span class="p">:</span>
+                    <span class="c1"># complete but unlogged?</span>
+                    <span class="n">missing_logs</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">job_task_id</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">logfile</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">logs</span><span class="p">[</span><span class="n">job_task_id</span><span class="p">]</span>
+                    <span class="k">if</span> <span class="n">logfile</span><span class="o">.</span><span class="n">status</span> <span class="o">==</span> <span class="n">LOGFILE_STATUS</span><span class="o">.</span><span class="n">CRASH</span><span class="p">:</span>
+                        <span class="n">errors</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">job_task_id</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">logfile</span><span class="o">.</span><span class="n">run_time</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="n">run_times</span><span class="p">[</span><span class="n">job_task_id</span><span class="p">]</span> <span class="o">=</span> <span class="n">logfile</span><span class="o">.</span><span class="n">run_time</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">job_task_id</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">logs</span><span class="p">:</span>
+                    <span class="n">logfile</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">logs</span><span class="p">[</span><span class="n">job_task_id</span><span class="p">]</span>
+                    <span class="k">if</span> <span class="n">logfile</span><span class="o">.</span><span class="n">status</span> <span class="o">==</span> <span class="n">LOGFILE_STATUS</span><span class="o">.</span><span class="n">CRASH</span><span class="p">:</span>
+                        <span class="n">errors</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">job_task_id</span><span class="p">)</span>
+                    <span class="k">elif</span> <span class="n">logfile</span><span class="o">.</span><span class="n">status</span> <span class="o">==</span> <span class="n">LOGFILE_STATUS</span><span class="o">.</span><span class="n">COMPLETE</span><span class="p">:</span>
+                        <span class="n">missing_stamp</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">job_task_id</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">incomplete_jobs</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">job_task_id</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">missing_both</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">job_task_id</span><span class="p">)</span>
+
+        <span class="c1"># report the overall status</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">any</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">job_ids</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">logs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">stamps</span><span class="p">]):</span>
+            <span class="n">log</span><span class="p">(</span><span class="n">indent</span> <span class="o">*</span> <span class="n">indent_level</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="s1">&#39;FAIL&#39;</span><span class="p">,</span> <span class="n">time_stamp</span><span class="o">=</span><span class="n">time_stamp</span><span class="p">)</span>
+            <span class="n">log</span><span class="p">(</span><span class="n">indent</span> <span class="o">*</span> <span class="n">indent_level</span> <span class="o">+</span> <span class="s1">&#39;  no files found: stage not started, or skipped&#39;</span><span class="p">,</span> <span class="n">time_stamp</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">elif</span> <span class="nb">any</span><span class="p">([</span><span class="n">incomplete_jobs</span><span class="p">,</span> <span class="n">missing_both</span><span class="p">,</span> <span class="n">missing_stamp</span><span class="p">,</span> <span class="n">errors</span><span class="p">]):</span>
+            <span class="n">log</span><span class="p">(</span><span class="n">indent</span> <span class="o">*</span> <span class="n">indent_level</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="s1">&#39;FAIL&#39;</span><span class="p">,</span> <span class="n">time_stamp</span><span class="o">=</span><span class="n">time_stamp</span><span class="p">)</span>
+            <span class="c1"># summarize the errors</span>
+            <span class="k">if</span> <span class="kc">None</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">job_ids</span> <span class="ow">or</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">job_ids</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">missing_logs</span><span class="p">:</span>
+                    <span class="n">log</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">{}{}</span><span class="s1"> jobs stamped complete but missing log files (jobs: </span><span class="si">{}</span><span class="s1">)&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                        <span class="n">indent</span> <span class="o">*</span> <span class="p">(</span><span class="n">indent_level</span> <span class="o">+</span> <span class="mi">1</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">missing_logs</span><span class="p">),</span> <span class="n">convert_set_to_ranges</span><span class="p">(</span><span class="n">missing_logs</span><span class="p">)),</span> <span class="n">time_stamp</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">missing_stamp</span><span class="p">:</span>
+                    <span class="n">log</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">{}{}</span><span class="s1"> jobs logged complete but missing stamp (jobs: </span><span class="si">{}</span><span class="s1">)&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                        <span class="n">indent</span> <span class="o">*</span> <span class="p">(</span><span class="n">indent_level</span> <span class="o">+</span> <span class="mi">1</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">missing_stamp</span><span class="p">),</span> <span class="n">convert_set_to_ranges</span><span class="p">(</span><span class="n">missing_stamp</span><span class="p">)),</span> <span class="n">time_stamp</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">missing_both</span><span class="p">:</span>
+                    <span class="n">log</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">{}{}</span><span class="s1"> jobs not started (no log/stamp) (jobs: </span><span class="si">{}</span><span class="s1">)&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                        <span class="n">indent</span> <span class="o">*</span> <span class="p">(</span><span class="n">indent_level</span> <span class="o">+</span> <span class="mi">1</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">missing_both</span><span class="p">),</span> <span class="n">convert_set_to_ranges</span><span class="p">(</span><span class="n">missing_both</span><span class="p">)),</span> <span class="n">time_stamp</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">incomplete_jobs</span><span class="p">:</span>
+                    <span class="n">log</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">{}{}</span><span class="s1"> jobs incomplete without errors (jobs: </span><span class="si">{}</span><span class="s1">)&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                        <span class="n">indent</span> <span class="o">*</span> <span class="p">(</span><span class="n">indent_level</span> <span class="o">+</span> <span class="mi">1</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">incomplete_jobs</span><span class="p">),</span> <span class="n">convert_set_to_ranges</span><span class="p">(</span><span class="n">incomplete_jobs</span><span class="p">)),</span> <span class="n">time_stamp</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">errors</span><span class="p">:</span>
+                    <span class="n">log</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">{}{}</span><span class="s1"> jobs CRASHED (jobs: </span><span class="si">{}</span><span class="s1">)&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                        <span class="n">indent</span> <span class="o">*</span> <span class="p">(</span><span class="n">indent_level</span> <span class="o">+</span> <span class="mi">1</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">errors</span><span class="p">),</span> <span class="n">convert_set_to_ranges</span><span class="p">(</span><span class="n">errors</span><span class="p">)),</span> <span class="n">time_stamp</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+                    <span class="n">details</span> <span class="o">=</span> <span class="p">{}</span>
+                    <span class="k">for</span> <span class="n">job_task_id</span> <span class="ow">in</span> <span class="n">errors</span><span class="p">:</span>
+                        <span class="n">logfile</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">logs</span><span class="p">[</span><span class="n">job_task_id</span><span class="p">]</span>
+                        <span class="n">details</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">logfile</span><span class="o">.</span><span class="n">message</span><span class="p">,</span> <span class="nb">set</span><span class="p">())</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">job_task_id</span><span class="p">)</span>
+                    <span class="k">for</span> <span class="n">msg</span><span class="p">,</span> <span class="n">jobs</span> <span class="ow">in</span> <span class="n">details</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">80</span><span class="p">:</span>
+                            <span class="n">msg</span> <span class="o">=</span> <span class="n">msg</span><span class="p">[:</span><span class="mi">80</span><span class="p">]</span> <span class="o">+</span> <span class="s1">&#39; ...&#39;</span>
+                        <span class="n">log</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">{}{}</span><span class="s1"> (jobs: </span><span class="si">{}</span><span class="s1">)&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">indent</span> <span class="o">*</span> <span class="p">(</span><span class="n">indent_level</span> <span class="o">+</span> <span class="mi">2</span><span class="p">),</span> <span class="n">msg</span><span class="p">,</span> <span class="n">convert_set_to_ranges</span><span class="p">(</span><span class="n">jobs</span><span class="p">)),</span> <span class="n">time_stamp</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">missing_logs</span><span class="p">:</span>
+                    <span class="n">log</span><span class="p">(</span><span class="n">indent</span> <span class="o">*</span> <span class="p">(</span><span class="n">indent_level</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;job stamped complete but missing log file&#39;</span><span class="p">,</span> <span class="n">time_stamp</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">missing_stamp</span><span class="p">:</span>
+                    <span class="n">log</span><span class="p">(</span><span class="n">indent</span> <span class="o">*</span> <span class="p">(</span><span class="n">indent_level</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;job logged complete but missing complete stamp&#39;</span><span class="p">,</span> <span class="n">time_stamp</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">missing_both</span><span class="p">:</span>
+                    <span class="n">log</span><span class="p">(</span><span class="n">indent</span> <span class="o">*</span> <span class="p">(</span><span class="n">indent_level</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;job not started (no log/stamp)&#39;</span><span class="p">,</span> <span class="n">time_stamp</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">incomplete_jobs</span><span class="p">:</span>
+                    <span class="n">log</span><span class="p">(</span><span class="n">indent</span> <span class="o">*</span> <span class="p">(</span><span class="n">indent_level</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;job incomplete without errors&#39;</span><span class="p">,</span> <span class="n">time_stamp</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">errors</span><span class="p">:</span>
+                    <span class="n">log</span><span class="p">(</span><span class="n">indent</span> <span class="o">*</span> <span class="p">(</span><span class="n">indent_level</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;job CRASHED&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">logs</span><span class="p">[</span><span class="kc">None</span><span class="p">]</span><span class="o">.</span><span class="n">message</span><span class="p">,</span> <span class="n">time_stamp</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+            <span class="k">return</span> <span class="kc">False</span> <span class="k">if</span> <span class="nb">any</span><span class="p">([</span><span class="n">incomplete_jobs</span><span class="p">,</span> <span class="n">missing_both</span><span class="p">,</span> <span class="n">missing_stamp</span><span class="p">,</span> <span class="n">errors</span><span class="p">])</span> <span class="k">else</span> <span class="kc">True</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">log</span><span class="p">(</span><span class="n">indent</span> <span class="o">*</span> <span class="n">indent_level</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="s1">&#39;OK&#39;</span><span class="p">,</span> <span class="n">time_stamp</span><span class="o">=</span><span class="n">time_stamp</span><span class="p">)</span>
+            <span class="n">run_times</span><span class="p">,</span> <span class="n">all_times</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">estimate_run_time</span><span class="p">()</span>
+
+            <span class="k">if</span> <span class="n">run_times</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">max_run_time</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">run_times</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">total_run_time</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">run_times</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">avg_run_time</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">round</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">total_run_time</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">job_ids</span><span class="p">),</span> <span class="mi">0</span><span class="p">))</span>
+                <span class="n">prefix</span> <span class="o">=</span> <span class="n">indent</span> <span class="o">*</span> <span class="p">(</span><span class="n">indent_level</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="p">(</span><span class="s1">&#39;&#39;</span> <span class="k">if</span> <span class="n">all_times</span> <span class="k">else</span> <span class="s1">&#39;min &#39;</span><span class="p">)</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="ow">in</span> <span class="p">[</span><span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">ANNOTATE</span><span class="p">,</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">VALIDATE</span><span class="p">]:</span>
+                    <span class="n">log</span><span class="p">(</span><span class="n">prefix</span> <span class="o">+</span> <span class="s1">&#39;run times (</span><span class="si">{}</span><span class="s1"> jobs): </span><span class="si">{}</span><span class="s1"> (max), </span><span class="si">{}</span><span class="s1"> (total), </span><span class="si">{}</span><span class="s1"> (average)&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                        <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">job_ids</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_run_time</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">total_run_time</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">avg_run_time</span><span class="p">),</span> <span class="n">time_stamp</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">log</span><span class="p">(</span><span class="n">prefix</span> <span class="o">+</span> <span class="s1">&#39;run time:&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_run_time</span><span class="p">,</span> <span class="n">time_stamp</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">log</span><span class="p">(</span><span class="n">indent</span> <span class="o">*</span> <span class="p">(</span><span class="n">indent_level</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;error parsing run-times from the log files&#39;</span><span class="p">,</span> <span class="n">time_stamp</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+            <span class="k">return</span> <span class="kc">True</span></div>
+
+<div class="viewcode-block" id="PipelineStageRun.estimate_run_time"><a class="viewcode-back" href="../../auto/mavis.checker.html#mavis.checker.PipelineStageRun.estimate_run_time">[docs]</a>    <span class="k">def</span> <span class="nf">estimate_run_time</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        pull the run time information from the logs/stamps</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">run_time</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">files_used</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="n">all_times</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">for</span> <span class="n">job_task_id</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">job_ids</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">job_task_id</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">stamps</span><span class="p">:</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">stamps</span><span class="p">[</span><span class="n">job_task_id</span><span class="p">]</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">files_used</span><span class="p">:</span>
+                    <span class="n">files_used</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">stamps</span><span class="p">[</span><span class="n">job_task_id</span><span class="p">])</span>
+                    <span class="n">job_run_time</span> <span class="o">=</span> <span class="n">parse_run_time</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">stamps</span><span class="p">[</span><span class="n">job_task_id</span><span class="p">])</span>
+                    <span class="k">if</span> <span class="n">job_run_time</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="n">run_time</span><span class="p">[</span><span class="n">job_task_id</span><span class="p">]</span> <span class="o">=</span> <span class="n">job_run_time</span>
+                        <span class="k">continue</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">continue</span>
+            <span class="k">if</span> <span class="n">job_task_id</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">logs</span><span class="p">:</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">logs</span><span class="p">[</span><span class="n">job_task_id</span><span class="p">]</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">files_used</span><span class="p">:</span>
+                    <span class="n">files_used</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">logs</span><span class="p">[</span><span class="n">job_task_id</span><span class="p">]</span><span class="o">.</span><span class="n">filename</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">logs</span><span class="p">[</span><span class="n">job_task_id</span><span class="p">]</span><span class="o">.</span><span class="n">run_time</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="n">run_time</span><span class="p">[</span><span class="n">job_task_id</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">logs</span><span class="p">[</span><span class="n">job_task_id</span><span class="p">]</span><span class="o">.</span><span class="n">run_time</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">continue</span>
+            <span class="k">if</span> <span class="n">job_task_id</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">run_time</span><span class="p">:</span>
+                <span class="n">all_times</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">return</span> <span class="n">run_time</span><span class="o">.</span><span class="n">values</span><span class="p">(),</span> <span class="n">all_times</span></div>
+
+<div class="viewcode-block" id="PipelineStageRun.collect_stamp"><a class="viewcode-back" href="../../auto/mavis.checker.html#mavis.checker.PipelineStageRun.collect_stamp">[docs]</a>    <span class="k">def</span> <span class="nf">collect_stamp</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">job_task_id</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        finds and stores the job complete stamp</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="ow">in</span> <span class="p">[</span><span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">ANNOTATE</span><span class="p">,</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">VALIDATE</span><span class="p">]:</span>
+            <span class="c1"># annotation and validation are setup in subdirectories each with their own complete stamp</span>
+            <span class="n">stamp_pattern</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">output_dir</span><span class="p">,</span> <span class="s1">&#39;*-&#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">job_task_id</span><span class="p">),</span> <span class="n">COMPLETE_STAMP</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">CLUSTER</span><span class="p">:</span>
+            <span class="n">stamp_pattern</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">output_dir</span><span class="p">,</span> <span class="n">COMPLETE_STAMP</span><span class="p">)</span>  <span class="c1"># single stamp for top-level directory</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="ow">in</span> <span class="p">[</span><span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">SUMMARY</span><span class="p">,</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">PAIR</span><span class="p">]:</span>
+            <span class="n">stamp_pattern</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">output_dir</span><span class="p">,</span> <span class="n">COMPLETE_STAMP</span><span class="p">)</span>  <span class="c1"># single stamp for top-level directory</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s1">&#39;checker has not been implemented for pipeline stage&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+
+        <span class="c1"># collect the log and complete stamp files</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">stamps</span><span class="p">[</span><span class="n">job_task_id</span><span class="p">]</span> <span class="o">=</span> <span class="n">unique_exists</span><span class="p">(</span><span class="n">stamp_pattern</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
+            <span class="k">pass</span></div>
+
+<div class="viewcode-block" id="PipelineStageRun.collect_log"><a class="viewcode-back" href="../../auto/mavis.checker.html#mavis.checker.PipelineStageRun.collect_log">[docs]</a>    <span class="k">def</span> <span class="nf">collect_log</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">job_task_id</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        finds and stores the job log file</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="ow">in</span> <span class="p">[</span><span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">ANNOTATE</span><span class="p">,</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">VALIDATE</span><span class="p">]:</span>
+            <span class="c1"># annotation and validation are setup in subdirectories each with their own complete stamp</span>
+            <span class="n">patterns</span> <span class="o">=</span> <span class="p">[</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">output_dir</span><span class="p">,</span> <span class="s1">&#39;</span><span class="si">{}</span><span class="s1">.</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">SGE_LOG_PATTERN</span><span class="p">,</span> <span class="n">job_task_id</span><span class="p">)),</span>  <span class="c1"># old log pattern</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">output_dir</span><span class="p">,</span> <span class="s1">&#39;*-</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">job_task_id</span><span class="p">),</span> <span class="n">LOG_PATTERN</span><span class="p">),</span>  <span class="c1"># single job</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">output_dir</span><span class="p">,</span> <span class="n">LOG_PATTERN</span><span class="p">)</span>  <span class="c1"># old log pattern manual run</span>
+            <span class="p">]</span>
+            <span class="k">for</span> <span class="n">log_pattern</span> <span class="ow">in</span> <span class="n">patterns</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">logs</span><span class="p">[</span><span class="n">job_task_id</span><span class="p">]</span> <span class="o">=</span> <span class="n">LogDetails</span><span class="p">(</span><span class="n">unique_exists</span><span class="p">(</span><span class="n">log_pattern</span><span class="p">,</span> <span class="n">allow_none</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">get_newest</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
+                <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
+                    <span class="k">pass</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">break</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">patterns</span> <span class="o">=</span> <span class="p">[</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">output_dir</span><span class="p">,</span> <span class="n">SGE_LOG_PATTERN</span><span class="p">),</span>  <span class="c1"># single job</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">output_dir</span><span class="p">,</span> <span class="n">LOG_PATTERN</span><span class="p">)</span>  <span class="c1"># manual run</span>
+            <span class="p">]</span>
+            <span class="k">for</span> <span class="n">log_pattern</span> <span class="ow">in</span> <span class="n">patterns</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">logs</span><span class="p">[</span><span class="n">job_task_id</span><span class="p">]</span> <span class="o">=</span> <span class="n">LogDetails</span><span class="p">(</span><span class="n">unique_exists</span><span class="p">(</span><span class="n">log_pattern</span><span class="p">,</span> <span class="n">allow_none</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">get_newest</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
+                <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
+                    <span class="k">pass</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">break</span></div></div>
+
+
+<div class="viewcode-block" id="LibraryRun"><a class="viewcode-back" href="../../auto/mavis.checker.html#mavis.checker.LibraryRun">[docs]</a><span class="k">class</span> <span class="nc">LibraryRun</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    stores run information for pipeline steps that are run on individual libraries</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">output_dir</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">output_dir</span> <span class="o">=</span> <span class="n">output_dir</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">max_run_time</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">total_run_time</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">avg_run_time</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">log_parse_error</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">cluster</span> <span class="o">=</span> <span class="n">PipelineStageRun</span><span class="p">(</span><span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">CLUSTER</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">output_dir</span><span class="p">,</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">CLUSTER</span><span class="p">))</span>
+        <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">cluster</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">validation</span> <span class="o">=</span> <span class="n">PipelineStageRun</span><span class="p">(</span><span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">VALIDATE</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">output_dir</span><span class="p">,</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">VALIDATE</span><span class="p">))</span>
+        <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">validation</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">annotation</span> <span class="o">=</span> <span class="n">PipelineStageRun</span><span class="p">(</span><span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">ANNOTATE</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">output_dir</span><span class="p">,</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">ANNOTATE</span><span class="p">))</span>
+        <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">annotation</span> <span class="o">=</span> <span class="kc">None</span>
+
+<div class="viewcode-block" id="LibraryRun.report"><a class="viewcode-back" href="../../auto/mavis.checker.html#mavis.checker.LibraryRun.report">[docs]</a>    <span class="k">def</span> <span class="nf">report</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">max_run_time</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">total_run_time</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">avg_run_time</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="n">collective_job_ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cluster</span><span class="o">.</span><span class="n">job_ids</span> <span class="o">|</span> <span class="bp">self</span><span class="o">.</span><span class="n">annotation</span><span class="o">.</span><span class="n">job_ids</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">validation</span><span class="p">:</span>
+            <span class="n">collective_job_ids</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">validation</span><span class="o">.</span><span class="n">job_ids</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">validation</span><span class="o">.</span><span class="n">job_ids</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">collective_job_ids</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cluster</span><span class="o">.</span><span class="n">job_ids</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">collective_job_ids</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">annotation</span><span class="o">.</span><span class="n">job_ids</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">collective_job_ids</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">cluster</span> <span class="ow">or</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">cluster</span><span class="o">.</span><span class="n">report</span><span class="p">(</span><span class="n">indent_level</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">validation</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">validation</span><span class="o">.</span><span class="n">report</span><span class="p">(</span><span class="n">indent_level</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">annotation</span> <span class="ow">or</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">annotation</span><span class="o">.</span><span class="n">report</span><span class="p">(</span><span class="n">indent_level</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cluster</span><span class="o">.</span><span class="n">max_run_time</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">max_run_time</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cluster</span><span class="o">.</span><span class="n">max_run_time</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">total_run_time</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cluster</span><span class="o">.</span><span class="n">total_run_time</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">avg_run_time</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cluster</span><span class="o">.</span><span class="n">avg_run_time</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">log_parse_error</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">for</span> <span class="n">stage</span> <span class="ow">in</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">validation</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">annotation</span><span class="p">]:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">stage</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="k">if</span> <span class="n">stage</span><span class="o">.</span><span class="n">max_run_time</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">max_run_time</span> <span class="o">+=</span> <span class="n">stage</span><span class="o">.</span><span class="n">max_run_time</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">total_run_time</span> <span class="o">+=</span> <span class="n">stage</span><span class="o">.</span><span class="n">total_run_time</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">avg_run_time</span> <span class="o">+=</span> <span class="n">stage</span><span class="o">.</span><span class="n">avg_run_time</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">log_parse_error</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">return</span> <span class="n">result</span></div></div>
+
+
+<div class="viewcode-block" id="convert_set_to_ranges"><a class="viewcode-back" href="../../auto/mavis.checker.html#mavis.checker.convert_set_to_ranges">[docs]</a><span class="k">def</span> <span class="nf">convert_set_to_ranges</span><span class="p">(</span><span class="n">input_set</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    for a set of integers returns a list of consecutive ranges as strings</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        &gt;&gt;&gt; convert_set_to_ranges({1, 2, 3, 7, 9, 10, 11})</span>
+<span class="sd">        [&#39;1-3&#39;, &#39;7&#39;, &#39;10-11&#39;]</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">ranges</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">curr</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">input_set</span><span class="p">)):</span>
+        <span class="k">if</span> <span class="n">ranges</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">ranges</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span> <span class="o">==</span> <span class="n">curr</span><span class="p">:</span>
+                <span class="n">ranges</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">ranges</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="n">curr</span><span class="p">)</span>
+                <span class="k">continue</span>
+        <span class="n">ranges</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">curr</span><span class="p">,</span> <span class="n">curr</span><span class="p">))</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span> <span class="ow">in</span> <span class="n">ranges</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">start</span> <span class="o">==</span> <span class="n">end</span><span class="p">:</span>
+            <span class="n">result</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">start</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">result</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">start</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;-&#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">end</span><span class="p">))</span>
+    <span class="k">return</span> <span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">result</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="check_completion"><a class="viewcode-back" href="../../auto/mavis.checker.html#mavis.checker.check_completion">[docs]</a><span class="k">def</span> <span class="nf">check_completion</span><span class="p">(</span><span class="n">target_dir</span><span class="p">,</span> <span class="n">skipped_stages</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Args:</span>
+<span class="sd">        target_dir (str): path to the main pipeline output directory</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">libraries</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">summary</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">pairing</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">skipped_stages</span><span class="p">:</span>
+        <span class="n">skipped_stages</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+
+    <span class="c1"># check the library steps first</span>
+    <span class="k">for</span> <span class="n">subdir</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">target_dir</span><span class="p">,</span> <span class="s1">&#39;*&#39;</span><span class="p">))):</span>
+        <span class="n">stage_name</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">subdir</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">stage_name</span> <span class="o">==</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">PAIR</span><span class="p">:</span>
+            <span class="n">pairing</span> <span class="o">=</span> <span class="n">PipelineStageRun</span><span class="p">(</span><span class="n">stage_name</span><span class="p">,</span> <span class="n">subdir</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">stage_name</span> <span class="o">==</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">SUMMARY</span><span class="p">:</span>
+            <span class="n">summary</span> <span class="o">=</span> <span class="n">PipelineStageRun</span><span class="p">(</span><span class="n">stage_name</span><span class="p">,</span> <span class="n">subdir</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">LIBRARY_DIR_REGEX</span><span class="p">,</span> <span class="n">stage_name</span><span class="p">):</span>
+            <span class="n">libraries</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">LibraryRun</span><span class="p">(</span><span class="n">stage_name</span><span class="p">,</span> <span class="n">subdir</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">log</span><span class="p">(</span><span class="s1">&#39;ignoring dir&#39;</span><span class="p">,</span> <span class="n">subdir</span><span class="p">)</span>
+
+    <span class="n">success_flag</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">max_run_time</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">total_run_time</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">log_parse_error</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="k">for</span> <span class="n">lib</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">libraries</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="o">.</span><span class="n">name</span><span class="p">):</span>
+        <span class="n">log</span><span class="p">(</span><span class="s1">&#39;checking library:&#39;</span><span class="p">,</span> <span class="n">lib</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">lib</span><span class="o">.</span><span class="n">report</span><span class="p">():</span>
+            <span class="n">success_flag</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">if</span> <span class="n">lib</span><span class="o">.</span><span class="n">max_run_time</span><span class="p">:</span>
+            <span class="n">max_run_time</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">lib</span><span class="o">.</span><span class="n">max_run_time</span><span class="p">)</span>
+            <span class="n">total_run_time</span> <span class="o">+=</span> <span class="n">lib</span><span class="o">.</span><span class="n">total_run_time</span>
+        <span class="k">if</span> <span class="n">lib</span><span class="o">.</span><span class="n">log_parse_error</span><span class="p">:</span>
+            <span class="n">log_parse_error</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">max_run_time</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">max_run_time</span> <span class="o">+</span> <span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">pairing</span><span class="o">.</span><span class="n">report</span><span class="p">(</span><span class="n">time_stamp</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="n">success_flag</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">summary</span><span class="o">.</span><span class="n">report</span><span class="p">(</span><span class="n">time_stamp</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="n">success_flag</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="k">for</span> <span class="n">stage</span> <span class="ow">in</span> <span class="p">[</span><span class="n">summary</span><span class="p">,</span> <span class="n">pairing</span><span class="p">]:</span>
+        <span class="k">if</span> <span class="n">stage</span><span class="o">.</span><span class="n">max_run_time</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">max_run_time</span> <span class="o">+=</span> <span class="n">stage</span><span class="o">.</span><span class="n">max_run_time</span>
+            <span class="n">total_run_time</span> <span class="o">+=</span> <span class="n">stage</span><span class="o">.</span><span class="n">total_run_time</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">log_parse_error</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">log</span><span class="p">((</span><span class="s1">&#39;&#39;</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">log_parse_error</span> <span class="k">else</span> <span class="s1">&#39;min &#39;</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;parallel run time (s):&#39;</span><span class="p">,</span> <span class="n">max_run_time</span><span class="p">)</span>
+    <span class="n">log</span><span class="p">((</span><span class="s1">&#39;&#39;</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">log_parse_error</span> <span class="k">else</span> <span class="s1">&#39;min &#39;</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;total run time (s):&#39;</span><span class="p">,</span> <span class="n">total_run_time</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">success_flag</span></div>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2017, creisle.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../',
+            VERSION:'',
+            LANGUAGE:'None',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

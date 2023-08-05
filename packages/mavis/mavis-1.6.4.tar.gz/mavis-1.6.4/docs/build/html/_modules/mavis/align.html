@@ -1,0 +1,698 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>mavis.align &mdash; MAVIS  documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  
+
+  
+    <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+
+  
+        <link rel="author" title="About these documents"
+              href="../../about.html"/>
+        <link rel="index" title="Index"
+              href="../../genindex.html"/>
+        <link rel="search" title="Search" href="../../search.html"/>
+    <link rel="top" title="MAVIS  documentation" href="../../index.html"/>
+        <link rel="up" title="Module code" href="../index.html"/> 
+
+  
+  <script src="../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../index.html" class="icon icon-home"> MAVIS
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                1.6.4
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../about.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../pipeline.html">Running the Pipeline</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../mavis_input.html">MAVIS standard input file format</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../reference.html">Reference Input Files</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../configuration.html">Configuration and Settings</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tools_supported.html">Supported SV Callers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../illustrations.html">Illustrations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../faqs.html">Frequently Asked Questions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../theory.html">Theory and Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../development.html">Guidelines for Contributors</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../package.html">Package Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../citations.html">Literature</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">MAVIS</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../index.html">Module code</a> &raquo;</li>
+        
+      <li>mavis.align</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for mavis.align</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Should take in a sam file from a aligner like bwa aln or bwa mem and convert it into a</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">from</span> <span class="nn">copy</span> <span class="k">import</span> <span class="n">copy</span>
+<span class="kn">import</span> <span class="nn">itertools</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">subprocess</span>
+<span class="kn">import</span> <span class="nn">warnings</span>
+
+<span class="kn">import</span> <span class="nn">pysam</span>
+
+<span class="kn">from</span> <span class="nn">.bam</span> <span class="k">import</span> <span class="n">cigar</span> <span class="k">as</span> <span class="n">_cigar</span>
+<span class="kn">from</span> <span class="nn">.bam</span> <span class="k">import</span> <span class="n">read</span> <span class="k">as</span> <span class="n">_read</span>
+<span class="kn">from</span> <span class="nn">.breakpoint</span> <span class="k">import</span> <span class="n">BreakpointPair</span><span class="p">,</span> <span class="n">Breakpoint</span>
+<span class="kn">from</span> <span class="nn">.constants</span> <span class="k">import</span> <span class="n">CIGAR</span><span class="p">,</span> <span class="n">COLUMNS</span><span class="p">,</span> <span class="n">MavisNamespace</span><span class="p">,</span> <span class="n">ORIENT</span><span class="p">,</span> <span class="n">reverse_complement</span><span class="p">,</span> <span class="n">STRAND</span><span class="p">,</span> <span class="n">SVTYPE</span><span class="p">,</span> <span class="n">NA_MAPPING_QUALITY</span>
+<span class="kn">from</span> <span class="nn">.error</span> <span class="k">import</span> <span class="n">InvalidRearrangement</span>
+<span class="kn">from</span> <span class="nn">.interval</span> <span class="k">import</span> <span class="n">Interval</span>
+<span class="kn">from</span> <span class="nn">.util</span> <span class="k">import</span> <span class="n">devnull</span>
+
+
+<span class="n">SUPPORTED_ALIGNER</span> <span class="o">=</span> <span class="n">MavisNamespace</span><span class="p">(</span><span class="n">BWA_MEM</span><span class="o">=</span><span class="s1">&#39;bwa mem&#39;</span><span class="p">,</span> <span class="n">BLAT</span><span class="o">=</span><span class="s1">&#39;blat&#39;</span><span class="p">,</span> <span class="vm">__name__</span><span class="o">=</span><span class="s1">&#39;~mavis.align.SUPPORTED_ALIGNER&#39;</span><span class="p">)</span>
+<span class="sd">&quot;&quot;&quot;:class:`~mavis.constants.MavisNamespace`: supported aligners</span>
+
+<span class="sd">- :term:`blat`</span>
+<span class="sd">- :term:`bwa mem&lt;BWA&gt;`</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+
+<div class="viewcode-block" id="SplitAlignment"><a class="viewcode-back" href="../../auto/mavis.align.html#mavis.align.SplitAlignment">[docs]</a><span class="k">class</span> <span class="nc">SplitAlignment</span><span class="p">(</span><span class="n">BreakpointPair</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">pos</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">read1</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;read1&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">read2</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;read2&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">query_sequence</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">read1</span><span class="o">.</span><span class="n">query_sequence</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">query_name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">read1</span><span class="o">.</span><span class="n">query_name</span>
+        <span class="n">BreakpointPair</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">pos</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+<div class="viewcode-block" id="SplitAlignment.query_coverage_read1"><a class="viewcode-back" href="../../auto/mavis.align.html#mavis.align.SplitAlignment.query_coverage_read1">[docs]</a>    <span class="k">def</span> <span class="nf">query_coverage_read1</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">query_coverage_interval</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">read1</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="SplitAlignment.query_coverage_read2"><a class="viewcode-back" href="../../auto/mavis.align.html#mavis.align.SplitAlignment.query_coverage_read2">[docs]</a>    <span class="k">def</span> <span class="nf">query_coverage_read2</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">seqlen</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">read1</span><span class="o">.</span><span class="n">query_sequence</span><span class="p">)</span>
+        <span class="n">qc1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">query_coverage_read1</span><span class="p">()</span>
+        <span class="n">qc2</span> <span class="o">=</span> <span class="n">qc1</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">read2</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">qc2</span> <span class="o">=</span> <span class="n">query_coverage_interval</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">read2</span><span class="p">)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">read2</span><span class="o">.</span><span class="n">is_reverse</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">read1</span><span class="o">.</span><span class="n">is_reverse</span><span class="p">:</span>
+                <span class="n">qc2</span> <span class="o">=</span> <span class="n">Interval</span><span class="p">(</span><span class="n">seqlen</span> <span class="o">-</span> <span class="n">qc2</span><span class="o">.</span><span class="n">end</span><span class="p">,</span> <span class="n">seqlen</span> <span class="o">-</span> <span class="n">qc2</span><span class="o">.</span><span class="n">start</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">qc2</span></div>
+
+<div class="viewcode-block" id="SplitAlignment.query_coverage"><a class="viewcode-back" href="../../auto/mavis.align.html#mavis.align.SplitAlignment.query_coverage">[docs]</a>    <span class="k">def</span> <span class="nf">query_coverage</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        interval representing the total region of the input sequence that is covered by the combination of alignments</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">read2</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">query_coverage_read1</span><span class="p">()</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">query_coverage_read1</span><span class="p">()</span> <span class="o">|</span> <span class="bp">self</span><span class="o">.</span><span class="n">query_coverage_read2</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="SplitAlignment.query_consumption"><a class="viewcode-back" href="../../auto/mavis.align.html#mavis.align.SplitAlignment.query_consumption">[docs]</a>    <span class="k">def</span> <span class="nf">query_consumption</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        fraction of the query sequence which is aligned (everything not soft-clipped) in either alignment</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">read2</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">Interval</span><span class="o">.</span><span class="n">overlaps</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">query_coverage_read1</span><span class="p">(),</span> <span class="bp">self</span><span class="o">.</span><span class="n">query_coverage_read2</span><span class="p">()):</span>
+            <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">query_coverage</span><span class="p">())</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">read1</span><span class="o">.</span><span class="n">query_length</span>
+        <span class="k">return</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">query_coverage_read1</span><span class="p">())</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">query_coverage_read2</span><span class="p">()))</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">read1</span><span class="o">.</span><span class="n">query_length</span></div>
+
+<div class="viewcode-block" id="SplitAlignment.query_overlap_extension"><a class="viewcode-back" href="../../auto/mavis.align.html#mavis.align.SplitAlignment.query_overlap_extension">[docs]</a>    <span class="k">def</span> <span class="nf">query_overlap_extension</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">read2</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">max_init_overlap</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">query_coverage_read1</span><span class="p">()),</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">query_coverage_read2</span><span class="p">()))</span>
+            <span class="n">total_overlap</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">query_coverage</span><span class="p">())</span> <span class="o">-</span> <span class="n">max_init_overlap</span>
+            <span class="k">return</span> <span class="n">total_overlap</span>
+        <span class="k">return</span> <span class="mi">0</span></div>
+
+<div class="viewcode-block" id="SplitAlignment.score"><a class="viewcode-back" href="../../auto/mavis.align.html#mavis.align.SplitAlignment.score">[docs]</a>    <span class="k">def</span> <span class="nf">score</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">consec_bonus</span><span class="o">=</span><span class="mi">10</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        scores events between 0 and 1 penalizing events interrupting the alignment. Counts a split</span>
+<span class="sd">        alignment as a single event</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">def</span> <span class="nf">score_matches</span><span class="p">(</span><span class="n">cigar</span><span class="p">):</span>
+            <span class="k">return</span> <span class="nb">sum</span><span class="p">([</span><span class="n">v</span> <span class="o">+</span> <span class="p">(</span><span class="n">v</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">consec_bonus</span> <span class="k">for</span> <span class="n">s</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">cigar</span> <span class="k">if</span> <span class="n">s</span> <span class="o">==</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">EQ</span><span class="p">])</span>
+        <span class="n">score</span> <span class="o">=</span> <span class="n">score_matches</span><span class="p">(</span><span class="n">_cigar</span><span class="o">.</span><span class="n">join</span><span class="p">([(</span><span class="n">s</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span><span class="p">,</span> <span class="n">f</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">read1</span><span class="o">.</span><span class="n">cigar</span> <span class="k">if</span> <span class="n">s</span> <span class="o">!=</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">N</span><span class="p">]))</span>
+
+        <span class="n">max_score</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">([</span><span class="n">v</span> <span class="k">for</span> <span class="n">s</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">read1</span><span class="o">.</span><span class="n">cigar</span> <span class="k">if</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">_cigar</span><span class="o">.</span><span class="n">ALIGNED_STATES</span><span class="p">])</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">read2</span><span class="p">:</span>
+            <span class="n">max_score</span> <span class="o">+=</span> <span class="nb">sum</span><span class="p">([</span><span class="n">v</span> <span class="k">for</span> <span class="n">s</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">read2</span><span class="o">.</span><span class="n">cigar</span> <span class="k">if</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">_cigar</span><span class="o">.</span><span class="n">ALIGNED_STATES</span><span class="p">])</span>
+        <span class="n">max_score</span> <span class="o">=</span> <span class="n">score_matches</span><span class="p">([(</span><span class="n">CIGAR</span><span class="o">.</span><span class="n">EQ</span><span class="p">,</span> <span class="n">max_score</span><span class="p">)])</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">read2</span><span class="p">:</span>
+            <span class="n">score</span> <span class="o">+=</span> <span class="n">score_matches</span><span class="p">([(</span><span class="n">s</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span><span class="p">,</span> <span class="n">f</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">read2</span><span class="o">.</span><span class="n">cigar</span> <span class="k">if</span> <span class="n">s</span> <span class="o">!=</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">N</span><span class="p">])</span>
+        <span class="k">return</span> <span class="n">score</span> <span class="o">/</span> <span class="n">max_score</span></div>
+
+<div class="viewcode-block" id="SplitAlignment.mapping_quality"><a class="viewcode-back" href="../../auto/mavis.align.html#mavis.align.SplitAlignment.mapping_quality">[docs]</a>    <span class="k">def</span> <span class="nf">mapping_quality</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">read2</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">Interval</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">read1</span><span class="o">.</span><span class="n">mapping_quality</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">Interval</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">read1</span><span class="o">.</span><span class="n">mapping_quality</span><span class="p">)</span> <span class="o">|</span> <span class="n">Interval</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">read2</span><span class="o">.</span><span class="n">mapping_quality</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="SplitAlignment.breakpoint_contig_remapped_depth"><a class="viewcode-back" href="../../auto/mavis.align.html#mavis.align.SplitAlignment.breakpoint_contig_remapped_depth">[docs]</a>    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">breakpoint_contig_remapped_depth</span><span class="p">(</span><span class="n">breakpoint</span><span class="p">,</span> <span class="n">contig</span><span class="p">,</span> <span class="n">read</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">breakpoint</span><span class="o">.</span><span class="n">chr</span> <span class="o">!=</span> <span class="n">read</span><span class="o">.</span><span class="n">reference_name</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">AssertionError</span><span class="p">(</span><span class="s1">&#39;breakpoint chromosome does not match read reference&#39;</span><span class="p">,</span> <span class="n">breakpoint</span><span class="p">,</span> <span class="n">read</span><span class="o">.</span><span class="n">reference_name</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">breakpoint</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s1">&#39;only applies to exact breakpoint calls&#39;</span><span class="p">)</span>
+        <span class="c1"># get the reference positions for each breakpoint interval from the breakpointpair</span>
+        <span class="c1"># convert this to the query intervals using the alignment</span>
+        <span class="c1"># for each query interval calculate the read coverage as a pileup over the distance</span>
+        <span class="n">st</span> <span class="o">=</span> <span class="n">read</span><span class="o">.</span><span class="n">reference_start</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="n">end</span> <span class="o">=</span> <span class="n">read</span><span class="o">.</span><span class="n">reference_end</span>
+        <span class="k">if</span> <span class="n">breakpoint</span><span class="o">.</span><span class="n">orient</span> <span class="o">==</span> <span class="n">ORIENT</span><span class="o">.</span><span class="n">LEFT</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">breakpoint</span><span class="o">.</span><span class="n">start</span> <span class="o">&lt;</span> <span class="n">st</span><span class="p">:</span>
+                <span class="k">return</span> <span class="mi">0</span>
+            <span class="n">end</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">breakpoint</span><span class="o">.</span><span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">breakpoint</span><span class="o">.</span><span class="n">orient</span> <span class="o">==</span> <span class="n">ORIENT</span><span class="o">.</span><span class="n">RIGHT</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">breakpoint</span><span class="o">.</span><span class="n">start</span> <span class="o">&gt;</span> <span class="n">end</span><span class="p">:</span>
+                <span class="k">return</span> <span class="mi">0</span>
+            <span class="n">st</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">st</span><span class="p">,</span> <span class="n">breakpoint</span><span class="o">.</span><span class="n">start</span><span class="p">)</span>
+        <span class="n">qrange</span> <span class="o">=</span> <span class="n">_read</span><span class="o">.</span><span class="n">map_ref_range_to_query_range</span><span class="p">(</span><span class="n">read</span><span class="p">,</span> <span class="n">Interval</span><span class="p">(</span><span class="n">st</span><span class="p">,</span> <span class="n">end</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">contig</span><span class="o">.</span><span class="n">remap_depth</span><span class="p">(</span><span class="n">qrange</span><span class="p">)</span></div></div>
+
+
+<div class="viewcode-block" id="query_coverage_interval"><a class="viewcode-back" href="../../auto/mavis.align.html#mavis.align.query_coverage_interval">[docs]</a><span class="k">def</span> <span class="nf">query_coverage_interval</span><span class="p">(</span><span class="n">read</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns:</span>
+<span class="sd">        :class:`~mavis.interval.Interval`: The portion of the original query sequence that is aligned by this read</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">seq</span> <span class="o">=</span> <span class="n">read</span><span class="o">.</span><span class="n">query_sequence</span>
+    <span class="n">st</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">end</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">seq</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>
+    <span class="k">if</span> <span class="n">read</span><span class="o">.</span><span class="n">cigar</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">S</span><span class="p">:</span>
+        <span class="n">st</span> <span class="o">+=</span> <span class="n">read</span><span class="o">.</span><span class="n">cigar</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">read</span><span class="o">.</span><span class="n">cigar</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">S</span><span class="p">:</span>
+        <span class="n">end</span> <span class="o">-=</span> <span class="n">read</span><span class="o">.</span><span class="n">cigar</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">Interval</span><span class="p">(</span><span class="n">st</span><span class="p">,</span> <span class="n">end</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="convert_to_duplication"><a class="viewcode-back" href="../../auto/mavis.align.html#mavis.align.convert_to_duplication">[docs]</a><span class="k">def</span> <span class="nf">convert_to_duplication</span><span class="p">(</span><span class="n">alignment</span><span class="p">,</span> <span class="n">reference_genome</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Given a breakpoint call, tests if the untemplated sequences matches the preceding</span>
+<span class="sd">    reference sequence. If it does this is annotated as a duplication and the new</span>
+<span class="sd">    breakpoint pair is returned. If not, then the original breakpoint pair is returned</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># assumes that events with deletions cannot be duplications</span>
+    <span class="k">if</span> <span class="n">alignment</span><span class="o">.</span><span class="n">untemplated_seq</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">alignment</span><span class="o">.</span><span class="n">interchromosomal</span> <span class="ow">and</span> <span class="n">alignment</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">end</span> <span class="o">==</span> <span class="n">alignment</span><span class="o">.</span><span class="n">break2</span><span class="o">.</span><span class="n">start</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="c1"># must be more than half the length or better to call it an insertion</span>
+        <span class="k">for</span> <span class="n">dup_len</span> <span class="ow">in</span> <span class="nb">reversed</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">alignment</span><span class="o">.</span><span class="n">untemplated_seq</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">alignment</span><span class="o">.</span><span class="n">untemplated_seq</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)):</span>
+            <span class="n">refseq</span> <span class="o">=</span> <span class="n">reference_genome</span><span class="p">[</span><span class="n">alignment</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">chr</span><span class="p">]</span><span class="o">.</span><span class="n">seq</span><span class="p">[</span><span class="n">alignment</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">start</span> <span class="o">-</span> <span class="n">dup_len</span><span class="p">:</span><span class="n">alignment</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">start</span><span class="p">]</span>
+            <span class="n">refseq</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">refseq</span><span class="p">)</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">refseq</span> <span class="o">!=</span> <span class="n">alignment</span><span class="o">.</span><span class="n">untemplated_seq</span><span class="p">[:</span><span class="n">dup_len</span><span class="p">]:</span>
+                <span class="k">continue</span>
+
+            <span class="n">result</span> <span class="o">=</span> <span class="n">SplitAlignment</span><span class="p">(</span>
+                <span class="n">Breakpoint</span><span class="p">(</span><span class="n">alignment</span><span class="o">.</span><span class="n">break2</span><span class="o">.</span><span class="n">chr</span><span class="p">,</span> <span class="n">alignment</span><span class="o">.</span><span class="n">break2</span><span class="o">.</span><span class="n">start</span> <span class="o">-</span> <span class="n">dup_len</span><span class="p">,</span> <span class="n">orient</span><span class="o">=</span><span class="n">ORIENT</span><span class="o">.</span><span class="n">RIGHT</span><span class="p">,</span> <span class="n">strand</span><span class="o">=</span><span class="n">alignment</span><span class="o">.</span><span class="n">break2</span><span class="o">.</span><span class="n">strand</span><span class="p">),</span>
+                <span class="n">Breakpoint</span><span class="p">(</span><span class="n">alignment</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">chr</span><span class="p">,</span> <span class="n">alignment</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">start</span><span class="p">,</span> <span class="n">orient</span><span class="o">=</span><span class="n">ORIENT</span><span class="o">.</span><span class="n">LEFT</span><span class="p">,</span> <span class="n">strand</span><span class="o">=</span><span class="n">alignment</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">strand</span><span class="p">),</span>
+                <span class="n">untemplated_seq</span><span class="o">=</span><span class="n">alignment</span><span class="o">.</span><span class="n">untemplated_seq</span><span class="p">[</span><span class="n">dup_len</span><span class="p">:],</span>
+                <span class="n">opposing_strands</span><span class="o">=</span><span class="n">alignment</span><span class="o">.</span><span class="n">opposing_strands</span><span class="p">,</span>
+                <span class="n">data</span><span class="o">=</span><span class="n">alignment</span><span class="o">.</span><span class="n">data</span><span class="p">,</span>
+                <span class="n">read1</span><span class="o">=</span><span class="n">alignment</span><span class="o">.</span><span class="n">read1</span><span class="p">,</span>
+                <span class="n">read2</span><span class="o">=</span><span class="n">alignment</span><span class="o">.</span><span class="n">read2</span>
+            <span class="p">)</span>
+            <span class="k">return</span> <span class="n">result</span>
+    <span class="k">return</span> <span class="n">alignment</span></div>
+
+
+<div class="viewcode-block" id="call_read_events"><a class="viewcode-back" href="../../auto/mavis.align.html#mavis.align.call_read_events">[docs]</a><span class="k">def</span> <span class="nf">call_read_events</span><span class="p">(</span><span class="n">read</span><span class="p">,</span> <span class="n">secondary_read</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Given a read, return breakpoint pairs representing all putative events</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">events</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">reference_pos</span> <span class="o">=</span> <span class="n">read</span><span class="o">.</span><span class="n">reference_start</span>
+    <span class="n">query_pos</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">curr_event</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">for</span> <span class="n">state</span><span class="p">,</span> <span class="n">freq</span> <span class="ow">in</span> <span class="n">read</span><span class="o">.</span><span class="n">cigar</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">state</span> <span class="ow">in</span> <span class="n">_cigar</span><span class="o">.</span><span class="n">QUERY_ALIGNED_STATES</span> <span class="o">&amp;</span> <span class="n">_cigar</span><span class="o">.</span><span class="n">REFERENCE_ALIGNED_STATES</span><span class="p">:</span>
+            <span class="n">query_pos</span> <span class="o">+=</span> <span class="n">freq</span>
+            <span class="n">reference_pos</span> <span class="o">+=</span> <span class="n">freq</span>
+            <span class="k">if</span> <span class="n">curr_event</span><span class="p">:</span>
+                <span class="n">events</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">curr_event</span><span class="p">)</span>
+                <span class="n">curr_event</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">elif</span> <span class="n">state</span> <span class="o">==</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">S</span><span class="p">:</span>
+            <span class="n">query_pos</span> <span class="o">+=</span> <span class="n">freq</span>
+            <span class="k">if</span> <span class="n">curr_event</span><span class="p">:</span>
+                <span class="n">events</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">curr_event</span><span class="p">)</span>
+                <span class="n">curr_event</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">elif</span> <span class="n">state</span> <span class="ow">in</span> <span class="n">_cigar</span><span class="o">.</span><span class="n">REFERENCE_ALIGNED_STATES</span><span class="p">:</span>  <span class="c1"># del</span>
+            <span class="k">if</span> <span class="n">curr_event</span><span class="p">:</span>
+                <span class="n">ref_start</span><span class="p">,</span> <span class="n">delsize</span><span class="p">,</span> <span class="n">insseq</span> <span class="o">=</span> <span class="n">curr_event</span>
+                <span class="n">curr_event</span> <span class="o">=</span> <span class="p">(</span><span class="n">ref_start</span><span class="p">,</span> <span class="n">delsize</span> <span class="o">+</span> <span class="n">freq</span><span class="p">,</span> <span class="n">insseq</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">curr_event</span> <span class="o">=</span> <span class="p">(</span><span class="n">reference_pos</span><span class="p">,</span> <span class="n">freq</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span>
+            <span class="n">reference_pos</span> <span class="o">+=</span> <span class="n">freq</span>
+        <span class="k">elif</span> <span class="n">state</span> <span class="ow">in</span> <span class="n">_cigar</span><span class="o">.</span><span class="n">QUERY_ALIGNED_STATES</span><span class="p">:</span>  <span class="c1"># ins</span>
+            <span class="k">if</span> <span class="n">curr_event</span><span class="p">:</span>
+                <span class="n">ref_start</span><span class="p">,</span> <span class="n">delsize</span><span class="p">,</span> <span class="n">insseq</span> <span class="o">=</span> <span class="n">curr_event</span>
+                <span class="n">curr_event</span> <span class="o">=</span> <span class="p">(</span><span class="n">ref_start</span><span class="p">,</span> <span class="n">delsize</span><span class="p">,</span> <span class="n">insseq</span> <span class="o">+</span> <span class="n">read</span><span class="o">.</span><span class="n">query_sequence</span><span class="p">[</span><span class="n">query_pos</span><span class="p">:</span> <span class="n">query_pos</span> <span class="o">+</span> <span class="n">freq</span><span class="p">])</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">curr_event</span> <span class="o">=</span> <span class="p">(</span><span class="n">reference_pos</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">read</span><span class="o">.</span><span class="n">query_sequence</span><span class="p">[</span><span class="n">query_pos</span><span class="p">:</span> <span class="n">query_pos</span> <span class="o">+</span> <span class="n">freq</span><span class="p">])</span>
+            <span class="n">query_pos</span> <span class="o">+=</span> <span class="n">freq</span>
+        <span class="k">elif</span> <span class="n">state</span> <span class="o">!=</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">H</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s1">&#39;Should never happen. Invalid cigar state is not reference or query aligned&#39;</span><span class="p">,</span> <span class="n">state</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">curr_event</span><span class="p">:</span>
+        <span class="n">events</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">curr_event</span><span class="p">)</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">strand</span> <span class="o">=</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">NEG</span> <span class="k">if</span> <span class="n">read</span><span class="o">.</span><span class="n">is_reverse</span> <span class="k">else</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">POS</span>
+    <span class="k">for</span> <span class="n">ref_start</span><span class="p">,</span> <span class="n">delsize</span><span class="p">,</span> <span class="n">insseq</span> <span class="ow">in</span> <span class="n">events</span><span class="p">:</span>
+        <span class="n">bpp</span> <span class="o">=</span> <span class="n">SplitAlignment</span><span class="p">(</span>
+            <span class="n">Breakpoint</span><span class="p">(</span><span class="n">read</span><span class="o">.</span><span class="n">reference_name</span><span class="p">,</span> <span class="n">ref_start</span><span class="p">,</span> <span class="n">orient</span><span class="o">=</span><span class="n">ORIENT</span><span class="o">.</span><span class="n">LEFT</span><span class="p">,</span> <span class="n">strand</span><span class="o">=</span><span class="n">strand</span><span class="p">),</span>
+            <span class="n">Breakpoint</span><span class="p">(</span><span class="n">read</span><span class="o">.</span><span class="n">reference_name</span><span class="p">,</span> <span class="n">ref_start</span> <span class="o">+</span> <span class="n">delsize</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">orient</span><span class="o">=</span><span class="n">ORIENT</span><span class="o">.</span><span class="n">RIGHT</span><span class="p">,</span> <span class="n">strand</span><span class="o">=</span><span class="n">strand</span><span class="p">),</span>
+            <span class="n">untemplated_seq</span><span class="o">=</span><span class="n">insseq</span><span class="p">,</span> <span class="n">read1</span><span class="o">=</span><span class="n">read</span><span class="p">,</span> <span class="n">read2</span><span class="o">=</span><span class="n">secondary_read</span>
+        <span class="p">)</span>
+        <span class="n">result</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">bpp</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">result</span></div>
+
+
+<div class="viewcode-block" id="read_breakpoint"><a class="viewcode-back" href="../../auto/mavis.align.html#mavis.align.read_breakpoint">[docs]</a><span class="k">def</span> <span class="nf">read_breakpoint</span><span class="p">(</span><span class="n">read</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    convert a given read to a single breakpoint</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">start_softclipping</span> <span class="o">=</span> <span class="n">read</span><span class="o">.</span><span class="n">cigar</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span> <span class="k">if</span> <span class="n">read</span><span class="o">.</span><span class="n">cigar</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="ow">in</span> <span class="n">_cigar</span><span class="o">.</span><span class="n">CLIPPING_STATE</span> <span class="k">else</span> <span class="mi">0</span>
+    <span class="n">end_softclipping</span> <span class="o">=</span> <span class="n">read</span><span class="o">.</span><span class="n">cigar</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span> <span class="k">if</span> <span class="n">read</span><span class="o">.</span><span class="n">cigar</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="ow">in</span> <span class="n">_cigar</span><span class="o">.</span><span class="n">CLIPPING_STATE</span> <span class="k">else</span> <span class="mi">0</span>
+
+    <span class="k">if</span> <span class="n">start_softclipping</span> <span class="o">==</span> <span class="n">end_softclipping</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">AssertionError</span><span class="p">(</span><span class="s1">&#39;softclipping is equal and therefore orientation cannot be determined&#39;</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">start_softclipping</span> <span class="o">+</span> <span class="n">end_softclipping</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">AssertionError</span><span class="p">(</span><span class="s1">&#39;no softclipping, therefore no orientation can be called&#39;</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">start_softclipping</span> <span class="o">&gt;</span> <span class="n">end_softclipping</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">Breakpoint</span><span class="p">(</span>
+            <span class="n">read</span><span class="o">.</span><span class="n">reference_name</span><span class="p">,</span> <span class="n">read</span><span class="o">.</span><span class="n">reference_start</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span>
+            <span class="n">orient</span><span class="o">=</span><span class="n">ORIENT</span><span class="o">.</span><span class="n">RIGHT</span><span class="p">,</span>
+            <span class="n">strand</span><span class="o">=</span><span class="n">STRAND</span><span class="o">.</span><span class="n">NEG</span> <span class="k">if</span> <span class="n">read</span><span class="o">.</span><span class="n">is_reverse</span> <span class="k">else</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">POS</span><span class="p">,</span>
+            <span class="n">seq</span><span class="o">=</span><span class="n">read</span><span class="o">.</span><span class="n">query_alignment_sequence</span>
+        <span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">Breakpoint</span><span class="p">(</span>
+            <span class="n">read</span><span class="o">.</span><span class="n">reference_name</span><span class="p">,</span> <span class="n">read</span><span class="o">.</span><span class="n">reference_end</span><span class="p">,</span>
+            <span class="n">orient</span><span class="o">=</span><span class="n">ORIENT</span><span class="o">.</span><span class="n">LEFT</span><span class="p">,</span>
+            <span class="n">strand</span><span class="o">=</span><span class="n">STRAND</span><span class="o">.</span><span class="n">NEG</span> <span class="k">if</span> <span class="n">read</span><span class="o">.</span><span class="n">is_reverse</span> <span class="k">else</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">POS</span><span class="p">,</span>
+            <span class="n">seq</span><span class="o">=</span><span class="n">read</span><span class="o">.</span><span class="n">query_alignment_sequence</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="call_paired_read_event"><a class="viewcode-back" href="../../auto/mavis.align.html#mavis.align.call_paired_read_event">[docs]</a><span class="k">def</span> <span class="nf">call_paired_read_event</span><span class="p">(</span><span class="n">read1</span><span class="p">,</span> <span class="n">read2</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    For a given pair of reads call all applicable events. Assume there is a major</span>
+<span class="sd">    event from both reads and then call indels from the individual reads</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># sort the reads so that we are calling consistently</span>
+    <span class="n">break1</span> <span class="o">=</span> <span class="n">read_breakpoint</span><span class="p">(</span><span class="n">read1</span><span class="p">)</span>
+    <span class="n">break2</span> <span class="o">=</span> <span class="n">read_breakpoint</span><span class="p">(</span><span class="n">read2</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">break2</span><span class="o">.</span><span class="n">key</span> <span class="o">&lt;</span> <span class="n">break1</span><span class="o">.</span><span class="n">key</span><span class="p">:</span>
+        <span class="n">break1</span><span class="p">,</span> <span class="n">break2</span> <span class="o">=</span> <span class="n">break2</span><span class="p">,</span> <span class="n">break1</span>
+        <span class="n">read1</span><span class="p">,</span> <span class="n">read2</span> <span class="o">=</span> <span class="n">read2</span><span class="p">,</span> <span class="n">read1</span>
+    <span class="n">r1_query_cover</span> <span class="o">=</span> <span class="n">query_coverage_interval</span><span class="p">(</span><span class="n">read1</span><span class="p">)</span>
+    <span class="n">r2_query_cover</span> <span class="o">=</span> <span class="n">query_coverage_interval</span><span class="p">(</span><span class="n">read2</span><span class="p">)</span>
+
+    <span class="c1"># if the reads are on the same strand, then the query sequence should match</span>
+    <span class="k">if</span> <span class="n">read1</span><span class="o">.</span><span class="n">is_reverse</span> <span class="o">==</span> <span class="n">read2</span><span class="o">.</span><span class="n">is_reverse</span><span class="p">:</span>
+        <span class="k">assert</span> <span class="n">read1</span><span class="o">.</span><span class="n">query_sequence</span> <span class="o">==</span> <span class="n">read2</span><span class="o">.</span><span class="n">query_sequence</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">assert</span> <span class="n">read1</span><span class="o">.</span><span class="n">query_sequence</span> <span class="o">==</span> <span class="n">reverse_complement</span><span class="p">(</span><span class="n">read2</span><span class="o">.</span><span class="n">query_sequence</span><span class="p">)</span>
+        <span class="n">length</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">read1</span><span class="o">.</span><span class="n">query_sequence</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>
+        <span class="n">r2_query_cover</span> <span class="o">=</span> <span class="n">Interval</span><span class="p">(</span><span class="n">length</span> <span class="o">-</span> <span class="n">r2_query_cover</span><span class="o">.</span><span class="n">end</span><span class="p">,</span> <span class="n">length</span> <span class="o">-</span> <span class="n">r2_query_cover</span><span class="o">.</span><span class="n">start</span><span class="p">)</span>
+
+    <span class="n">overlap</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">if</span> <span class="n">Interval</span><span class="o">.</span><span class="n">overlaps</span><span class="p">(</span><span class="n">r1_query_cover</span><span class="p">,</span> <span class="n">r2_query_cover</span><span class="p">):</span>
+        <span class="c1"># adjust the second read to remove the overlapping query region</span>
+        <span class="n">overlap</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">r1_query_cover</span> <span class="o">&amp;</span> <span class="n">r2_query_cover</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">break2</span><span class="o">.</span><span class="n">orient</span> <span class="o">==</span> <span class="n">ORIENT</span><span class="o">.</span><span class="n">RIGHT</span><span class="p">:</span>
+        <span class="n">break2</span><span class="o">.</span><span class="n">start</span> <span class="o">+=</span> <span class="n">overlap</span>
+        <span class="n">break2</span><span class="o">.</span><span class="n">end</span> <span class="o">+=</span> <span class="n">overlap</span>
+        <span class="n">break2</span><span class="o">.</span><span class="n">seq</span> <span class="o">=</span> <span class="n">read2</span><span class="o">.</span><span class="n">query_alignment_sequence</span><span class="p">[</span><span class="n">overlap</span><span class="p">:]</span>
+        <span class="k">assert</span> <span class="n">break2</span><span class="o">.</span><span class="n">start</span> <span class="o">&lt;=</span> <span class="n">break2</span><span class="o">.</span><span class="n">end</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">seq</span> <span class="o">=</span> <span class="n">read2</span><span class="o">.</span><span class="n">query_alignment_sequence</span>
+        <span class="k">if</span> <span class="n">overlap</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">seq</span> <span class="o">=</span> <span class="n">read2</span><span class="o">.</span><span class="n">query_alignment_sequence</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span> <span class="o">*</span> <span class="n">overlap</span><span class="p">]</span>
+        <span class="n">break2</span><span class="o">.</span><span class="n">start</span> <span class="o">-=</span> <span class="n">overlap</span>
+        <span class="n">break2</span><span class="o">.</span><span class="n">end</span> <span class="o">-=</span> <span class="n">overlap</span>
+        <span class="n">break2</span><span class="o">.</span><span class="n">seq</span> <span class="o">=</span> <span class="n">seq</span>
+    <span class="k">assert</span> <span class="n">break2</span><span class="o">.</span><span class="n">start</span> <span class="o">&lt;=</span> <span class="n">break2</span><span class="o">.</span><span class="n">end</span>
+
+    <span class="c1"># now check for untemplated sequence</span>
+    <span class="n">untemplated_seq</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+    <span class="n">dist</span> <span class="o">=</span> <span class="n">Interval</span><span class="o">.</span><span class="n">dist</span><span class="p">(</span><span class="n">r1_query_cover</span><span class="p">,</span> <span class="n">r2_query_cover</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">dist</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>  <span class="c1"># query coverage for read1 is after query coverage for read2</span>
+        <span class="n">untemplated_seq</span> <span class="o">=</span> <span class="n">read1</span><span class="o">.</span><span class="n">query_sequence</span><span class="p">[</span><span class="n">r2_query_cover</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:</span><span class="n">r1_query_cover</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span>
+    <span class="k">elif</span> <span class="n">dist</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>  <span class="c1"># query coverage for read2 is after query coverage for read1</span>
+        <span class="n">untemplated_seq</span> <span class="o">=</span> <span class="n">read1</span><span class="o">.</span><span class="n">query_sequence</span><span class="p">[</span><span class="n">r1_query_cover</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:</span><span class="n">r2_query_cover</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span>
+    <span class="k">else</span><span class="p">:</span>  <span class="c1"># query coverage overlaps</span>
+        <span class="k">pass</span>
+    <span class="k">return</span> <span class="n">SplitAlignment</span><span class="p">(</span><span class="n">break1</span><span class="p">,</span> <span class="n">break2</span><span class="p">,</span> <span class="n">untemplated_seq</span><span class="o">=</span><span class="n">untemplated_seq</span><span class="p">,</span> <span class="n">read1</span><span class="o">=</span><span class="n">read1</span><span class="p">,</span> <span class="n">read2</span><span class="o">=</span><span class="n">read2</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="align_sequences"><a class="viewcode-back" href="../../auto/mavis.align.html#mavis.align.align_sequences">[docs]</a><span class="k">def</span> <span class="nf">align_sequences</span><span class="p">(</span>
+    <span class="n">sequences</span><span class="p">,</span>
+    <span class="n">input_bam_cache</span><span class="p">,</span>
+    <span class="n">reference_genome</span><span class="p">,</span>
+    <span class="n">aligner</span><span class="p">,</span>
+    <span class="n">aligner_reference</span><span class="p">,</span>
+    <span class="n">aligner_output_file</span><span class="o">=</span><span class="s1">&#39;aligner_out.temp&#39;</span><span class="p">,</span>
+    <span class="n">aligner_fa_input_file</span><span class="o">=</span><span class="s1">&#39;aligner_in.fa&#39;</span><span class="p">,</span>
+    <span class="n">aligner_output_log</span><span class="o">=</span><span class="s1">&#39;aligner_out.log&#39;</span><span class="p">,</span>
+    <span class="n">blat_limit_top_aln</span><span class="o">=</span><span class="mi">25</span><span class="p">,</span>
+    <span class="n">blat_min_identity</span><span class="o">=</span><span class="mf">0.7</span><span class="p">,</span>
+    <span class="n">clean_files</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">log</span><span class="o">=</span><span class="n">devnull</span><span class="p">,</span>
+    <span class="o">**</span><span class="n">kwargs</span>
+<span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    calls the alignment tool and parses the return output for a set of sequences</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        sequences (dict of str to str): dictionary of sequences by name</span>
+<span class="sd">        input_bam_cache (BamCache): bam cache to be used as a template for reading the alignments</span>
+<span class="sd">        reference_genome: the reference genome</span>
+<span class="sd">        aligner (SUPPORTED_ALIGNER): the name of the aligner to be used</span>
+<span class="sd">        aligner_reference (str): path to the aligner reference file</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="c1"># write the input sequences to a fasta file</span>
+        <span class="n">count</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">aligner_fa_input_file</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fh</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">seq</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">sequences</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
+                <span class="n">fh</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s1">&#39;&gt;&#39;</span> <span class="o">+</span> <span class="n">name</span> <span class="o">+</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="o">+</span> <span class="n">seq</span> <span class="o">+</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
+                <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">sequences</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[]</span>
+
+        <span class="n">log</span><span class="p">(</span><span class="s1">&#39;will use&#39;</span><span class="p">,</span> <span class="n">aligner</span><span class="p">,</span> <span class="s1">&#39;to align&#39;</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">sequences</span><span class="p">),</span> <span class="s1">&#39;unique sequences&#39;</span><span class="p">,</span> <span class="n">time_stamp</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+        <span class="c1"># call the aligner using subprocess</span>
+        <span class="k">if</span> <span class="n">aligner</span> <span class="o">==</span> <span class="n">SUPPORTED_ALIGNER</span><span class="o">.</span><span class="n">BLAT</span><span class="p">:</span>
+            <span class="kn">from</span> <span class="nn">.blat</span> <span class="k">import</span> <span class="n">process_blat_output</span>
+            <span class="c1"># call the aligner using subprocess</span>
+            <span class="n">blat_min_identity</span> <span class="o">*=</span> <span class="mi">100</span>
+            <span class="n">blat_options</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span>
+                <span class="s1">&#39;align_options&#39;</span><span class="p">,</span> <span class="s1">&#39;-stepSize=5 -repMatch=2253 -minScore=0 -minIdentity=</span><span class="si">{0}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">blat_min_identity</span><span class="p">))</span>
+            <span class="c1"># call the blat subprocess</span>
+            <span class="c1"># will raise subprocess.CalledProcessError if non-zero exit status</span>
+            <span class="c1"># parameters from https://genome.ucsc.edu/FAQ/FAQblat.html#blat4</span>
+            <span class="n">command</span> <span class="o">=</span> <span class="s1">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span>
+                <span class="n">SUPPORTED_ALIGNER</span><span class="o">.</span><span class="n">BLAT</span><span class="p">,</span> <span class="n">aligner_reference</span><span class="p">,</span> <span class="n">aligner_fa_input_file</span><span class="p">,</span> <span class="n">aligner_output_file</span><span class="p">,</span>
+                <span class="s1">&#39;-out=pslx&#39;</span><span class="p">,</span> <span class="s1">&#39;-noHead&#39;</span><span class="p">,</span> <span class="n">blat_options</span><span class="p">])</span>
+            <span class="n">log</span><span class="p">(</span><span class="s1">&#39;writing aligner logging to:&#39;</span><span class="p">,</span> <span class="n">aligner_output_log</span><span class="p">,</span> <span class="n">time_stamp</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">aligner_output_log</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">log_fh</span><span class="p">:</span>
+                <span class="n">log_fh</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s1">&#39;&gt;&gt;&gt; </span><span class="si">{}</span><span class="se">\n</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">command</span><span class="p">))</span>
+                <span class="n">subprocess</span><span class="o">.</span><span class="n">check_call</span><span class="p">(</span><span class="n">command</span><span class="p">,</span> <span class="n">shell</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">stdout</span><span class="o">=</span><span class="n">log_fh</span><span class="p">,</span> <span class="n">stderr</span><span class="o">=</span><span class="n">log_fh</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">process_blat_output</span><span class="p">(</span>
+                <span class="n">input_bam_cache</span><span class="o">=</span><span class="n">input_bam_cache</span><span class="p">,</span>
+                <span class="n">query_id_mapping</span><span class="o">=</span><span class="n">sequences</span><span class="p">,</span>
+                <span class="n">reference_genome</span><span class="o">=</span><span class="n">reference_genome</span><span class="p">,</span>
+                <span class="n">aligner_output_file</span><span class="o">=</span><span class="n">aligner_output_file</span><span class="p">,</span>
+                <span class="n">blat_limit_top_aln</span><span class="o">=</span><span class="n">blat_limit_top_aln</span>
+            <span class="p">)</span>
+
+        <span class="k">elif</span> <span class="n">aligner</span> <span class="o">==</span> <span class="n">SUPPORTED_ALIGNER</span><span class="o">.</span><span class="n">BWA_MEM</span><span class="p">:</span>
+            <span class="n">align_options</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;align_options&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span>
+            <span class="n">command</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">{}</span><span class="s1"> </span><span class="si">{}</span><span class="s1"> </span><span class="si">{}</span><span class="s1"> -Y </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">aligner</span><span class="p">,</span> <span class="n">aligner_reference</span><span class="p">,</span> <span class="n">aligner_fa_input_file</span><span class="p">,</span> <span class="n">align_options</span><span class="p">)</span>
+            <span class="n">log</span><span class="p">(</span><span class="s1">&#39;writing aligner logging to:&#39;</span><span class="p">,</span> <span class="n">aligner_output_log</span><span class="p">,</span> <span class="n">time_stamp</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">aligner_output_log</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">log_fh</span><span class="p">,</span> <span class="nb">open</span><span class="p">(</span><span class="n">aligner_output_file</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">aligner_output_fh</span><span class="p">:</span>
+                <span class="n">log_fh</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s1">&#39;&gt;&gt;&gt; </span><span class="si">{}</span><span class="se">\n</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">command</span><span class="p">))</span>
+                <span class="n">subprocess</span><span class="o">.</span><span class="n">check_call</span><span class="p">(</span><span class="n">command</span><span class="p">,</span> <span class="n">stdout</span><span class="o">=</span><span class="n">aligner_output_fh</span><span class="p">,</span> <span class="n">shell</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">stderr</span><span class="o">=</span><span class="n">log_fh</span><span class="p">)</span>
+
+            <span class="k">with</span> <span class="n">pysam</span><span class="o">.</span><span class="n">AlignmentFile</span><span class="p">(</span><span class="n">aligner_output_file</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">,</span> <span class="n">check_sq</span><span class="o">=</span><span class="nb">bool</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">sequences</span><span class="p">)))</span> <span class="k">as</span> <span class="n">samfile</span><span class="p">:</span>
+                <span class="n">reads_by_query</span> <span class="o">=</span> <span class="p">{}</span>
+                <span class="k">for</span> <span class="n">read</span> <span class="ow">in</span> <span class="n">samfile</span><span class="o">.</span><span class="n">fetch</span><span class="p">():</span>
+                    <span class="k">if</span> <span class="n">read</span><span class="o">.</span><span class="n">is_unmapped</span><span class="p">:</span>
+                        <span class="k">continue</span>
+                    <span class="n">read</span> <span class="o">=</span> <span class="n">_read</span><span class="o">.</span><span class="n">SamRead</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">read</span><span class="p">)</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="n">read</span><span class="o">.</span><span class="n">reference_id</span> <span class="o">=</span> <span class="n">input_bam_cache</span><span class="o">.</span><span class="n">reference_id</span><span class="p">(</span><span class="n">read</span><span class="o">.</span><span class="n">reference_name</span><span class="p">)</span>
+                    <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                        <span class="n">log</span><span class="p">(</span><span class="s1">&#39;dropping alignment (unknown reference)&#39;</span><span class="p">,</span> <span class="n">read</span><span class="o">.</span><span class="n">reference_name</span><span class="p">,</span> <span class="n">time_stamp</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="k">if</span> <span class="n">read</span><span class="o">.</span><span class="n">is_paired</span><span class="p">:</span>
+                            <span class="n">read</span><span class="o">.</span><span class="n">next_reference_id</span> <span class="o">=</span> <span class="n">input_bam_cache</span><span class="o">.</span><span class="n">reference_id</span><span class="p">(</span><span class="n">read</span><span class="o">.</span><span class="n">next_reference_name</span><span class="p">)</span>
+                        <span class="n">read</span><span class="o">.</span><span class="n">cigar</span> <span class="o">=</span> <span class="n">_cigar</span><span class="o">.</span><span class="n">recompute_cigar_mismatch</span><span class="p">(</span><span class="n">read</span><span class="p">,</span> <span class="n">reference_genome</span><span class="p">[</span><span class="n">read</span><span class="o">.</span><span class="n">reference_name</span><span class="p">])</span>
+                        <span class="n">query_seq</span> <span class="o">=</span> <span class="n">sequences</span><span class="p">[</span><span class="n">read</span><span class="o">.</span><span class="n">query_name</span><span class="p">]</span>
+                        <span class="n">reads_by_query</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">query_seq</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">read</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">reads_by_query</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s1">&#39;unsupported aligner&#39;</span><span class="p">,</span> <span class="n">aligner</span><span class="p">)</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="c1"># clean up</span>
+        <span class="k">if</span> <span class="n">clean_files</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">outputfile</span> <span class="ow">in</span> <span class="p">[</span><span class="n">aligner_output_file</span><span class="p">,</span> <span class="n">aligner_fa_input_file</span><span class="p">,</span> <span class="n">aligner_output_log</span><span class="p">]:</span>
+                <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">outputfile</span><span class="p">):</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">outputfile</span><span class="p">)</span>
+                    <span class="k">except</span> <span class="ne">OSError</span> <span class="k">as</span> <span class="n">err</span><span class="p">:</span>
+                        <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="nb">repr</span><span class="p">(</span><span class="n">err</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="select_contig_alignments"><a class="viewcode-back" href="../../auto/mavis.align.html#mavis.align.select_contig_alignments">[docs]</a><span class="k">def</span> <span class="nf">select_contig_alignments</span><span class="p">(</span><span class="n">evidence</span><span class="p">,</span> <span class="n">reads_by_query</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    standardize/simplify reads and filter bad/irrelevant alignments</span>
+<span class="sd">    adds the contig alignments to the contigs</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">for</span> <span class="n">contig</span> <span class="ow">in</span> <span class="n">evidence</span><span class="o">.</span><span class="n">contigs</span><span class="p">:</span>
+        <span class="n">std_reads</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="n">alignments</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">raw_read</span> <span class="ow">in</span> <span class="n">reads_by_query</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">contig</span><span class="o">.</span><span class="n">seq</span><span class="p">,</span> <span class="p">[]):</span>
+            <span class="k">if</span> <span class="n">raw_read</span><span class="o">.</span><span class="n">reference_name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">{</span><span class="n">evidence</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">chr</span><span class="p">,</span> <span class="n">evidence</span><span class="o">.</span><span class="n">break2</span><span class="o">.</span><span class="n">chr</span><span class="p">}:</span>
+                <span class="k">continue</span>
+            <span class="n">read</span> <span class="o">=</span> <span class="n">evidence</span><span class="o">.</span><span class="n">standardize_read</span><span class="p">(</span><span class="n">raw_read</span><span class="p">)</span>
+            <span class="n">read</span><span class="o">.</span><span class="n">cigar</span> <span class="o">=</span> <span class="n">_cigar</span><span class="o">.</span><span class="n">merge_internal_events</span><span class="p">(</span>
+                <span class="n">read</span><span class="o">.</span><span class="n">cigar</span><span class="p">,</span>
+                <span class="n">inner_anchor</span><span class="o">=</span><span class="n">evidence</span><span class="o">.</span><span class="n">contig_aln_merge_inner_anchor</span><span class="p">,</span>
+                <span class="n">outer_anchor</span><span class="o">=</span><span class="n">evidence</span><span class="o">.</span><span class="n">contig_aln_merge_outer_anchor</span>
+            <span class="p">)</span>
+            <span class="n">read</span> <span class="o">=</span> <span class="n">evidence</span><span class="o">.</span><span class="n">standardize_read</span><span class="p">(</span><span class="n">read</span><span class="p">)</span>  <span class="c1"># genome needs to merge first, trans needs to standard first</span>
+
+            <span class="k">for</span> <span class="n">single_alignment</span> <span class="ow">in</span> <span class="n">call_read_events</span><span class="p">(</span><span class="n">read</span><span class="p">):</span>
+                <span class="n">single_alignment</span> <span class="o">=</span> <span class="n">convert_to_duplication</span><span class="p">(</span><span class="n">single_alignment</span><span class="p">,</span> <span class="n">evidence</span><span class="o">.</span><span class="n">reference_genome</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">single_alignment</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">chr</span> <span class="ow">in</span> <span class="p">{</span><span class="n">evidence</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">chr</span><span class="p">,</span> <span class="n">evidence</span><span class="o">.</span><span class="n">break2</span><span class="o">.</span><span class="n">chr</span><span class="p">}:</span>
+                    <span class="k">if</span> <span class="nb">any</span><span class="p">([</span>
+                        <span class="p">(</span><span class="n">single_alignment</span><span class="o">.</span><span class="n">break1</span> <span class="o">|</span> <span class="n">single_alignment</span><span class="o">.</span><span class="n">break2</span><span class="p">)</span> <span class="o">&amp;</span> <span class="n">evidence</span><span class="o">.</span><span class="n">outer_window1</span><span class="p">,</span>
+                        <span class="p">(</span><span class="n">single_alignment</span><span class="o">.</span><span class="n">break1</span> <span class="o">|</span> <span class="n">single_alignment</span><span class="o">.</span><span class="n">break2</span><span class="p">)</span> <span class="o">&amp;</span> <span class="n">evidence</span><span class="o">.</span><span class="n">outer_window2</span>
+                    <span class="p">]):</span>
+                        <span class="n">alignments</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">single_alignment</span><span class="p">)</span>
+
+            <span class="n">std_reads</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">_read</span><span class="o">.</span><span class="n">convert_events_to_softclipping</span><span class="p">(</span>
+                <span class="n">read</span><span class="p">,</span> <span class="n">evidence</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">orient</span><span class="p">,</span>
+                <span class="n">max_event_size</span><span class="o">=</span><span class="n">evidence</span><span class="o">.</span><span class="n">contig_aln_max_event_size</span><span class="p">,</span>
+                <span class="n">min_anchor_size</span><span class="o">=</span><span class="n">evidence</span><span class="o">.</span><span class="n">contig_aln_min_anchor_size</span>
+            <span class="p">))</span>
+            <span class="k">if</span> <span class="n">evidence</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">orient</span> <span class="o">==</span> <span class="n">evidence</span><span class="o">.</span><span class="n">break2</span><span class="o">.</span><span class="n">orient</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">std_reads</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">_read</span><span class="o">.</span><span class="n">convert_events_to_softclipping</span><span class="p">(</span>
+                <span class="n">read</span><span class="p">,</span> <span class="n">evidence</span><span class="o">.</span><span class="n">break2</span><span class="o">.</span><span class="n">orient</span><span class="p">,</span>
+                <span class="n">max_event_size</span><span class="o">=</span><span class="n">evidence</span><span class="o">.</span><span class="n">contig_aln_max_event_size</span><span class="p">,</span>
+                <span class="n">min_anchor_size</span><span class="o">=</span><span class="n">evidence</span><span class="o">.</span><span class="n">contig_aln_min_anchor_size</span>
+            <span class="p">))</span>
+
+        <span class="k">for</span> <span class="n">read1</span><span class="p">,</span> <span class="n">read2</span> <span class="ow">in</span> <span class="n">itertools</span><span class="o">.</span><span class="n">combinations</span><span class="p">(</span><span class="n">std_reads</span><span class="p">,</span> <span class="mi">2</span><span class="p">):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">paired_event</span> <span class="o">=</span> <span class="n">call_paired_read_event</span><span class="p">(</span><span class="n">read1</span><span class="p">,</span> <span class="n">read2</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">AssertionError</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="k">if</span> <span class="nb">all</span><span class="p">([</span>
+                <span class="n">BreakpointPair</span><span class="o">.</span><span class="n">classify</span><span class="p">(</span><span class="n">paired_event</span><span class="p">)</span> <span class="o">&amp;</span> <span class="n">BreakpointPair</span><span class="o">.</span><span class="n">classify</span><span class="p">(</span><span class="n">evidence</span><span class="p">),</span>
+                <span class="n">paired_event</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">chr</span> <span class="o">==</span> <span class="n">evidence</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">chr</span><span class="p">,</span>
+                <span class="n">paired_event</span><span class="o">.</span><span class="n">break2</span><span class="o">.</span><span class="n">chr</span> <span class="o">==</span> <span class="n">evidence</span><span class="o">.</span><span class="n">break2</span><span class="o">.</span><span class="n">chr</span><span class="p">,</span>
+                <span class="n">paired_event</span><span class="o">.</span><span class="n">break1</span> <span class="o">&amp;</span> <span class="n">evidence</span><span class="o">.</span><span class="n">outer_window1</span><span class="p">,</span>
+                <span class="n">paired_event</span><span class="o">.</span><span class="n">break2</span> <span class="o">&amp;</span> <span class="n">evidence</span><span class="o">.</span><span class="n">outer_window2</span>
+            <span class="p">]):</span>
+                <span class="n">alignments</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">paired_event</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">event</span> <span class="ow">in</span> <span class="n">call_read_events</span><span class="p">(</span><span class="n">read1</span><span class="p">,</span> <span class="n">read2</span><span class="p">)</span> <span class="o">+</span> <span class="n">call_read_events</span><span class="p">(</span><span class="n">read2</span><span class="p">,</span> <span class="n">read1</span><span class="p">):</span>
+                    <span class="n">event</span> <span class="o">=</span> <span class="n">convert_to_duplication</span><span class="p">(</span><span class="n">event</span><span class="p">,</span> <span class="n">evidence</span><span class="o">.</span><span class="n">reference_genome</span><span class="p">)</span>
+                    <span class="n">alignments</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">event</span><span class="p">)</span>
+        <span class="n">filtered_alignments</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">alignment</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">alignments</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">read2</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">,</span> <span class="n">x</span><span class="o">.</span><span class="n">score</span><span class="p">()),</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+            <span class="k">if</span> <span class="nb">any</span><span class="p">([</span>
+                <span class="n">alignment</span><span class="o">.</span><span class="n">query_consumption</span><span class="p">()</span> <span class="o">&lt;</span> <span class="n">evidence</span><span class="o">.</span><span class="n">contig_aln_min_query_consumption</span><span class="p">,</span>
+                <span class="n">alignment</span><span class="o">.</span><span class="n">read2</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">alignment</span><span class="o">.</span><span class="n">query_overlap_extension</span><span class="p">()</span> <span class="o">&lt;</span> <span class="n">evidence</span><span class="o">.</span><span class="n">contig_aln_min_extend_overlap</span><span class="p">,</span>
+                <span class="n">alignment</span> <span class="ow">in</span> <span class="n">filtered_alignments</span><span class="p">,</span>
+                <span class="n">alignment</span><span class="o">.</span><span class="n">score</span><span class="p">()</span> <span class="o">&lt;</span> <span class="n">evidence</span><span class="o">.</span><span class="n">contig_aln_min_score</span><span class="p">,</span>
+                <span class="n">alignment</span><span class="o">.</span><span class="n">mapping_quality</span><span class="p">()</span> <span class="o">==</span> <span class="n">Interval</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+            <span class="p">]):</span>
+                <span class="k">continue</span>
+            <span class="n">filtered_alignments</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">alignment</span><span class="p">)</span>
+        <span class="n">contig</span><span class="o">.</span><span class="n">alignments</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">filtered_alignments</span><span class="p">)</span></div>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2017, creisle.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../',
+            VERSION:'',
+            LANGUAGE:'None',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

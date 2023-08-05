@@ -1,0 +1,707 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>mavis.assemble &mdash; MAVIS  documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  
+
+  
+    <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+
+  
+        <link rel="author" title="About these documents"
+              href="../../about.html"/>
+        <link rel="index" title="Index"
+              href="../../genindex.html"/>
+        <link rel="search" title="Search" href="../../search.html"/>
+    <link rel="top" title="MAVIS  documentation" href="../../index.html"/>
+        <link rel="up" title="Module code" href="../index.html"/> 
+
+  
+  <script src="../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../index.html" class="icon icon-home"> MAVIS
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                1.6.4
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../about.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../pipeline.html">Running the Pipeline</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../mavis_input.html">MAVIS standard input file format</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../reference.html">Reference Input Files</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../configuration.html">Configuration and Settings</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tools_supported.html">Supported SV Callers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../illustrations.html">Illustrations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../faqs.html">Frequently Asked Questions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../theory.html">Theory and Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../development.html">Guidelines for Contributors</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../package.html">Package Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../citations.html">Literature</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">MAVIS</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../index.html">Module code</a> &raquo;</li>
+        
+      <li>mavis.assemble</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for mavis.assemble</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">itertools</span>
+<span class="kn">import</span> <span class="nn">warnings</span>
+
+<span class="kn">import</span> <span class="nn">distance</span>
+<span class="kn">import</span> <span class="nn">networkx</span> <span class="k">as</span> <span class="nn">nx</span>
+
+<span class="kn">from</span> <span class="nn">.bam</span> <span class="k">import</span> <span class="n">cigar</span> <span class="k">as</span> <span class="n">_cigar</span>
+<span class="kn">from</span> <span class="nn">.bam.read</span> <span class="k">import</span> <span class="n">calculate_alignment_score</span><span class="p">,</span> <span class="n">nsb_align</span>
+<span class="kn">from</span> <span class="nn">.constants</span> <span class="k">import</span> <span class="n">reverse_complement</span>
+<span class="kn">from</span> <span class="nn">.interval</span> <span class="k">import</span> <span class="n">Interval</span>
+<span class="kn">from</span> <span class="nn">.util</span> <span class="k">import</span> <span class="n">devnull</span>
+
+
+<div class="viewcode-block" id="Contig"><a class="viewcode-back" href="../../auto/mavis.assemble.html#mavis.assemble.Contig">[docs]</a><span class="k">class</span> <span class="nc">Contig</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sequence</span><span class="p">,</span> <span class="n">score</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">seq</span> <span class="o">=</span> <span class="n">sequence</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">remapped_sequences</span> <span class="o">=</span> <span class="p">{}</span>  <span class="c1"># alignment score contribution on the contig by read</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">score</span> <span class="o">=</span> <span class="n">score</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">alignments</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">input_reads</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">strand_specific</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="k">def</span> <span class="nf">__hash__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">hash</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">seq</span><span class="p">)</span>
+
+<div class="viewcode-block" id="Contig.add_mapped_sequence"><a class="viewcode-back" href="../../auto/mavis.assemble.html#mavis.assemble.Contig.add_mapped_sequence">[docs]</a>    <span class="k">def</span> <span class="nf">add_mapped_sequence</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">read</span><span class="p">,</span> <span class="n">multimap</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">remapped_sequences</span><span class="p">[</span><span class="n">read</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">/</span> <span class="n">multimap</span></div>
+
+<div class="viewcode-block" id="Contig.remap_score"><a class="viewcode-back" href="../../auto/mavis.assemble.html#mavis.assemble.Contig.remap_score">[docs]</a>    <span class="k">def</span> <span class="nf">remap_score</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">sum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">remapped_sequences</span><span class="o">.</span><span class="n">values</span><span class="p">())</span></div>
+
+<div class="viewcode-block" id="Contig.remap_coverage"><a class="viewcode-back" href="../../auto/mavis.assemble.html#mavis.assemble.Contig.remap_coverage">[docs]</a>    <span class="k">def</span> <span class="nf">remap_coverage</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">itvls</span> <span class="o">=</span> <span class="n">Interval</span><span class="o">.</span><span class="n">min_nonoverlapping</span><span class="p">(</span><span class="o">*</span><span class="p">[(</span><span class="n">x</span><span class="o">.</span><span class="n">reference_start</span><span class="p">,</span> <span class="n">x</span><span class="o">.</span><span class="n">reference_end</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">remapped_sequences</span><span class="p">])</span>
+        <span class="n">cov</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">([</span><span class="nb">len</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">itvls</span><span class="p">])</span>
+        <span class="k">return</span> <span class="n">cov</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">seq</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Contig.remap_depth"><a class="viewcode-back" href="../../auto/mavis.assemble.html#mavis.assemble.Contig.remap_depth">[docs]</a>    <span class="k">def</span> <span class="nf">remap_depth</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query_range</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        the average depth of remapped reads over a give range of the contig sequence</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            query_range (Interval): 1-based inclusive range</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">query_range</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">query_range</span> <span class="o">=</span> <span class="n">Interval</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">seq</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">query_range</span><span class="o">.</span><span class="n">start</span> <span class="o">&lt;</span> <span class="mi">1</span> <span class="ow">or</span> <span class="n">query_range</span><span class="o">.</span><span class="n">end</span> <span class="o">&gt;</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">seq</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;query range must be within contig seq&#39;</span><span class="p">,</span> <span class="n">query_range</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">seq</span><span class="p">))</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">read</span><span class="p">,</span> <span class="n">weight</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">remapped_sequences</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">read_qrange</span> <span class="o">=</span> <span class="n">Interval</span><span class="p">(</span><span class="n">read</span><span class="o">.</span><span class="n">reference_start</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">read</span><span class="o">.</span><span class="n">reference_end</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">Interval</span><span class="o">.</span><span class="n">overlaps</span><span class="p">(</span><span class="n">query_range</span><span class="p">,</span> <span class="n">read_qrange</span><span class="p">):</span>
+                <span class="n">result</span> <span class="o">+=</span> <span class="nb">len</span><span class="p">(</span><span class="n">query_range</span> <span class="o">&amp;</span> <span class="n">read_qrange</span><span class="p">)</span> <span class="o">*</span> <span class="n">weight</span>
+        <span class="k">return</span> <span class="n">result</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="n">query_range</span><span class="p">)</span></div></div>
+
+
+<div class="viewcode-block" id="DeBruijnGraph"><a class="viewcode-back" href="../../auto/mavis.assemble.html#mavis.assemble.DeBruijnGraph">[docs]</a><span class="k">class</span> <span class="nc">DeBruijnGraph</span><span class="p">(</span><span class="n">nx</span><span class="o">.</span><span class="n">DiGraph</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    wrapper for a basic digraph</span>
+<span class="sd">    enforces edge weights</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="DeBruijnGraph.get_edge_freq"><a class="viewcode-back" href="../../auto/mavis.assemble.html#mavis.assemble.DeBruijnGraph.get_edge_freq">[docs]</a>    <span class="k">def</span> <span class="nf">get_edge_freq</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">n1</span><span class="p">,</span> <span class="n">n2</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        returns the freq from the data attribute for a specified edge</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">has_edge</span><span class="p">(</span><span class="n">n1</span><span class="p">,</span> <span class="n">n2</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span><span class="s1">&#39;missing edge&#39;</span><span class="p">,</span> <span class="n">n1</span><span class="p">,</span> <span class="n">n2</span><span class="p">)</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_edge_data</span><span class="p">(</span><span class="n">n1</span><span class="p">,</span> <span class="n">n2</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;freq&#39;</span><span class="p">]</span></div>
+
+<div class="viewcode-block" id="DeBruijnGraph.add_edge"><a class="viewcode-back" href="../../auto/mavis.assemble.html#mavis.assemble.DeBruijnGraph.add_edge">[docs]</a>    <span class="k">def</span> <span class="nf">add_edge</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">n1</span><span class="p">,</span> <span class="n">n2</span><span class="p">,</span> <span class="n">freq</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        add a given edge to the graph, if it exists add the frequency to the existing frequency count</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">has_edge</span><span class="p">(</span><span class="n">n1</span><span class="p">,</span> <span class="n">n2</span><span class="p">):</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_edge_data</span><span class="p">(</span><span class="n">n1</span><span class="p">,</span> <span class="n">n2</span><span class="p">)</span>
+            <span class="n">freq</span> <span class="o">+=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;freq&#39;</span><span class="p">]</span>
+        <span class="n">nx</span><span class="o">.</span><span class="n">DiGraph</span><span class="o">.</span><span class="n">add_edge</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">n1</span><span class="p">,</span> <span class="n">n2</span><span class="p">,</span> <span class="n">freq</span><span class="o">=</span><span class="n">freq</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="DeBruijnGraph.trim_tails_by_freq"><a class="viewcode-back" href="../../auto/mavis.assemble.html#mavis.assemble.DeBruijnGraph.trim_tails_by_freq">[docs]</a>    <span class="k">def</span> <span class="nf">trim_tails_by_freq</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">min_weight</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        for any paths where all edges are lower than the minimum weight trim</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            min_weight (int): the minimum weight for an edge to be retained</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nodes</span><span class="p">()):</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">has_node</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+                <span class="k">continue</span>
+            <span class="c1"># follow until the path forks or we run out of low weigh edges</span>
+            <span class="n">curr</span> <span class="o">=</span> <span class="n">n</span>
+            <span class="k">while</span> <span class="bp">self</span><span class="o">.</span><span class="n">degree</span><span class="p">(</span><span class="n">curr</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">out_degree</span><span class="p">(</span><span class="n">curr</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="n">curr</span><span class="p">,</span> <span class="n">other</span><span class="p">,</span> <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">out_edges</span><span class="p">(</span><span class="n">curr</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="kc">True</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+                    <span class="k">if</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;freq&#39;</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">min_weight</span><span class="p">:</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">remove_node</span><span class="p">(</span><span class="n">curr</span><span class="p">)</span>
+                        <span class="n">curr</span> <span class="o">=</span> <span class="n">other</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="k">break</span>
+                <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">in_degree</span><span class="p">(</span><span class="n">curr</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="n">other</span><span class="p">,</span> <span class="n">curr</span><span class="p">,</span> <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">in_edges</span><span class="p">(</span><span class="n">curr</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="kc">True</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+                    <span class="k">if</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;freq&#39;</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">min_weight</span><span class="p">:</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">remove_node</span><span class="p">(</span><span class="n">curr</span><span class="p">)</span>
+                        <span class="n">curr</span> <span class="o">=</span> <span class="n">other</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="k">break</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">break</span>
+        <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nodes</span><span class="p">()):</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">has_node</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+                <span class="k">continue</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">degree</span><span class="p">(</span><span class="n">n</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">remove_node</span><span class="p">(</span><span class="n">n</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="DeBruijnGraph.trim_forks_by_freq"><a class="viewcode-back" href="../../auto/mavis.assemble.html#mavis.assemble.DeBruijnGraph.trim_forks_by_freq">[docs]</a>    <span class="k">def</span> <span class="nf">trim_forks_by_freq</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">min_weight</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        for all nodes in the graph, if the node has an out-degree &gt; 1 and one of the outgoing</span>
+<span class="sd">        edges has freq &lt; min_weight. then that outgoing edge is deleted</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">nodes</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nodes</span><span class="p">())</span>
+        <span class="k">for</span> <span class="n">node</span> <span class="ow">in</span> <span class="n">nodes</span><span class="p">:</span>
+            <span class="n">outgoing_edges</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">out_edges</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">outgoing_edges</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">src</span><span class="p">,</span> <span class="n">tgt</span><span class="p">,</span> <span class="n">data</span> <span class="ow">in</span> <span class="n">outgoing_edges</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;freq&#39;</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">min_weight</span><span class="p">:</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">remove_edge</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="n">tgt</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="DeBruijnGraph.trim_noncutting_paths_by_freq"><a class="viewcode-back" href="../../auto/mavis.assemble.html#mavis.assemble.DeBruijnGraph.trim_noncutting_paths_by_freq">[docs]</a>    <span class="k">def</span> <span class="nf">trim_noncutting_paths_by_freq</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">min_weight</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        trim any low weight edges where another path exists between the source and target</span>
+<span class="sd">        of higher weight</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">current_edges</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">edges</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
+        <span class="k">for</span> <span class="n">src</span><span class="p">,</span> <span class="n">tgt</span><span class="p">,</span> <span class="n">data</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">current_edges</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="mi">2</span><span class="p">][</span><span class="s1">&#39;freq&#39;</span><span class="p">],</span> <span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">])):</span>
+            <span class="c1"># come up with the path by extending this edge either direction until the degree &gt; 2</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">has_node</span><span class="p">(</span><span class="n">src</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">has_node</span><span class="p">(</span><span class="n">tgt</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">has_edge</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="n">tgt</span><span class="p">):</span>
+                <span class="k">continue</span>
+
+            <span class="k">if</span> <span class="n">src</span> <span class="o">==</span> <span class="n">tgt</span> <span class="ow">and</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;freq&#39;</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">min_weight</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">remove_edge</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="n">tgt</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">path</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="k">while</span> <span class="bp">self</span><span class="o">.</span><span class="n">in_degree</span><span class="p">(</span><span class="n">src</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">out_degree</span><span class="p">(</span><span class="n">src</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="n">s</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">in_edges</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="kc">True</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+                    <span class="k">if</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;freq&#39;</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="n">min_weight</span> <span class="ow">or</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">path</span><span class="p">:</span>
+                        <span class="k">break</span>
+                    <span class="n">path</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">src</span><span class="p">)</span>
+                    <span class="n">src</span> <span class="o">=</span> <span class="n">s</span>
+                <span class="n">path</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">src</span><span class="p">)</span>
+
+                <span class="k">while</span> <span class="bp">self</span><span class="o">.</span><span class="n">in_degree</span><span class="p">(</span><span class="n">tgt</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">out_degree</span><span class="p">(</span><span class="n">tgt</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="n">s</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">out_edges</span><span class="p">(</span><span class="n">tgt</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="kc">True</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+                    <span class="k">if</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;freq&#39;</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="n">min_weight</span> <span class="ow">or</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">path</span><span class="p">:</span>
+                        <span class="k">break</span>
+                    <span class="n">path</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">tgt</span><span class="p">)</span>
+                    <span class="n">tgt</span> <span class="o">=</span> <span class="n">t</span>
+                <span class="n">path</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">tgt</span><span class="p">)</span>
+                <span class="n">start_edge_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_edge_data</span><span class="p">(</span><span class="n">path</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">path</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">remove_edge</span><span class="p">(</span><span class="n">path</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">path</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+
+                <span class="n">end_edge_data</span> <span class="o">=</span> <span class="kc">None</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">2</span><span class="p">:</span>
+                    <span class="n">end_edge_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_edge_data</span><span class="p">(</span><span class="n">path</span><span class="p">[</span><span class="o">-</span><span class="mi">2</span><span class="p">],</span> <span class="n">path</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">remove_edge</span><span class="p">(</span><span class="n">path</span><span class="p">[</span><span class="o">-</span><span class="mi">2</span><span class="p">],</span> <span class="n">path</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">nx</span><span class="o">.</span><span class="n">has_path</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">src</span><span class="p">,</span> <span class="n">tgt</span><span class="p">):</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">add_edge</span><span class="p">(</span><span class="n">path</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">path</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="o">**</span><span class="n">start_edge_data</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">2</span><span class="p">:</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">add_edge</span><span class="p">(</span><span class="n">path</span><span class="p">[</span><span class="o">-</span><span class="mi">2</span><span class="p">],</span> <span class="n">path</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="o">**</span><span class="n">end_edge_data</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">for</span> <span class="n">node</span> <span class="ow">in</span> <span class="n">path</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]:</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">remove_node</span><span class="p">(</span><span class="n">node</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="DeBruijnGraph.get_sinks"><a class="viewcode-back" href="../../auto/mavis.assemble.html#mavis.assemble.DeBruijnGraph.get_sinks">[docs]</a>    <span class="k">def</span> <span class="nf">get_sinks</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">subgraph</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        returns all nodes with an outgoing degree of zero</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">nodeset</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">subgraph</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">subgraph</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">nodes</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">node</span> <span class="ow">in</span> <span class="n">subgraph</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">out_degree</span><span class="p">(</span><span class="n">node</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">nodeset</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">nodeset</span></div>
+
+<div class="viewcode-block" id="DeBruijnGraph.get_sources"><a class="viewcode-back" href="../../auto/mavis.assemble.html#mavis.assemble.DeBruijnGraph.get_sources">[docs]</a>    <span class="k">def</span> <span class="nf">get_sources</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">subgraph</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        returns all nodes with an incoming degree of zero</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">nodeset</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">subgraph</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">subgraph</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">nodes</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">node</span> <span class="ow">in</span> <span class="n">subgraph</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">in_degree</span><span class="p">(</span><span class="n">node</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">nodeset</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">nodeset</span></div></div>
+
+
+<div class="viewcode-block" id="digraph_connected_components"><a class="viewcode-back" href="../../auto/mavis.assemble.html#mavis.assemble.digraph_connected_components">[docs]</a><span class="k">def</span> <span class="nf">digraph_connected_components</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="n">subgraph</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    the networkx module does not support deriving connected</span>
+<span class="sd">    components from digraphs (only simple graphs)</span>
+<span class="sd">    this function assumes that connection != reachable</span>
+<span class="sd">    this means there is no difference between connected components</span>
+<span class="sd">    in a simple graph and a digraph</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        graph (networkx.DiGraph): the input graph to gather components from</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        :class:`list` of :class:`list`: returns a list of compnents which are lists of node names</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">subgraph</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">subgraph</span> <span class="o">=</span> <span class="n">graph</span><span class="o">.</span><span class="n">nodes</span><span class="p">()</span>
+    <span class="n">g</span> <span class="o">=</span> <span class="n">nx</span><span class="o">.</span><span class="n">Graph</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">src</span><span class="p">,</span> <span class="n">tgt</span> <span class="ow">in</span> <span class="n">graph</span><span class="o">.</span><span class="n">edges</span><span class="p">():</span>
+        <span class="k">if</span> <span class="n">src</span> <span class="ow">in</span> <span class="n">subgraph</span> <span class="ow">and</span> <span class="n">tgt</span> <span class="ow">in</span> <span class="n">subgraph</span><span class="p">:</span>
+            <span class="n">g</span><span class="o">.</span><span class="n">add_edge</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="n">tgt</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">graph</span><span class="o">.</span><span class="n">nodes</span><span class="p">():</span>
+        <span class="k">if</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">subgraph</span><span class="p">:</span>
+            <span class="n">g</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">nx</span><span class="o">.</span><span class="n">connected_components</span><span class="p">(</span><span class="n">g</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="pull_contigs_from_component"><a class="viewcode-back" href="../../auto/mavis.assemble.html#mavis.assemble.pull_contigs_from_component">[docs]</a><span class="k">def</span> <span class="nf">pull_contigs_from_component</span><span class="p">(</span>
+    <span class="n">assembly</span><span class="p">,</span> <span class="n">component</span><span class="p">,</span> <span class="n">assembly_min_nc_edge_weight</span><span class="p">,</span> <span class="n">assembly_max_paths</span><span class="p">,</span> <span class="n">log</span><span class="o">=</span><span class="n">devnull</span>
+<span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    builds contigs from the a connected component of the assembly DeBruijn graph</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        assembly (DeBruijnGraph): the assembly graph</span>
+<span class="sd">        component (list):  list of nodes which make up the connected component</span>
+<span class="sd">        assembly_min_nc_edge_weight (int): the minimum weight to not remove a non cutting edge/path</span>
+<span class="sd">        assembly_max_paths (int): the maximum number of paths allowed before the graph is further simplified</span>
+<span class="sd">        log (function): the log function</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        :class:`Dict` of :class:`int` by :class:`str`: the paths/contigs and their scores</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">path_scores</span> <span class="o">=</span> <span class="p">{}</span>  <span class="c1"># path_str =&gt; score_int</span>
+    <span class="n">w</span> <span class="o">=</span> <span class="n">assembly_min_nc_edge_weight</span>
+    <span class="n">unresolved_components</span> <span class="o">=</span> <span class="p">[</span><span class="n">component</span><span class="p">]</span>
+
+    <span class="k">while</span> <span class="nb">len</span><span class="p">(</span><span class="n">unresolved_components</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="c1"># since now we know it&#39;s a tree, the assemblies will all be ltd to</span>
+        <span class="c1"># simple paths</span>
+        <span class="n">component</span> <span class="o">=</span> <span class="n">unresolved_components</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">paths_est</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">assembly</span><span class="o">.</span><span class="n">get_sinks</span><span class="p">(</span><span class="n">component</span><span class="p">))</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">assembly</span><span class="o">.</span><span class="n">get_sources</span><span class="p">(</span><span class="n">component</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="n">paths_est</span> <span class="o">&gt;</span> <span class="n">assembly_max_paths</span><span class="p">:</span>
+            <span class="n">min_edge_weight</span> <span class="o">=</span> <span class="nb">min</span><span class="p">([</span><span class="n">e</span><span class="p">[</span><span class="mi">2</span><span class="p">][</span><span class="s1">&#39;freq&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">assembly</span><span class="o">.</span><span class="n">edges</span><span class="p">(</span>
+                <span class="n">assembly</span><span class="o">.</span><span class="n">get_sources</span><span class="p">(</span><span class="n">component</span><span class="p">)</span> <span class="o">|</span> <span class="n">assembly</span><span class="o">.</span><span class="n">get_sinks</span><span class="p">(</span><span class="n">component</span><span class="p">),</span> <span class="n">data</span><span class="o">=</span><span class="kc">True</span><span class="p">)])</span>
+            <span class="n">w</span> <span class="o">=</span> <span class="nb">max</span><span class="p">([</span><span class="n">w</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">min_edge_weight</span><span class="p">])</span>
+            <span class="n">log</span><span class="p">(</span>
+                <span class="s1">&#39;reducing estimated paths. Current estimate is </span><span class="si">{}</span><span class="s1">+ from&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">paths_est</span><span class="p">),</span>
+                <span class="nb">len</span><span class="p">(</span><span class="n">component</span><span class="p">),</span> <span class="s1">&#39;nodes&#39;</span><span class="p">,</span> <span class="s1">&#39;filter increase&#39;</span><span class="p">,</span> <span class="n">w</span><span class="p">)</span>
+            <span class="n">assembly</span><span class="o">.</span><span class="n">trim_forks_by_freq</span><span class="p">(</span><span class="n">w</span><span class="p">)</span>
+            <span class="n">assembly</span><span class="o">.</span><span class="n">trim_noncutting_paths_by_freq</span><span class="p">(</span><span class="n">w</span><span class="p">)</span>
+            <span class="n">assembly</span><span class="o">.</span><span class="n">trim_tails_by_freq</span><span class="p">(</span><span class="n">w</span><span class="p">)</span>
+
+            <span class="n">unresolved_components</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">digraph_connected_components</span><span class="p">(</span><span class="n">assembly</span><span class="p">,</span> <span class="n">component</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">source</span><span class="p">,</span> <span class="n">sink</span> <span class="ow">in</span> <span class="n">itertools</span><span class="o">.</span><span class="n">product</span><span class="p">(</span><span class="n">assembly</span><span class="o">.</span><span class="n">get_sources</span><span class="p">(</span><span class="n">component</span><span class="p">),</span> <span class="n">assembly</span><span class="o">.</span><span class="n">get_sinks</span><span class="p">(</span><span class="n">component</span><span class="p">)):</span>
+                <span class="n">paths</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">nx</span><span class="o">.</span><span class="n">all_simple_paths</span><span class="p">(</span><span class="n">assembly</span><span class="p">,</span> <span class="n">source</span><span class="p">,</span> <span class="n">sink</span><span class="p">))</span>
+                <span class="k">for</span> <span class="n">path</span> <span class="ow">in</span> <span class="n">paths</span><span class="p">:</span>
+                    <span class="n">s</span> <span class="o">=</span> <span class="n">path</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">p</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">path</span><span class="p">[</span><span class="mi">1</span><span class="p">:]])</span>
+                    <span class="n">score</span> <span class="o">=</span> <span class="mi">0</span>
+                    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">):</span>
+                        <span class="n">score</span> <span class="o">+=</span> <span class="n">assembly</span><span class="o">.</span><span class="n">get_edge_freq</span><span class="p">(</span><span class="n">path</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">path</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">])</span>
+                    <span class="n">path_scores</span><span class="p">[</span><span class="n">s</span><span class="p">]</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">path_scores</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">score</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">path_scores</span></div>
+
+
+<div class="viewcode-block" id="filter_contigs"><a class="viewcode-back" href="../../auto/mavis.assemble.html#mavis.assemble.filter_contigs">[docs]</a><span class="k">def</span> <span class="nf">filter_contigs</span><span class="p">(</span><span class="n">contigs</span><span class="p">,</span> <span class="n">assembly_min_uniq</span><span class="o">=</span><span class="mf">0.01</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    given a list of contigs, removes similar contigs to leave the highest (of the similar) scoring contig only</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">filtered_contigs</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="c1"># ordering: highest scoring, then longest, then aphanumeric</span>
+    <span class="k">for</span> <span class="n">contig</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">contigs</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="p">(</span><span class="o">-</span><span class="mi">1</span> <span class="o">*</span> <span class="n">x</span><span class="o">.</span><span class="n">score</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">seq</span><span class="p">),</span> <span class="n">x</span><span class="o">.</span><span class="n">seq</span><span class="p">)):</span>
+        <span class="n">rseq</span> <span class="o">=</span> <span class="n">reverse_complement</span><span class="p">(</span><span class="n">contig</span><span class="o">.</span><span class="n">seq</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">contig</span><span class="o">.</span><span class="n">seq</span> <span class="ow">in</span> <span class="n">filtered_contigs</span> <span class="ow">or</span> <span class="n">rseq</span> <span class="ow">in</span> <span class="n">filtered_contigs</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="n">drop</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="c1"># drop all contigs that are more than &#39;x&#39; percent similar to existing contigs</span>
+        <span class="k">for</span> <span class="n">other_seq</span> <span class="ow">in</span> <span class="n">filtered_contigs</span><span class="p">:</span>
+            <span class="n">kmer_length</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">other_seq</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">contig</span><span class="o">.</span><span class="n">seq</span><span class="p">))</span>
+            <span class="n">okmer_list</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">kmers</span><span class="p">(</span><span class="n">other_seq</span><span class="p">,</span> <span class="n">kmer_length</span><span class="p">))</span>
+
+            <span class="k">for</span> <span class="n">okmer</span><span class="p">,</span> <span class="n">ckmer</span> <span class="ow">in</span> <span class="n">itertools</span><span class="o">.</span><span class="n">product</span><span class="p">(</span><span class="n">okmer_list</span><span class="p">,</span> <span class="nb">set</span><span class="p">(</span><span class="n">kmers</span><span class="p">(</span><span class="n">contig</span><span class="o">.</span><span class="n">seq</span><span class="p">,</span> <span class="n">kmer_length</span><span class="p">))):</span>
+                <span class="k">if</span> <span class="n">distance</span><span class="o">.</span><span class="n">hamming</span><span class="p">(</span><span class="n">okmer</span><span class="p">,</span> <span class="n">ckmer</span><span class="p">,</span> <span class="n">normalized</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">assembly_min_uniq</span><span class="p">:</span>
+                    <span class="n">drop</span> <span class="o">=</span> <span class="kc">True</span>
+                    <span class="k">break</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">drop</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">okmer</span><span class="p">,</span> <span class="n">ckmer</span> <span class="ow">in</span> <span class="n">itertools</span><span class="o">.</span><span class="n">product</span><span class="p">(</span><span class="n">okmer_list</span><span class="p">,</span> <span class="nb">set</span><span class="p">(</span><span class="n">kmers</span><span class="p">(</span><span class="n">rseq</span><span class="p">,</span> <span class="n">kmer_length</span><span class="p">))):</span>
+                    <span class="k">if</span> <span class="n">distance</span><span class="o">.</span><span class="n">hamming</span><span class="p">(</span><span class="n">okmer</span><span class="p">,</span> <span class="n">ckmer</span><span class="p">,</span> <span class="n">normalized</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">assembly_min_uniq</span><span class="p">:</span>
+                        <span class="n">drop</span> <span class="o">=</span> <span class="kc">True</span>
+                        <span class="k">break</span>
+            <span class="k">if</span> <span class="n">drop</span><span class="p">:</span>
+                <span class="k">break</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">drop</span><span class="p">:</span>
+            <span class="n">filtered_contigs</span><span class="p">[</span><span class="n">contig</span><span class="o">.</span><span class="n">seq</span><span class="p">]</span> <span class="o">=</span> <span class="n">contig</span>
+
+    <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="n">filtered_contigs</span><span class="o">.</span><span class="n">values</span><span class="p">())</span></div>
+
+
+<div class="viewcode-block" id="assemble"><a class="viewcode-back" href="../../auto/mavis.assemble.html#mavis.assemble.assemble">[docs]</a><span class="k">def</span> <span class="nf">assemble</span><span class="p">(</span>
+    <span class="n">sequences</span><span class="p">,</span>
+    <span class="n">assembly_max_kmer_size</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span>
+    <span class="n">assembly_min_nc_edge_weight</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span>
+    <span class="n">assembly_min_edge_weight</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+    <span class="n">assembly_min_match_quality</span><span class="o">=</span><span class="mf">0.95</span><span class="p">,</span>
+    <span class="n">assembly_min_read_mapping_overlap</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">assembly_min_contig_length</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">assembly_min_exact_match_to_remap</span><span class="o">=</span><span class="mi">6</span><span class="p">,</span>
+    <span class="n">assembly_max_paths</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span>
+    <span class="n">assembly_min_uniq</span><span class="o">=</span><span class="mf">0.01</span><span class="p">,</span>
+    <span class="n">assembly_max_kmer_strict</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="n">log</span><span class="o">=</span><span class="k">lambda</span> <span class="o">*</span><span class="n">pos</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="kc">None</span>
+<span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    for a set of sequences creates a DeBruijnGraph</span>
+<span class="sd">    simplifies trailing and leading paths where edges fall</span>
+<span class="sd">    below a weight threshold and the return all possible unitigs/contigs</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        sequences (:class:`list` of :class:`str`): a list of strings/sequences to assemble</span>
+<span class="sd">        assembly_max_kmer_size: see :term:`assembly_max_kmer_size`</span>
+<span class="sd">        assembly_min_nc_edge_weight: see :term:`assembly_min_nc_edge_weight`</span>
+<span class="sd">        assembly_min_edge_weight: see :term:`assembly_min_edge_weight`</span>
+<span class="sd">        assembly_min_match_quality: see :term:`assembly_min_match_quality`</span>
+<span class="sd">        assembly_min_read_mapping_overlap: see :term:`assembly_min_read_mapping_overlap`</span>
+<span class="sd">        assembly_min_contig_length: see :term:`assembly_min_contig_length`</span>
+<span class="sd">        assembly_min_exact_match_to_remap: see :term:`assembly_min_exact_match_to_remap`</span>
+<span class="sd">        assembly_max_paths: see :term:`assembly_max_paths`</span>
+<span class="sd">        log (function): the log function</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        :class:`list` of :class:`Contig`: a list of putative contigs</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">sequences</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">[]</span>
+    <span class="n">min_seq</span> <span class="o">=</span> <span class="nb">min</span><span class="p">([</span><span class="nb">len</span><span class="p">(</span><span class="n">s</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">sequences</span><span class="p">])</span>
+    <span class="k">if</span> <span class="n">assembly_max_kmer_size</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">temp</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">min_seq</span> <span class="o">*</span> <span class="mf">0.75</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">temp</span> <span class="o">&lt;</span> <span class="mi">10</span><span class="p">:</span>
+            <span class="n">assembly_max_kmer_size</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">min_seq</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">assembly_max_kmer_size</span> <span class="o">=</span> <span class="n">temp</span>
+    <span class="k">elif</span> <span class="n">assembly_max_kmer_size</span> <span class="o">&gt;</span> <span class="n">min_seq</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">assembly_max_kmer_strict</span><span class="p">:</span>
+            <span class="n">assembly_max_kmer_size</span> <span class="o">=</span> <span class="n">min_seq</span>
+            <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+                <span class="s1">&#39;cannot specify a kmer size larger than one of the input sequences. reset to </span><span class="si">{0}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">min_seq</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">assembly_min_read_mapping_overlap</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">assembly_min_read_mapping_overlap</span> <span class="o">=</span> <span class="n">assembly_max_kmer_size</span>
+    <span class="k">if</span> <span class="n">assembly_min_contig_length</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">assembly_min_contig_length</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">assembly_min_read_mapping_overlap</span><span class="p">,</span> <span class="n">min_seq</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+
+    <span class="n">assembly</span> <span class="o">=</span> <span class="n">DeBruijnGraph</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">sequences</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">s</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">assembly_max_kmer_size</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="n">kmers_list</span> <span class="o">=</span> <span class="n">kmers</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">assembly_max_kmer_size</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">kmer</span> <span class="ow">in</span> <span class="n">kmers_list</span><span class="p">:</span>
+            <span class="n">assembly</span><span class="o">.</span><span class="n">add_edge</span><span class="p">(</span><span class="n">kmer</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">kmer</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span>
+    <span class="c1"># use the ab min edge weight to remove all low weight edges first</span>
+    <span class="n">edges</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">assembly</span><span class="o">.</span><span class="n">edges</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
+    <span class="k">for</span> <span class="n">s</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">data</span> <span class="ow">in</span> <span class="n">edges</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;freq&#39;</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">assembly_min_edge_weight</span><span class="p">:</span>
+            <span class="n">assembly</span><span class="o">.</span><span class="n">remove_edge</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">t</span><span class="p">)</span>
+    <span class="c1"># then remove all nodes with no edges</span>
+    <span class="n">nodes</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">assembly</span><span class="o">.</span><span class="n">nodes</span><span class="p">())</span>
+    <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">nodes</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">assembly</span><span class="o">.</span><span class="n">in_degree</span><span class="p">(</span><span class="n">n</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">assembly</span><span class="o">.</span><span class="n">out_degree</span><span class="p">(</span><span class="n">n</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">assembly</span><span class="o">.</span><span class="n">remove_node</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>
+
+    <span class="c1"># drop all cyclic components</span>
+    <span class="k">for</span> <span class="n">component</span> <span class="ow">in</span> <span class="n">digraph_connected_components</span><span class="p">(</span><span class="n">assembly</span><span class="p">):</span>
+        <span class="n">subgraph</span> <span class="o">=</span> <span class="n">assembly</span><span class="o">.</span><span class="n">subgraph</span><span class="p">(</span><span class="n">component</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">nx</span><span class="o">.</span><span class="n">is_directed_acyclic_graph</span><span class="p">(</span><span class="n">subgraph</span><span class="p">):</span>
+            <span class="n">log</span><span class="p">(</span><span class="s1">&#39;dropping cyclic component&#39;</span><span class="p">,</span> <span class="n">time_stamp</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">node</span> <span class="ow">in</span> <span class="n">subgraph</span><span class="o">.</span><span class="n">nodes</span><span class="p">():</span>
+                <span class="n">assembly</span><span class="o">.</span><span class="n">remove_node</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+
+    <span class="c1"># initial data cleaning</span>
+    <span class="n">assembly</span><span class="o">.</span><span class="n">trim_forks_by_freq</span><span class="p">(</span><span class="n">assembly_min_nc_edge_weight</span><span class="p">)</span>
+    <span class="n">assembly</span><span class="o">.</span><span class="n">trim_noncutting_paths_by_freq</span><span class="p">(</span><span class="n">assembly_min_nc_edge_weight</span><span class="p">)</span>
+    <span class="n">assembly</span><span class="o">.</span><span class="n">trim_tails_by_freq</span><span class="p">(</span><span class="n">assembly_min_nc_edge_weight</span><span class="p">)</span>
+
+    <span class="n">path_scores</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="k">for</span> <span class="n">component</span> <span class="ow">in</span> <span class="n">digraph_connected_components</span><span class="p">(</span><span class="n">assembly</span><span class="p">):</span>
+        <span class="c1"># pull the path scores</span>
+        <span class="n">path_scores</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">pull_contigs_from_component</span><span class="p">(</span>
+            <span class="n">assembly</span><span class="p">,</span> <span class="n">component</span><span class="p">,</span>
+            <span class="n">assembly_min_nc_edge_weight</span><span class="o">=</span><span class="n">assembly_min_nc_edge_weight</span><span class="p">,</span>
+            <span class="n">assembly_max_paths</span><span class="o">=</span><span class="n">assembly_max_paths</span><span class="p">,</span>
+            <span class="n">log</span><span class="o">=</span><span class="n">log</span>
+        <span class="p">))</span>
+
+    <span class="c1"># now map the contigs to the possible input sequences</span>
+    <span class="n">contigs</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">seq</span><span class="p">,</span> <span class="n">score</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">path_scores</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">seq</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="n">assembly_min_contig_length</span><span class="p">:</span>
+            <span class="n">contigs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Contig</span><span class="p">(</span><span class="n">seq</span><span class="p">,</span> <span class="n">score</span><span class="p">))</span>
+    <span class="n">log</span><span class="p">(</span><span class="s1">&#39;filtering similar contigs&#39;</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">contigs</span><span class="p">))</span>
+    <span class="c1"># remap the input reads</span>
+    <span class="n">contigs</span> <span class="o">=</span> <span class="n">filter_contigs</span><span class="p">(</span><span class="n">contigs</span><span class="p">,</span> <span class="n">assembly_min_uniq</span><span class="p">)</span>
+    <span class="n">log</span><span class="p">(</span><span class="s1">&#39;remapping reads to </span><span class="si">{}</span><span class="s1"> contigs&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">contigs</span><span class="p">)))</span>
+
+    <span class="k">for</span> <span class="n">input_seq</span> <span class="ow">in</span> <span class="n">sequences</span><span class="p">:</span>
+        <span class="n">maps_to</span> <span class="o">=</span> <span class="p">{}</span>  <span class="c1"># contig, score</span>
+        <span class="k">for</span> <span class="n">contig</span> <span class="ow">in</span> <span class="n">contigs</span><span class="p">:</span>
+            <span class="n">a</span> <span class="o">=</span> <span class="n">nsb_align</span><span class="p">(</span>
+                <span class="n">contig</span><span class="o">.</span><span class="n">seq</span><span class="p">,</span>
+                <span class="n">input_seq</span><span class="p">,</span>
+                <span class="n">min_overlap_percent</span><span class="o">=</span><span class="n">assembly_min_read_mapping_overlap</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="n">contig</span><span class="o">.</span><span class="n">seq</span><span class="p">),</span>
+                <span class="n">min_match</span><span class="o">=</span><span class="n">assembly_min_match_quality</span><span class="p">,</span>
+                <span class="n">min_consecutive_match</span><span class="o">=</span><span class="n">assembly_min_exact_match_to_remap</span>
+            <span class="p">)</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">a</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="k">if</span> <span class="n">_cigar</span><span class="o">.</span><span class="n">match_percent</span><span class="p">(</span><span class="n">a</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">cigar</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">assembly_min_match_quality</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">maps_to</span><span class="p">[</span><span class="n">contig</span><span class="p">]</span> <span class="o">=</span> <span class="n">a</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">maps_to</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">scores</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">contig</span><span class="p">,</span> <span class="n">read</span> <span class="ow">in</span> <span class="n">maps_to</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="n">score</span> <span class="o">=</span> <span class="n">calculate_alignment_score</span><span class="p">(</span><span class="n">read</span><span class="p">)</span>
+                <span class="n">scores</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">contig</span><span class="p">,</span> <span class="n">read</span><span class="p">,</span> <span class="n">score</span><span class="p">,</span> <span class="n">read</span><span class="o">.</span><span class="n">reference_end</span> <span class="o">-</span> <span class="n">read</span><span class="o">.</span><span class="n">reference_start</span><span class="p">))</span>
+            <span class="n">max_score</span> <span class="o">=</span> <span class="nb">max</span><span class="p">([(</span><span class="n">t</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">t</span><span class="p">[</span><span class="mi">3</span><span class="p">])</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">scores</span><span class="p">])[</span><span class="mi">0</span><span class="p">:</span><span class="mi">2</span><span class="p">]</span>
+            <span class="n">best_alignments</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">contig</span><span class="p">,</span> <span class="n">read</span><span class="p">,</span> <span class="n">score1</span><span class="p">,</span> <span class="n">score2</span> <span class="ow">in</span> <span class="n">scores</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">max_score</span> <span class="o">==</span> <span class="p">(</span><span class="n">score1</span><span class="p">,</span> <span class="n">score2</span><span class="p">):</span>
+                    <span class="n">best_alignments</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">contig</span><span class="p">,</span> <span class="n">read</span><span class="p">))</span>
+            <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">best_alignments</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="mi">1</span>
+            <span class="k">for</span> <span class="n">contig</span><span class="p">,</span> <span class="n">read</span> <span class="ow">in</span> <span class="n">best_alignments</span><span class="p">:</span>
+                <span class="n">contig</span><span class="o">.</span><span class="n">add_mapped_sequence</span><span class="p">(</span><span class="n">read</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">best_alignments</span><span class="p">))</span>
+    <span class="n">log</span><span class="p">(</span><span class="s1">&#39;assemblies complete&#39;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">contigs</span></div>
+
+
+<div class="viewcode-block" id="kmers"><a class="viewcode-back" href="../../auto/mavis.assemble.html#mavis.assemble.kmers">[docs]</a><span class="k">def</span> <span class="nf">kmers</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">size</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    for a sequence, compute and return a list of all kmers of a specified size</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        s (str): the input sequence</span>
+<span class="sd">        size (int): the size of the kmers</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        :class:`list` of :class:`str`: the list of kmers</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        &gt;&gt;&gt; kmers(&#39;abcdef&#39;, 2)</span>
+<span class="sd">        [&#39;ab&#39;, &#39;bc&#39;, &#39;cd&#39;, &#39;de&#39;, &#39;ef&#39;]</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">kmers</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">s</span><span class="p">)):</span>
+        <span class="k">if</span> <span class="n">i</span> <span class="o">+</span> <span class="n">size</span> <span class="o">&gt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+            <span class="k">break</span>
+        <span class="n">kmers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">s</span><span class="p">[</span><span class="n">i</span><span class="p">:</span><span class="n">i</span> <span class="o">+</span> <span class="n">size</span><span class="p">])</span>
+    <span class="k">return</span> <span class="n">kmers</span></div>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2017, creisle.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../',
+            VERSION:'',
+            LANGUAGE:'None',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

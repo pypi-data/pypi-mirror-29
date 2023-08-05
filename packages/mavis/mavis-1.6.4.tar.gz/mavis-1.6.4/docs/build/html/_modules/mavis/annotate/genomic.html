@@ -1,0 +1,841 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>mavis.annotate.genomic &mdash; MAVIS  documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+    <link rel="stylesheet" href="../../../_static/custom.css" type="text/css" />
+  
+
+  
+        <link rel="author" title="About these documents"
+              href="../../../about.html"/>
+        <link rel="index" title="Index"
+              href="../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../search.html"/>
+    <link rel="top" title="MAVIS  documentation" href="../../../index.html"/>
+        <link rel="up" title="Module code" href="../../index.html"/> 
+
+  
+  <script src="../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home"> MAVIS
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                1.6.4
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../about.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../pipeline.html">Running the Pipeline</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../mavis_input.html">MAVIS standard input file format</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../reference.html">Reference Input Files</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../configuration.html">Configuration and Settings</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../tools_supported.html">Supported SV Callers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../illustrations.html">Illustrations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../faqs.html">Frequently Asked Questions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../theory.html">Theory and Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../development.html">Guidelines for Contributors</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../package.html">Package Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../citations.html">Literature</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">MAVIS</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+      <li>mavis.annotate.genomic</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for mavis.annotate.genomic</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">copy</span> <span class="k">import</span> <span class="n">copy</span>
+<span class="kn">import</span> <span class="nn">itertools</span>
+
+<span class="kn">from</span> <span class="nn">.base</span> <span class="k">import</span> <span class="n">BioInterval</span><span class="p">,</span> <span class="n">ReferenceName</span>
+<span class="kn">from</span> <span class="nn">.constants</span> <span class="k">import</span> <span class="n">SPLICE_SITE_TYPE</span>
+<span class="kn">from</span> <span class="nn">.splicing</span> <span class="k">import</span> <span class="n">SpliceSite</span><span class="p">,</span> <span class="n">SplicingPattern</span>
+<span class="kn">from</span> <span class="nn">..constants</span> <span class="k">import</span> <span class="n">ORIENT</span><span class="p">,</span> <span class="n">reverse_complement</span><span class="p">,</span> <span class="n">STRAND</span>
+<span class="kn">from</span> <span class="nn">..error</span> <span class="k">import</span> <span class="n">NotSpecifiedError</span>
+<span class="kn">from</span> <span class="nn">..interval</span> <span class="k">import</span> <span class="n">Interval</span>
+
+
+<div class="viewcode-block" id="Template"><a class="viewcode-back" href="../../../auto/mavis.annotate.genomic.html#mavis.annotate.genomic.Template">[docs]</a><span class="k">class</span> <span class="nc">Template</span><span class="p">(</span><span class="n">BioInterval</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">,</span> <span class="n">seq</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">bands</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="n">bands</span> <span class="o">=</span> <span class="p">[]</span> <span class="k">if</span> <span class="n">bands</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">bands</span>
+        <span class="n">name</span> <span class="o">=</span> <span class="n">ReferenceName</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+        <span class="n">BioInterval</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span> <span class="n">seq</span><span class="o">=</span><span class="n">seq</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">bands</span> <span class="o">=</span> <span class="n">bands</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">bands</span><span class="p">)):</span>
+            <span class="n">bands</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">reference_object</span> <span class="o">=</span> <span class="bp">self</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">bands</span><span class="o">.</span><span class="n">sort</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__eq__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">==</span> <span class="nb">str</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__hash__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">hash</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="IntergenicRegion"><a class="viewcode-back" href="../../../auto/mavis.annotate.genomic.html#mavis.annotate.genomic.IntergenicRegion">[docs]</a><span class="k">class</span> <span class="nc">IntergenicRegion</span><span class="p">(</span><span class="n">BioInterval</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">chr</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">,</span> <span class="n">strand</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Args:</span>
+<span class="sd">            chr (str): the reference object/chromosome for this region</span>
+<span class="sd">            start (int): the start of the IntergenicRegion</span>
+<span class="sd">            end (int): the end of the IntergenicRegion</span>
+<span class="sd">            strand (STRAND): the strand the region is defined on</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; IntergenicRegion(&#39;1&#39;, 1, 100, &#39;+&#39;)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">BioInterval</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">chr</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">strand</span> <span class="o">=</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">enforce</span><span class="p">(</span><span class="n">strand</span><span class="p">)</span>
+
+<div class="viewcode-block" id="IntergenicRegion.key"><a class="viewcode-back" href="../../../auto/mavis.annotate.genomic.html#mavis.annotate.genomic.IntergenicRegion.key">[docs]</a>    <span class="k">def</span> <span class="nf">key</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;see :func:`structural_variant.annotate.base.BioInterval.key`&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">BioInterval</span><span class="o">.</span><span class="n">key</span><span class="p">(</span><span class="bp">self</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">strand</span></div>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">chr</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;returns the name of the chromosome that this region resides on&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">reference_object</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s1">&#39;IntergenicRegion(</span><span class="si">{}</span><span class="s1">:</span><span class="si">{}</span><span class="s1">_</span><span class="si">{}{}</span><span class="s1">)&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">chr</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">end</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">strand</span><span class="p">)</span>
+
+<div class="viewcode-block" id="IntergenicRegion.to_dict"><a class="viewcode-back" href="../../../auto/mavis.annotate.genomic.html#mavis.annotate.genomic.IntergenicRegion.to_dict">[docs]</a>    <span class="k">def</span> <span class="nf">to_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;see :func:`structural_variant.annotate.base.BioInterval.to_dict`&quot;&quot;&quot;</span>
+        <span class="n">d</span> <span class="o">=</span> <span class="n">BioInterval</span><span class="o">.</span><span class="n">to_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="n">d</span><span class="p">[</span><span class="s1">&#39;strand&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">strand</span>
+        <span class="k">return</span> <span class="n">d</span></div></div>
+
+
+<div class="viewcode-block" id="Gene"><a class="viewcode-back" href="../../../auto/mavis.annotate.genomic.html#mavis.annotate.genomic.Gene">[docs]</a><span class="k">class</span> <span class="nc">Gene</span><span class="p">(</span><span class="n">BioInterval</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">chr</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">strand</span><span class="o">=</span><span class="n">STRAND</span><span class="o">.</span><span class="n">NS</span><span class="p">,</span> <span class="n">aliases</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">seq</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Args:</span>
+<span class="sd">            chr (str): the chromosome</span>
+<span class="sd">            name (str): the gene name/id i.e. ENSG0001</span>
+<span class="sd">            strand (STRAND): the genomic strand &#39;+&#39; or &#39;-&#39;</span>
+<span class="sd">            aliases (:class:`list` of :class:`str`): a list of aliases. For example the hugo name could go here</span>
+<span class="sd">            seq (str): genomic seq of the gene</span>
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; Gene(&#39;X&#39;, 1, 1000, &#39;ENG0001&#39;, &#39;+&#39;, [&#39;KRAS&#39;])</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">aliases</span> <span class="o">=</span> <span class="p">[]</span> <span class="k">if</span> <span class="n">aliases</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">aliases</span>
+        <span class="nb">chr</span> <span class="o">=</span> <span class="n">ReferenceName</span><span class="p">(</span><span class="nb">chr</span><span class="p">)</span>
+        <span class="n">BioInterval</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span> <span class="n">reference_object</span><span class="o">=</span><span class="nb">chr</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="n">end</span><span class="p">,</span> <span class="n">seq</span><span class="o">=</span><span class="n">seq</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">unspliced_transcripts</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">strand</span> <span class="o">=</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">enforce</span><span class="p">(</span><span class="n">strand</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">aliases</span> <span class="o">=</span> <span class="n">aliases</span>
+
+<div class="viewcode-block" id="Gene.transcript_priority"><a class="viewcode-back" href="../../../auto/mavis.annotate.genomic.html#mavis.annotate.genomic.Gene.transcript_priority">[docs]</a>    <span class="k">def</span> <span class="nf">transcript_priority</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">transcript</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        prioritizes transcripts from 0 to n-1 based on best transcript flag</span>
+<span class="sd">        and then alphanumeric name sort</span>
+
+<span class="sd">        Warning:</span>
+<span class="sd">            Lower number means higher priority. This is to make sort work by default</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">def</span> <span class="nf">sort_key</span><span class="p">(</span><span class="n">t</span><span class="p">):</span>
+            <span class="k">return</span> <span class="p">(</span>
+                <span class="mi">0</span> <span class="k">if</span> <span class="n">t</span><span class="o">.</span><span class="n">is_best_transcript</span> <span class="k">else</span> <span class="mi">1</span><span class="p">,</span>
+                <span class="n">t</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">t</span><span class="o">.</span><span class="n">start</span> <span class="o">-</span> <span class="n">t</span><span class="o">.</span><span class="n">end</span><span class="p">,</span> <span class="n">t</span><span class="o">.</span><span class="n">start</span><span class="p">,</span> <span class="n">t</span><span class="o">.</span><span class="n">end</span>
+            <span class="p">)</span>
+        <span class="n">priority</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">transcripts</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">sort_key</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">curr_transcript</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">priority</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">curr_transcript</span> <span class="o">==</span> <span class="n">transcript</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">i</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;input transcript is not associated with this gene&#39;</span><span class="p">,</span> <span class="n">transcript</span><span class="p">)</span></div>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">transcripts</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;:any:`list` of :class:`PreTranscript`: list of unspliced transcripts&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">unspliced_transcripts</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">translations</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;:any:`list` of :class:`~mavis.annotate.protein.Translation`: list of translations&quot;&quot;&quot;</span>
+        <span class="n">translations</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">pre_transcript</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">unspliced_transcripts</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">tx</span> <span class="ow">in</span> <span class="n">pre_transcript</span><span class="o">.</span><span class="n">transcripts</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">tl</span> <span class="ow">in</span> <span class="n">tx</span><span class="o">.</span><span class="n">translations</span><span class="p">:</span>
+                    <span class="n">translations</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">tl</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">translations</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">chr</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;returns the name of the chromosome that this gene resides on&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">reference_object</span>
+
+<div class="viewcode-block" id="Gene.key"><a class="viewcode-back" href="../../../auto/mavis.annotate.genomic.html#mavis.annotate.genomic.Gene.key">[docs]</a>    <span class="k">def</span> <span class="nf">key</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;see :func:`structural_variant.annotate.base.BioInterval.key`&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">BioInterval</span><span class="o">.</span><span class="n">key</span><span class="p">(</span><span class="bp">self</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">strand</span></div>
+
+<div class="viewcode-block" id="Gene.get_seq"><a class="viewcode-back" href="../../../auto/mavis.annotate.genomic.html#mavis.annotate.genomic.Gene.get_seq">[docs]</a>    <span class="k">def</span> <span class="nf">get_seq</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">reference_genome</span><span class="p">,</span> <span class="n">ignore_cache</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        gene sequence is always given wrt to the positive forward strand regardless of gene strand</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            reference_genome (:class:`dict` of :class:`Bio.SeqRecord` by :class:`str`): dict of reference sequence by</span>
+<span class="sd">                template/chr name</span>
+<span class="sd">            ignore_cache (bool): if True then stored sequences will be ignored and the function will attempt to retrieve the sequence using the positions and the input reference_genome</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: the sequence of the gene</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">seq</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">ignore_cache</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">seq</span>
+        <span class="k">elif</span> <span class="n">reference_genome</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">NotSpecifiedError</span><span class="p">(</span><span class="s1">&#39;reference genome is required to retrieve the gene sequence&#39;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">reference_genome</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">chr</span><span class="p">]</span><span class="o">.</span><span class="n">seq</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">end</span><span class="p">])</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span></div>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">spliced_transcripts</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;:any:`list` of :class:`Transcript`: list of transcripts&quot;&quot;&quot;</span>
+        <span class="n">spl</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">unspliced_transcripts</span><span class="p">:</span>
+            <span class="n">spl</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">spliced_transcripts</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">spl</span>
+
+<div class="viewcode-block" id="Gene.to_dict"><a class="viewcode-back" href="../../../auto/mavis.annotate.genomic.html#mavis.annotate.genomic.Gene.to_dict">[docs]</a>    <span class="k">def</span> <span class="nf">to_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;see :func:`structural_variant.annotate.base.BioInterval.to_dict`&quot;&quot;&quot;</span>
+        <span class="n">d</span> <span class="o">=</span> <span class="n">BioInterval</span><span class="o">.</span><span class="n">to_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="n">d</span><span class="p">[</span><span class="s1">&#39;strand&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">strand</span>
+        <span class="k">return</span> <span class="n">d</span></div></div>
+
+
+<div class="viewcode-block" id="Exon"><a class="viewcode-back" href="../../../auto/mavis.annotate.genomic.html#mavis.annotate.genomic.Exon">[docs]</a><span class="k">class</span> <span class="nc">Exon</span><span class="p">(</span><span class="n">BioInterval</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">,</span>
+            <span class="n">transcript</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">name</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">intact_start_splice</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">intact_end_splice</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">seq</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">strand</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Args:</span>
+<span class="sd">            start (int): the genomic start position</span>
+<span class="sd">            end (int): the genomic end position</span>
+<span class="sd">            name (str): the name of the exon</span>
+<span class="sd">            transcript (PreTranscript): the &#39;parent&#39; transcript this exon belongs to</span>
+<span class="sd">            intact_start_splice (bool): if the starting splice site has been abrogated</span>
+<span class="sd">            intact_end_splice (bool): if the end splice site has been abrogated</span>
+<span class="sd">        Raises:</span>
+<span class="sd">            AttributeError: if the exon start &gt; the exon end</span>
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; Exon(15, 78)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">BioInterval</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span> <span class="n">reference_object</span><span class="o">=</span><span class="n">transcript</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="n">end</span><span class="p">,</span> <span class="n">seq</span><span class="o">=</span><span class="n">seq</span><span class="p">,</span> <span class="n">strand</span><span class="o">=</span><span class="n">strand</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_reverse</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">start_splice_site</span> <span class="o">=</span> <span class="n">SpliceSite</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">transcript</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">,</span> <span class="n">site_type</span><span class="o">=</span><span class="n">SPLICE_SITE_TYPE</span><span class="o">.</span><span class="n">DONOR</span><span class="p">,</span> <span class="n">strand</span><span class="o">=</span><span class="n">STRAND</span><span class="o">.</span><span class="n">NEG</span><span class="p">,</span> <span class="n">intact</span><span class="o">=</span><span class="n">intact_start_splice</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">end_splice_site</span> <span class="o">=</span> <span class="n">SpliceSite</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">transcript</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">end</span><span class="p">,</span> <span class="n">site_type</span><span class="o">=</span><span class="n">SPLICE_SITE_TYPE</span><span class="o">.</span><span class="n">ACCEPTOR</span><span class="p">,</span> <span class="n">strand</span><span class="o">=</span><span class="n">STRAND</span><span class="o">.</span><span class="n">NEG</span><span class="p">,</span> <span class="n">intact</span><span class="o">=</span><span class="n">intact_end_splice</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">start_splice_site</span> <span class="o">=</span> <span class="n">SpliceSite</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">transcript</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">,</span> <span class="n">site_type</span><span class="o">=</span><span class="n">SPLICE_SITE_TYPE</span><span class="o">.</span><span class="n">ACCEPTOR</span><span class="p">,</span> <span class="n">strand</span><span class="o">=</span><span class="n">STRAND</span><span class="o">.</span><span class="n">POS</span><span class="p">,</span> <span class="n">intact</span><span class="o">=</span><span class="n">intact_start_splice</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">end_splice_site</span> <span class="o">=</span> <span class="n">SpliceSite</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">transcript</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">end</span><span class="p">,</span> <span class="n">site_type</span><span class="o">=</span><span class="n">SPLICE_SITE_TYPE</span><span class="o">.</span><span class="n">DONOR</span><span class="p">,</span> <span class="n">strand</span><span class="o">=</span><span class="n">STRAND</span><span class="o">.</span><span class="n">POS</span><span class="p">,</span> <span class="n">intact</span><span class="o">=</span><span class="n">intact_end_splice</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">transcript</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;:class:`PreTranscript`: the transcript this exon belongs to&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">reference_object</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">donor_splice_site</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;:class:`~mavis.interval.Interval`: the genomic range describing the splice site&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_reverse</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">start_splice_site</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">end_splice_site</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">acceptor_splice_site</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;:class:`~mavis.interval.Interval`: the genomic range describing the splice site&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_reverse</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">end_splice_site</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">start_splice_site</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">donor</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;`int`: returns the genomic exonic position of the donor splice site&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_reverse</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">start</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">end</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">acceptor</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;`int`: returns the genomic exonic position of the acceptor splice site&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_reverse</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">end</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">start</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s1">&#39;Exon(</span><span class="si">{}{}</span><span class="s1">, </span><span class="si">{}{}</span><span class="s1">)&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">,</span> <span class="s1">&#39;&#39;</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">start_splice_site</span><span class="o">.</span><span class="n">intact</span> <span class="k">else</span> <span class="s1">&#39;*&#39;</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">end</span><span class="p">,</span> <span class="s1">&#39;&#39;</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">end_splice_site</span><span class="o">.</span><span class="n">intact</span> <span class="k">else</span> <span class="s1">&#39;*&#39;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="PreTranscript"><a class="viewcode-back" href="../../../auto/mavis.annotate.genomic.html#mavis.annotate.genomic.PreTranscript">[docs]</a><span class="k">class</span> <span class="nc">PreTranscript</span><span class="p">(</span><span class="n">BioInterval</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">exons</span><span class="p">,</span>
+        <span class="n">gene</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">name</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">strand</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">spliced_transcripts</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">seq</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">is_best_transcript</span><span class="o">=</span><span class="kc">False</span>
+    <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; creates a new transcript object</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            exons (:class:`list` of :any:`Exon`): list of Exon that make up the transcript</span>
+<span class="sd">            genomic_start (int): genomic start position of the transcript</span>
+<span class="sd">            genomic_end (int): genomic end position of the transcript</span>
+<span class="sd">            gene (Gene): the gene this transcript belongs to</span>
+<span class="sd">            name (str): name of the transcript</span>
+<span class="sd">            strand (STRAND): strand the transcript is on, defaults to the strand of the Gene if not specified</span>
+<span class="sd">            seq (str): unspliced cDNA seq</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># cannot use mutable default args in the function decl</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">exons</span> <span class="o">=</span> <span class="n">exons</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">spliced_transcripts</span> <span class="o">=</span> <span class="p">[]</span> <span class="k">if</span> <span class="n">spliced_transcripts</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">spliced_transcripts</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">is_best_transcript</span> <span class="o">=</span> <span class="n">is_best_transcript</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">exons</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span><span class="s1">&#39;exons must be given&#39;</span><span class="p">)</span>
+
+        <span class="n">start</span> <span class="o">=</span> <span class="nb">min</span><span class="p">([</span><span class="n">e</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">exons</span><span class="p">])</span>
+        <span class="n">end</span> <span class="o">=</span> <span class="nb">max</span><span class="p">([</span><span class="n">e</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">exons</span><span class="p">])</span>
+
+        <span class="n">BioInterval</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">gene</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span> <span class="n">seq</span><span class="o">=</span><span class="n">seq</span><span class="p">,</span> <span class="n">strand</span><span class="o">=</span><span class="n">strand</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">curr</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">exons</span><span class="p">):</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">curr</span><span class="p">,</span> <span class="n">Exon</span><span class="p">):</span>
+                <span class="n">curr</span><span class="o">.</span><span class="n">reference_object</span> <span class="o">=</span> <span class="bp">self</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">exons</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">Exon</span><span class="p">(</span><span class="n">curr</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">curr</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="bp">self</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">exons</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">exons</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="o">.</span><span class="n">start</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">ex</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">exons</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">ex</span><span class="o">.</span><span class="n">end</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">end</span> <span class="ow">or</span> <span class="n">ex</span><span class="o">.</span><span class="n">start</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">AssertionError</span><span class="p">(</span><span class="s1">&#39;exon is outside transcript&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="p">,</span> <span class="n">ex</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">e1</span><span class="p">,</span> <span class="n">e2</span> <span class="ow">in</span> <span class="n">itertools</span><span class="o">.</span><span class="n">combinations</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">exons</span><span class="p">,</span> <span class="mi">2</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">Interval</span><span class="o">.</span><span class="n">overlaps</span><span class="p">(</span><span class="n">e1</span><span class="p">,</span> <span class="n">e2</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span><span class="s1">&#39;exons cannot overlap&#39;</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">spliced_transcripts</span><span class="p">:</span>
+            <span class="n">s</span><span class="o">.</span><span class="n">reference_object</span> <span class="o">=</span> <span class="bp">self</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_strand</span><span class="p">()</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">gene</span><span class="o">.</span><span class="n">get_strand</span><span class="p">():</span>
+                <span class="k">raise</span> <span class="ne">AssertionError</span><span class="p">(</span><span class="s1">&#39;gene strand and transcript strand conflict&#39;</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="k">pass</span>
+
+<div class="viewcode-block" id="PreTranscript.generate_splicing_patterns"><a class="viewcode-back" href="../../../auto/mavis.annotate.genomic.html#mavis.annotate.genomic.PreTranscript.generate_splicing_patterns">[docs]</a>    <span class="k">def</span> <span class="nf">generate_splicing_patterns</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        returns a list of splice sites to be connected as a splicing pattern</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            :class:`list` of :class:`SplicingPattern`: List of positions to be spliced together</span>
+
+<span class="sd">        see :ref:`theory - predicting splicing patterns &lt;theory-predicting-splicing-patterns&gt;`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">exons</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[</span><span class="n">SplicingPattern</span><span class="p">()]</span>
+        <span class="n">sites</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">exons</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">end_splice_site</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">exon</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">exons</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]:</span>
+            <span class="n">sites</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="n">exon</span><span class="o">.</span><span class="n">start_splice_site</span><span class="p">,</span> <span class="n">exon</span><span class="o">.</span><span class="n">end_splice_site</span><span class="p">])</span>
+        <span class="n">sites</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">exons</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">start_splice_site</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">SplicingPattern</span><span class="o">.</span><span class="n">generate_patterns</span><span class="p">(</span><span class="n">sites</span><span class="p">,</span> <span class="n">is_reverse</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">is_reverse</span><span class="p">)</span></div>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">gene</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;:any:`Gene`: the gene this transcript belongs to&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">reference_object</span>
+
+    <span class="k">def</span> <span class="nf">_genomic_to_cdna_mapping</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">splicing_pattern</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Args:</span>
+<span class="sd">            splicing_pattern (SplicingPattern): list of genomic splice sites 3&#39;5&#39; repeating</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">mapping</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">length</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="n">pos</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">([</span><span class="n">s</span><span class="o">.</span><span class="n">pos</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">splicing_pattern</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">end</span><span class="p">])</span>
+        <span class="n">genome_intervals</span> <span class="o">=</span> <span class="p">[</span><span class="n">Interval</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">t</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span><span class="p">,</span> <span class="n">t</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">pos</span><span class="p">[::</span><span class="mi">2</span><span class="p">],</span> <span class="n">pos</span><span class="p">[</span><span class="mi">1</span><span class="p">::</span><span class="mi">2</span><span class="p">])]</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_strand</span><span class="p">()</span> <span class="o">==</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">POS</span><span class="p">:</span>
+            <span class="k">pass</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_strand</span><span class="p">()</span> <span class="o">==</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">NEG</span><span class="p">:</span>
+            <span class="n">genome_intervals</span><span class="o">.</span><span class="n">reverse</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">NotSpecifiedError</span><span class="p">(</span><span class="s1">&#39;cannot convert without strand information&#39;</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">exon</span> <span class="ow">in</span> <span class="n">genome_intervals</span><span class="p">:</span>
+            <span class="n">mapping</span><span class="p">[</span><span class="n">exon</span><span class="p">]</span> <span class="o">=</span> <span class="n">Interval</span><span class="p">(</span><span class="n">length</span><span class="p">,</span> <span class="n">length</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">exon</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="n">length</span> <span class="o">+=</span> <span class="nb">len</span><span class="p">(</span><span class="n">exon</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">mapping</span>
+
+    <span class="k">def</span> <span class="nf">_cdna_to_genomic_mapping</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">splicing_pattern</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Args:</span>
+<span class="sd">            splicing_pattern (SplicingPattern): list of genomic splice sites 3&#39;5&#39; repeating</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">mapping</span> <span class="o">=</span> <span class="p">{</span><span class="n">v</span><span class="p">:</span> <span class="n">k</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_genomic_to_cdna_mapping</span><span class="p">(</span><span class="n">splicing_pattern</span><span class="p">)</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+        <span class="k">return</span> <span class="n">mapping</span>
+
+<div class="viewcode-block" id="PreTranscript.convert_genomic_to_cdna"><a class="viewcode-back" href="../../../auto/mavis.annotate.genomic.html#mavis.annotate.genomic.PreTranscript.convert_genomic_to_cdna">[docs]</a>    <span class="k">def</span> <span class="nf">convert_genomic_to_cdna</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pos</span><span class="p">,</span> <span class="n">splicing_pattern</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Args:</span>
+<span class="sd">            pos (int): the genomic position to be converted</span>
+<span class="sd">            splicing_pattern (SplicingPattern): list of genomic splice sites 3&#39;5&#39; repeating</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            int: the cdna equivalent</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            :class:`~mavis.error.IndexError`: when a genomic position not present in the</span>
+<span class="sd">                cdna is attempted to be converted</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">cdna_pos</span><span class="p">,</span> <span class="n">shift</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">convert_genomic_to_nearest_cdna</span><span class="p">(</span><span class="n">pos</span><span class="p">,</span> <span class="n">splicing_pattern</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">shift</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">IndexError</span><span class="p">(</span><span class="s1">&#39;outside of exonic regions&#39;</span><span class="p">,</span> <span class="n">pos</span><span class="p">,</span> <span class="n">splicing_pattern</span><span class="p">,</span> <span class="n">cdna_pos</span><span class="p">,</span> <span class="n">shift</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">cdna_pos</span></div>
+
+<div class="viewcode-block" id="PreTranscript.convert_genomic_to_nearest_cdna"><a class="viewcode-back" href="../../../auto/mavis.annotate.genomic.html#mavis.annotate.genomic.PreTranscript.convert_genomic_to_nearest_cdna">[docs]</a>    <span class="k">def</span> <span class="nf">convert_genomic_to_nearest_cdna</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pos</span><span class="p">,</span> <span class="n">splicing_pattern</span><span class="p">,</span> <span class="n">stick_direction</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">allow_outside</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        converts a genomic position to its cdna equivalent or (if intronic) the nearest cdna and shift</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            pos (int): the genomic position</span>
+<span class="sd">            splicing_pattern (SplicingPattern): the splicing pattern</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            tuple of int and int:</span>
+<span class="sd">                * *int* - the exonic cdna position</span>
+<span class="sd">                * *int* - the intronic shift</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">mapping</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_genomic_to_cdna_mapping</span><span class="p">(</span><span class="n">splicing_pattern</span><span class="p">)</span>
+        <span class="n">exons</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">mapping</span><span class="o">.</span><span class="n">keys</span><span class="p">()))</span>
+        <span class="c1"># exonic</span>
+        <span class="k">for</span> <span class="n">ex</span> <span class="ow">in</span> <span class="n">exons</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">pos</span> <span class="o">&lt;=</span> <span class="n">ex</span><span class="o">.</span><span class="n">end</span> <span class="ow">and</span> <span class="n">pos</span> <span class="o">&gt;=</span> <span class="n">ex</span><span class="o">.</span><span class="n">start</span><span class="p">:</span>
+                <span class="c1"># in the current exon</span>
+                <span class="n">cdna_pos</span> <span class="o">=</span> <span class="n">Interval</span><span class="o">.</span><span class="n">convert_pos</span><span class="p">(</span><span class="n">mapping</span><span class="p">,</span> <span class="n">pos</span><span class="p">,</span> <span class="kc">True</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_strand</span><span class="p">()</span> <span class="o">==</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">NEG</span> <span class="k">else</span> <span class="kc">False</span><span class="p">)</span>
+                <span class="k">return</span> <span class="n">cdna_pos</span><span class="p">,</span> <span class="mi">0</span>
+        <span class="c1"># intronic</span>
+        <span class="k">for</span> <span class="n">ex1</span><span class="p">,</span> <span class="n">ex2</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">exons</span><span class="p">,</span> <span class="n">exons</span><span class="p">[</span><span class="mi">1</span><span class="p">::]):</span>
+            <span class="k">if</span> <span class="n">pos</span> <span class="o">&gt;</span> <span class="n">ex1</span><span class="o">.</span><span class="n">end</span> <span class="ow">and</span> <span class="n">pos</span> <span class="o">&lt;</span> <span class="n">ex2</span><span class="o">.</span><span class="n">start</span><span class="p">:</span>
+                <span class="c1"># in the current intron</span>
+                <span class="k">if</span> <span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="n">pos</span> <span class="o">-</span> <span class="n">ex1</span><span class="o">.</span><span class="n">end</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="nb">abs</span><span class="p">(</span><span class="n">pos</span> <span class="o">-</span> <span class="n">ex2</span><span class="o">.</span><span class="n">start</span><span class="p">)</span> <span class="ow">or</span> <span class="n">stick_direction</span> <span class="o">==</span> <span class="n">ORIENT</span><span class="o">.</span><span class="n">LEFT</span><span class="p">)</span> <span class="ow">and</span> <span class="n">stick_direction</span> <span class="o">!=</span> <span class="n">ORIENT</span><span class="o">.</span><span class="n">RIGHT</span><span class="p">:</span>
+                    <span class="c1"># closest to the first exon</span>
+                    <span class="n">cdna_pos</span> <span class="o">=</span> <span class="n">Interval</span><span class="o">.</span><span class="n">convert_pos</span><span class="p">(</span><span class="n">mapping</span><span class="p">,</span> <span class="n">ex1</span><span class="o">.</span><span class="n">end</span><span class="p">,</span> <span class="kc">True</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_strand</span><span class="p">()</span> <span class="o">==</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">NEG</span> <span class="k">else</span> <span class="kc">False</span><span class="p">)</span>
+                    <span class="k">return</span> <span class="n">cdna_pos</span><span class="p">,</span> <span class="n">pos</span> <span class="o">-</span> <span class="n">ex1</span><span class="o">.</span><span class="n">end</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_strand</span><span class="p">()</span> <span class="o">==</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">POS</span> <span class="k">else</span> <span class="n">ex1</span><span class="o">.</span><span class="n">end</span> <span class="o">-</span> <span class="n">pos</span>
+                <span class="n">cdna_pos</span> <span class="o">=</span> <span class="n">Interval</span><span class="o">.</span><span class="n">convert_pos</span><span class="p">(</span><span class="n">mapping</span><span class="p">,</span> <span class="n">ex2</span><span class="o">.</span><span class="n">start</span><span class="p">,</span> <span class="kc">True</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_strand</span><span class="p">()</span> <span class="o">==</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">NEG</span> <span class="k">else</span> <span class="kc">False</span><span class="p">)</span>
+                <span class="k">return</span> <span class="n">cdna_pos</span><span class="p">,</span> <span class="n">pos</span> <span class="o">-</span> <span class="n">ex2</span><span class="o">.</span><span class="n">start</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_strand</span><span class="p">()</span> <span class="o">==</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">POS</span> <span class="k">else</span> <span class="n">ex2</span><span class="o">.</span><span class="n">start</span> <span class="o">-</span> <span class="n">pos</span>
+        <span class="k">if</span> <span class="n">allow_outside</span><span class="p">:</span>
+            <span class="n">cdna_length</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">([</span><span class="nb">len</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">exons</span><span class="p">])</span>
+            <span class="k">if</span> <span class="n">pos</span> <span class="o">&lt;</span> <span class="n">exons</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">start</span><span class="p">:</span>  <span class="c1"># before the first exon</span>
+                <span class="k">return</span> <span class="n">cdna_length</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_reverse</span> <span class="k">else</span> <span class="mi">1</span><span class="p">,</span> <span class="n">pos</span> <span class="o">-</span> <span class="n">exons</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">start</span>
+            <span class="k">elif</span> <span class="n">pos</span> <span class="o">&gt;</span> <span class="n">exons</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">end</span><span class="p">:</span>
+                <span class="k">return</span> <span class="mi">1</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_reverse</span> <span class="k">else</span> <span class="n">cdna_length</span><span class="p">,</span> <span class="n">pos</span> <span class="o">-</span> <span class="n">exons</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">end</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s1">&#39;Unexpected error&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">exons</span><span class="p">,</span> <span class="n">pos</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">IndexError</span><span class="p">(</span><span class="s1">&#39;position does not fall within the current transcript&#39;</span><span class="p">,</span> <span class="n">pos</span><span class="p">,</span> <span class="n">mapping</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="PreTranscript.convert_cdna_to_genomic"><a class="viewcode-back" href="../../../auto/mavis.annotate.genomic.html#mavis.annotate.genomic.PreTranscript.convert_cdna_to_genomic">[docs]</a>    <span class="k">def</span> <span class="nf">convert_cdna_to_genomic</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pos</span><span class="p">,</span> <span class="n">splicing_pattern</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Args:</span>
+<span class="sd">            pos (int): cdna position</span>
+<span class="sd">            splicing_pattern (SplicingPattern): list of genomic splice sites 3&#39;5&#39; repeating</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            int: the genomic equivalent</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">mapping</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cdna_to_genomic_mapping</span><span class="p">(</span><span class="n">splicing_pattern</span><span class="p">)</span>
+        <span class="n">exons</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">mapping</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
+        <span class="n">length</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">([</span><span class="nb">len</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">mapping</span><span class="p">])</span>
+        <span class="k">if</span> <span class="n">pos</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_reverse</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">exons</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">end</span> <span class="o">+</span> <span class="nb">abs</span><span class="p">(</span><span class="n">pos</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">exons</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">start</span> <span class="o">+</span> <span class="n">pos</span>
+        <span class="k">if</span> <span class="n">pos</span> <span class="o">&gt;</span> <span class="n">length</span><span class="p">:</span>
+            <span class="n">pos</span> <span class="o">-=</span> <span class="n">length</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_reverse</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">exons</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">start</span> <span class="o">-</span> <span class="n">pos</span>
+            <span class="k">return</span> <span class="n">exons</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">end</span> <span class="o">+</span> <span class="n">pos</span>
+        <span class="k">return</span> <span class="n">Interval</span><span class="o">.</span><span class="n">convert_pos</span><span class="p">(</span><span class="n">mapping</span><span class="p">,</span> <span class="n">pos</span><span class="p">,</span> <span class="kc">True</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_strand</span><span class="p">()</span> <span class="o">==</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">NEG</span> <span class="k">else</span> <span class="kc">False</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="PreTranscript.exon_number"><a class="viewcode-back" href="../../../auto/mavis.annotate.genomic.html#mavis.annotate.genomic.PreTranscript.exon_number">[docs]</a>    <span class="k">def</span> <span class="nf">exon_number</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exon</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        exon numbering is based on the direction of translation</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            exon (Exon): the exon to be numbered</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            int: the exon number (1 based)</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            AttributeError: if the strand is not given or the exon does not belong to the transcript</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">current_exon</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">exons</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">exon</span> <span class="o">!=</span> <span class="n">current_exon</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_strand</span><span class="p">()</span> <span class="o">==</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">POS</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">i</span> <span class="o">+</span> <span class="mi">1</span>
+            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_strand</span><span class="p">()</span> <span class="o">==</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">NEG</span><span class="p">:</span>
+                <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">exons</span><span class="p">)</span> <span class="o">-</span> <span class="n">i</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">NotSpecifiedError</span><span class="p">(</span><span class="s1">&#39;strand must be pos or neg to calculate the exon number&#39;</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span><span class="s1">&#39;can only calculate phase on associated exons&#39;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="PreTranscript.get_seq"><a class="viewcode-back" href="../../../auto/mavis.annotate.genomic.html#mavis.annotate.genomic.PreTranscript.get_seq">[docs]</a>    <span class="k">def</span> <span class="nf">get_seq</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">reference_genome</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ignore_cache</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Args:</span>
+<span class="sd">            reference_genome (:class:`dict` of :class:`Bio.SeqRecord` by :class:`str`): dict of reference sequence</span>
+<span class="sd">                by template/chr name</span>
+<span class="sd">            ignore_cache (bool): if True then stored sequences will be ignored and the function will attempt to retrieve the sequence using the positions and the input reference_genome</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: the sequence of the transcript including introns (but relative to strand)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">seq</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">ignore_cache</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">seq</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">gene</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">gene</span><span class="o">.</span><span class="n">seq</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">ignore_cache</span><span class="p">:</span>
+            <span class="c1"># gene has a seq set</span>
+            <span class="n">start</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">start</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">gene</span><span class="o">.</span><span class="n">start</span>
+            <span class="n">end</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">end</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">gene</span><span class="o">.</span><span class="n">end</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">gene</span><span class="o">.</span><span class="n">seq</span><span class="p">)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_strand</span><span class="p">()</span> <span class="o">==</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">NEG</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">reverse_complement</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">gene</span><span class="o">.</span><span class="n">seq</span><span class="p">[</span><span class="n">start</span><span class="p">:</span><span class="n">end</span><span class="p">])</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">gene</span><span class="o">.</span><span class="n">seq</span><span class="p">[</span><span class="n">start</span><span class="p">:</span><span class="n">end</span><span class="p">]</span>
+        <span class="k">elif</span> <span class="n">reference_genome</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">NotSpecifiedError</span><span class="p">(</span><span class="s1">&#39;reference genome is required to retrieve the gene sequence&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_strand</span><span class="p">()</span> <span class="o">==</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">NEG</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">reverse_complement</span><span class="p">(</span><span class="n">reference_genome</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">gene</span><span class="o">.</span><span class="n">chr</span><span class="p">]</span><span class="o">.</span><span class="n">seq</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">end</span><span class="p">])</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span>
+        <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">reference_genome</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">gene</span><span class="o">.</span><span class="n">chr</span><span class="p">]</span><span class="o">.</span><span class="n">seq</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">end</span><span class="p">])</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="PreTranscript.get_cdna_seq"><a class="viewcode-back" href="../../../auto/mavis.annotate.genomic.html#mavis.annotate.genomic.PreTranscript.get_cdna_seq">[docs]</a>    <span class="k">def</span> <span class="nf">get_cdna_seq</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">splicing_pattern</span><span class="p">,</span> <span class="n">reference_genome</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ignore_cache</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Args:</span>
+<span class="sd">            splicing_pattern (SplicingPattern): the list of splicing positions</span>
+<span class="sd">            reference_genome (:class:`dict` of :class:`Bio.SeqRecord` by :class:`str`): dict of reference sequence</span>
+<span class="sd">                by template/chr name</span>
+<span class="sd">            ignore_cache (bool): if True then stored sequences will be ignored and the function will attempt to retrieve the sequence using the positions and the input reference_genome</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: the spliced cDNA sequence</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">temp</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="n">s</span><span class="o">.</span><span class="n">pos</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">splicing_pattern</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">end</span><span class="p">])</span>
+        <span class="n">cdna_start</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">temp</span><span class="p">)</span>
+        <span class="n">conti</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">temp</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">):</span>
+            <span class="n">conti</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Interval</span><span class="p">(</span><span class="n">temp</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">-</span> <span class="n">cdna_start</span><span class="p">,</span> <span class="n">temp</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">cdna_start</span><span class="p">))</span>
+        <span class="n">seq</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_seq</span><span class="p">(</span><span class="n">reference_genome</span><span class="p">,</span> <span class="n">ignore_cache</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_strand</span><span class="p">()</span> <span class="o">==</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">NEG</span><span class="p">:</span>
+            <span class="c1"># adjust the continuous intervals for the min and flip if revcomp</span>
+            <span class="n">seq</span> <span class="o">=</span> <span class="n">reverse_complement</span><span class="p">(</span><span class="n">seq</span><span class="p">)</span>
+        <span class="n">spliced_seq</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="nb">str</span><span class="p">(</span><span class="n">seq</span><span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">start</span><span class="p">:</span><span class="n">i</span><span class="o">.</span><span class="n">end</span> <span class="o">+</span> <span class="mi">1</span><span class="p">])</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">conti</span><span class="p">])</span>
+        <span class="n">spliced_seq</span> <span class="o">=</span> <span class="n">spliced_seq</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">spliced_seq</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_strand</span><span class="p">()</span> <span class="o">==</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">POS</span> <span class="k">else</span> <span class="n">reverse_complement</span><span class="p">(</span><span class="n">spliced_seq</span><span class="p">)</span></div>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">translations</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;:class:`list` of :class:`~mavis.annotate.protein.Translation`: list of translations associated with this transcript&quot;&quot;&quot;</span>
+        <span class="n">translations</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">spl_tx</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">spliced_transcripts</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">translation</span> <span class="ow">in</span> <span class="n">spl_tx</span><span class="o">.</span><span class="n">translations</span><span class="p">:</span>
+                <span class="n">translations</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">translation</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">translations</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">transcripts</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;:class:`list` of :class:`Transcript`: list of spliced transcripts&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">spliced_transcripts</span></div>
+
+
+<div class="viewcode-block" id="Transcript"><a class="viewcode-back" href="../../../auto/mavis.annotate.genomic.html#mavis.annotate.genomic.Transcript">[docs]</a><span class="k">class</span> <span class="nc">Transcript</span><span class="p">(</span><span class="n">BioInterval</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pre_transcript</span><span class="p">,</span> <span class="n">splicing_patt</span><span class="p">,</span> <span class="n">seq</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">translations</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        splicing pattern is given in genomic coordinates</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            pre_transcript (PreTranscript): the unspliced transcript</span>
+<span class="sd">            splicing_patt (:class:`list` of :class:`int`): the list of splicing positions</span>
+<span class="sd">            seq (str): the cdna sequence</span>
+<span class="sd">            translations (:class:`list` of :class:`~mavis.annotate.protein.Translation`):</span>
+<span class="sd">             the list of translations of this transcript</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">pos</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">([</span><span class="n">pre_transcript</span><span class="o">.</span><span class="n">start</span><span class="p">,</span> <span class="n">pre_transcript</span><span class="o">.</span><span class="n">end</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="n">s</span><span class="o">.</span><span class="n">pos</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">splicing_patt</span><span class="p">])</span>
+        <span class="n">splicing_patt</span><span class="o">.</span><span class="n">sort</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">splicing_pattern</span> <span class="o">=</span> <span class="n">splicing_patt</span>
+        <span class="n">length</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">([</span><span class="n">t</span> <span class="o">-</span> <span class="n">s</span> <span class="o">+</span> <span class="mi">1</span> <span class="k">for</span> <span class="n">s</span><span class="p">,</span> <span class="n">t</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">pos</span><span class="p">[::</span><span class="mi">2</span><span class="p">],</span> <span class="n">pos</span><span class="p">[</span><span class="mi">1</span><span class="p">::</span><span class="mi">2</span><span class="p">])])</span>
+        <span class="n">BioInterval</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pre_transcript</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">length</span><span class="p">,</span> <span class="n">seq</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">exons</span> <span class="o">=</span> <span class="p">[</span><span class="n">Exon</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span><span class="p">,</span> <span class="n">t</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">pos</span><span class="p">[::</span><span class="mi">2</span><span class="p">],</span> <span class="n">pos</span><span class="p">[</span><span class="mi">1</span><span class="p">::</span><span class="mi">2</span><span class="p">])]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">translations</span> <span class="o">=</span> <span class="p">[]</span> <span class="k">if</span> <span class="n">translations</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="p">[</span><span class="n">tx</span> <span class="k">for</span> <span class="n">tx</span> <span class="ow">in</span> <span class="n">translations</span><span class="p">]</span>
+
+        <span class="k">for</span> <span class="n">translation</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">translations</span><span class="p">:</span>
+            <span class="n">translation</span><span class="o">.</span><span class="n">reference_object</span> <span class="o">=</span> <span class="bp">self</span>
+        <span class="k">if</span> <span class="n">splicing_patt</span> <span class="ow">and</span> <span class="p">(</span><span class="nb">min</span><span class="p">(</span><span class="n">splicing_patt</span><span class="p">)</span><span class="o">.</span><span class="n">pos</span> <span class="o">&lt;</span> <span class="n">pre_transcript</span><span class="o">.</span><span class="n">start</span> <span class="ow">or</span> <span class="nb">max</span><span class="p">(</span><span class="n">splicing_patt</span><span class="p">)</span><span class="o">.</span><span class="n">pos</span> <span class="o">&gt;</span> <span class="n">pre_transcript</span><span class="o">.</span><span class="n">end</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">AssertionError</span><span class="p">(</span><span class="s1">&#39;splicing pattern must be contained within the unspliced transcript&#39;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">splicing_patt</span><span class="p">)</span> <span class="o">%</span> <span class="mi">2</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">AssertionError</span><span class="p">(</span><span class="s1">&#39;splicing pattern must be a list of 3</span><span class="se">\&#39;</span><span class="s1">5</span><span class="se">\&#39;</span><span class="s1"> splicing positions&#39;</span><span class="p">)</span>
+
+<div class="viewcode-block" id="Transcript.convert_genomic_to_cdna"><a class="viewcode-back" href="../../../auto/mavis.annotate.genomic.html#mavis.annotate.genomic.Transcript.convert_genomic_to_cdna">[docs]</a>    <span class="k">def</span> <span class="nf">convert_genomic_to_cdna</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pos</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Args:</span>
+<span class="sd">            pos (int): the genomic position to be converted</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            int: the cdna equivalent</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            IndexError: when a genomic position not present in the cdna is attempted to be converted</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">unspliced_transcript</span><span class="o">.</span><span class="n">convert_genomic_to_cdna</span><span class="p">(</span><span class="n">pos</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">splicing_pattern</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Transcript.convert_genomic_to_nearest_cdna"><a class="viewcode-back" href="../../../auto/mavis.annotate.genomic.html#mavis.annotate.genomic.Transcript.convert_genomic_to_nearest_cdna">[docs]</a>    <span class="k">def</span> <span class="nf">convert_genomic_to_nearest_cdna</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pos</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">reference_object</span><span class="o">.</span><span class="n">convert_genomic_to_nearest_cdna</span><span class="p">(</span><span class="n">pos</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">splicing_pattern</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Transcript.convert_cdna_to_genomic"><a class="viewcode-back" href="../../../auto/mavis.annotate.genomic.html#mavis.annotate.genomic.Transcript.convert_cdna_to_genomic">[docs]</a>    <span class="k">def</span> <span class="nf">convert_cdna_to_genomic</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pos</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Args:</span>
+<span class="sd">            pos (int): cdna position</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            int: the genomic equivalent</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">unspliced_transcript</span><span class="o">.</span><span class="n">convert_cdna_to_genomic</span><span class="p">(</span><span class="n">pos</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">splicing_pattern</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Transcript.get_seq"><a class="viewcode-back" href="../../../auto/mavis.annotate.genomic.html#mavis.annotate.genomic.Transcript.get_seq">[docs]</a>    <span class="k">def</span> <span class="nf">get_seq</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">reference_genome</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ignore_cache</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Args:</span>
+<span class="sd">            reference_genome (:class:`dict` of :class:`Bio.SeqRecord` by :class:`str`): dict of reference sequence by</span>
+<span class="sd">                template/chr name</span>
+<span class="sd">            ignore_cache (bool): if True then stored sequences will be ignored and the function will attempt to retrieve the sequence using the positions and the input reference_genome</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: the sequence corresponding to the spliced cdna</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">seq</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">ignore_cache</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">seq</span>
+        <span class="n">seq</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">unspliced_transcript</span><span class="o">.</span><span class="n">get_cdna_seq</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">splicing_pattern</span><span class="p">,</span> <span class="n">reference_genome</span><span class="p">,</span> <span class="n">ignore_cache</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">seq</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">end</span><span class="p">]</span></div>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">unspliced_transcript</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;:class:`PreTranscript`: the unspliced transcript this splice variant belongs to&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">reference_object</span></div>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2017, creisle.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../',
+            VERSION:'',
+            LANGUAGE:'None',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

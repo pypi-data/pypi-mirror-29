@@ -1,0 +1,890 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>mavis.main &mdash; MAVIS  documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  
+
+  
+    <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+
+  
+        <link rel="author" title="About these documents"
+              href="../../about.html"/>
+        <link rel="index" title="Index"
+              href="../../genindex.html"/>
+        <link rel="search" title="Search" href="../../search.html"/>
+    <link rel="top" title="MAVIS  documentation" href="../../index.html"/>
+        <link rel="up" title="Module code" href="../index.html"/> 
+
+  
+  <script src="../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../index.html" class="icon icon-home"> MAVIS
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                1.6.4
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../about.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../pipeline.html">Running the Pipeline</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../mavis_input.html">MAVIS standard input file format</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../reference.html">Reference Input Files</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../configuration.html">Configuration and Settings</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tools_supported.html">Supported SV Callers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../illustrations.html">Illustrations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../faqs.html">Frequently Asked Questions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../theory.html">Theory and Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../development.html">Guidelines for Contributors</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../package.html">Package Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../citations.html">Literature</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">MAVIS</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../index.html">Module code</a> &raquo;</li>
+        
+      <li>mavis.main</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for mavis.main</h1><div class="highlight"><pre>
+<span></span><span class="ch">#!python</span>
+<span class="kn">import</span> <span class="nn">argparse</span>
+<span class="kn">import</span> <span class="nn">platform</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">import</span> <span class="nn">subprocess</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">import</span> <span class="nn">time</span>
+
+<span class="kn">import</span> <span class="nn">tab</span>
+
+<span class="kn">from</span> <span class="nn">.</span> <span class="k">import</span> <span class="n">__version__</span>
+<span class="kn">from</span> <span class="nn">.annotate.base</span> <span class="k">import</span> <span class="n">BioInterval</span>
+<span class="kn">from</span> <span class="nn">.annotate.constants</span> <span class="k">import</span> <span class="n">DEFAULTS</span> <span class="k">as</span> <span class="n">ANNOTATION_DEFAULTS</span>
+<span class="kn">from</span> <span class="nn">.annotate.file_io</span> <span class="k">import</span> <span class="n">load_annotations</span><span class="p">,</span> <span class="n">load_masking_regions</span><span class="p">,</span> <span class="n">load_reference_genome</span><span class="p">,</span> <span class="n">load_templates</span>
+<span class="kn">from</span> <span class="nn">.annotate.main</span> <span class="k">import</span> <span class="n">main</span> <span class="k">as</span> <span class="n">annotate_main</span>
+<span class="kn">from</span> <span class="nn">.bam.read</span> <span class="k">import</span> <span class="n">get_samtools_version</span>
+<span class="kn">from</span> <span class="nn">.blat</span> <span class="k">import</span> <span class="n">get_blat_version</span>
+<span class="kn">from</span> <span class="nn">.checker</span> <span class="k">import</span> <span class="n">check_completion</span>
+<span class="kn">from</span> <span class="nn">.cluster.constants</span> <span class="k">import</span> <span class="n">DEFAULTS</span> <span class="k">as</span> <span class="n">CLUSTER_DEFAULTS</span>
+<span class="kn">from</span> <span class="nn">.cluster.main</span> <span class="k">import</span> <span class="n">main</span> <span class="k">as</span> <span class="n">cluster_main</span>
+<span class="kn">from</span> <span class="nn">.config</span> <span class="k">import</span> <span class="n">augment_parser</span><span class="p">,</span> <span class="n">MavisConfig</span><span class="p">,</span> <span class="n">generate_config</span><span class="p">,</span> <span class="n">CustomHelpFormatter</span><span class="p">,</span> <span class="n">RangeAppendAction</span>
+<span class="kn">from</span> <span class="nn">.constants</span> <span class="k">import</span> <span class="n">SUBCOMMAND</span><span class="p">,</span> <span class="n">PROTOCOL</span>
+<span class="kn">from</span> <span class="nn">.error</span> <span class="k">import</span> <span class="n">DrawingFitError</span>
+<span class="kn">from</span> <span class="nn">.illustrate.constants</span> <span class="k">import</span> <span class="n">DEFAULTS</span> <span class="k">as</span> <span class="n">ILLUSTRATION_DEFAULTS</span><span class="p">,</span> <span class="n">DiagramSettings</span>
+<span class="kn">from</span> <span class="nn">.illustrate.diagram</span> <span class="k">import</span> <span class="n">draw_multi_transcript_overlay</span>
+<span class="kn">from</span> <span class="nn">.illustrate.scatter</span> <span class="k">import</span> <span class="n">bam_to_scatter</span>
+<span class="kn">from</span> <span class="nn">.pairing.constants</span> <span class="k">import</span> <span class="n">DEFAULTS</span> <span class="k">as</span> <span class="n">PAIRING_DEFAULTS</span>
+<span class="kn">from</span> <span class="nn">.pairing.main</span> <span class="k">import</span> <span class="n">main</span> <span class="k">as</span> <span class="n">pairing_main</span>
+<span class="kn">from</span> <span class="nn">.submit</span> <span class="k">import</span> <span class="n">SubmissionScript</span><span class="p">,</span> <span class="n">SCHEDULER_CONFIG</span>
+<span class="kn">from</span> <span class="nn">.submit</span> <span class="k">import</span> <span class="n">STD_OPTIONS</span> <span class="k">as</span> <span class="n">STD_SUBMIT_OPTIONS</span>
+<span class="kn">from</span> <span class="nn">.summary.constants</span> <span class="k">import</span> <span class="n">DEFAULTS</span> <span class="k">as</span> <span class="n">SUMMARY_DEFAULTS</span>
+<span class="kn">from</span> <span class="nn">.summary.main</span> <span class="k">import</span> <span class="n">main</span> <span class="k">as</span> <span class="n">summary_main</span>
+<span class="kn">from</span> <span class="nn">.tools</span> <span class="k">import</span> <span class="n">convert_tool_output</span><span class="p">,</span> <span class="n">SUPPORTED_TOOL</span>
+<span class="kn">from</span> <span class="nn">.util</span> <span class="k">import</span> <span class="n">bash_expands</span><span class="p">,</span> <span class="n">log</span><span class="p">,</span> <span class="n">log_arguments</span><span class="p">,</span> <span class="n">MavisNamespace</span><span class="p">,</span> <span class="n">mkdirp</span><span class="p">,</span> <span class="n">output_tabbed_file</span>
+<span class="kn">from</span> <span class="nn">.validate.constants</span> <span class="k">import</span> <span class="n">DEFAULTS</span> <span class="k">as</span> <span class="n">VALIDATION_DEFAULTS</span>
+<span class="kn">from</span> <span class="nn">.validate.main</span> <span class="k">import</span> <span class="n">main</span> <span class="k">as</span> <span class="n">validate_main</span>
+
+
+<span class="n">VALIDATION_PASS_PATTERN</span> <span class="o">=</span> <span class="s1">&#39;*.validation-passed.tab&#39;</span>
+<span class="n">ANNOTATION_PASS_PATTERN</span> <span class="o">=</span> <span class="s1">&#39;annotations.tab&#39;</span>
+<span class="n">PROGNAME</span> <span class="o">=</span> <span class="s1">&#39;mavis&#39;</span>
+<span class="n">EXIT_OK</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="n">EXIT_ERROR</span> <span class="o">=</span> <span class="mi">1</span>
+
+
+<div class="viewcode-block" id="build_validate_command"><a class="viewcode-back" href="../../auto/mavis.main.html#mavis.main.build_validate_command">[docs]</a><span class="k">def</span> <span class="nf">build_validate_command</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">libconf</span><span class="p">,</span> <span class="n">inputfile</span><span class="p">,</span> <span class="n">outputdir</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    returns the mavis command for running the validate step</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">args</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">&#39;masking&#39;</span><span class="p">:</span> <span class="n">config</span><span class="o">.</span><span class="n">reference</span><span class="o">.</span><span class="n">masking_filename</span><span class="p">,</span>
+        <span class="s1">&#39;reference_genome&#39;</span><span class="p">:</span> <span class="n">config</span><span class="o">.</span><span class="n">reference</span><span class="o">.</span><span class="n">reference_genome_filename</span><span class="p">,</span>
+        <span class="s1">&#39;aligner_reference&#39;</span><span class="p">:</span> <span class="n">config</span><span class="o">.</span><span class="n">reference</span><span class="o">.</span><span class="n">aligner_reference</span><span class="p">,</span>
+        <span class="s1">&#39;annotations&#39;</span><span class="p">:</span> <span class="n">config</span><span class="o">.</span><span class="n">reference</span><span class="o">.</span><span class="n">annotations_filename</span><span class="p">,</span>
+        <span class="s1">&#39;library&#39;</span><span class="p">:</span> <span class="n">libconf</span><span class="o">.</span><span class="n">library</span><span class="p">,</span>
+        <span class="s1">&#39;bam_file&#39;</span><span class="p">:</span> <span class="n">libconf</span><span class="o">.</span><span class="n">bam_file</span><span class="p">,</span>
+        <span class="s1">&#39;protocol&#39;</span><span class="p">:</span> <span class="n">libconf</span><span class="o">.</span><span class="n">protocol</span><span class="p">,</span>
+        <span class="s1">&#39;read_length&#39;</span><span class="p">:</span> <span class="n">libconf</span><span class="o">.</span><span class="n">read_length</span><span class="p">,</span>
+        <span class="s1">&#39;stdev_fragment_size&#39;</span><span class="p">:</span> <span class="n">libconf</span><span class="o">.</span><span class="n">stdev_fragment_size</span><span class="p">,</span>
+        <span class="s1">&#39;median_fragment_size&#39;</span><span class="p">:</span> <span class="n">libconf</span><span class="o">.</span><span class="n">median_fragment_size</span><span class="p">,</span>
+        <span class="s1">&#39;strand_specific&#39;</span><span class="p">:</span> <span class="n">libconf</span><span class="o">.</span><span class="n">strand_specific</span>
+    <span class="p">}</span>
+    <span class="n">args</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">validate</span><span class="o">.</span><span class="n">items</span><span class="p">())</span>
+    <span class="n">args</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">libconf</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">args</span><span class="p">})</span>
+
+    <span class="n">command</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;</span><span class="si">{}</span><span class="s1"> </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">PROGNAME</span><span class="p">,</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">VALIDATE</span><span class="p">)]</span>
+    <span class="k">for</span> <span class="n">argname</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">args</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="n">command</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;--</span><span class="si">{}</span><span class="s1"> &quot;</span><span class="si">{}</span><span class="s1">&quot;&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">argname</span><span class="p">,</span> <span class="n">value</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">command</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;--</span><span class="si">{}</span><span class="s1"> </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">argname</span><span class="p">,</span> <span class="n">value</span><span class="p">))</span>
+    <span class="n">command</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;--input </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">inputfile</span><span class="p">))</span>
+    <span class="n">command</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;--output </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">outputdir</span><span class="p">))</span>
+    <span class="k">return</span> <span class="s1">&#39; </span><span class="se">\\\n\t</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">command</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span></div>
+
+
+<div class="viewcode-block" id="build_annotate_command"><a class="viewcode-back" href="../../auto/mavis.main.html#mavis.main.build_annotate_command">[docs]</a><span class="k">def</span> <span class="nf">build_annotate_command</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">libconf</span><span class="p">,</span> <span class="n">inputfile</span><span class="p">,</span> <span class="n">outputdir</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    returns the mavis command for running the annotate step</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">args</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">&#39;reference_genome&#39;</span><span class="p">:</span> <span class="n">config</span><span class="o">.</span><span class="n">reference</span><span class="o">.</span><span class="n">reference_genome_filename</span><span class="p">,</span>
+        <span class="s1">&#39;annotations&#39;</span><span class="p">:</span> <span class="n">config</span><span class="o">.</span><span class="n">reference</span><span class="o">.</span><span class="n">annotations_filename</span><span class="p">,</span>
+        <span class="s1">&#39;template_metadata&#39;</span><span class="p">:</span> <span class="n">config</span><span class="o">.</span><span class="n">reference</span><span class="o">.</span><span class="n">template_metadata_filename</span><span class="p">,</span>
+        <span class="s1">&#39;masking&#39;</span><span class="p">:</span> <span class="n">config</span><span class="o">.</span><span class="n">reference</span><span class="o">.</span><span class="n">masking_filename</span><span class="p">,</span>
+        <span class="s1">&#39;min_orf_size&#39;</span><span class="p">:</span> <span class="n">config</span><span class="o">.</span><span class="n">annotate</span><span class="o">.</span><span class="n">min_orf_size</span><span class="p">,</span>
+        <span class="s1">&#39;max_orf_cap&#39;</span><span class="p">:</span> <span class="n">config</span><span class="o">.</span><span class="n">annotate</span><span class="o">.</span><span class="n">max_orf_cap</span><span class="p">,</span>
+        <span class="s1">&#39;library&#39;</span><span class="p">:</span> <span class="n">libconf</span><span class="o">.</span><span class="n">library</span><span class="p">,</span>
+        <span class="s1">&#39;protocol&#39;</span><span class="p">:</span> <span class="n">libconf</span><span class="o">.</span><span class="n">protocol</span><span class="p">,</span>
+        <span class="s1">&#39;min_domain_mapping_match&#39;</span><span class="p">:</span> <span class="n">config</span><span class="o">.</span><span class="n">annotate</span><span class="o">.</span><span class="n">min_domain_mapping_match</span><span class="p">,</span>
+        <span class="s1">&#39;domain_name_regex_filter&#39;</span><span class="p">:</span> <span class="n">config</span><span class="o">.</span><span class="n">illustrate</span><span class="o">.</span><span class="n">domain_name_regex_filter</span><span class="p">,</span>
+        <span class="s1">&#39;max_proximity&#39;</span><span class="p">:</span> <span class="n">config</span><span class="o">.</span><span class="n">cluster</span><span class="o">.</span><span class="n">max_proximity</span>
+    <span class="p">}</span>
+    <span class="n">args</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">annotate</span><span class="o">.</span><span class="n">items</span><span class="p">())</span>
+    <span class="n">args</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">libconf</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">args</span><span class="p">})</span>
+    <span class="n">command</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;</span><span class="si">{}</span><span class="s1"> </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">PROGNAME</span><span class="p">,</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">ANNOTATE</span><span class="p">)]</span>
+    <span class="k">for</span> <span class="n">argname</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">args</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="n">command</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;--</span><span class="si">{}</span><span class="s1"> &quot;</span><span class="si">{}</span><span class="s1">&quot;&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">argname</span><span class="p">,</span> <span class="n">value</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">command</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;--</span><span class="si">{}</span><span class="s1"> </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">argname</span><span class="p">,</span> <span class="n">value</span><span class="p">))</span>
+    <span class="n">command</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;--inputs </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">inputfile</span><span class="p">))</span>
+    <span class="n">command</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;--output </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">outputdir</span><span class="p">))</span>
+    <span class="k">return</span> <span class="s1">&#39; </span><span class="se">\\\n\t</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">command</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span></div>
+
+
+<div class="viewcode-block" id="run_conversion"><a class="viewcode-back" href="../../auto/mavis.main.html#mavis.main.run_conversion">[docs]</a><span class="k">def</span> <span class="nf">run_conversion</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">libconf</span><span class="p">,</span> <span class="n">conversion_dir</span><span class="p">,</span> <span class="n">assume_no_untemplated</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Converts files if not already converted. Returns a list of filenames</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">inputs</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="c1"># run the conversions</span>
+    <span class="k">for</span> <span class="n">input_file</span> <span class="ow">in</span> <span class="n">libconf</span><span class="o">.</span><span class="n">inputs</span><span class="p">:</span>
+        <span class="n">output_filename</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">conversion_dir</span><span class="p">,</span> <span class="n">input_file</span> <span class="o">+</span> <span class="s1">&#39;.tab&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">input_file</span> <span class="ow">in</span> <span class="n">config</span><span class="o">.</span><span class="n">convert</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">output_filename</span><span class="p">):</span>
+                <span class="n">command</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">convert</span><span class="p">[</span><span class="n">input_file</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">command</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;convert_tool_output&#39;</span><span class="p">:</span>
+                    <span class="n">log</span><span class="p">(</span><span class="s1">&#39;converting input command:&#39;</span><span class="p">,</span> <span class="n">command</span><span class="p">)</span>
+                    <span class="n">output_tabbed_file</span><span class="p">(</span><span class="n">convert_tool_output</span><span class="p">(</span><span class="o">*</span><span class="n">command</span><span class="p">[</span><span class="mi">1</span><span class="p">:],</span> <span class="n">log</span><span class="o">=</span><span class="n">log</span><span class="p">,</span> <span class="n">assume_no_untemplated</span><span class="o">=</span><span class="n">assume_no_untemplated</span><span class="p">),</span> <span class="n">output_filename</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">command</span> <span class="o">=</span> <span class="s1">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">command</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39; -o </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">output_filename</span><span class="p">)</span>
+                    <span class="n">log</span><span class="p">(</span><span class="s1">&#39;converting input command:&#39;</span><span class="p">)</span>
+                    <span class="n">log</span><span class="p">(</span><span class="s1">&#39;&gt;&gt;&gt;&#39;</span><span class="p">,</span> <span class="n">command</span><span class="p">,</span> <span class="n">time_stamp</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+                    <span class="n">subprocess</span><span class="o">.</span><span class="n">check_output</span><span class="p">(</span><span class="n">command</span><span class="p">,</span> <span class="n">shell</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="n">inputs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">output_filename</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">inputs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">input_file</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">inputs</span></div>
+
+
+<div class="viewcode-block" id="main_pipeline"><a class="viewcode-back" href="../../auto/mavis.main.html#mavis.main.main_pipeline">[docs]</a><span class="k">def</span> <span class="nf">main_pipeline</span><span class="p">(</span><span class="n">config</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    runs the pipeline subcommand. Runs clustering (or just splitting if clustering is skipped) and sets up</span>
+<span class="sd">    submission scripts for the other pipeline stages/steps</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span> <span class="nn">shortuuid</span> <span class="k">import</span> <span class="n">uuid</span>
+    <span class="n">batch_id</span> <span class="o">=</span> <span class="s1">&#39;batch-&#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">uuid</span><span class="p">())</span>
+    <span class="n">conversion_dir</span> <span class="o">=</span> <span class="n">mkdirp</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">output</span><span class="p">,</span> <span class="s1">&#39;converted_inputs&#39;</span><span class="p">))</span>
+    <span class="n">pairing_inputs</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">submitall</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">jobid_var_index</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">config</span><span class="o">.</span><span class="n">output</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">output</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">get_prefix</span><span class="p">(</span><span class="n">filename</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;\.[^\.]+$&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">filename</span><span class="p">))</span>
+
+    <span class="n">job_name_by_output</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="k">for</span> <span class="n">libconf</span> <span class="ow">in</span> <span class="n">config</span><span class="o">.</span><span class="n">libraries</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+        <span class="n">base</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">output</span><span class="p">,</span> <span class="s1">&#39;</span><span class="si">{}</span><span class="s1">_</span><span class="si">{}</span><span class="s1">_</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">libconf</span><span class="o">.</span><span class="n">library</span><span class="p">,</span> <span class="n">libconf</span><span class="o">.</span><span class="n">disease_status</span><span class="p">,</span> <span class="n">libconf</span><span class="o">.</span><span class="n">protocol</span><span class="p">))</span>
+        <span class="n">log</span><span class="p">(</span><span class="s1">&#39;setting up the directory structure for&#39;</span><span class="p">,</span> <span class="n">libconf</span><span class="o">.</span><span class="n">library</span><span class="p">,</span> <span class="s1">&#39;as&#39;</span><span class="p">,</span> <span class="n">base</span><span class="p">)</span>
+        <span class="n">libconf</span><span class="o">.</span><span class="n">inputs</span> <span class="o">=</span> <span class="n">run_conversion</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">libconf</span><span class="p">,</span> <span class="n">conversion_dir</span><span class="p">)</span>
+
+        <span class="c1"># run the cluster stage</span>
+        <span class="n">cluster_output</span> <span class="o">=</span> <span class="n">mkdirp</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">CLUSTER</span><span class="p">))</span>  <span class="c1"># creates the output dir</span>
+        <span class="n">merge_args</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;batch_id&#39;</span><span class="p">:</span> <span class="n">batch_id</span><span class="p">,</span> <span class="s1">&#39;output&#39;</span><span class="p">:</span> <span class="n">cluster_output</span><span class="p">}</span>
+        <span class="n">merge_args</span><span class="p">[</span><span class="s1">&#39;split_only&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">CLUSTER</span> <span class="ow">in</span> <span class="n">config</span><span class="o">.</span><span class="n">skip_stage</span>
+        <span class="n">merge_args</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">reference</span><span class="o">.</span><span class="n">items</span><span class="p">())</span>
+        <span class="n">merge_args</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">cluster</span><span class="o">.</span><span class="n">items</span><span class="p">())</span>
+        <span class="n">merge_args</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">libconf</span><span class="o">.</span><span class="n">items</span><span class="p">())</span>
+        <span class="n">log</span><span class="p">(</span><span class="s1">&#39;clustering&#39;</span><span class="p">,</span> <span class="s1">&#39;(split only)&#39;</span> <span class="k">if</span> <span class="n">merge_args</span><span class="p">[</span><span class="s1">&#39;split_only&#39;</span><span class="p">]</span> <span class="k">else</span> <span class="s1">&#39;&#39;</span><span class="p">)</span>
+        <span class="n">inputs</span> <span class="o">=</span> <span class="n">cluster_main</span><span class="p">(</span><span class="n">log_args</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="o">**</span><span class="n">merge_args</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">inputfile</span> <span class="ow">in</span> <span class="n">inputs</span><span class="p">:</span>
+            <span class="n">prefix</span> <span class="o">=</span> <span class="n">get_prefix</span><span class="p">(</span><span class="n">inputfile</span><span class="p">)</span>  <span class="c1"># will be batch id + job number</span>
+            <span class="n">dependency</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+            <span class="k">if</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">VALIDATE</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">config</span><span class="o">.</span><span class="n">skip_stage</span><span class="p">:</span>
+                <span class="n">outputdir</span> <span class="o">=</span> <span class="n">mkdirp</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">VALIDATE</span><span class="p">,</span> <span class="n">prefix</span><span class="p">))</span>
+                <span class="n">command</span> <span class="o">=</span> <span class="n">build_validate_command</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">libconf</span><span class="p">,</span> <span class="n">inputfile</span><span class="p">,</span> <span class="n">outputdir</span><span class="p">)</span>
+                <span class="c1"># build the submission script</span>
+                <span class="n">options</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">config</span><span class="o">.</span><span class="n">schedule</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">STD_SUBMIT_OPTIONS</span><span class="p">}</span>
+                <span class="n">options</span><span class="p">[</span><span class="s1">&#39;stdout&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">outputdir</span>
+                <span class="n">options</span><span class="p">[</span><span class="s1">&#39;jobname&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;MV_</span><span class="si">{}</span><span class="s1">_</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">libconf</span><span class="o">.</span><span class="n">library</span><span class="p">,</span> <span class="n">prefix</span><span class="p">)</span>
+
+                <span class="k">if</span> <span class="n">libconf</span><span class="o">.</span><span class="n">is_trans</span><span class="p">():</span>
+                    <span class="n">options</span><span class="p">[</span><span class="s1">&#39;memory_limit&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">schedule</span><span class="o">.</span><span class="n">trans_validation_memory</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">options</span><span class="p">[</span><span class="s1">&#39;memory_limit&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">schedule</span><span class="o">.</span><span class="n">validation_memory</span>
+                <span class="n">script</span> <span class="o">=</span> <span class="n">SubmissionScript</span><span class="p">(</span><span class="n">command</span><span class="p">,</span> <span class="n">config</span><span class="o">.</span><span class="n">schedule</span><span class="o">.</span><span class="n">scheduler</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">)</span>
+                <span class="n">scriptname</span> <span class="o">=</span> <span class="n">script</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">outputdir</span><span class="p">,</span> <span class="s1">&#39;submit.sh&#39;</span><span class="p">))</span>
+
+                <span class="n">submitall</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;vjob</span><span class="si">{}</span><span class="s1">=$(</span><span class="si">{}</span><span class="s1"> </span><span class="si">{}</span><span class="s1">)&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">jobid_var_index</span><span class="p">,</span> <span class="n">SCHEDULER_CONFIG</span><span class="p">[</span><span class="n">config</span><span class="o">.</span><span class="n">schedule</span><span class="o">.</span><span class="n">scheduler</span><span class="p">]</span><span class="o">.</span><span class="n">submit</span><span class="p">,</span> <span class="n">scriptname</span><span class="p">))</span>
+                <span class="c1"># for setting up subsequent jobs and holds</span>
+                <span class="n">outputfile</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">outputdir</span><span class="p">,</span> <span class="n">VALIDATION_PASS_PATTERN</span><span class="p">)</span>
+                <span class="n">job_name_by_output</span><span class="p">[</span><span class="n">outputfile</span><span class="p">]</span> <span class="o">=</span> <span class="n">options</span><span class="p">[</span><span class="s1">&#39;jobname&#39;</span><span class="p">]</span>
+                <span class="n">inputfile</span> <span class="o">=</span> <span class="n">outputfile</span>
+                <span class="n">dependency</span> <span class="o">=</span> <span class="n">SCHEDULER_CONFIG</span><span class="p">[</span><span class="n">config</span><span class="o">.</span><span class="n">schedule</span><span class="o">.</span><span class="n">scheduler</span><span class="p">]</span><span class="o">.</span><span class="n">dependency</span><span class="p">(</span><span class="s1">&#39;${{vjob</span><span class="si">{}</span><span class="s1">##* }}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">jobid_var_index</span><span class="p">))</span>
+            <span class="c1"># annotation cannot be skipped</span>
+            <span class="n">outputdir</span> <span class="o">=</span> <span class="n">mkdirp</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">ANNOTATE</span><span class="p">,</span> <span class="n">prefix</span><span class="p">))</span>
+            <span class="n">command</span> <span class="o">=</span> <span class="n">build_annotate_command</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">libconf</span><span class="p">,</span> <span class="n">inputfile</span><span class="p">,</span> <span class="n">outputdir</span><span class="p">)</span>
+
+            <span class="n">options</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">config</span><span class="o">.</span><span class="n">schedule</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">STD_SUBMIT_OPTIONS</span><span class="p">}</span>
+            <span class="n">options</span><span class="p">[</span><span class="s1">&#39;stdout&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">outputdir</span>
+            <span class="n">options</span><span class="p">[</span><span class="s1">&#39;jobname&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;MA_</span><span class="si">{}</span><span class="s1">_</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">libconf</span><span class="o">.</span><span class="n">library</span><span class="p">,</span> <span class="n">prefix</span><span class="p">)</span>
+            <span class="n">options</span><span class="p">[</span><span class="s1">&#39;memory_limit&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">schedule</span><span class="o">.</span><span class="n">annotation_memory</span>
+            <span class="n">script</span> <span class="o">=</span> <span class="n">SubmissionScript</span><span class="p">(</span><span class="n">command</span><span class="p">,</span> <span class="n">config</span><span class="o">.</span><span class="n">schedule</span><span class="o">.</span><span class="n">scheduler</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">)</span>
+            <span class="n">scriptname</span> <span class="o">=</span> <span class="n">script</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">outputdir</span><span class="p">,</span> <span class="s1">&#39;submit.sh&#39;</span><span class="p">))</span>
+            <span class="n">submitall</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;ajob</span><span class="si">{}</span><span class="s1">=$(</span><span class="si">{}</span><span class="s1"> </span><span class="si">{}</span><span class="s1"> </span><span class="si">{}</span><span class="s1">)&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                <span class="n">jobid_var_index</span><span class="p">,</span> <span class="n">SCHEDULER_CONFIG</span><span class="p">[</span><span class="n">config</span><span class="o">.</span><span class="n">schedule</span><span class="o">.</span><span class="n">scheduler</span><span class="p">]</span><span class="o">.</span><span class="n">submit</span><span class="p">,</span> <span class="n">dependency</span><span class="p">,</span> <span class="n">scriptname</span><span class="p">))</span>
+            <span class="n">outputfile</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">outputdir</span><span class="p">,</span> <span class="n">ANNOTATION_PASS_PATTERN</span><span class="p">)</span>
+            <span class="n">pairing_inputs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">outputfile</span><span class="p">)</span>
+            <span class="n">job_name_by_output</span><span class="p">[</span><span class="n">outputfile</span><span class="p">]</span> <span class="o">=</span> <span class="n">options</span><span class="p">[</span><span class="s1">&#39;jobname&#39;</span><span class="p">]</span>
+            <span class="n">jobid_var_index</span> <span class="o">+=</span> <span class="mi">1</span>
+
+    <span class="c1"># set up scripts for the pairing held on all of the annotation jobs</span>
+    <span class="n">outputdir</span> <span class="o">=</span> <span class="n">mkdirp</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">output</span><span class="p">,</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">PAIR</span><span class="p">))</span>
+    <span class="n">args</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">pairing</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+    <span class="n">args</span><span class="o">.</span><span class="n">update</span><span class="p">({</span>
+        <span class="s1">&#39;output&#39;</span><span class="p">:</span> <span class="n">outputdir</span><span class="p">,</span>
+        <span class="s1">&#39;annotations&#39;</span><span class="p">:</span> <span class="n">config</span><span class="o">.</span><span class="n">reference</span><span class="o">.</span><span class="n">annotations_filename</span>
+    <span class="p">})</span>
+    <span class="n">command</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;</span><span class="si">{}</span><span class="s1"> </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">PROGNAME</span><span class="p">,</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">PAIR</span><span class="p">)]</span>
+    <span class="k">for</span> <span class="n">arg</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="n">command</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;--</span><span class="si">{}</span><span class="s1"> &quot;</span><span class="si">{}</span><span class="s1">&quot;&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">value</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">command</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;--</span><span class="si">{}</span><span class="s1"> </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">value</span><span class="p">))</span>
+    <span class="n">command</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;--inputs </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="s1">&#39; </span><span class="se">\\\n\t</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">pairing_inputs</span><span class="p">)))</span>
+    <span class="n">command</span> <span class="o">=</span> <span class="s1">&#39; </span><span class="se">\\\n\t</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">command</span><span class="p">)</span>
+
+    <span class="n">options</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">config</span><span class="o">.</span><span class="n">schedule</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">STD_SUBMIT_OPTIONS</span><span class="p">}</span>
+    <span class="n">options</span><span class="p">[</span><span class="s1">&#39;stdout&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">outputdir</span>
+    <span class="n">options</span><span class="p">[</span><span class="s1">&#39;jobname&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;MP_</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">batch_id</span><span class="p">)</span>
+    <span class="n">script</span> <span class="o">=</span> <span class="n">SubmissionScript</span><span class="p">(</span><span class="n">command</span><span class="p">,</span> <span class="n">config</span><span class="o">.</span><span class="n">schedule</span><span class="o">.</span><span class="n">scheduler</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">)</span>
+    <span class="n">scriptname</span> <span class="o">=</span> <span class="n">script</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">outputdir</span><span class="p">,</span> <span class="s1">&#39;submit.sh&#39;</span><span class="p">))</span>
+
+    <span class="n">submitall</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;jobid=$(</span><span class="si">{}</span><span class="s1"> </span><span class="si">{}</span><span class="s1"> </span><span class="si">{}</span><span class="s1">)&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+        <span class="n">SCHEDULER_CONFIG</span><span class="p">[</span><span class="n">config</span><span class="o">.</span><span class="n">schedule</span><span class="o">.</span><span class="n">scheduler</span><span class="p">]</span><span class="o">.</span><span class="n">submit</span><span class="p">,</span>
+        <span class="n">SCHEDULER_CONFIG</span><span class="p">[</span><span class="n">config</span><span class="o">.</span><span class="n">schedule</span><span class="o">.</span><span class="n">scheduler</span><span class="p">]</span><span class="o">.</span><span class="n">dependency</span><span class="p">(</span>
+            <span class="s1">&#39;:&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="s1">&#39;${{ajob</span><span class="si">{}</span><span class="s1">##* }}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">jobid_var_index</span><span class="p">)])),</span>
+        <span class="n">scriptname</span><span class="p">))</span>
+
+    <span class="c1"># set up scripts for the summary held on the pairing job</span>
+    <span class="n">outputdir</span> <span class="o">=</span> <span class="n">mkdirp</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">output</span><span class="p">,</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">SUMMARY</span><span class="p">))</span>
+    <span class="n">args</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span>
+        <span class="n">output</span><span class="o">=</span><span class="n">outputdir</span><span class="p">,</span>
+        <span class="n">flanking_call_distance</span><span class="o">=</span><span class="n">config</span><span class="o">.</span><span class="n">pairing</span><span class="o">.</span><span class="n">flanking_call_distance</span><span class="p">,</span>
+        <span class="n">split_call_distance</span><span class="o">=</span><span class="n">config</span><span class="o">.</span><span class="n">pairing</span><span class="o">.</span><span class="n">split_call_distance</span><span class="p">,</span>
+        <span class="n">contig_call_distance</span><span class="o">=</span><span class="n">config</span><span class="o">.</span><span class="n">pairing</span><span class="o">.</span><span class="n">contig_call_distance</span><span class="p">,</span>
+        <span class="n">spanning_call_distance</span><span class="o">=</span><span class="n">config</span><span class="o">.</span><span class="n">pairing</span><span class="o">.</span><span class="n">spanning_call_distance</span><span class="p">,</span>
+        <span class="n">dgv_annotation</span><span class="o">=</span><span class="n">config</span><span class="o">.</span><span class="n">reference</span><span class="o">.</span><span class="n">dgv_annotation_filename</span><span class="p">,</span>
+        <span class="n">annotations</span><span class="o">=</span><span class="n">config</span><span class="o">.</span><span class="n">reference</span><span class="o">.</span><span class="n">annotations_filename</span><span class="p">,</span>
+        <span class="n">inputs</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">output</span><span class="p">,</span> <span class="s1">&#39;pairing/mavis_paired*.tab&#39;</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="n">args</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">summary</span><span class="o">.</span><span class="n">items</span><span class="p">())</span>
+    <span class="n">command</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;</span><span class="si">{}</span><span class="s1"> </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">PROGNAME</span><span class="p">,</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">SUMMARY</span><span class="p">)]</span>
+    <span class="k">for</span> <span class="n">arg</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="n">command</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;--</span><span class="si">{}</span><span class="s1"> &quot;</span><span class="si">{}</span><span class="s1">&quot;&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">value</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">command</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;--</span><span class="si">{}</span><span class="s1"> </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">value</span><span class="p">))</span>
+    <span class="n">command</span> <span class="o">=</span> <span class="s1">&#39; </span><span class="se">\\\n\t</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">command</span><span class="p">)</span>
+
+    <span class="n">options</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">config</span><span class="o">.</span><span class="n">schedule</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">STD_SUBMIT_OPTIONS</span><span class="p">}</span>
+    <span class="n">options</span><span class="p">[</span><span class="s1">&#39;stdout&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">outputdir</span>
+    <span class="n">options</span><span class="p">[</span><span class="s1">&#39;jobname&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;MS_</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">batch_id</span><span class="p">)</span>
+    <span class="n">script</span> <span class="o">=</span> <span class="n">SubmissionScript</span><span class="p">(</span><span class="n">command</span><span class="p">,</span> <span class="n">config</span><span class="o">.</span><span class="n">schedule</span><span class="o">.</span><span class="n">scheduler</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">)</span>
+    <span class="n">scriptname</span> <span class="o">=</span> <span class="n">script</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">outputdir</span><span class="p">,</span> <span class="s1">&#39;submit.sh&#39;</span><span class="p">))</span>
+
+    <span class="n">submitall</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">{}</span><span class="s1"> </span><span class="si">{}</span><span class="s1"> </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+        <span class="n">SCHEDULER_CONFIG</span><span class="p">[</span><span class="n">config</span><span class="o">.</span><span class="n">schedule</span><span class="o">.</span><span class="n">scheduler</span><span class="p">]</span><span class="o">.</span><span class="n">submit</span><span class="p">,</span>
+        <span class="n">SCHEDULER_CONFIG</span><span class="p">[</span><span class="n">config</span><span class="o">.</span><span class="n">schedule</span><span class="o">.</span><span class="n">scheduler</span><span class="p">]</span><span class="o">.</span><span class="n">dependency</span><span class="p">(</span><span class="s1">&#39;${jobid##* }&#39;</span><span class="p">),</span>
+        <span class="n">scriptname</span><span class="p">))</span>
+
+    <span class="c1"># now write a script at the top level to submit all</span>
+    <span class="n">submitallfile</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">output</span><span class="p">,</span> <span class="s1">&#39;submit_pipeline_</span><span class="si">{}</span><span class="s1">.sh&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">batch_id</span><span class="p">))</span>
+    <span class="n">log</span><span class="p">(</span><span class="s1">&#39;writing:&#39;</span><span class="p">,</span> <span class="n">submitallfile</span><span class="p">)</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">submitallfile</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fh</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">submitall</span><span class="p">:</span>
+            <span class="n">fh</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">line</span> <span class="o">+</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="parse_overlay_args"><a class="viewcode-back" href="../../auto/mavis.main.html#mavis.main.parse_overlay_args">[docs]</a><span class="k">def</span> <span class="nf">parse_overlay_args</span><span class="p">(</span><span class="n">parser</span><span class="p">,</span> <span class="n">required</span><span class="p">,</span> <span class="n">optional</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    parse the overlay options and check the formatting</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">required</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s1">&#39;gene_name&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s1">&#39;Gene ID or gene alias to be drawn&#39;</span><span class="p">)</span>
+    <span class="n">augment_parser</span><span class="p">([</span><span class="s1">&#39;annotations&#39;</span><span class="p">],</span> <span class="n">required</span><span class="p">,</span> <span class="n">optional</span><span class="p">)</span>
+    <span class="n">augment_parser</span><span class="p">([</span><span class="s1">&#39;drawing_width_iter_increase&#39;</span><span class="p">,</span> <span class="s1">&#39;max_drawing_retries&#39;</span><span class="p">,</span> <span class="s1">&#39;width&#39;</span><span class="p">,</span> <span class="s1">&#39;min_mapping_quality&#39;</span><span class="p">],</span> <span class="n">optional</span><span class="p">)</span>
+    <span class="n">optional</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s1">&#39;--buffer_length&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s1">&#39;minimum genomic length to plot on either side of the target gene&#39;</span><span class="p">)</span>
+    <span class="n">optional</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s1">&#39;--read_depth_plot&#39;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s1">&#39;read_depth_plots&#39;</span><span class="p">,</span> <span class="n">metavar</span><span class="o">=</span><span class="s1">&#39;&lt;axis name STR&gt; &lt;bam FILEPATH&gt; [bin size INT] [ymax INT] [stranded BOOL]&#39;</span><span class="p">,</span>
+        <span class="n">nmin</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">nmax</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s1">&#39;bam file to use as data for plotting read_depth&#39;</span><span class="p">,</span> <span class="n">action</span><span class="o">=</span><span class="n">RangeAppendAction</span><span class="p">)</span>
+    <span class="n">optional</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s1">&#39;--marker&#39;</span><span class="p">,</span> <span class="n">dest</span><span class="o">=</span><span class="s1">&#39;markers&#39;</span><span class="p">,</span> <span class="n">metavar</span><span class="o">=</span><span class="s1">&#39;&lt;label STR&gt; &lt;start INT&gt; [end INT]&#39;</span><span class="p">,</span> <span class="n">nmin</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">nmax</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="s1">&#39;Marker on the diagram given by genomic position, May be a single position or a range. &#39;</span>
+        <span class="s1">&#39;The label should be a short descriptor to avoid overlapping labels on the diagram&#39;</span><span class="p">,</span>
+        <span class="n">action</span><span class="o">=</span><span class="n">RangeAppendAction</span><span class="p">)</span>
+    <span class="n">args</span> <span class="o">=</span> <span class="n">MavisNamespace</span><span class="p">(</span><span class="o">**</span><span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span><span class="o">.</span><span class="vm">__dict__</span><span class="p">)</span>
+
+    <span class="c1"># check complex options</span>
+    <span class="k">for</span> <span class="n">marker</span> <span class="ow">in</span> <span class="n">args</span><span class="o">.</span><span class="n">markers</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">marker</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">3</span><span class="p">:</span>
+            <span class="n">marker</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">marker</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">marker</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">marker</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+            <span class="n">marker</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">marker</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+        <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+            <span class="n">parser</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s1">&#39;argument --marker: start and end must be integers: </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">marker</span><span class="p">))</span>
+
+    <span class="n">defaults</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">True</span><span class="p">]</span>
+    <span class="n">bam_file</span><span class="p">,</span> <span class="n">bin_size</span><span class="p">,</span> <span class="n">ymax</span><span class="p">,</span> <span class="n">stranded</span> <span class="o">=</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">5</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">plot</span> <span class="ow">in</span> <span class="n">args</span><span class="o">.</span><span class="n">read_depth_plots</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">d</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">defaults</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">i</span> <span class="o">&gt;=</span> <span class="nb">len</span><span class="p">(</span><span class="n">plot</span><span class="p">):</span>
+                <span class="n">plot</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">d</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">plot</span><span class="p">[</span><span class="n">bam_file</span><span class="p">]):</span>
+            <span class="n">parser</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s1">&#39;argument --read_depth_plots: the bam file given does not exist: </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">plot</span><span class="p">[</span><span class="n">bam_file</span><span class="p">]))</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">plot</span><span class="p">[</span><span class="n">bin_size</span><span class="p">]</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">plot</span><span class="p">[</span><span class="n">bin_size</span><span class="p">])</span>
+        <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+            <span class="n">parser</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s1">&#39;argument --read_depth_plots: bin size must be an integer: </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">plot</span><span class="p">[</span><span class="n">bin_size</span><span class="p">]))</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">str</span><span class="p">(</span><span class="n">plot</span><span class="p">[</span><span class="n">ymax</span><span class="p">])</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;null&#39;</span><span class="p">,</span> <span class="s1">&#39;none&#39;</span><span class="p">]:</span>
+                <span class="n">plot</span><span class="p">[</span><span class="n">ymax</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">plot</span><span class="p">[</span><span class="n">ymax</span><span class="p">]</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">plot</span><span class="p">[</span><span class="n">ymax</span><span class="p">])</span>
+        <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+            <span class="n">parser</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s1">&#39;argument --read_depth_plots: ymax must be an integer: </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">plot</span><span class="p">[</span><span class="n">ymax</span><span class="p">]))</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">plot</span><span class="p">[</span><span class="n">stranded</span><span class="p">]</span> <span class="o">=</span> <span class="n">tab</span><span class="o">.</span><span class="n">cast_boolean</span><span class="p">(</span><span class="n">plot</span><span class="p">[</span><span class="n">stranded</span><span class="p">])</span>
+        <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+            <span class="n">parser</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s1">&#39;argument --read_depth_plots: stranded must be an boolean: </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">plot</span><span class="p">[</span><span class="n">stranded</span><span class="p">]))</span>
+    <span class="k">return</span> <span class="n">args</span></div>
+
+
+<div class="viewcode-block" id="overlay_main"><a class="viewcode-back" href="../../auto/mavis.main.html#mavis.main.overlay_main">[docs]</a><span class="k">def</span> <span class="nf">overlay_main</span><span class="p">(</span>
+    <span class="n">gene_name</span><span class="p">,</span> <span class="n">output</span><span class="p">,</span> <span class="n">buffer_length</span><span class="p">,</span> <span class="n">read_depth_plots</span><span class="p">,</span> <span class="n">markers</span><span class="p">,</span>
+    <span class="n">annotations</span><span class="p">,</span> <span class="n">annotations_filename</span><span class="p">,</span>
+    <span class="n">drawing_width_iter_increase</span><span class="p">,</span> <span class="n">max_drawing_retries</span><span class="p">,</span> <span class="n">min_mapping_quality</span><span class="p">,</span>
+    <span class="o">**</span><span class="n">kwargs</span>
+<span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    generates an overlay diagram</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># check options formatting</span>
+    <span class="n">gene_to_draw</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">for</span> <span class="n">chrom</span> <span class="ow">in</span> <span class="n">annotations</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">gene</span> <span class="ow">in</span> <span class="n">annotations</span><span class="p">[</span><span class="n">chrom</span><span class="p">]:</span>
+            <span class="k">if</span> <span class="n">gene_name</span> <span class="ow">in</span> <span class="n">gene</span><span class="o">.</span><span class="n">aliases</span> <span class="ow">or</span> <span class="n">gene_name</span> <span class="o">==</span> <span class="n">gene</span><span class="o">.</span><span class="n">name</span><span class="p">:</span>
+                <span class="n">gene_to_draw</span> <span class="o">=</span> <span class="n">gene</span>
+                <span class="n">log</span><span class="p">(</span><span class="s1">&#39;Found target gene: </span><span class="si">{}</span><span class="s1">(aka. </span><span class="si">{}</span><span class="s1">) </span><span class="si">{}</span><span class="s1">:</span><span class="si">{}</span><span class="s1">-</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">gene</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">gene</span><span class="o">.</span><span class="n">aliases</span><span class="p">,</span> <span class="n">gene</span><span class="o">.</span><span class="n">chr</span><span class="p">,</span> <span class="n">gene</span><span class="o">.</span><span class="n">start</span><span class="p">,</span> <span class="n">gene</span><span class="o">.</span><span class="n">end</span><span class="p">))</span>
+                <span class="k">break</span>
+    <span class="k">if</span> <span class="n">gene_to_draw</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span><span class="s1">&#39;Could not find gene alias or id in annotations file&#39;</span><span class="p">,</span> <span class="n">gene_name</span><span class="p">)</span>
+
+    <span class="n">settings</span> <span class="o">=</span> <span class="n">DiagramSettings</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="n">x_start</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">gene_to_draw</span><span class="o">.</span><span class="n">start</span> <span class="o">-</span> <span class="n">buffer_length</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">x_end</span> <span class="o">=</span> <span class="n">gene_to_draw</span><span class="o">.</span><span class="n">end</span> <span class="o">+</span> <span class="n">buffer_length</span>
+
+    <span class="n">plots</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">axis_name</span><span class="p">,</span> <span class="n">bam_file</span><span class="p">,</span> <span class="n">bin_size</span><span class="p">,</span> <span class="n">ymax</span><span class="p">,</span> <span class="n">stranded</span> <span class="ow">in</span> <span class="n">read_depth_plots</span><span class="p">:</span>
+        <span class="c1"># one plot per bam</span>
+        <span class="n">plots</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">bam_to_scatter</span><span class="p">(</span>
+            <span class="n">bam_file</span><span class="p">,</span> <span class="n">gene_to_draw</span><span class="o">.</span><span class="n">chr</span><span class="p">,</span> <span class="n">x_start</span><span class="p">,</span> <span class="n">x_end</span><span class="p">,</span>
+            <span class="n">strand</span><span class="o">=</span><span class="n">gene</span><span class="o">.</span><span class="n">get_strand</span><span class="p">()</span> <span class="k">if</span> <span class="n">stranded</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">ymax</span><span class="o">=</span><span class="n">ymax</span><span class="p">,</span>
+            <span class="n">bin_size</span><span class="o">=</span><span class="n">bin_size</span><span class="p">,</span>
+            <span class="n">axis_name</span><span class="o">=</span><span class="n">axis_name</span><span class="p">,</span>
+            <span class="n">min_mapping_quality</span><span class="o">=</span><span class="n">min_mapping_quality</span>
+        <span class="p">))</span>
+        <span class="n">log</span><span class="p">(</span><span class="s1">&#39;reading:&#39;</span><span class="p">,</span> <span class="n">bam_file</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">marker_name</span><span class="p">,</span> <span class="n">marker_start</span><span class="p">,</span> <span class="n">marker_end</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">markers</span><span class="p">):</span>
+        <span class="n">markers</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">BioInterval</span><span class="p">(</span><span class="n">gene_to_draw</span><span class="o">.</span><span class="n">chr</span><span class="p">,</span> <span class="n">marker_start</span><span class="p">,</span> <span class="n">marker_end</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="n">marker_name</span><span class="p">)</span>
+
+    <span class="n">canvas</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">attempts</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">canvas</span> <span class="o">=</span> <span class="n">draw_multi_transcript_overlay</span><span class="p">(</span><span class="n">settings</span><span class="p">,</span> <span class="n">gene_to_draw</span><span class="p">,</span> <span class="n">vmarkers</span><span class="o">=</span><span class="n">markers</span><span class="p">,</span> <span class="n">plots</span><span class="o">=</span><span class="n">plots</span><span class="p">)</span>
+            <span class="k">break</span>
+        <span class="k">except</span> <span class="n">DrawingFitError</span> <span class="k">as</span> <span class="n">err</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">attempts</span> <span class="o">&gt;</span> <span class="n">max_drawing_retries</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">err</span>
+            <span class="n">log</span><span class="p">(</span><span class="s1">&#39;Drawing fit: extending window&#39;</span><span class="p">,</span> <span class="n">drawing_width_iter_increase</span><span class="p">)</span>
+            <span class="n">settings</span><span class="o">.</span><span class="n">width</span> <span class="o">+=</span> <span class="n">drawing_width_iter_increase</span>
+            <span class="n">attempts</span> <span class="o">+=</span> <span class="mi">1</span>
+
+    <span class="n">svg_output_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">output</span><span class="p">,</span> <span class="s1">&#39;</span><span class="si">{}</span><span class="s1">_</span><span class="si">{}</span><span class="s1">_overlay.svg&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">gene_to_draw</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">gene_name</span><span class="p">))</span>
+    <span class="n">log</span><span class="p">(</span><span class="s1">&#39;writing:&#39;</span><span class="p">,</span> <span class="n">svg_output_file</span><span class="p">)</span>
+
+    <span class="n">canvas</span><span class="o">.</span><span class="n">saveas</span><span class="p">(</span><span class="n">svg_output_file</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="convert_main"><a class="viewcode-back" href="../../auto/mavis.main.html#mavis.main.convert_main">[docs]</a><span class="k">def</span> <span class="nf">convert_main</span><span class="p">(</span><span class="n">inputs</span><span class="p">,</span> <span class="n">outputfile</span><span class="p">,</span> <span class="n">file_type</span><span class="p">,</span> <span class="n">strand_specific</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">assume_no_untemplated</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+    <span class="n">bpp_results</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">filename</span> <span class="ow">in</span> <span class="n">inputs</span><span class="p">:</span>
+        <span class="n">bpp_results</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">convert_tool_output</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">file_type</span><span class="p">,</span> <span class="n">strand_specific</span><span class="p">,</span> <span class="n">log</span><span class="p">,</span> <span class="kc">True</span><span class="p">,</span> <span class="n">assume_no_untemplated</span><span class="o">=</span><span class="n">assume_no_untemplated</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">outputfile</span><span class="p">):</span>
+        <span class="n">mkdirp</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">outputfile</span><span class="p">))</span>
+    <span class="n">output_tabbed_file</span><span class="p">(</span><span class="n">bpp_results</span><span class="p">,</span> <span class="n">outputfile</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="main"><a class="viewcode-back" href="../../auto/mavis.main.html#mavis.main.main">[docs]</a><span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
+    <span class="k">def</span> <span class="nf">usage</span><span class="p">(</span><span class="n">err</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">detail</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="n">umsg</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">usage: </span><span class="si">{}</span><span class="s1"> {{</span><span class="si">{}</span><span class="s1">}} [-h] [-v]&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">PROGNAME</span><span class="p">,</span> <span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">values</span><span class="p">())))</span>
+        <span class="n">helpmenu</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">required arguments:</span>
+
+<span class="s2">    pipeline_step</span>
+<span class="s2">        specifies which step in the pipeline or which subprogram</span>
+<span class="s2">        should be run. See possible input values above</span>
+
+<span class="s2">optional arguments:</span>
+<span class="s2">    -h, --help</span>
+<span class="s2">        bring up this help menu</span>
+<span class="s2">    -v, --version</span>
+<span class="s2">        output the version number</span>
+
+<span class="s2">To bring up individual help menus for a given pipeline step</span>
+<span class="s2">use the -h/--help option</span>
+
+<span class="s2">    &gt;&gt;&gt; </span><span class="si">{}</span><span class="s2"> &lt;pipeline step&gt; -h</span>
+<span class="s2">    &quot;&quot;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">PROGNAME</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">umsg</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">detail</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">helpmenu</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">err</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">{}</span><span class="s1">: error:&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">PROGNAME</span><span class="p">),</span> <span class="n">err</span><span class="p">,</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">EXIT_ERROR</span>
+        <span class="k">return</span> <span class="n">EXIT_OK</span>
+
+    <span class="n">start_time</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">())</span>
+
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">usage</span><span class="p">(</span><span class="s1">&#39;the &lt;pipeline step&gt; argument is required&#39;</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;-h&#39;</span><span class="p">,</span> <span class="s1">&#39;--help&#39;</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="n">usage</span><span class="p">(</span><span class="n">detail</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;-v&#39;</span><span class="p">,</span> <span class="s1">&#39;--version&#39;</span><span class="p">]:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">{}</span><span class="s1"> version </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="s1">&#39;mavis&#39;</span><span class="p">,</span> <span class="n">__version__</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">EXIT_OK</span>
+
+    <span class="n">pstep</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">{}</span><span class="s1"> </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">pstep</span><span class="p">)</span>
+
+    <span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">formatter_class</span><span class="o">=</span><span class="n">CustomHelpFormatter</span><span class="p">,</span> <span class="n">add_help</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="n">required</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">add_argument_group</span><span class="p">(</span><span class="s1">&#39;required arguments&#39;</span><span class="p">)</span>
+    <span class="n">optional</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">add_argument_group</span><span class="p">(</span><span class="s1">&#39;optional arguments&#39;</span><span class="p">)</span>
+    <span class="n">augment_parser</span><span class="p">([</span><span class="s1">&#39;help&#39;</span><span class="p">,</span> <span class="s1">&#39;version&#39;</span><span class="p">],</span> <span class="n">optional</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">pstep</span> <span class="o">==</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">CONFIG</span><span class="p">:</span>
+        <span class="n">generate_config</span><span class="p">(</span><span class="n">parser</span><span class="p">,</span> <span class="n">required</span><span class="p">,</span> <span class="n">optional</span><span class="p">,</span> <span class="n">log</span><span class="o">=</span><span class="n">log</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">EXIT_OK</span>
+    <span class="k">elif</span> <span class="n">pstep</span> <span class="o">==</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">CONVERT</span><span class="p">:</span>
+        <span class="n">required</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s1">&#39;-n&#39;</span><span class="p">,</span> <span class="s1">&#39;--inputs&#39;</span><span class="p">,</span> <span class="n">nargs</span><span class="o">=</span><span class="s1">&#39;+&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s1">&#39;path to the input files&#39;</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">metavar</span><span class="o">=</span><span class="s1">&#39;FILEPATH&#39;</span><span class="p">)</span>
+        <span class="n">required</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+            <span class="s1">&#39;--file_type&#39;</span><span class="p">,</span> <span class="n">choices</span><span class="o">=</span><span class="nb">sorted</span><span class="p">([</span><span class="n">t</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">SUPPORTED_TOOL</span><span class="o">.</span><span class="n">values</span><span class="p">()</span> <span class="k">if</span> <span class="n">t</span> <span class="o">!=</span> <span class="s1">&#39;mavis&#39;</span><span class="p">]),</span>
+            <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s1">&#39;Indicates the input file type to be parsed&#39;</span><span class="p">)</span>
+        <span class="n">augment_parser</span><span class="p">([</span><span class="s1">&#39;strand_specific&#39;</span><span class="p">,</span> <span class="s1">&#39;assume_no_untemplated&#39;</span><span class="p">],</span> <span class="n">optional</span><span class="p">)</span>
+        <span class="n">required</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s1">&#39;--outputfile&#39;</span><span class="p">,</span> <span class="s1">&#39;-o&#39;</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s1">&#39;path to the outputfile&#39;</span><span class="p">,</span> <span class="n">metavar</span><span class="o">=</span><span class="s1">&#39;FILEPATH&#39;</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">required</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s1">&#39;-o&#39;</span><span class="p">,</span> <span class="s1">&#39;--output&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s1">&#39;path to the output directory&#39;</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">pstep</span> <span class="o">==</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">PIPELINE</span><span class="p">:</span>
+            <span class="n">required</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s1">&#39;config&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s1">&#39;path to the input pipeline configuration file&#39;</span><span class="p">,</span> <span class="n">metavar</span><span class="o">=</span><span class="s1">&#39;FILEPATH&#39;</span><span class="p">)</span>
+            <span class="n">optional</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+                <span class="s1">&#39;--skip_stage&#39;</span><span class="p">,</span> <span class="n">choices</span><span class="o">=</span><span class="p">[</span><span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">CLUSTER</span><span class="p">,</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">VALIDATE</span><span class="p">],</span> <span class="n">action</span><span class="o">=</span><span class="s1">&#39;append&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="p">[],</span>
+                <span class="n">help</span><span class="o">=</span><span class="s1">&#39;Use flag once per stage to skip. Can skip clustering or validation or both&#39;</span><span class="p">)</span>
+
+        <span class="k">elif</span> <span class="n">pstep</span> <span class="o">==</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">CLUSTER</span><span class="p">:</span>
+            <span class="n">required</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s1">&#39;-n&#39;</span><span class="p">,</span> <span class="s1">&#39;--inputs&#39;</span><span class="p">,</span> <span class="n">nargs</span><span class="o">=</span><span class="s1">&#39;+&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s1">&#39;path to the input files&#39;</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">metavar</span><span class="o">=</span><span class="s1">&#39;FILEPATH&#39;</span><span class="p">)</span>
+            <span class="n">augment_parser</span><span class="p">([</span><span class="s1">&#39;library&#39;</span><span class="p">,</span> <span class="s1">&#39;protocol&#39;</span><span class="p">,</span> <span class="s1">&#39;strand_specific&#39;</span><span class="p">,</span> <span class="s1">&#39;disease_status&#39;</span><span class="p">,</span> <span class="s1">&#39;annotations&#39;</span><span class="p">,</span> <span class="s1">&#39;masking&#39;</span><span class="p">],</span> <span class="n">required</span><span class="p">,</span> <span class="n">optional</span><span class="p">)</span>
+            <span class="n">augment_parser</span><span class="p">(</span><span class="n">CLUSTER_DEFAULTS</span><span class="o">.</span><span class="n">keys</span><span class="p">(),</span> <span class="n">optional</span><span class="p">)</span>
+
+        <span class="k">elif</span> <span class="n">pstep</span> <span class="o">==</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">VALIDATE</span><span class="p">:</span>
+            <span class="n">required</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s1">&#39;-n&#39;</span><span class="p">,</span> <span class="s1">&#39;--input&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s1">&#39;path to the input file&#39;</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">metavar</span><span class="o">=</span><span class="s1">&#39;FILEPATH&#39;</span><span class="p">)</span>
+            <span class="n">augment_parser</span><span class="p">(</span>
+                <span class="p">[</span><span class="s1">&#39;library&#39;</span><span class="p">,</span> <span class="s1">&#39;protocol&#39;</span><span class="p">,</span> <span class="s1">&#39;bam_file&#39;</span><span class="p">,</span> <span class="s1">&#39;read_length&#39;</span><span class="p">,</span> <span class="s1">&#39;stdev_fragment_size&#39;</span><span class="p">,</span> <span class="s1">&#39;median_fragment_size&#39;</span><span class="p">]</span> <span class="o">+</span>
+                <span class="p">[</span><span class="s1">&#39;strand_specific&#39;</span><span class="p">,</span> <span class="s1">&#39;annotations&#39;</span><span class="p">,</span> <span class="s1">&#39;reference_genome&#39;</span><span class="p">,</span> <span class="s1">&#39;aligner_reference&#39;</span><span class="p">,</span> <span class="s1">&#39;masking&#39;</span><span class="p">],</span>
+                <span class="n">required</span><span class="p">,</span> <span class="n">optional</span>
+            <span class="p">)</span>
+            <span class="n">augment_parser</span><span class="p">(</span><span class="n">VALIDATION_DEFAULTS</span><span class="o">.</span><span class="n">keys</span><span class="p">(),</span> <span class="n">optional</span><span class="p">)</span>
+
+        <span class="k">elif</span> <span class="n">pstep</span> <span class="o">==</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">ANNOTATE</span><span class="p">:</span>
+            <span class="n">required</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s1">&#39;-n&#39;</span><span class="p">,</span> <span class="s1">&#39;--inputs&#39;</span><span class="p">,</span> <span class="n">nargs</span><span class="o">=</span><span class="s1">&#39;+&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s1">&#39;path to the input files&#39;</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">metavar</span><span class="o">=</span><span class="s1">&#39;FILEPATH&#39;</span><span class="p">)</span>
+            <span class="n">augment_parser</span><span class="p">(</span>
+                <span class="p">[</span><span class="s1">&#39;library&#39;</span><span class="p">,</span> <span class="s1">&#39;protocol&#39;</span><span class="p">,</span> <span class="s1">&#39;annotations&#39;</span><span class="p">,</span> <span class="s1">&#39;reference_genome&#39;</span><span class="p">,</span> <span class="s1">&#39;masking&#39;</span><span class="p">,</span> <span class="s1">&#39;template_metadata&#39;</span><span class="p">],</span>
+                <span class="n">required</span><span class="p">,</span> <span class="n">optional</span>
+            <span class="p">)</span>
+            <span class="n">augment_parser</span><span class="p">([</span><span class="s1">&#39;max_proximity&#39;</span><span class="p">],</span> <span class="n">optional</span><span class="p">)</span>
+            <span class="n">augment_parser</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">ANNOTATION_DEFAULTS</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span> <span class="o">+</span> <span class="nb">list</span><span class="p">(</span><span class="n">ILLUSTRATION_DEFAULTS</span><span class="o">.</span><span class="n">keys</span><span class="p">()),</span> <span class="n">optional</span><span class="p">)</span>
+
+        <span class="k">elif</span> <span class="n">pstep</span> <span class="o">==</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">PAIR</span><span class="p">:</span>
+            <span class="n">required</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s1">&#39;-n&#39;</span><span class="p">,</span> <span class="s1">&#39;--inputs&#39;</span><span class="p">,</span> <span class="n">nargs</span><span class="o">=</span><span class="s1">&#39;+&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s1">&#39;path to the input files&#39;</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">metavar</span><span class="o">=</span><span class="s1">&#39;FILEPATH&#39;</span><span class="p">)</span>
+            <span class="n">augment_parser</span><span class="p">([</span><span class="s1">&#39;annotations&#39;</span><span class="p">],</span> <span class="n">required</span><span class="p">,</span> <span class="n">optional</span><span class="p">)</span>
+            <span class="n">augment_parser</span><span class="p">([</span><span class="s1">&#39;max_proximity&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="nb">list</span><span class="p">(</span><span class="n">PAIRING_DEFAULTS</span><span class="o">.</span><span class="n">keys</span><span class="p">()),</span> <span class="n">optional</span><span class="p">)</span>
+
+        <span class="k">elif</span> <span class="n">pstep</span> <span class="o">==</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">SUMMARY</span><span class="p">:</span>
+            <span class="n">required</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s1">&#39;-n&#39;</span><span class="p">,</span> <span class="s1">&#39;--inputs&#39;</span><span class="p">,</span> <span class="n">nargs</span><span class="o">=</span><span class="s1">&#39;+&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s1">&#39;path to the input files&#39;</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">metavar</span><span class="o">=</span><span class="s1">&#39;FILEPATH&#39;</span><span class="p">)</span>
+            <span class="n">augment_parser</span><span class="p">(</span>
+                <span class="p">[</span><span class="s1">&#39;annotations&#39;</span><span class="p">,</span> <span class="s1">&#39;dgv_annotation&#39;</span><span class="p">,</span> <span class="s1">&#39;flanking_call_distance&#39;</span><span class="p">,</span> <span class="s1">&#39;split_call_distance&#39;</span><span class="p">,</span> <span class="s1">&#39;contig_call_distance&#39;</span><span class="p">,</span> <span class="s1">&#39;spanning_call_distance&#39;</span><span class="p">],</span>
+                <span class="n">required</span><span class="p">,</span> <span class="n">optional</span>
+            <span class="p">)</span>
+            <span class="n">augment_parser</span><span class="p">(</span><span class="n">SUMMARY_DEFAULTS</span><span class="o">.</span><span class="n">keys</span><span class="p">(),</span> <span class="n">optional</span><span class="p">)</span>
+
+        <span class="k">elif</span> <span class="n">pstep</span> <span class="o">==</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">CHECKER</span><span class="p">:</span>
+
+            <span class="n">args</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span>
+            <span class="n">success_flag</span> <span class="o">=</span> <span class="n">check_completion</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">output</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">EXIT_OK</span> <span class="k">if</span> <span class="n">success_flag</span> <span class="k">else</span> <span class="n">EXIT_ERROR</span>
+
+        <span class="k">elif</span> <span class="n">pstep</span> <span class="o">!=</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">OVERLAY</span><span class="p">:</span>
+
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s1">&#39;invalid value for &lt;pipeline step&gt;&#39;</span><span class="p">,</span> <span class="n">pstep</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">pstep</span> <span class="o">==</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">OVERLAY</span><span class="p">:</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="n">parse_overlay_args</span><span class="p">(</span><span class="n">parser</span><span class="p">,</span> <span class="n">required</span><span class="p">,</span> <span class="n">optional</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="n">MavisNamespace</span><span class="p">(</span><span class="o">**</span><span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span><span class="o">.</span><span class="vm">__dict__</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">pstep</span> <span class="o">==</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">VALIDATE</span><span class="p">:</span>
+        <span class="n">args</span><span class="o">.</span><span class="n">samtools_version</span> <span class="o">=</span> <span class="n">get_samtools_version</span><span class="p">()</span>
+        <span class="n">args</span><span class="o">.</span><span class="n">blat_version</span> <span class="o">=</span> <span class="n">get_blat_version</span><span class="p">()</span>
+
+    <span class="n">log</span><span class="p">(</span><span class="s1">&#39;MAVIS: </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">__version__</span><span class="p">))</span>
+    <span class="n">log</span><span class="p">(</span><span class="s1">&#39;hostname:&#39;</span><span class="p">,</span> <span class="n">platform</span><span class="o">.</span><span class="n">node</span><span class="p">(),</span> <span class="n">time_stamp</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="n">log_arguments</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
+    <span class="n">rargs</span> <span class="o">=</span> <span class="n">args</span>
+
+    <span class="k">if</span> <span class="n">pstep</span> <span class="o">==</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">PIPELINE</span><span class="p">:</span>  <span class="c1"># load the configuration file</span>
+        <span class="n">config</span> <span class="o">=</span> <span class="n">MavisConfig</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">config</span><span class="p">)</span>
+        <span class="n">config</span><span class="o">.</span><span class="n">output</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">output</span>
+        <span class="n">config</span><span class="o">.</span><span class="n">skip_stage</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">skip_stage</span>
+        <span class="n">rargs</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">reference</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="n">config</span>
+
+    <span class="c1"># set all reference files to their absolute paths to make tracking them down later easier</span>
+    <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;output&#39;</span><span class="p">,</span> <span class="s1">&#39;reference_genome&#39;</span><span class="p">,</span> <span class="s1">&#39;template_metadata&#39;</span><span class="p">,</span> <span class="s1">&#39;annotations&#39;</span><span class="p">,</span> <span class="s1">&#39;masking&#39;</span><span class="p">,</span> <span class="s1">&#39;aligner_reference&#39;</span><span class="p">,</span>
+                <span class="s1">&#39;dgv_annotation&#39;</span><span class="p">]:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">rargs</span><span class="p">[</span><span class="n">arg</span><span class="p">]</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="n">rargs</span><span class="p">[</span><span class="n">arg</span><span class="p">])</span>
+            <span class="k">if</span> <span class="n">arg</span> <span class="o">!=</span> <span class="s1">&#39;output&#39;</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">rargs</span><span class="p">[</span><span class="n">arg</span><span class="p">]):</span>
+                <span class="k">raise</span> <span class="ne">OSError</span><span class="p">(</span><span class="s1">&#39;input reference file does not exist&#39;</span><span class="p">,</span> <span class="n">arg</span><span class="p">,</span> <span class="n">rargs</span><span class="p">[</span><span class="n">arg</span><span class="p">])</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="k">pass</span>
+
+    <span class="c1"># try checking the input files exist</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">fname</span> <span class="ow">in</span> <span class="n">args</span><span class="o">.</span><span class="n">inputs</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">bash_expands</span><span class="p">(</span><span class="n">fname</span><span class="p">))</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">OSError</span><span class="p">(</span><span class="s1">&#39;input file does not exist&#39;</span><span class="p">,</span> <span class="n">fname</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+        <span class="k">pass</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">bash_expands</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">input</span><span class="p">))</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">OSError</span><span class="p">(</span><span class="s1">&#39;input file does not exist&#39;</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">input</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+        <span class="k">pass</span>
+
+    <span class="c1"># load the reference files if they have been given and reset the arguments to hold the original file name and the</span>
+    <span class="c1"># loaded data</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">any</span><span class="p">([</span>
+            <span class="n">pstep</span> <span class="o">==</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">CLUSTER</span> <span class="ow">and</span> <span class="n">args</span><span class="o">.</span><span class="n">uninformative_filter</span><span class="p">,</span>
+            <span class="n">pstep</span> <span class="o">==</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">PIPELINE</span> <span class="ow">and</span> <span class="n">config</span><span class="o">.</span><span class="n">cluster</span><span class="o">.</span><span class="n">uninformative_filter</span><span class="p">,</span>
+            <span class="n">pstep</span> <span class="o">==</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">VALIDATE</span> <span class="ow">and</span> <span class="n">args</span><span class="o">.</span><span class="n">protocol</span> <span class="o">==</span> <span class="n">PROTOCOL</span><span class="o">.</span><span class="n">TRANS</span><span class="p">,</span>
+            <span class="n">pstep</span> <span class="o">==</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">PIPELINE</span> <span class="ow">and</span> <span class="n">config</span><span class="o">.</span><span class="n">has_transcriptome</span><span class="p">()</span> <span class="ow">and</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">VALIDATE</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">config</span><span class="o">.</span><span class="n">skip_stage</span><span class="p">,</span>
+            <span class="n">pstep</span> <span class="o">==</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">PAIR</span> <span class="ow">or</span> <span class="n">pstep</span> <span class="o">==</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">ANNOTATE</span> <span class="ow">or</span> <span class="n">pstep</span> <span class="o">==</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">SUMMARY</span><span class="p">,</span>
+            <span class="n">pstep</span> <span class="o">==</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">OVERLAY</span>
+        <span class="p">]):</span>
+            <span class="n">log</span><span class="p">(</span><span class="s1">&#39;loading:&#39;</span><span class="p">,</span> <span class="n">rargs</span><span class="o">.</span><span class="n">annotations</span><span class="p">)</span>
+            <span class="n">rargs</span><span class="o">.</span><span class="n">annotations_filename</span> <span class="o">=</span> <span class="n">rargs</span><span class="o">.</span><span class="n">annotations</span>
+            <span class="n">rargs</span><span class="o">.</span><span class="n">annotations</span> <span class="o">=</span> <span class="n">load_annotations</span><span class="p">(</span><span class="n">rargs</span><span class="o">.</span><span class="n">annotations</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">rargs</span><span class="o">.</span><span class="n">annotations_filename</span> <span class="o">=</span> <span class="n">rargs</span><span class="o">.</span><span class="n">annotations</span>
+            <span class="n">rargs</span><span class="o">.</span><span class="n">annotations</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">except</span> <span class="ne">AttributeError</span> <span class="k">as</span> <span class="n">err</span><span class="p">:</span>
+        <span class="k">pass</span>
+    <span class="c1"># reference genome</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">pstep</span> <span class="ow">in</span> <span class="p">[</span><span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">VALIDATE</span><span class="p">,</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">ANNOTATE</span><span class="p">]:</span>
+            <span class="n">log</span><span class="p">(</span><span class="s1">&#39;loading:&#39;</span><span class="p">,</span> <span class="n">rargs</span><span class="o">.</span><span class="n">reference_genome</span><span class="p">)</span>
+            <span class="n">rargs</span><span class="o">.</span><span class="n">reference_genome_filename</span> <span class="o">=</span> <span class="n">rargs</span><span class="o">.</span><span class="n">reference_genome</span>
+            <span class="n">rargs</span><span class="o">.</span><span class="n">reference_genome</span> <span class="o">=</span> <span class="n">load_reference_genome</span><span class="p">(</span><span class="n">rargs</span><span class="o">.</span><span class="n">reference_genome</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">rargs</span><span class="o">.</span><span class="n">reference_genome_filename</span> <span class="o">=</span> <span class="n">rargs</span><span class="o">.</span><span class="n">reference_genome</span>
+            <span class="n">rargs</span><span class="o">.</span><span class="n">reference_genome</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+        <span class="k">pass</span>
+
+    <span class="c1"># masking file</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">pstep</span> <span class="ow">in</span> <span class="p">[</span><span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">VALIDATE</span><span class="p">,</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">CLUSTER</span><span class="p">,</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">PIPELINE</span><span class="p">]:</span>
+            <span class="n">log</span><span class="p">(</span><span class="s1">&#39;loading:&#39;</span><span class="p">,</span> <span class="n">rargs</span><span class="o">.</span><span class="n">masking</span><span class="p">)</span>
+            <span class="n">rargs</span><span class="o">.</span><span class="n">masking_filename</span> <span class="o">=</span> <span class="n">rargs</span><span class="o">.</span><span class="n">masking</span>
+            <span class="n">rargs</span><span class="o">.</span><span class="n">masking</span> <span class="o">=</span> <span class="n">load_masking_regions</span><span class="p">(</span><span class="n">rargs</span><span class="o">.</span><span class="n">masking</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">rargs</span><span class="o">.</span><span class="n">masking_filename</span> <span class="o">=</span> <span class="n">rargs</span><span class="o">.</span><span class="n">masking</span>
+            <span class="n">rargs</span><span class="o">.</span><span class="n">masking</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+        <span class="k">pass</span>
+
+    <span class="c1"># dgv annotation</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">pstep</span> <span class="o">==</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">SUMMARY</span><span class="p">:</span>
+            <span class="n">log</span><span class="p">(</span><span class="s1">&#39;loading:&#39;</span><span class="p">,</span> <span class="n">rargs</span><span class="o">.</span><span class="n">dgv_annotation</span><span class="p">)</span>
+            <span class="n">rargs</span><span class="o">.</span><span class="n">dgv_annotation_filename</span> <span class="o">=</span> <span class="n">rargs</span><span class="o">.</span><span class="n">dgv_annotation</span>
+            <span class="n">rargs</span><span class="o">.</span><span class="n">dgv_annotation</span> <span class="o">=</span> <span class="n">load_masking_regions</span><span class="p">(</span><span class="n">rargs</span><span class="o">.</span><span class="n">dgv_annotation</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">rargs</span><span class="o">.</span><span class="n">dgv_annotation_filename</span> <span class="o">=</span> <span class="n">rargs</span><span class="o">.</span><span class="n">dgv_annotation</span>
+            <span class="n">rargs</span><span class="o">.</span><span class="n">dgv_annotation</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+        <span class="k">pass</span>
+
+    <span class="c1"># template metadata</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">pstep</span> <span class="o">==</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">ANNOTATE</span><span class="p">:</span>
+            <span class="n">log</span><span class="p">(</span><span class="s1">&#39;loading:&#39;</span><span class="p">,</span> <span class="n">rargs</span><span class="o">.</span><span class="n">template_metadata</span><span class="p">)</span>
+            <span class="n">rargs</span><span class="o">.</span><span class="n">template_metadata_filename</span> <span class="o">=</span> <span class="n">rargs</span><span class="o">.</span><span class="n">template_metadata</span>
+            <span class="n">rargs</span><span class="o">.</span><span class="n">template_metadata</span> <span class="o">=</span> <span class="n">load_templates</span><span class="p">(</span><span class="n">rargs</span><span class="o">.</span><span class="n">template_metadata</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">rargs</span><span class="o">.</span><span class="n">template_metadata_filename</span> <span class="o">=</span> <span class="n">rargs</span><span class="o">.</span><span class="n">template_metadata</span>
+            <span class="n">rargs</span><span class="o">.</span><span class="n">template_metadata</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+        <span class="k">pass</span>
+    <span class="c1"># decide which main function to execute</span>
+    <span class="k">if</span> <span class="n">pstep</span> <span class="o">==</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">CLUSTER</span><span class="p">:</span>
+        <span class="n">cluster_main</span><span class="p">(</span><span class="o">**</span><span class="n">args</span><span class="p">,</span> <span class="n">start_time</span><span class="o">=</span><span class="n">start_time</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">pstep</span> <span class="o">==</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">VALIDATE</span><span class="p">:</span>
+        <span class="n">validate_main</span><span class="p">(</span><span class="o">**</span><span class="n">args</span><span class="p">,</span> <span class="n">start_time</span><span class="o">=</span><span class="n">start_time</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">pstep</span> <span class="o">==</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">ANNOTATE</span><span class="p">:</span>
+        <span class="n">annotate_main</span><span class="p">(</span><span class="o">**</span><span class="n">args</span><span class="p">,</span> <span class="n">start_time</span><span class="o">=</span><span class="n">start_time</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">pstep</span> <span class="o">==</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">PAIR</span><span class="p">:</span>
+        <span class="n">pairing_main</span><span class="p">(</span><span class="o">**</span><span class="n">args</span><span class="p">,</span> <span class="n">start_time</span><span class="o">=</span><span class="n">start_time</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">pstep</span> <span class="o">==</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">SUMMARY</span><span class="p">:</span>
+        <span class="n">summary_main</span><span class="p">(</span><span class="o">**</span><span class="n">args</span><span class="p">,</span> <span class="n">start_time</span><span class="o">=</span><span class="n">start_time</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">pstep</span> <span class="o">==</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">CONVERT</span><span class="p">:</span>
+        <span class="n">convert_main</span><span class="p">(</span><span class="o">**</span><span class="n">args</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">pstep</span> <span class="o">==</span> <span class="n">SUBCOMMAND</span><span class="o">.</span><span class="n">OVERLAY</span><span class="p">:</span>
+        <span class="n">overlay_main</span><span class="p">(</span><span class="o">**</span><span class="n">args</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>  <span class="c1"># PIPELINE</span>
+        <span class="n">main_pipeline</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
+
+    <span class="n">duration</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">())</span> <span class="o">-</span> <span class="n">start_time</span>
+    <span class="n">hours</span> <span class="o">=</span> <span class="n">duration</span> <span class="o">-</span> <span class="n">duration</span> <span class="o">%</span> <span class="mi">3600</span>
+    <span class="n">minutes</span> <span class="o">=</span> <span class="n">duration</span> <span class="o">-</span> <span class="n">hours</span> <span class="o">-</span> <span class="p">(</span><span class="n">duration</span> <span class="o">-</span> <span class="n">hours</span><span class="p">)</span> <span class="o">%</span> <span class="mi">60</span>
+    <span class="n">seconds</span> <span class="o">=</span> <span class="n">duration</span> <span class="o">-</span> <span class="n">hours</span> <span class="o">-</span> <span class="n">minutes</span>
+    <span class="n">log</span><span class="p">(</span>
+        <span class="s1">&#39;run time (hh/mm/ss): </span><span class="si">{}</span><span class="s1">:</span><span class="si">{:02d}</span><span class="s1">:</span><span class="si">{:02d}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">hours</span> <span class="o">//</span> <span class="mi">3600</span><span class="p">,</span> <span class="n">minutes</span> <span class="o">//</span> <span class="mi">60</span><span class="p">,</span> <span class="n">seconds</span><span class="p">),</span>
+        <span class="n">time_stamp</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="n">log</span><span class="p">(</span><span class="s1">&#39;run time (s): </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">duration</span><span class="p">),</span> <span class="n">time_stamp</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">EXIT_OK</span></div>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>
+    <span class="n">exit</span><span class="p">(</span><span class="n">main</span><span class="p">())</span>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2017, creisle.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../',
+            VERSION:'',
+            LANGUAGE:'None',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

@@ -1,0 +1,754 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>mavis.bam.read &mdash; MAVIS  documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+    <link rel="stylesheet" href="../../../_static/custom.css" type="text/css" />
+  
+
+  
+        <link rel="author" title="About these documents"
+              href="../../../about.html"/>
+        <link rel="index" title="Index"
+              href="../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../search.html"/>
+    <link rel="top" title="MAVIS  documentation" href="../../../index.html"/>
+        <link rel="up" title="Module code" href="../../index.html"/> 
+
+  
+  <script src="../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home"> MAVIS
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                1.6.4
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../about.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../pipeline.html">Running the Pipeline</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../mavis_input.html">MAVIS standard input file format</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../reference.html">Reference Input Files</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../configuration.html">Configuration and Settings</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../tools_supported.html">Supported SV Callers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../illustrations.html">Illustrations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../faqs.html">Frequently Asked Questions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../theory.html">Theory and Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../development.html">Guidelines for Contributors</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../package.html">Package Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../citations.html">Literature</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">MAVIS</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+      <li>mavis.bam.read</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for mavis.bam.read</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">copy</span> <span class="k">import</span> <span class="n">copy</span>
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">import</span> <span class="nn">subprocess</span>
+
+<span class="kn">import</span> <span class="nn">pysam</span>
+
+<span class="kn">from</span> <span class="nn">.</span> <span class="k">import</span> <span class="n">cigar</span> <span class="k">as</span> <span class="n">_cigar</span>
+<span class="kn">from</span> <span class="nn">.cigar</span> <span class="k">import</span> <span class="n">EVENT_STATES</span><span class="p">,</span> <span class="n">QUERY_ALIGNED_STATES</span><span class="p">,</span> <span class="n">REFERENCE_ALIGNED_STATES</span><span class="p">,</span> <span class="n">convert_cigar_to_string</span>
+<span class="kn">from</span> <span class="nn">..constants</span> <span class="k">import</span> <span class="n">CIGAR</span><span class="p">,</span> <span class="n">DNA_ALPHABET</span><span class="p">,</span> <span class="n">ORIENT</span><span class="p">,</span> <span class="n">READ_PAIR_TYPE</span><span class="p">,</span> <span class="n">STRAND</span><span class="p">,</span> <span class="n">SVTYPE</span><span class="p">,</span> <span class="n">NA_MAPPING_QUALITY</span>
+<span class="kn">from</span> <span class="nn">..interval</span> <span class="k">import</span> <span class="n">Interval</span>
+
+
+<div class="viewcode-block" id="SamRead"><a class="viewcode-back" href="../../../auto/mavis.bam.read.html#mavis.bam.read.SamRead">[docs]</a><span class="k">class</span> <span class="nc">SamRead</span><span class="p">(</span><span class="n">pysam</span><span class="o">.</span><span class="n">AlignedSegment</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Subclass to extend the pysam.AlignedSegment class adding some utility methods and convenient representations</span>
+
+<span class="sd">    Allows next_reference_name and reference_name to be set directly so that is does not depend on a bam header</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">reference_name</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">next_reference_name</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">alignment_score</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">pysam</span><span class="o">.</span><span class="n">AlignedSegment</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_reference_name</span> <span class="o">=</span> <span class="n">reference_name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_next_reference_name</span> <span class="o">=</span> <span class="n">next_reference_name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">alignment_score</span> <span class="o">=</span> <span class="n">alignment_score</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mapping_quality</span> <span class="o">=</span> <span class="n">NA_MAPPING_QUALITY</span>
+        <span class="k">for</span> <span class="n">attr</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="nb">setattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">attr</span><span class="p">,</span> <span class="n">val</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">alignment_id</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s1">&#39;</span><span class="si">{}</span><span class="s1">:</span><span class="si">{}</span><span class="s1">[</span><span class="si">{}</span><span class="s1">]</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">reference_name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">reference_start</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">query_name</span><span class="p">,</span> <span class="n">convert_cigar_to_string</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cigar</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s1">&#39;</span><span class="si">{}</span><span class="s1">(</span><span class="si">{}</span><span class="s1">:</span><span class="si">{}</span><span class="s1">-</span><span class="si">{}</span><span class="s1">, </span><span class="si">{}</span><span class="s1">, </span><span class="si">{}</span><span class="s1">...)&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">reference_name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">reference_start</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">reference_end</span><span class="p">,</span>
+            <span class="n">convert_cigar_to_string</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cigar</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">query_sequence</span><span class="p">[:</span><span class="mi">10</span><span class="p">]</span>
+        <span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">query_length</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">query_sequence</span><span class="p">)</span> <span class="o">+</span> <span class="nb">sum</span><span class="p">([</span><span class="n">f</span> <span class="k">for</span> <span class="n">v</span><span class="p">,</span> <span class="n">f</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cigar</span> <span class="k">if</span> <span class="n">v</span> <span class="o">==</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">H</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+
+<div class="viewcode-block" id="SamRead.copy"><a class="viewcode-back" href="../../../auto/mavis.bam.read.html#mavis.bam.read.SamRead.copy">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">copy</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">pysamread</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">cls</span><span class="o">.</span><span class="n">copy_onto</span><span class="p">(</span><span class="n">pysamread</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="SamRead.copy_onto"><a class="viewcode-back" href="../../../auto/mavis.bam.read.html#mavis.bam.read.SamRead.copy_onto">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">copy_onto</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">pysamread</span><span class="p">,</span> <span class="n">copyread</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="n">cp</span> <span class="o">=</span> <span class="bp">cls</span><span class="p">()</span> <span class="k">if</span> <span class="n">copyread</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">copyread</span>
+        <span class="n">cp</span><span class="o">.</span><span class="n">_reference_name</span> <span class="o">=</span> <span class="n">pysamread</span><span class="o">.</span><span class="n">reference_name</span>
+        <span class="n">cp</span><span class="o">.</span><span class="n">query_sequence</span> <span class="o">=</span> <span class="n">pysamread</span><span class="o">.</span><span class="n">query_sequence</span>
+        <span class="n">cp</span><span class="o">.</span><span class="n">reference_start</span> <span class="o">=</span> <span class="n">pysamread</span><span class="o">.</span><span class="n">reference_start</span>
+        <span class="n">cp</span><span class="o">.</span><span class="n">reference_id</span> <span class="o">=</span> <span class="n">pysamread</span><span class="o">.</span><span class="n">reference_id</span>
+        <span class="n">cp</span><span class="o">.</span><span class="n">cigar</span> <span class="o">=</span> <span class="n">pysamread</span><span class="o">.</span><span class="n">cigar</span><span class="p">[:]</span>
+        <span class="n">cp</span><span class="o">.</span><span class="n">query_name</span> <span class="o">=</span> <span class="n">pysamread</span><span class="o">.</span><span class="n">query_name</span>
+        <span class="n">cp</span><span class="o">.</span><span class="n">mapping_quality</span> <span class="o">=</span> <span class="n">pysamread</span><span class="o">.</span><span class="n">mapping_quality</span>
+        <span class="n">cp</span><span class="o">.</span><span class="n">set_tags</span><span class="p">(</span><span class="n">pysamread</span><span class="o">.</span><span class="n">get_tags</span><span class="p">())</span>
+        <span class="n">cp</span><span class="o">.</span><span class="n">flag</span> <span class="o">=</span> <span class="n">pysamread</span><span class="o">.</span><span class="n">flag</span>
+        <span class="k">if</span> <span class="n">pysamread</span><span class="o">.</span><span class="n">is_paired</span><span class="p">:</span>
+            <span class="n">cp</span><span class="o">.</span><span class="n">next_reference_id</span> <span class="o">=</span> <span class="n">pysamread</span><span class="o">.</span><span class="n">next_reference_id</span>
+            <span class="n">cp</span><span class="o">.</span><span class="n">next_reference_start</span> <span class="o">=</span> <span class="n">pysamread</span><span class="o">.</span><span class="n">next_reference_start</span>
+            <span class="n">cp</span><span class="o">.</span><span class="n">_next_reference_name</span> <span class="o">=</span> <span class="n">pysamread</span><span class="o">.</span><span class="n">next_reference_name</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">cp</span><span class="o">.</span><span class="n">alignment_score</span> <span class="o">=</span> <span class="n">pysamread</span><span class="o">.</span><span class="n">alignment_score</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="k">pass</span>
+        <span class="k">return</span> <span class="n">cp</span></div>
+
+    <span class="k">def</span> <span class="nf">__copy__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">reference_name</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reference_name</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">next_reference_name</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_next_reference_name</span>
+
+<div class="viewcode-block" id="SamRead.deletion_sequences"><a class="viewcode-back" href="../../../auto/mavis.bam.read.html#mavis.bam.read.SamRead.deletion_sequences">[docs]</a>    <span class="k">def</span> <span class="nf">deletion_sequences</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">reference_genome</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;returns the reference sequences for all deletions&quot;&quot;&quot;</span>
+        <span class="n">rpos</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">reference_start</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">state</span><span class="p">,</span> <span class="n">freq</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cigar</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">state</span> <span class="ow">in</span> <span class="n">REFERENCE_ALIGNED_STATES</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">state</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">QUERY_ALIGNED_STATES</span><span class="p">:</span>
+                    <span class="n">result</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">reference_genome</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">reference_name</span><span class="p">]</span><span class="o">.</span><span class="n">seq</span><span class="p">[</span><span class="n">rpos</span><span class="p">:</span><span class="n">rpos</span> <span class="o">+</span> <span class="n">freq</span><span class="p">])</span>
+                <span class="n">rpos</span> <span class="o">+=</span> <span class="n">freq</span>
+        <span class="k">return</span> <span class="n">result</span></div>
+
+<div class="viewcode-block" id="SamRead.insertion_sequences"><a class="viewcode-back" href="../../../auto/mavis.bam.read.html#mavis.bam.read.SamRead.insertion_sequences">[docs]</a>    <span class="k">def</span> <span class="nf">insertion_sequences</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;returns the inserted sequence for all insertions&quot;&quot;&quot;</span>
+        <span class="n">qpos</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">state</span><span class="p">,</span> <span class="n">freq</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cigar</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">state</span> <span class="ow">in</span> <span class="n">QUERY_ALIGNED_STATES</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">state</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">REFERENCE_ALIGNED_STATES</span><span class="p">:</span>
+                    <span class="n">result</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">query_sequence</span><span class="p">[</span><span class="n">qpos</span><span class="p">:</span><span class="n">qpos</span> <span class="o">+</span> <span class="n">freq</span><span class="p">])</span>
+                <span class="n">qpos</span> <span class="o">+=</span> <span class="n">freq</span>
+        <span class="k">return</span> <span class="n">result</span></div></div>
+
+
+<div class="viewcode-block" id="pileup"><a class="viewcode-back" href="../../../auto/mavis.bam.read.html#mavis.bam.read.pileup">[docs]</a><span class="k">def</span> <span class="nf">pileup</span><span class="p">(</span><span class="n">reads</span><span class="p">,</span> <span class="n">filter_func</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    For a given set of reads generate a pileup of all reads (exlcuding those for which the filter_func returns True)</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        reads (iterable of pysam.AlignedSegment): reads to pileup</span>
+<span class="sd">        filter_func (callable): function which takes in a  read and returns True if it should be ignored and False otherwise</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        iterable of tuple of int and int: tuples of genomic position and read count at that position</span>
+
+<span class="sd">    Note:</span>
+<span class="sd">        returns positions using 1-based indexing</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">hist</span> <span class="o">=</span> <span class="p">{}</span>  <span class="c1"># genome position =&gt; frequency count</span>
+    <span class="k">for</span> <span class="n">read</span> <span class="ow">in</span> <span class="n">reads</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">filter_func</span> <span class="ow">and</span> <span class="n">filter_func</span><span class="p">(</span><span class="n">read</span><span class="p">):</span>
+            <span class="k">continue</span>
+        <span class="k">for</span> <span class="n">pos</span> <span class="ow">in</span> <span class="n">read</span><span class="o">.</span><span class="n">get_reference_positions</span><span class="p">():</span>
+            <span class="n">hist</span><span class="p">[</span><span class="n">pos</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">hist</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">pos</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+    <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">hist</span><span class="o">.</span><span class="n">items</span><span class="p">())</span></div>
+
+
+<div class="viewcode-block" id="map_ref_range_to_query_range"><a class="viewcode-back" href="../../../auto/mavis.bam.read.html#mavis.bam.read.map_ref_range_to_query_range">[docs]</a><span class="k">def</span> <span class="nf">map_ref_range_to_query_range</span><span class="p">(</span><span class="n">read</span><span class="p">,</span> <span class="n">ref_range</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Args:</span>
+<span class="sd">        ref_range (Interval): 1-based inclusive</span>
+<span class="sd">        read (pysam.AlignedSegment): read used for the mapping</span>
+<span class="sd">    Returns:</span>
+<span class="sd">        Interval: 1-based inclusive range</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">rpos</span> <span class="o">=</span> <span class="n">read</span><span class="o">.</span><span class="n">reference_start</span>
+    <span class="n">qpos</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">qstart</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">qend</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">for</span> <span class="n">state</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">read</span><span class="o">.</span><span class="n">cigar</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">state</span> <span class="ow">in</span> <span class="n">QUERY_ALIGNED_STATES</span><span class="p">:</span>
+                <span class="n">qpos</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">if</span> <span class="n">state</span> <span class="ow">in</span> <span class="n">REFERENCE_ALIGNED_STATES</span><span class="p">:</span>
+                <span class="n">rpos</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">if</span> <span class="n">qstart</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">ref_range</span><span class="o">.</span><span class="n">start</span> <span class="o">&lt;=</span> <span class="n">rpos</span><span class="p">:</span>
+                <span class="n">qstart</span> <span class="o">=</span> <span class="n">qpos</span>
+            <span class="k">if</span> <span class="n">ref_range</span><span class="o">.</span><span class="n">end</span> <span class="o">&gt;=</span> <span class="n">rpos</span><span class="p">:</span>
+                <span class="n">qend</span> <span class="o">=</span> <span class="n">qpos</span>
+    <span class="k">if</span> <span class="n">qstart</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">qend</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;reference range is not mapped by input read&#39;</span><span class="p">,</span> <span class="n">ref_range</span><span class="p">,</span> <span class="n">read</span><span class="o">.</span><span class="n">reference_start</span><span class="p">,</span> <span class="n">read</span><span class="o">.</span><span class="n">cigar</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">Interval</span><span class="p">(</span><span class="n">qstart</span><span class="p">,</span> <span class="n">qend</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="get_samtools_version"><a class="viewcode-back" href="../../../auto/mavis.bam.read.html#mavis.bam.read.get_samtools_version">[docs]</a><span class="k">def</span> <span class="nf">get_samtools_version</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    executes a subprocess to try and run samtools and parse the version number from the output</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        &gt;&gt;&gt; get_samtools_version()</span>
+<span class="sd">        (1, 2, 1)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">proc</span> <span class="o">=</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">getoutput</span><span class="p">([</span><span class="s1">&#39;samtools&#39;</span><span class="p">])</span>
+    <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">proc</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">):</span>
+        <span class="n">match</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;Version: (?P&lt;major&gt;\d+)(\.(?P&lt;mid&gt;\d+)(\.(?P&lt;minor&gt;\d+))?)?&#39;</span><span class="p">,</span> <span class="n">line</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">match</span><span class="p">:</span>
+            <span class="n">major</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;major&#39;</span><span class="p">))</span>
+            <span class="n">mid</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;mid&#39;</span><span class="p">))</span> <span class="k">if</span> <span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;mid&#39;</span><span class="p">)</span> <span class="k">else</span> <span class="mi">0</span>
+            <span class="n">minor</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;minor&#39;</span><span class="p">))</span> <span class="k">if</span> <span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;minor&#39;</span><span class="p">)</span> <span class="k">else</span> <span class="mi">0</span>
+            <span class="k">return</span> <span class="n">major</span><span class="p">,</span> <span class="n">mid</span><span class="p">,</span> <span class="n">minor</span>
+    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;unable to parse samtools version number&#39;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="samtools_v0_sort"><a class="viewcode-back" href="../../../auto/mavis.bam.read.html#mavis.bam.read.samtools_v0_sort">[docs]</a><span class="k">def</span> <span class="nf">samtools_v0_sort</span><span class="p">(</span><span class="n">input_bam</span><span class="p">,</span> <span class="n">output_bam</span><span class="p">):</span>
+    <span class="n">prefix</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="s1">&#39;\.bam$&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">output_bam</span><span class="p">)</span>
+    <span class="k">return</span> <span class="s1">&#39;samtools sort </span><span class="si">{}</span><span class="s1"> </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">input_bam</span><span class="p">,</span> <span class="n">prefix</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="samtools_v1_sort"><a class="viewcode-back" href="../../../auto/mavis.bam.read.html#mavis.bam.read.samtools_v1_sort">[docs]</a><span class="k">def</span> <span class="nf">samtools_v1_sort</span><span class="p">(</span><span class="n">input_bam</span><span class="p">,</span> <span class="n">output_bam</span><span class="p">):</span>
+    <span class="k">return</span> <span class="s1">&#39;samtools sort </span><span class="si">{}</span><span class="s1"> -o </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">input_bam</span><span class="p">,</span> <span class="n">output_bam</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="breakpoint_pos"><a class="viewcode-back" href="../../../auto/mavis.bam.read.html#mavis.bam.read.breakpoint_pos">[docs]</a><span class="k">def</span> <span class="nf">breakpoint_pos</span><span class="p">(</span><span class="n">read</span><span class="p">,</span> <span class="n">orient</span><span class="o">=</span><span class="n">ORIENT</span><span class="o">.</span><span class="n">NS</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    assumes the breakpoint is the position following softclipping on the side with more</span>
+<span class="sd">    softclipping (unless and orientation has been specified)</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        read (:class:`~pysam.AlignedSegment`): the read object</span>
+<span class="sd">        orient (ORIENT): the orientation</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        int: the position of the breakpoint in the input read</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">typ</span><span class="p">,</span> <span class="n">freq</span> <span class="o">=</span> <span class="n">read</span><span class="o">.</span><span class="n">cigar</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">end_typ</span><span class="p">,</span> <span class="n">end_freq</span> <span class="o">=</span> <span class="n">read</span><span class="o">.</span><span class="n">cigar</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">ORIENT</span><span class="o">.</span><span class="n">enforce</span><span class="p">(</span><span class="n">orient</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">typ</span> <span class="o">!=</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">S</span> <span class="ow">and</span> <span class="n">end_typ</span> <span class="o">!=</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">S</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span><span class="s1">&#39;cannot compute breakpoint for a read without soft-clipping&#39;</span><span class="p">,</span> <span class="n">read</span><span class="o">.</span><span class="n">cigar</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">orient</span> <span class="o">==</span> <span class="n">ORIENT</span><span class="o">.</span><span class="n">NS</span><span class="p">:</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">typ</span> <span class="o">==</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">S</span> <span class="ow">and</span> <span class="n">end_typ</span> <span class="o">==</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">S</span> <span class="ow">and</span> <span class="n">freq</span> <span class="o">&gt;</span> <span class="n">end_freq</span><span class="p">)</span> \
+                <span class="ow">or</span> <span class="n">typ</span> <span class="o">==</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">S</span> <span class="ow">and</span> <span class="n">end_typ</span> <span class="o">!=</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">S</span><span class="p">:</span>
+            <span class="n">orient</span> <span class="o">=</span> <span class="n">ORIENT</span><span class="o">.</span><span class="n">RIGHT</span>
+            <span class="c1"># soft clipped to the left</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># soft clipped to the right</span>
+            <span class="n">orient</span> <span class="o">=</span> <span class="n">ORIENT</span><span class="o">.</span><span class="n">LEFT</span>
+
+    <span class="k">if</span> <span class="n">orient</span> <span class="o">==</span> <span class="n">ORIENT</span><span class="o">.</span><span class="n">RIGHT</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">typ</span> <span class="o">!=</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">S</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span><span class="s1">&#39;soft clipping doesn</span><span class="se">\&#39;</span><span class="s1">t support input orientation for a breakpoint&#39;</span><span class="p">,</span> <span class="nb">repr</span><span class="p">(</span><span class="n">orient</span><span class="p">),</span> <span class="n">read</span><span class="o">.</span><span class="n">cigar</span><span class="p">,</span> <span class="n">read</span><span class="o">.</span><span class="n">get_tags</span><span class="p">())</span>
+        <span class="k">return</span> <span class="n">read</span><span class="o">.</span><span class="n">reference_start</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">end_typ</span> <span class="o">!=</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">S</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span><span class="s1">&#39;soft clipping doesn</span><span class="se">\&#39;</span><span class="s1">t support input orientation for a breakpoint&#39;</span><span class="p">,</span> <span class="n">orient</span><span class="p">,</span> <span class="n">read</span><span class="o">.</span><span class="n">cigar</span><span class="p">,</span> <span class="n">read</span><span class="o">.</span><span class="n">get_tags</span><span class="p">())</span>
+        <span class="k">return</span> <span class="n">read</span><span class="o">.</span><span class="n">reference_end</span> <span class="o">-</span> <span class="mi">1</span></div>
+
+
+<div class="viewcode-block" id="calculate_alignment_score"><a class="viewcode-back" href="../../../auto/mavis.bam.read.html#mavis.bam.read.calculate_alignment_score">[docs]</a><span class="k">def</span> <span class="nf">calculate_alignment_score</span><span class="p">(</span><span class="n">read</span><span class="p">,</span> <span class="n">consec_bonus</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    calculates a score for comparing alignments</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        read (pysam.AlignedSegment): the input read</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        float: the score</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">score</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">qlen</span> <span class="o">=</span> <span class="n">read</span><span class="o">.</span><span class="n">reference_end</span> <span class="o">-</span> <span class="n">read</span><span class="o">.</span><span class="n">reference_start</span>
+    <span class="n">max_score</span> <span class="o">=</span> <span class="n">qlen</span> <span class="o">+</span> <span class="p">(</span><span class="n">qlen</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">consec_bonus</span>
+    <span class="k">for</span> <span class="n">c</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">read</span><span class="o">.</span><span class="n">cigar</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">c</span> <span class="o">==</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">M</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;cannot calculate the alignment score if mismatch v match has not been specified&#39;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">c</span> <span class="o">==</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">EQ</span><span class="p">:</span>
+            <span class="n">score</span> <span class="o">+=</span> <span class="n">v</span> <span class="o">+</span> <span class="p">(</span><span class="n">v</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">consec_bonus</span>
+    <span class="k">return</span> <span class="n">score</span> <span class="o">/</span> <span class="n">max_score</span></div>
+
+
+<div class="viewcode-block" id="nsb_align"><a class="viewcode-back" href="../../../auto/mavis.bam.read.html#mavis.bam.read.nsb_align">[docs]</a><span class="k">def</span> <span class="nf">nsb_align</span><span class="p">(</span>
+        <span class="n">ref</span><span class="p">,</span> <span class="n">seq</span><span class="p">,</span>
+        <span class="n">weight_of_score</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>
+        <span class="n">min_overlap_percent</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+        <span class="n">min_match</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+        <span class="n">min_consecutive_match</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+        <span class="n">scoring_function</span><span class="o">=</span><span class="n">calculate_alignment_score</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    given some reference string and a smaller sequence string computes the best non-space-breaking alignment</span>
+<span class="sd">    i.e. an alignment that does not allow for indels (straight-match). Positions in the aligned segments are</span>
+<span class="sd">    given relative to the length of the reference sequence (1-based)</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        ref (str): the reference sequence</span>
+<span class="sd">        seq (str): the sequence being aligned</span>
+<span class="sd">        weight_of_score (float): when scoring alignments this determines the amount</span>
+<span class="sd">            of weight to place on the cigar match. Should be a number between 0 and 1</span>
+<span class="sd">        min_overlap_percent (float): the minimum amount of overlap of the input sequence to the reference</span>
+<span class="sd">            should be a number between 0 and 1</span>
+<span class="sd">        min_match (float): the minimum number of matches compared to total</span>
+<span class="sd">        scoring_function (callable): any function that will take a read as input and return a float</span>
+<span class="sd">          used in comparing alignments to choose the best alignment</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        :class:`list` of :class:`~pysam.AlignedSegment`: list of aligned segments</span>
+
+<span class="sd">    Note:</span>
+<span class="sd">        using a higher min_match may improve performance as low quality alignments are rejected more quickly. However</span>
+<span class="sd">        this may also result in no match being returned when there is no high quality match to be found.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">ref</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">ref</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">ref</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">1</span> <span class="ow">or</span> <span class="nb">len</span><span class="p">(</span><span class="n">seq</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span><span class="s1">&#39;cannot overlap on an empty sequence: len(ref)=</span><span class="si">{}</span><span class="s1">, len(seq)=</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">ref</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">seq</span><span class="p">)))</span>
+    <span class="k">if</span> <span class="n">min_match</span> <span class="o">&lt;</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">min_match</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span><span class="s1">&#39;min_match must be between 0 and 1&#39;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">min_overlap_percent</span> <span class="o">&lt;=</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">min_overlap_percent</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span><span class="s1">&#39;percent must be greater than 0 and up to 1&#39;</span><span class="p">,</span> <span class="n">min_overlap_percent</span><span class="p">)</span>
+
+    <span class="n">min_overlap</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">round</span><span class="p">(</span><span class="n">min_overlap_percent</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">seq</span><span class="p">),</span> <span class="mi">0</span><span class="p">))</span>
+    <span class="c1"># store to improve speed and space (don&#39;t need to store all alignments)</span>
+    <span class="n">best_score</span> <span class="o">=</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="n">results</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="n">putative_start_positions</span> <span class="o">=</span> <span class="nb">range</span><span class="p">(</span><span class="n">min_overlap</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="n">seq</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">ref</span><span class="p">)</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">seq</span><span class="p">)</span> <span class="o">-</span> <span class="n">min_overlap</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">min_consecutive_match</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">putative_start_positions</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="n">kmers_checked</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">seq</span><span class="p">)</span> <span class="o">-</span> <span class="n">min_consecutive_match</span><span class="p">):</span>
+            <span class="n">current_kmer</span> <span class="o">=</span> <span class="n">seq</span><span class="p">[</span><span class="n">i</span><span class="p">:</span><span class="n">i</span> <span class="o">+</span> <span class="n">min_consecutive_match</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">current_kmer</span> <span class="ow">in</span> <span class="n">kmers_checked</span><span class="p">:</span>
+                <span class="n">putative_start_positions</span><span class="o">.</span><span class="n">update</span><span class="p">([</span><span class="n">p</span> <span class="o">-</span> <span class="n">i</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">kmers_checked</span><span class="p">[</span><span class="n">current_kmer</span><span class="p">]])</span>
+                <span class="k">continue</span>
+            <span class="n">rp</span> <span class="o">=</span> <span class="p">[</span><span class="n">m</span><span class="o">.</span><span class="n">start</span><span class="p">()</span> <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="n">re</span><span class="o">.</span><span class="n">finditer</span><span class="p">(</span><span class="n">current_kmer</span><span class="p">,</span> <span class="n">ref</span><span class="p">)]</span>
+            <span class="n">kmers_checked</span><span class="p">[</span><span class="n">current_kmer</span><span class="p">]</span> <span class="o">=</span> <span class="n">rp</span>
+            <span class="n">putative_start_positions</span><span class="o">.</span><span class="n">update</span><span class="p">([</span><span class="n">p</span> <span class="o">-</span> <span class="n">i</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">rp</span><span class="p">])</span>
+    <span class="k">for</span> <span class="n">ref_start</span> <span class="ow">in</span> <span class="n">putative_start_positions</span><span class="p">:</span>
+        <span class="n">score</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">cigar</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">mismatches</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">length</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">seq</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">seq</span><span class="p">)):</span>
+            <span class="k">if</span> <span class="n">length</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">break</span>
+            <span class="n">r</span> <span class="o">=</span> <span class="n">ref_start</span> <span class="o">+</span> <span class="n">i</span>
+            <span class="k">if</span> <span class="n">r</span> <span class="o">&lt;</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">r</span> <span class="o">&gt;=</span> <span class="nb">len</span><span class="p">(</span><span class="n">ref</span><span class="p">):</span>  <span class="c1"># outside the length of the reference seq</span>
+                <span class="n">cigar</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">CIGAR</span><span class="o">.</span><span class="n">S</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+                <span class="n">length</span> <span class="o">-=</span> <span class="mi">1</span>
+                <span class="k">continue</span>
+            <span class="k">if</span> <span class="n">DNA_ALPHABET</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">ref</span><span class="p">[</span><span class="n">r</span><span class="p">],</span> <span class="n">seq</span><span class="p">[</span><span class="n">i</span><span class="p">]):</span>
+                <span class="n">cigar</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">CIGAR</span><span class="o">.</span><span class="n">EQ</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">cigar</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">CIGAR</span><span class="o">.</span><span class="n">X</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+                <span class="n">mismatches</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="k">if</span> <span class="n">mismatches</span> <span class="o">/</span> <span class="n">length</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="o">-</span> <span class="n">min_match</span><span class="p">:</span>
+                    <span class="k">break</span>
+        <span class="k">if</span> <span class="n">length</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">mismatches</span> <span class="o">/</span> <span class="n">length</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="o">-</span> <span class="n">min_match</span><span class="p">:</span>
+            <span class="k">continue</span>
+
+        <span class="n">cigar</span> <span class="o">=</span> <span class="n">_cigar</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">cigar</span><span class="p">)</span>
+        <span class="c1"># end mismatches we set as soft-clipped</span>
+        <span class="k">if</span> <span class="n">cigar</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">X</span><span class="p">:</span>
+            <span class="n">cigar</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">CIGAR</span><span class="o">.</span><span class="n">S</span><span class="p">,</span> <span class="n">cigar</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">])</span>
+        <span class="k">if</span> <span class="n">cigar</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">X</span><span class="p">:</span>
+            <span class="n">cigar</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">CIGAR</span><span class="o">.</span><span class="n">S</span><span class="p">,</span> <span class="n">cigar</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">])</span>
+
+        <span class="n">qstart</span> <span class="o">=</span> <span class="mi">0</span> <span class="k">if</span> <span class="n">cigar</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">S</span> <span class="k">else</span> <span class="n">cigar</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span>
+
+        <span class="n">a</span> <span class="o">=</span> <span class="n">SamRead</span><span class="p">(</span>
+            <span class="n">query_sequence</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">seq</span><span class="p">),</span>
+            <span class="n">reference_start</span><span class="o">=</span><span class="n">ref_start</span> <span class="o">+</span> <span class="n">qstart</span><span class="p">,</span>
+            <span class="n">cigar</span><span class="o">=</span><span class="n">cigar</span>
+        <span class="p">)</span>
+        <span class="n">qlen</span> <span class="o">=</span> <span class="n">a</span><span class="o">.</span><span class="n">reference_end</span> <span class="o">-</span> <span class="n">a</span><span class="o">.</span><span class="n">reference_start</span>
+        <span class="n">score</span> <span class="o">=</span> <span class="p">(</span><span class="n">scoring_function</span><span class="p">(</span><span class="n">a</span><span class="p">),</span> <span class="n">qlen</span><span class="p">)</span>  <span class="c1"># this way for equal identity matches we take the longer alignment</span>
+        <span class="k">if</span> <span class="n">qlen</span> <span class="o">&lt;</span> <span class="n">min_overlap</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="n">score</span> <span class="o">&gt;=</span> <span class="n">best_score</span><span class="p">:</span>
+            <span class="n">best_score</span> <span class="o">=</span> <span class="n">score</span>
+            <span class="n">results</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">a</span><span class="p">,</span> <span class="n">score</span><span class="p">))</span>
+
+    <span class="n">filtered</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span> <span class="k">for</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="ow">in</span> <span class="n">results</span> <span class="k">if</span> <span class="n">y</span> <span class="o">==</span> <span class="n">best_score</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">filtered</span></div>
+
+
+<div class="viewcode-block" id="sequenced_strand"><a class="viewcode-back" href="../../../auto/mavis.bam.read.html#mavis.bam.read.sequenced_strand">[docs]</a><span class="k">def</span> <span class="nf">sequenced_strand</span><span class="p">(</span><span class="n">read</span><span class="p">,</span> <span class="n">strand_determining_read</span><span class="o">=</span><span class="mi">2</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    determines the strand that was sequenced</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        read (:class:`~pysam.AlignedSegment`): the read being used to determine the strand</span>
+<span class="sd">        strand_determining_read (int): which read in the read pair is the same as the sequenced strand</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        STRAND: the strand that was sequenced</span>
+
+<span class="sd">    Raises:</span>
+<span class="sd">        ValueError: if strand_determining_read is not 1 or 2</span>
+
+<span class="sd">    Warning:</span>
+<span class="sd">        if the input pair is unstranded the information will not be representative of the</span>
+<span class="sd">        strand sequenced since the assumed convention is not followed</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">read</span><span class="o">.</span><span class="n">is_unmapped</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">read</span><span class="o">.</span><span class="n">is_paired</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;cannot determine strand if the read is unmapped or unpaired&#39;</span><span class="p">)</span>
+    <span class="n">strand</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="n">strand_determining_read</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">read</span><span class="o">.</span><span class="n">is_read1</span><span class="p">:</span>
+            <span class="n">strand</span> <span class="o">=</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">NEG</span> <span class="k">if</span> <span class="n">read</span><span class="o">.</span><span class="n">is_reverse</span> <span class="k">else</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">POS</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">strand</span> <span class="o">=</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">NEG</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">read</span><span class="o">.</span><span class="n">is_reverse</span> <span class="k">else</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">POS</span>
+    <span class="k">elif</span> <span class="n">strand_determining_read</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">read</span><span class="o">.</span><span class="n">is_read2</span><span class="p">:</span>
+            <span class="n">strand</span> <span class="o">=</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">NEG</span> <span class="k">if</span> <span class="n">read</span><span class="o">.</span><span class="n">is_reverse</span> <span class="k">else</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">POS</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">strand</span> <span class="o">=</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">NEG</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">read</span><span class="o">.</span><span class="n">is_reverse</span> <span class="k">else</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">POS</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;unexpected value. Expected 1 or 2, found:&#39;</span><span class="p">,</span> <span class="n">strand_determining_read</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">strand</span></div>
+
+
+<div class="viewcode-block" id="read_pair_type"><a class="viewcode-back" href="../../../auto/mavis.bam.read.html#mavis.bam.read.read_pair_type">[docs]</a><span class="k">def</span> <span class="nf">read_pair_type</span><span class="p">(</span><span class="n">read</span><span class="p">):</span>
+    <span class="c1"># check if the read pair is in the expected orientation</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    assumptions based on illumina pairs: only 4 possible combinations</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        read (:class:`~pysam.AlignedSegment`): the input read</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        READ_PAIR_TYPE: the type of input read pair</span>
+
+<span class="sd">    Raises:</span>
+<span class="sd">        NotImplementedError: for any read that does not fall into the four expected configurations (see below)</span>
+
+<span class="sd">    ::</span>
+
+<span class="sd">        ++++&gt; &lt;---- is LR same-strand</span>
+<span class="sd">        ++++&gt; ++++&gt; is LL opposite</span>
+<span class="sd">        &lt;---- &lt;---- is RR opposite</span>
+<span class="sd">        &lt;---- ++++&gt; is RL same-strand</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">reverse</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="k">if</span> <span class="n">read</span><span class="o">.</span><span class="n">reference_id</span> <span class="o">&gt;</span> <span class="n">read</span><span class="o">.</span><span class="n">next_reference_id</span> <span class="ow">or</span> \
+            <span class="p">(</span><span class="n">read</span><span class="o">.</span><span class="n">reference_id</span> <span class="o">==</span> <span class="n">read</span><span class="o">.</span><span class="n">next_reference_id</span> <span class="ow">and</span> <span class="n">read</span><span class="o">.</span><span class="n">reference_start</span> <span class="o">&gt;</span> <span class="n">read</span><span class="o">.</span><span class="n">next_reference_start</span><span class="p">):</span>
+        <span class="n">reverse</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">read</span><span class="o">.</span><span class="n">is_reverse</span> <span class="ow">and</span> <span class="n">read</span><span class="o">.</span><span class="n">mate_is_reverse</span><span class="p">:</span>  <span class="c1"># LR</span>
+        <span class="k">return</span> <span class="n">READ_PAIR_TYPE</span><span class="o">.</span><span class="n">RL</span> <span class="k">if</span> <span class="n">reverse</span> <span class="k">else</span> <span class="n">READ_PAIR_TYPE</span><span class="o">.</span><span class="n">LR</span>
+    <span class="k">elif</span> <span class="ow">not</span> <span class="n">read</span><span class="o">.</span><span class="n">is_reverse</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">read</span><span class="o">.</span><span class="n">mate_is_reverse</span><span class="p">:</span>  <span class="c1"># LL opp</span>
+        <span class="k">return</span> <span class="n">READ_PAIR_TYPE</span><span class="o">.</span><span class="n">LL</span>
+    <span class="k">elif</span> <span class="n">read</span><span class="o">.</span><span class="n">is_reverse</span> <span class="ow">and</span> <span class="n">read</span><span class="o">.</span><span class="n">mate_is_reverse</span><span class="p">:</span>  <span class="c1"># RR opp</span>
+        <span class="k">return</span> <span class="n">READ_PAIR_TYPE</span><span class="o">.</span><span class="n">RR</span>
+    <span class="k">elif</span> <span class="n">read</span><span class="o">.</span><span class="n">is_reverse</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">read</span><span class="o">.</span><span class="n">mate_is_reverse</span><span class="p">:</span>  <span class="c1"># RL</span>
+        <span class="k">return</span> <span class="n">READ_PAIR_TYPE</span><span class="o">.</span><span class="n">LR</span> <span class="k">if</span> <span class="n">reverse</span> <span class="k">else</span> <span class="n">READ_PAIR_TYPE</span><span class="o">.</span><span class="n">RL</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s1">&#39;unexpected orientation for pair&#39;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="orientation_supports_type"><a class="viewcode-back" href="../../../auto/mavis.bam.read.html#mavis.bam.read.orientation_supports_type">[docs]</a><span class="k">def</span> <span class="nf">orientation_supports_type</span><span class="p">(</span><span class="n">read</span><span class="p">,</span> <span class="n">event_type</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    checks if the orientation is compatible with the type of event</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        read (:class:`~pysam.AlignedSegment`): a read from the pair</span>
+<span class="sd">        event_type (SVTYPE): the type of event to check</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        bool:</span>
+<span class="sd">            - ``True`` - the read pair is in the correct orientation for this event type</span>
+<span class="sd">            - ``False`` - the read is not in the correct orientation</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">event_type</span> <span class="o">==</span> <span class="n">SVTYPE</span><span class="o">.</span><span class="n">DEL</span> <span class="ow">or</span> <span class="n">event_type</span> <span class="o">==</span> <span class="n">SVTYPE</span><span class="o">.</span><span class="n">INS</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">read_pair_type</span><span class="p">(</span><span class="n">read</span><span class="p">)</span> <span class="o">!=</span> <span class="n">READ_PAIR_TYPE</span><span class="o">.</span><span class="n">LR</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">elif</span> <span class="n">event_type</span> <span class="o">==</span> <span class="n">SVTYPE</span><span class="o">.</span><span class="n">TRANS</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">read_pair_type</span><span class="p">(</span><span class="n">read</span><span class="p">)</span> <span class="o">!=</span> <span class="n">READ_PAIR_TYPE</span><span class="o">.</span><span class="n">LR</span> <span class="ow">and</span> \
+                <span class="n">read_pair_type</span><span class="p">(</span><span class="n">read</span><span class="p">)</span> <span class="o">!=</span> <span class="n">READ_PAIR_TYPE</span><span class="o">.</span><span class="n">RL</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">elif</span> <span class="n">event_type</span> <span class="o">==</span> <span class="n">SVTYPE</span><span class="o">.</span><span class="n">ITRANS</span> <span class="ow">or</span> <span class="n">event_type</span> <span class="o">==</span> <span class="n">SVTYPE</span><span class="o">.</span><span class="n">INV</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">read_pair_type</span><span class="p">(</span><span class="n">read</span><span class="p">)</span> <span class="o">!=</span> <span class="n">READ_PAIR_TYPE</span><span class="o">.</span><span class="n">LL</span> <span class="ow">and</span> \
+                <span class="n">read_pair_type</span><span class="p">(</span><span class="n">read</span><span class="p">)</span> <span class="o">!=</span> <span class="n">READ_PAIR_TYPE</span><span class="o">.</span><span class="n">RR</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">elif</span> <span class="n">event_type</span> <span class="o">==</span> <span class="n">SVTYPE</span><span class="o">.</span><span class="n">DUP</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">read_pair_type</span><span class="p">(</span><span class="n">read</span><span class="p">)</span> <span class="o">!=</span> <span class="n">READ_PAIR_TYPE</span><span class="o">.</span><span class="n">RL</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;unexpected event type&#39;</span><span class="p">,</span> <span class="n">event_type</span><span class="p">)</span>
+    <span class="k">return</span> <span class="kc">True</span></div>
+
+
+<div class="viewcode-block" id="convert_events_to_softclipping"><a class="viewcode-back" href="../../../auto/mavis.bam.read.html#mavis.bam.read.convert_events_to_softclipping">[docs]</a><span class="k">def</span> <span class="nf">convert_events_to_softclipping</span><span class="p">(</span><span class="n">read</span><span class="p">,</span> <span class="n">orientation</span><span class="p">,</span> <span class="n">max_event_size</span><span class="p">,</span> <span class="n">min_anchor_size</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    given an alignment, simplifies the alignment by grouping everything past the first anchor and including the</span>
+<span class="sd">    first event considered too large and unaligning them turning them into softclipping</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">min_anchor_size</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">min_anchor_size</span> <span class="o">=</span> <span class="n">max_event_size</span>
+
+    <span class="k">if</span> <span class="n">orientation</span> <span class="o">==</span> <span class="n">ORIENT</span><span class="o">.</span><span class="n">LEFT</span><span class="p">:</span>
+        <span class="n">event_size</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">adjusted_cigar</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">anchor</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">state</span><span class="p">,</span> <span class="n">count</span> <span class="ow">in</span> <span class="n">read</span><span class="o">.</span><span class="n">cigar</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">state</span> <span class="o">==</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">M</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s1">&#39;match v mismatch must be specified&#39;</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">anchor</span> <span class="o">&lt;</span> <span class="n">min_anchor_size</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">state</span> <span class="o">==</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">EQ</span><span class="p">:</span>
+                    <span class="n">anchor</span> <span class="o">+=</span> <span class="n">count</span>
+            <span class="k">elif</span> <span class="n">state</span> <span class="ow">in</span> <span class="n">EVENT_STATES</span><span class="p">:</span>
+                <span class="n">event_size</span> <span class="o">+=</span> <span class="n">count</span>
+                <span class="k">if</span> <span class="n">event_size</span> <span class="o">&gt;</span> <span class="n">max_event_size</span><span class="p">:</span>
+                    <span class="k">break</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">event_size</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="n">adjusted_cigar</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">state</span><span class="p">,</span> <span class="n">count</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">event_size</span> <span class="o">&gt;</span> <span class="n">max_event_size</span><span class="p">:</span>
+            <span class="k">while</span> <span class="n">adjusted_cigar</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="ow">in</span> <span class="n">EVENT_STATES</span><span class="p">:</span>
+                <span class="k">del</span> <span class="n">adjusted_cigar</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+            <span class="n">aligned</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">([</span><span class="n">y</span> <span class="k">for</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="ow">in</span> <span class="n">adjusted_cigar</span> <span class="k">if</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">QUERY_ALIGNED_STATES</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+            <span class="n">sc</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">read</span><span class="o">.</span><span class="n">query_sequence</span><span class="p">)</span> <span class="o">-</span> <span class="n">aligned</span>
+            <span class="n">adjusted_cigar</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">CIGAR</span><span class="o">.</span><span class="n">S</span><span class="p">,</span> <span class="n">sc</span><span class="p">))</span>
+            <span class="n">read</span> <span class="o">=</span> <span class="n">copy</span><span class="p">(</span><span class="n">read</span><span class="p">)</span>
+            <span class="n">read</span><span class="o">.</span><span class="n">cigar</span> <span class="o">=</span> <span class="n">adjusted_cigar</span>
+    <span class="k">elif</span> <span class="n">orientation</span> <span class="o">==</span> <span class="n">ORIENT</span><span class="o">.</span><span class="n">RIGHT</span><span class="p">:</span>
+        <span class="c1"># more complicated than left b/c need to also adjust the start position</span>
+        <span class="n">event_size</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">anchor</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">adjusted_cigar</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">state</span><span class="p">,</span> <span class="n">count</span> <span class="ow">in</span> <span class="n">read</span><span class="o">.</span><span class="n">cigar</span><span class="p">[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]:</span>  <span class="c1"># first event from the right</span>
+            <span class="k">if</span> <span class="n">state</span> <span class="o">==</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">M</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s1">&#39;match v mismatch must be specified&#39;</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">anchor</span> <span class="o">&lt;</span> <span class="n">min_anchor_size</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">state</span> <span class="o">==</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">EQ</span><span class="p">:</span>
+                    <span class="n">anchor</span> <span class="o">+=</span> <span class="n">count</span>
+            <span class="k">elif</span> <span class="n">state</span> <span class="ow">in</span> <span class="n">EVENT_STATES</span><span class="p">:</span>
+                <span class="n">event_size</span> <span class="o">+=</span> <span class="n">count</span>
+                <span class="k">if</span> <span class="n">event_size</span> <span class="o">&gt;</span> <span class="n">max_event_size</span><span class="p">:</span>
+                    <span class="k">break</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">event_size</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="n">adjusted_cigar</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">state</span><span class="p">,</span> <span class="n">count</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">event_size</span> <span class="o">&gt;</span> <span class="n">max_event_size</span><span class="p">:</span>
+            <span class="k">while</span> <span class="n">adjusted_cigar</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="ow">in</span> <span class="n">EVENT_STATES</span><span class="p">:</span>
+                <span class="k">del</span> <span class="n">adjusted_cigar</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+            <span class="n">originally_refaligned</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">([</span><span class="n">y</span> <span class="k">for</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="ow">in</span> <span class="n">read</span><span class="o">.</span><span class="n">cigar</span> <span class="k">if</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">REFERENCE_ALIGNED_STATES</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+            <span class="n">refaligned</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">([</span><span class="n">y</span> <span class="k">for</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="ow">in</span> <span class="n">adjusted_cigar</span> <span class="k">if</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">REFERENCE_ALIGNED_STATES</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+            <span class="n">aligned</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">([</span><span class="n">y</span> <span class="k">for</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="ow">in</span> <span class="n">adjusted_cigar</span> <span class="k">if</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">QUERY_ALIGNED_STATES</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+            <span class="n">sc</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">read</span><span class="o">.</span><span class="n">query_sequence</span><span class="p">)</span> <span class="o">-</span> <span class="n">aligned</span>
+            <span class="n">adjusted_cigar</span> <span class="o">=</span> <span class="p">[(</span><span class="n">CIGAR</span><span class="o">.</span><span class="n">S</span><span class="p">,</span> <span class="n">sc</span><span class="p">)]</span> <span class="o">+</span> <span class="n">adjusted_cigar</span><span class="p">[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+            <span class="n">read</span> <span class="o">=</span> <span class="n">copy</span><span class="p">(</span><span class="n">read</span><span class="p">)</span>
+            <span class="n">read</span><span class="o">.</span><span class="n">cigar</span> <span class="o">=</span> <span class="n">adjusted_cigar</span>
+            <span class="n">read</span><span class="o">.</span><span class="n">reference_start</span> <span class="o">+=</span> <span class="n">originally_refaligned</span> <span class="o">-</span> <span class="n">refaligned</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;orientation must be specified&#39;</span><span class="p">,</span> <span class="n">orientation</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">read</span></div>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2017, creisle.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../',
+            VERSION:'',
+            LANGUAGE:'None',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

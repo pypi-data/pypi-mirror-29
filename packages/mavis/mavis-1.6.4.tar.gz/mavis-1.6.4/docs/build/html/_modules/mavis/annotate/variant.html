@@ -1,0 +1,985 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>mavis.annotate.variant &mdash; MAVIS  documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+    <link rel="stylesheet" href="../../../_static/custom.css" type="text/css" />
+  
+
+  
+        <link rel="author" title="About these documents"
+              href="../../../about.html"/>
+        <link rel="index" title="Index"
+              href="../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../search.html"/>
+    <link rel="top" title="MAVIS  documentation" href="../../../index.html"/>
+        <link rel="up" title="Module code" href="../../index.html"/> 
+
+  
+  <script src="../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home"> MAVIS
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                1.6.4
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../about.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../pipeline.html">Running the Pipeline</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../mavis_input.html">MAVIS standard input file format</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../reference.html">Reference Input Files</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../configuration.html">Configuration and Settings</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../tools_supported.html">Supported SV Callers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../illustrations.html">Illustrations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../faqs.html">Frequently Asked Questions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../theory.html">Theory and Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../development.html">Guidelines for Contributors</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../package.html">Package Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../citations.html">Literature</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">MAVIS</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+      <li>mavis.annotate.variant</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for mavis.annotate.variant</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">itertools</span>
+<span class="kn">import</span> <span class="nn">json</span>
+<span class="kn">from</span> <span class="nn">shortuuid</span> <span class="k">import</span> <span class="n">uuid</span>
+
+<span class="kn">from</span> <span class="nn">.fusion</span> <span class="k">import</span> <span class="n">determine_prime</span><span class="p">,</span> <span class="n">FusionTranscript</span>
+<span class="kn">from</span> <span class="nn">.genomic</span> <span class="k">import</span> <span class="n">IntergenicRegion</span>
+<span class="kn">from</span> <span class="nn">..breakpoint</span> <span class="k">import</span> <span class="n">Breakpoint</span><span class="p">,</span> <span class="n">BreakpointPair</span>
+<span class="kn">from</span> <span class="nn">..constants</span> <span class="k">import</span> <span class="n">COLUMNS</span><span class="p">,</span> <span class="n">GENE_PRODUCT_TYPE</span><span class="p">,</span> <span class="n">PROTOCOL</span><span class="p">,</span> <span class="n">STOP_AA</span><span class="p">,</span> <span class="n">STRAND</span><span class="p">,</span> <span class="n">SVTYPE</span>
+<span class="kn">from</span> <span class="nn">..error</span> <span class="k">import</span> <span class="n">NotSpecifiedError</span>
+<span class="kn">from</span> <span class="nn">..interval</span> <span class="k">import</span> <span class="n">Interval</span>
+<span class="kn">from</span> <span class="nn">..util</span> <span class="k">import</span> <span class="n">devnull</span>
+
+
+<div class="viewcode-block" id="Annotation"><a class="viewcode-back" href="../../../auto/mavis.annotate.variant.html#mavis.annotate.variant.Annotation">[docs]</a><span class="k">class</span> <span class="nc">Annotation</span><span class="p">(</span><span class="n">BreakpointPair</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    a fusion of two transcripts created by the associated breakpoint_pair</span>
+<span class="sd">    will also hold the other annotations for overlapping and encompassed and nearest genes</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">bpp</span><span class="p">,</span>
+        <span class="n">transcript1</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">transcript2</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">proximity</span><span class="o">=</span><span class="mi">5000</span><span class="p">,</span>
+        <span class="n">data</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="o">**</span><span class="n">kwargs</span>
+    <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Holds a breakpoint call and a set of transcripts, other information is gathered relative to these</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            bpp (BreakpointPair): the breakpoint pair call. Will be adjusted and then stored based on the transcripts</span>
+<span class="sd">            transcript1 (Transcript): transcript at the first breakpoint</span>
+<span class="sd">            transcript2 (Transcript): Transcript at the second breakpoint</span>
+<span class="sd">            data (dict): optional dictionary to hold related attributes</span>
+<span class="sd">            event_type (SVTYPE): the type of event</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># narrow the breakpoint windows by the transcripts being used for annotation</span>
+        <span class="n">temp</span> <span class="o">=</span> <span class="n">bpp</span><span class="o">.</span><span class="n">break1</span> <span class="k">if</span> <span class="n">transcript1</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">bpp</span><span class="o">.</span><span class="n">break1</span> <span class="o">&amp;</span> <span class="n">transcript1</span>
+        <span class="n">b1</span> <span class="o">=</span> <span class="n">Breakpoint</span><span class="p">(</span><span class="n">bpp</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">chr</span><span class="p">,</span> <span class="n">temp</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">temp</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">strand</span><span class="o">=</span><span class="n">bpp</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">strand</span><span class="p">,</span> <span class="n">orient</span><span class="o">=</span><span class="n">bpp</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">orient</span><span class="p">)</span>
+
+        <span class="n">temp</span> <span class="o">=</span> <span class="n">bpp</span><span class="o">.</span><span class="n">break2</span> <span class="k">if</span> <span class="n">transcript2</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">bpp</span><span class="o">.</span><span class="n">break2</span> <span class="o">&amp;</span> <span class="n">transcript2</span>
+        <span class="n">b2</span> <span class="o">=</span> <span class="n">Breakpoint</span><span class="p">(</span><span class="n">bpp</span><span class="o">.</span><span class="n">break2</span><span class="o">.</span><span class="n">chr</span><span class="p">,</span> <span class="n">temp</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">temp</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">strand</span><span class="o">=</span><span class="n">bpp</span><span class="o">.</span><span class="n">break2</span><span class="o">.</span><span class="n">strand</span><span class="p">,</span> <span class="n">orient</span><span class="o">=</span><span class="n">bpp</span><span class="o">.</span><span class="n">break2</span><span class="o">.</span><span class="n">orient</span><span class="p">)</span>
+        <span class="n">BreakpointPair</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">b1</span><span class="p">,</span>
+            <span class="n">b2</span><span class="p">,</span>
+            <span class="n">opposing_strands</span><span class="o">=</span><span class="n">bpp</span><span class="o">.</span><span class="n">opposing_strands</span><span class="p">,</span>
+            <span class="n">stranded</span><span class="o">=</span><span class="n">bpp</span><span class="o">.</span><span class="n">stranded</span><span class="p">,</span>
+            <span class="n">untemplated_seq</span><span class="o">=</span><span class="n">bpp</span><span class="o">.</span><span class="n">untemplated_seq</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">bpp</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">data</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">conflicts</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">kwargs</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span> <span class="o">&amp;</span> <span class="nb">set</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">conflicts</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;got multiple values for data elements:&#39;</span><span class="p">,</span> <span class="n">conflicts</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">kwargs</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">transcript1</span> <span class="o">=</span> <span class="n">transcript1</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">transcript2</span> <span class="o">=</span> <span class="n">transcript2</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">encompassed_genes</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">genes_proximal_to_break1</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">genes_proximal_to_break2</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">genes_overlapping_break1</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">genes_overlapping_break2</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+
+        <span class="n">SVTYPE</span><span class="o">.</span><span class="n">enforce</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">event_type</span><span class="p">)</span>
+        <span class="n">PROTOCOL</span><span class="o">.</span><span class="n">enforce</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">protocol</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">proximity</span> <span class="o">=</span> <span class="n">proximity</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fusion</span> <span class="o">=</span> <span class="kc">None</span>
+
+<div class="viewcode-block" id="Annotation.add_gene"><a class="viewcode-back" href="../../../auto/mavis.annotate.variant.html#mavis.annotate.variant.Annotation.add_gene">[docs]</a>    <span class="k">def</span> <span class="nf">add_gene</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">input_gene</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        adds a input_gene to the current set of annotations. Checks which set it should be added to</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            input_gene (input_gene): the input_gene being added</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">input_gene</span><span class="o">.</span><span class="n">chr</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">chr</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">break2</span><span class="o">.</span><span class="n">chr</span><span class="p">]:</span>
+            <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span><span class="s1">&#39;cannot add input_gene not on the same chromosome as either breakpoint&#39;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">interchromosomal</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">encompassment</span> <span class="o">=</span> <span class="n">Interval</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">end</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">break2</span><span class="o">.</span><span class="n">start</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">input_gene</span> <span class="ow">in</span> <span class="n">encompassment</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">encompassed_genes</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">input_gene</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+                <span class="k">pass</span>
+        <span class="k">if</span> <span class="n">Interval</span><span class="o">.</span><span class="n">overlaps</span><span class="p">(</span><span class="n">input_gene</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">break1</span><span class="p">)</span> <span class="ow">and</span> <span class="n">input_gene</span><span class="o">.</span><span class="n">chr</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">chr</span> \
+                <span class="ow">and</span> <span class="n">input_gene</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">transcript1</span><span class="o">.</span><span class="n">reference_object</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">genes_overlapping_break1</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">input_gene</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">Interval</span><span class="o">.</span><span class="n">overlaps</span><span class="p">(</span><span class="n">input_gene</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">break2</span><span class="p">)</span> <span class="ow">and</span> <span class="n">input_gene</span><span class="o">.</span><span class="n">chr</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">break2</span><span class="o">.</span><span class="n">chr</span> \
+                <span class="ow">and</span> <span class="n">input_gene</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">transcript2</span><span class="o">.</span><span class="n">reference_object</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">genes_overlapping_break2</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">input_gene</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">input_gene</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">genes_overlapping_break1</span> <span class="ow">or</span> <span class="n">input_gene</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">genes_overlapping_break2</span> <span class="ow">or</span> \
+                <span class="n">input_gene</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">encompassed_genes</span> <span class="ow">or</span> <span class="n">input_gene</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">transcript1</span><span class="o">.</span><span class="n">reference_object</span> <span class="ow">or</span> \
+                <span class="n">input_gene</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">transcript2</span><span class="o">.</span><span class="n">reference_object</span><span class="p">:</span>
+            <span class="k">return</span>
+
+        <span class="n">dist1</span> <span class="o">=</span> <span class="n">Interval</span><span class="o">.</span><span class="n">dist</span><span class="p">(</span><span class="n">input_gene</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">break1</span><span class="p">)</span>
+        <span class="n">dist2</span> <span class="o">=</span> <span class="n">Interval</span><span class="o">.</span><span class="n">dist</span><span class="p">(</span><span class="n">input_gene</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">break2</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">interchromosomal</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">input_gene</span><span class="o">.</span><span class="n">chr</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">chr</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">genes_proximal_to_break1</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">input_gene</span><span class="p">,</span> <span class="n">dist1</span><span class="p">))</span>
+            <span class="k">elif</span> <span class="n">input_gene</span><span class="o">.</span><span class="n">chr</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">break2</span><span class="o">.</span><span class="n">chr</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">genes_proximal_to_break2</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">input_gene</span><span class="p">,</span> <span class="n">dist2</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">dist1</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">genes_proximal_to_break1</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">input_gene</span><span class="p">,</span> <span class="n">dist1</span><span class="p">))</span>
+            <span class="k">if</span> <span class="n">dist2</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">genes_proximal_to_break2</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">input_gene</span><span class="p">,</span> <span class="n">dist2</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">genes_proximal_to_break1</span><span class="p">:</span>
+            <span class="n">temp</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+            <span class="n">tgt</span> <span class="o">=</span> <span class="nb">min</span><span class="p">([</span><span class="nb">abs</span><span class="p">(</span><span class="n">d</span><span class="p">)</span> <span class="k">for</span> <span class="n">g</span><span class="p">,</span> <span class="n">d</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">genes_proximal_to_break1</span><span class="p">])</span>
+
+            <span class="k">for</span> <span class="n">gene</span><span class="p">,</span> <span class="n">dist</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">genes_proximal_to_break1</span><span class="p">:</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">proximity</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="nb">abs</span><span class="p">(</span><span class="n">dist</span><span class="p">)</span> <span class="o">==</span> <span class="n">tgt</span><span class="p">:</span>
+                        <span class="n">temp</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">gene</span><span class="p">,</span> <span class="n">dist</span><span class="p">))</span>
+                <span class="k">elif</span> <span class="nb">abs</span><span class="p">(</span><span class="n">dist</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">proximity</span><span class="p">:</span>
+                    <span class="n">temp</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">gene</span><span class="p">,</span> <span class="n">dist</span><span class="p">))</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">genes_proximal_to_break1</span> <span class="o">=</span> <span class="n">temp</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">genes_proximal_to_break2</span><span class="p">:</span>
+            <span class="n">temp</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+            <span class="n">tgt</span> <span class="o">=</span> <span class="nb">min</span><span class="p">([</span><span class="nb">abs</span><span class="p">(</span><span class="n">d</span><span class="p">)</span> <span class="k">for</span> <span class="n">g</span><span class="p">,</span> <span class="n">d</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">genes_proximal_to_break2</span><span class="p">])</span>
+
+            <span class="k">for</span> <span class="n">gene</span><span class="p">,</span> <span class="n">dist</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">genes_proximal_to_break2</span><span class="p">:</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">proximity</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="nb">abs</span><span class="p">(</span><span class="n">dist</span><span class="p">)</span> <span class="o">==</span> <span class="n">tgt</span><span class="p">:</span>
+                        <span class="n">temp</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">gene</span><span class="p">,</span> <span class="n">dist</span><span class="p">))</span>
+                <span class="k">elif</span> <span class="nb">abs</span><span class="p">(</span><span class="n">dist</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">proximity</span><span class="p">:</span>
+                    <span class="n">temp</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">gene</span><span class="p">,</span> <span class="n">dist</span><span class="p">))</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">genes_proximal_to_break2</span> <span class="o">=</span> <span class="n">temp</span></div>
+
+<div class="viewcode-block" id="Annotation.flatten"><a class="viewcode-back" href="../../../auto/mavis.annotate.variant.html#mavis.annotate.variant.Annotation.flatten">[docs]</a>    <span class="k">def</span> <span class="nf">flatten</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        generates a dictionary of the annotation information as strings</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            :class:`dict` of :class:`str` by :class:`str`: dictionary of attribute names and values</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">row</span> <span class="o">=</span> <span class="n">BreakpointPair</span><span class="o">.</span><span class="n">flatten</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="n">row</span><span class="o">.</span><span class="n">update</span><span class="p">({</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">genes_proximal_to_break1</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">genes_proximal_to_break1</span><span class="p">,</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">genes_proximal_to_break2</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">genes_proximal_to_break2</span><span class="p">,</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">gene1_direction</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">gene2_direction</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">gene_product_type</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">gene1</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">gene2</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">transcript1</span><span class="p">:</span> <span class="s1">&#39;</span><span class="si">{}</span><span class="s1">:</span><span class="si">{}</span><span class="s1">_</span><span class="si">{}{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">transcript1</span><span class="o">.</span><span class="n">reference_object</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">transcript1</span><span class="o">.</span><span class="n">start</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">transcript1</span><span class="o">.</span><span class="n">end</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">transcript1</span><span class="o">.</span><span class="n">get_strand</span><span class="p">()),</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">transcript2</span><span class="p">:</span> <span class="s1">&#39;</span><span class="si">{}</span><span class="s1">:</span><span class="si">{}</span><span class="s1">_</span><span class="si">{}{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">transcript2</span><span class="o">.</span><span class="n">reference_object</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">transcript2</span><span class="o">.</span><span class="n">start</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">transcript2</span><span class="o">.</span><span class="n">end</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">transcript2</span><span class="o">.</span><span class="n">get_strand</span><span class="p">()),</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">genes_encompassed</span><span class="p">:</span> <span class="s1">&#39;;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">sorted</span><span class="p">([</span><span class="n">x</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">encompassed_genes</span><span class="p">])),</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">genes_overlapping_break1</span><span class="p">:</span> <span class="s1">&#39;;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">sorted</span><span class="p">([</span><span class="n">x</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">genes_overlapping_break1</span><span class="p">])),</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">genes_overlapping_break2</span><span class="p">:</span> <span class="s1">&#39;;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">sorted</span><span class="p">([</span><span class="n">x</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">genes_overlapping_break2</span><span class="p">])),</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">genes_proximal_to_break1</span><span class="p">:</span> <span class="s1">&#39;;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+                <span class="nb">sorted</span><span class="p">([</span><span class="s1">&#39;</span><span class="si">{}</span><span class="s1">(</span><span class="si">{}</span><span class="s1">)&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">genes_proximal_to_break1</span><span class="p">])),</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">genes_proximal_to_break2</span><span class="p">:</span> <span class="s1">&#39;;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+                <span class="nb">sorted</span><span class="p">([</span><span class="s1">&#39;</span><span class="si">{}</span><span class="s1">(</span><span class="si">{}</span><span class="s1">)&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">genes_proximal_to_break2</span><span class="p">])),</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">event_type</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">event_type</span><span class="p">,</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">gene1_aliases</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">gene2_aliases</span><span class="p">:</span> <span class="kc">None</span>
+        <span class="p">})</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">transcript1</span><span class="p">,</span> <span class="s1">&#39;gene&#39;</span><span class="p">):</span>
+            <span class="n">row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">gene1</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">transcript1</span><span class="o">.</span><span class="n">gene</span><span class="o">.</span><span class="n">name</span>
+            <span class="n">row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">transcript1</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">transcript1</span><span class="o">.</span><span class="n">name</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">transcript1</span><span class="o">.</span><span class="n">gene</span><span class="o">.</span><span class="n">aliases</span><span class="p">:</span>
+                <span class="n">row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">gene1_aliases</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">transcript1</span><span class="o">.</span><span class="n">gene</span><span class="o">.</span><span class="n">aliases</span><span class="p">))</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">gene1_direction</span><span class="p">]</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">determine_prime</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">transcript1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">break1</span><span class="p">))</span>
+            <span class="k">except</span> <span class="n">NotSpecifiedError</span><span class="p">:</span>
+                <span class="k">pass</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">transcript2</span><span class="p">,</span> <span class="s1">&#39;gene&#39;</span><span class="p">):</span>
+            <span class="n">row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">gene2</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">transcript2</span><span class="o">.</span><span class="n">gene</span><span class="o">.</span><span class="n">name</span>
+            <span class="n">row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">transcript2</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">transcript2</span><span class="o">.</span><span class="n">name</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">transcript2</span><span class="o">.</span><span class="n">gene</span><span class="o">.</span><span class="n">aliases</span><span class="p">:</span>
+                <span class="n">row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">gene2_aliases</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">transcript2</span><span class="o">.</span><span class="n">gene</span><span class="o">.</span><span class="n">aliases</span><span class="p">))</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">gene2_direction</span><span class="p">]</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">determine_prime</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">transcript2</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">break2</span><span class="p">))</span>
+                <span class="k">if</span> <span class="n">row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">gene1_direction</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">gene1_direction</span><span class="p">]</span> <span class="o">==</span> <span class="n">row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">gene2_direction</span><span class="p">]:</span>
+                        <span class="n">row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">gene_product_type</span><span class="p">]</span> <span class="o">=</span> <span class="n">GENE_PRODUCT_TYPE</span><span class="o">.</span><span class="n">ANTI_SENSE</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">gene_product_type</span><span class="p">]</span> <span class="o">=</span> <span class="n">GENE_PRODUCT_TYPE</span><span class="o">.</span><span class="n">SENSE</span>
+            <span class="k">except</span> <span class="n">NotSpecifiedError</span><span class="p">:</span>
+                <span class="k">pass</span>
+        <span class="k">return</span> <span class="n">row</span></div>
+
+<div class="viewcode-block" id="Annotation.single_transcript"><a class="viewcode-back" href="../../../auto/mavis.annotate.variant.html#mavis.annotate.variant.Annotation.single_transcript">[docs]</a>    <span class="k">def</span> <span class="nf">single_transcript</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">bool</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">transcript1</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">transcript2</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">transcript1</span><span class="p">)</span></div></div>
+
+
+<div class="viewcode-block" id="flatten_fusion_translation"><a class="viewcode-back" href="../../../auto/mavis.annotate.variant.html#mavis.annotate.variant.flatten_fusion_translation">[docs]</a><span class="k">def</span> <span class="nf">flatten_fusion_translation</span><span class="p">(</span><span class="n">translation</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    for a given fusion product (translation) gather the information to be output to the tabbed files</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        translation (Translation): the translation which is on the fusion transcript</span>
+<span class="sd">    Returns:</span>
+<span class="sd">        dict: the dictionary of column names to values</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">row</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+    <span class="n">row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">fusion_cdna_coding_start</span><span class="p">]</span> <span class="o">=</span> <span class="n">translation</span><span class="o">.</span><span class="n">start</span>
+    <span class="n">row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">fusion_cdna_coding_end</span><span class="p">]</span> <span class="o">=</span> <span class="n">translation</span><span class="o">.</span><span class="n">end</span>
+
+    <span class="c1"># select the exon that has changed</span>
+    <span class="n">domains</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">dom</span> <span class="ow">in</span> <span class="n">translation</span><span class="o">.</span><span class="n">domains</span><span class="p">:</span>
+        <span class="n">m</span><span class="p">,</span> <span class="n">t</span> <span class="o">=</span> <span class="n">dom</span><span class="o">.</span><span class="n">score_region_mapping</span><span class="p">()</span>
+        <span class="n">temp</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="n">dom</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+            <span class="s1">&#39;sequences&#39;</span><span class="p">:</span> <span class="n">dom</span><span class="o">.</span><span class="n">get_seqs</span><span class="p">(),</span>
+            <span class="s1">&#39;regions&#39;</span><span class="p">:</span> <span class="p">[</span>
+                <span class="p">{</span><span class="s1">&#39;start&#39;</span><span class="p">:</span> <span class="n">dr</span><span class="o">.</span><span class="n">start</span><span class="p">,</span> <span class="s1">&#39;end&#39;</span><span class="p">:</span> <span class="n">dr</span><span class="o">.</span><span class="n">end</span><span class="p">}</span> <span class="k">for</span> <span class="n">dr</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">dom</span><span class="o">.</span><span class="n">regions</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="o">.</span><span class="n">start</span><span class="p">)</span>
+            <span class="p">],</span>
+            <span class="s1">&#39;mapping_quality&#39;</span><span class="p">:</span> <span class="nb">round</span><span class="p">(</span><span class="n">m</span> <span class="o">*</span> <span class="mi">100</span> <span class="o">/</span> <span class="n">t</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span>
+            <span class="s1">&#39;matches&#39;</span><span class="p">:</span> <span class="n">m</span>
+        <span class="p">}</span>
+        <span class="n">domains</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">temp</span><span class="p">)</span>
+    <span class="n">row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">fusion_mapped_domains</span><span class="p">]</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">domains</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">row</span></div>
+
+
+<div class="viewcode-block" id="IndelCall"><a class="viewcode-back" href="../../../auto/mavis.annotate.variant.html#mavis.annotate.variant.IndelCall">[docs]</a><span class="k">class</span> <span class="nc">IndelCall</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">refseq</span><span class="p">,</span> <span class="n">mutseq</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Given two sequences, Assuming there exists a single difference between the two</span>
+<span class="sd">        call an indel which accounts for the change</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">last_aligned</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">next_aligned</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">refseq</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ref_seq</span> <span class="o">=</span> <span class="n">refseq</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mut_seq</span> <span class="o">=</span> <span class="n">mutseq</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">is_dup</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">for</span> <span class="n">pos</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">min</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">refseq</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">mutseq</span><span class="p">))):</span>
+            <span class="k">if</span> <span class="n">refseq</span><span class="p">[</span><span class="n">pos</span><span class="p">]</span> <span class="o">!=</span> <span class="n">mutseq</span><span class="p">[</span><span class="n">pos</span><span class="p">]:</span>
+                <span class="k">break</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">last_aligned</span> <span class="o">=</span> <span class="n">pos</span> <span class="o">+</span> <span class="mi">1</span>
+
+        <span class="k">for</span> <span class="n">pos</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">min</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">refseq</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">mutseq</span><span class="p">))):</span>
+            <span class="k">if</span> <span class="n">refseq</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span> <span class="o">-</span> <span class="n">pos</span><span class="p">]</span> <span class="o">!=</span> <span class="n">mutseq</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span> <span class="o">-</span> <span class="n">pos</span><span class="p">]:</span>
+                <span class="k">break</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">next_aligned</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">refseq</span><span class="p">)</span> <span class="o">-</span> <span class="n">pos</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ref_seq</span><span class="p">)</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">next_aligned</span> <span class="o">+</span> <span class="mi">1</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">mut_seq</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">last_aligned</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">del_length</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">next_aligned</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">last_aligned</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="n">ins_length</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">mutseq</span><span class="p">)</span> <span class="o">+</span> <span class="n">del_length</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="n">refseq</span><span class="p">),</span> <span class="mi">0</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">ins_seq</span> <span class="o">=</span> <span class="n">mutseq</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">last_aligned</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">last_aligned</span> <span class="o">+</span> <span class="n">ins_length</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">del_seq</span> <span class="o">=</span> <span class="n">refseq</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">last_aligned</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">next_aligned</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">last_aligned</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">last_aligned</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">next_aligned</span> <span class="o">&gt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">refseq</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">next_aligned</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
+        <span class="c1"># check if the inserted sequence is actually a duplication of the preceding sequence</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">ins_seq</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">next_aligned</span> <span class="o">&lt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">last_aligned</span><span class="p">:</span>
+            <span class="n">dupped_refseq</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ref_seq</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">next_aligned</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">last_aligned</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">dupped_refseq</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">ins_seq</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">is_dup</span> <span class="o">=</span> <span class="kc">True</span>
+
+<div class="viewcode-block" id="IndelCall.hgvs_protein_notation"><a class="viewcode-back" href="../../../auto/mavis.annotate.variant.html#mavis.annotate.variant.IndelCall.hgvs_protein_notation">[docs]</a>    <span class="k">def</span> <span class="nf">hgvs_protein_notation</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        returns the HGVS protein notation for an indel call</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">any</span><span class="p">([</span>
+            <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">ins_seq</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">del_seq</span><span class="p">,</span>  <span class="c1"># synonymous variant</span>
+            <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">del_seq</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">last_aligned</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">,</span>  <span class="c1"># insertion before protein start</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">last_aligned</span> <span class="o">&gt;=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ref_seq</span><span class="p">)</span>  <span class="c1"># mutation after end of ref sequence</span>
+        <span class="p">]):</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="n">last_align</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">last_aligned</span>
+        <span class="n">next_align</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">next_aligned</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">del_seq</span><span class="p">:</span>
+            <span class="n">last_align</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">last_aligned</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="n">next_align</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">next_aligned</span> <span class="o">-</span> <span class="mi">1</span>
+            <span class="k">if</span> <span class="n">next_align</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">next_align</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ref_seq</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_dup</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">del_seq</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s1">&#39;duplication/deletion no supported&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span>
+            <span class="n">notation</span> <span class="o">=</span> <span class="s1">&#39;p.</span><span class="si">{}{}</span><span class="s1">_</span><span class="si">{}{}</span><span class="s1">dup</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">ref_seq</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">next_aligned</span> <span class="o">-</span> <span class="mi">1</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">next_aligned</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ref_seq</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">last_aligned</span> <span class="o">-</span> <span class="mi">1</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">last_aligned</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ins_seq</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">notation</span> <span class="o">=</span> <span class="s1">&#39;p.</span><span class="si">{}{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ref_seq</span><span class="p">[</span><span class="n">last_align</span> <span class="o">-</span> <span class="mi">1</span><span class="p">],</span> <span class="n">last_align</span><span class="p">)</span>
+            <span class="k">if</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">next_aligned</span> <span class="o">&lt;</span> <span class="mi">0</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">next_aligned</span> <span class="o">&gt;=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ref_seq</span><span class="p">))</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">last_aligned</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">mut_seq</span><span class="p">):</span>
+                <span class="n">notation</span> <span class="o">+=</span> <span class="s1">&#39;</span><span class="si">{}</span><span class="s1">fs&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">mut_seq</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">last_aligned</span><span class="p">])</span>
+                <span class="n">next_stops</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">mut_seq</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">last_aligned</span><span class="p">:])</span> <span class="k">if</span> <span class="n">c</span> <span class="o">==</span> <span class="n">STOP_AA</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">next_stops</span> <span class="ow">and</span> <span class="n">next_stops</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
+                    <span class="n">notation</span> <span class="o">+=</span> <span class="s1">&#39;*</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">next_stops</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">next_align</span> <span class="o">!=</span> <span class="n">last_align</span><span class="p">:</span>
+                    <span class="n">notation</span> <span class="o">+=</span> <span class="s1">&#39;_</span><span class="si">{}{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ref_seq</span><span class="p">[</span><span class="n">next_align</span> <span class="o">-</span> <span class="mi">1</span><span class="p">],</span> <span class="n">next_align</span><span class="p">)</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">del_seq</span><span class="p">:</span>
+                    <span class="n">notation</span> <span class="o">+=</span> <span class="s1">&#39;del</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">del_seq</span><span class="p">)</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">ins_seq</span><span class="p">:</span>
+                    <span class="n">notation</span> <span class="o">+=</span> <span class="s1">&#39;ins</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ins_seq</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">notation</span></div>
+
+    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s1">&#39;IndelCall(</span><span class="si">{}</span><span class="s1">)&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="s1">&#39;</span><span class="si">{}</span><span class="s1">=</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="nb">repr</span><span class="p">(</span><span class="n">v</span><span class="p">))</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="vm">__dict__</span><span class="o">.</span><span class="n">items</span><span class="p">())]))</span></div>
+
+
+<div class="viewcode-block" id="call_protein_indel"><a class="viewcode-back" href="../../../auto/mavis.annotate.variant.html#mavis.annotate.variant.call_protein_indel">[docs]</a><span class="k">def</span> <span class="nf">call_protein_indel</span><span class="p">(</span><span class="n">ref_translation</span><span class="p">,</span> <span class="n">fusion_translation</span><span class="p">,</span> <span class="n">reference_genome</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    compare the fusion protein/aa sequence to the reference protein/aa sequence and</span>
+<span class="sd">    return an hgvs notation indel call</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        ref_translation (Translation): the reference protein/translation</span>
+<span class="sd">        fusion_translation (Translation): the fusion protein/translation</span>
+<span class="sd">        reference_genome: the reference genome object used to fetch the reference translation AA sequence</span>
+<span class="sd">    Returns:</span>
+<span class="sd">        str: the :term:`HGVS` protein indel notation</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">ref_aa_seq</span> <span class="o">=</span> <span class="n">ref_translation</span><span class="o">.</span><span class="n">get_aa_seq</span><span class="p">(</span><span class="n">reference_genome</span><span class="p">)</span>
+    <span class="n">call</span> <span class="o">=</span> <span class="n">IndelCall</span><span class="p">(</span><span class="n">ref_aa_seq</span><span class="p">,</span> <span class="n">fusion_translation</span><span class="o">.</span><span class="n">get_aa_seq</span><span class="p">())</span>
+    <span class="n">notation</span> <span class="o">=</span> <span class="n">call</span><span class="o">.</span><span class="n">hgvs_protein_notation</span><span class="p">()</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">notation</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="n">name</span> <span class="o">=</span> <span class="n">ref_translation</span><span class="o">.</span><span class="n">name</span>
+    <span class="n">curr</span> <span class="o">=</span> <span class="n">ref_translation</span>
+    <span class="k">while</span> <span class="n">name</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">curr</span> <span class="o">=</span> <span class="n">curr</span><span class="o">.</span><span class="n">reference_object</span>
+        <span class="n">name</span> <span class="o">=</span> <span class="n">curr</span><span class="o">.</span><span class="n">name</span>
+    <span class="k">return</span> <span class="s1">&#39;</span><span class="si">{}</span><span class="s1">:</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">notation</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="flatten_fusion_transcript"><a class="viewcode-back" href="../../../auto/mavis.annotate.variant.html#mavis.annotate.variant.flatten_fusion_transcript">[docs]</a><span class="k">def</span> <span class="nf">flatten_fusion_transcript</span><span class="p">(</span><span class="n">spliced_fusion_transcript</span><span class="p">):</span>
+    <span class="n">row</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">five_prime_exons</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">three_prime_exons</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">fusion_transcript</span> <span class="o">=</span> <span class="n">spliced_fusion_transcript</span><span class="o">.</span><span class="n">unspliced_transcript</span>
+    <span class="k">for</span> <span class="n">ex</span> <span class="ow">in</span> <span class="n">spliced_fusion_transcript</span><span class="o">.</span><span class="n">exons</span><span class="p">:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">src_exon</span> <span class="o">=</span> <span class="n">fusion_transcript</span><span class="o">.</span><span class="n">exon_mapping</span><span class="p">[</span><span class="n">ex</span><span class="o">.</span><span class="n">position</span><span class="p">]</span>
+            <span class="n">number</span> <span class="o">=</span> <span class="n">src_exon</span><span class="o">.</span><span class="n">transcript</span><span class="o">.</span><span class="n">exon_number</span><span class="p">(</span><span class="n">src_exon</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">ex</span><span class="o">.</span><span class="n">end</span> <span class="o">&lt;=</span> <span class="n">fusion_transcript</span><span class="o">.</span><span class="n">break1</span><span class="p">:</span>
+                <span class="n">five_prime_exons</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">number</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">ex</span><span class="o">.</span><span class="n">start</span> <span class="o">&gt;=</span> <span class="n">fusion_transcript</span><span class="o">.</span><span class="n">break2</span><span class="p">:</span>
+                <span class="n">three_prime_exons</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">number</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">AssertionError</span><span class="p">(</span>
+                    <span class="s1">&#39;exon should not be mapped if not within a break region&#39;</span><span class="p">,</span>
+                    <span class="n">ex</span><span class="p">,</span> <span class="n">fusion_transcript</span><span class="o">.</span><span class="n">break1</span><span class="p">,</span> <span class="n">fusion_transcript</span><span class="o">.</span><span class="n">break2</span>
+                <span class="p">)</span>
+        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>  <span class="c1"># novel exon</span>
+            <span class="k">for</span> <span class="n">us_exon</span><span class="p">,</span> <span class="n">src_exon</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">fusion_transcript</span><span class="o">.</span><span class="n">exon_mapping</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
+                <span class="k">if</span> <span class="n">Interval</span><span class="o">.</span><span class="n">overlaps</span><span class="p">(</span><span class="n">ex</span><span class="p">,</span> <span class="n">us_exon</span><span class="p">):</span>
+                    <span class="n">number</span> <span class="o">=</span> <span class="n">src_exon</span><span class="o">.</span><span class="n">transcript</span><span class="o">.</span><span class="n">exon_number</span><span class="p">(</span><span class="n">src_exon</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">us_exon</span><span class="o">.</span><span class="n">end</span> <span class="o">&lt;=</span> <span class="n">fusion_transcript</span><span class="o">.</span><span class="n">break1</span><span class="p">:</span>
+                        <span class="n">five_prime_exons</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">number</span><span class="p">)</span>
+                    <span class="k">elif</span> <span class="n">us_exon</span><span class="o">.</span><span class="n">start</span> <span class="o">&gt;=</span> <span class="n">fusion_transcript</span><span class="o">.</span><span class="n">break2</span><span class="p">:</span>
+                        <span class="n">three_prime_exons</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">number</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="k">raise</span> <span class="ne">AssertionError</span><span class="p">(</span>
+                            <span class="s1">&#39;exon should not be mapped if not within a break region&#39;</span><span class="p">,</span>
+                            <span class="n">us_exon</span><span class="p">,</span> <span class="n">fusion_transcript</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span> <span class="n">fusion_transcript</span><span class="o">.</span><span class="n">break2</span>
+                        <span class="p">)</span>
+    <span class="n">row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">exon_last_5prime</span><span class="p">]</span> <span class="o">=</span> <span class="n">five_prime_exons</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">exon_first_3prime</span><span class="p">]</span> <span class="o">=</span> <span class="n">three_prime_exons</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">fusion_splicing_pattern</span><span class="p">]</span> <span class="o">=</span> <span class="n">spliced_fusion_transcript</span><span class="o">.</span><span class="n">splicing_pattern</span><span class="o">.</span><span class="n">splice_type</span>
+    <span class="k">return</span> <span class="n">row</span></div>
+
+
+<div class="viewcode-block" id="overlapping_transcripts"><a class="viewcode-back" href="../../../auto/mavis.annotate.variant.html#mavis.annotate.variant.overlapping_transcripts">[docs]</a><span class="k">def</span> <span class="nf">overlapping_transcripts</span><span class="p">(</span><span class="n">ref_ann</span><span class="p">,</span> <span class="n">breakpoint</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Args:</span>
+<span class="sd">        ref_ann (:class:`dict` of :class:`list` of :any:`Gene` by :class:`str`): the reference list of genes split</span>
+<span class="sd">            by chromosome</span>
+<span class="sd">        breakpoint (Breakpoint): the breakpoint in question</span>
+<span class="sd">    Returns:</span>
+<span class="sd">        :class:`list` of :any:`PreTranscript`: a list of possible transcripts</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">putative_annotations</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">gene</span> <span class="ow">in</span> <span class="n">ref_ann</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">breakpoint</span><span class="o">.</span><span class="n">chr</span><span class="p">,</span> <span class="p">[]):</span>
+        <span class="k">for</span> <span class="n">transcript</span> <span class="ow">in</span> <span class="n">gene</span><span class="o">.</span><span class="n">transcripts</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">breakpoint</span><span class="o">.</span><span class="n">strand</span> <span class="o">!=</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">NS</span> <span class="ow">and</span> <span class="n">transcript</span><span class="o">.</span><span class="n">get_strand</span><span class="p">()</span> <span class="o">!=</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">NS</span> \
+                    <span class="ow">and</span> <span class="n">transcript</span><span class="o">.</span><span class="n">get_strand</span><span class="p">()</span> <span class="o">!=</span> <span class="n">breakpoint</span><span class="o">.</span><span class="n">strand</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="k">if</span> <span class="n">Interval</span><span class="o">.</span><span class="n">overlaps</span><span class="p">(</span><span class="n">breakpoint</span><span class="p">,</span> <span class="n">transcript</span><span class="p">):</span>
+                <span class="n">putative_annotations</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">transcript</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">putative_annotations</span></div>
+
+
+<span class="k">def</span> <span class="nf">_gather_breakpoint_annotations</span><span class="p">(</span><span class="n">ref_ann</span><span class="p">,</span> <span class="n">breakpoint</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Args:</span>
+<span class="sd">        ref_ann (:class:`dict` of :class:`list` of :class:`Gene` by :class:`str`): the reference annotations split</span>
+<span class="sd">            into lists of genes by chromosome</span>
+<span class="sd">        breakpoint (Breakpoint): the breakpoint annotations are to be gathered for</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        tuple: tuple contains</span>
+
+<span class="sd">            - :class:`list` of (:class:`PreTranscript` or :class:`IntergenicRegion`): transcripts or intergenic regions</span>
+<span class="sd">              overlapping the breakpoint on the positive strand</span>
+<span class="sd">            - :class:`list` of (:class:`PreTranscript` or :class:`IntergenicRegion`): transcripts or intergenic regions</span>
+<span class="sd">              overlapping the breakpoint on the negative strand</span>
+
+<span class="sd">    .. todo::</span>
+
+<span class="sd">        Support for setting the transcript in the annotation when the breakpoint is just ahead of the transcript</span>
+<span class="sd">        and the transcript would be 3&#39;. Then assuming the splicing model takes the 2nd exon onward</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">pos_overlapping_transcripts</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">neg_overlapping_transcripts</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">gene</span> <span class="ow">in</span> <span class="n">ref_ann</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">breakpoint</span><span class="o">.</span><span class="n">chr</span><span class="p">,</span> <span class="p">[]):</span>
+        <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">gene</span><span class="o">.</span><span class="n">transcripts</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">Interval</span><span class="o">.</span><span class="n">overlaps</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">breakpoint</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">compare</span><span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">get_strand</span><span class="p">(),</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">POS</span><span class="p">):</span>
+                    <span class="n">pos_overlapping_transcripts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">compare</span><span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">get_strand</span><span class="p">(),</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">NEG</span><span class="p">):</span>
+                    <span class="n">neg_overlapping_transcripts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+
+    <span class="n">pos_intervals</span> <span class="o">=</span> <span class="n">Interval</span><span class="o">.</span><span class="n">min_nonoverlapping</span><span class="p">(</span><span class="o">*</span><span class="n">pos_overlapping_transcripts</span><span class="p">)</span>
+    <span class="n">neg_intervals</span> <span class="o">=</span> <span class="n">Interval</span><span class="o">.</span><span class="n">min_nonoverlapping</span><span class="p">(</span><span class="o">*</span><span class="n">neg_overlapping_transcripts</span><span class="p">)</span>
+
+    <span class="n">temp</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="c1"># before the first?</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">pos_intervals</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">first</span> <span class="o">=</span> <span class="n">pos_intervals</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">last</span> <span class="o">=</span> <span class="n">pos_intervals</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">breakpoint</span><span class="o">.</span><span class="n">start</span> <span class="o">&lt;</span> <span class="n">first</span><span class="o">.</span><span class="n">start</span><span class="p">:</span>
+            <span class="n">temp</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">IntergenicRegion</span><span class="p">(</span><span class="n">breakpoint</span><span class="o">.</span><span class="n">chr</span><span class="p">,</span> <span class="n">breakpoint</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">first</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">POS</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">breakpoint</span><span class="o">.</span><span class="n">end</span> <span class="o">&gt;</span> <span class="n">last</span><span class="o">.</span><span class="n">end</span><span class="p">:</span>
+            <span class="n">temp</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">IntergenicRegion</span><span class="p">(</span><span class="n">breakpoint</span><span class="o">.</span><span class="n">chr</span><span class="p">,</span> <span class="n">last</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">breakpoint</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">POS</span><span class="p">))</span>
+
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">curr</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">pos_intervals</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">i</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">prev</span> <span class="o">=</span> <span class="n">pos_intervals</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">temp</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">IntergenicRegion</span><span class="p">(</span><span class="n">breakpoint</span><span class="o">.</span><span class="n">chr</span><span class="p">,</span> <span class="n">prev</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">curr</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">POS</span><span class="p">))</span>
+                <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+                    <span class="k">pass</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">temp</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">IntergenicRegion</span><span class="p">(</span><span class="n">breakpoint</span><span class="o">.</span><span class="n">chr</span><span class="p">,</span> <span class="n">breakpoint</span><span class="o">.</span><span class="n">start</span><span class="p">,</span> <span class="n">breakpoint</span><span class="o">.</span><span class="n">end</span><span class="p">,</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">POS</span><span class="p">))</span>
+    <span class="n">pos_overlapping_transcripts</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">temp</span><span class="p">)</span>
+
+    <span class="n">temp</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="c1"># before the first?</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">neg_intervals</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">first</span> <span class="o">=</span> <span class="n">neg_intervals</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">last</span> <span class="o">=</span> <span class="n">neg_intervals</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">breakpoint</span><span class="o">.</span><span class="n">start</span> <span class="o">&lt;</span> <span class="n">first</span><span class="o">.</span><span class="n">start</span><span class="p">:</span>
+            <span class="n">temp</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">IntergenicRegion</span><span class="p">(</span><span class="n">breakpoint</span><span class="o">.</span><span class="n">chr</span><span class="p">,</span> <span class="n">breakpoint</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">first</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">NEG</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">breakpoint</span><span class="o">.</span><span class="n">end</span> <span class="o">&gt;</span> <span class="n">last</span><span class="o">.</span><span class="n">end</span><span class="p">:</span>
+            <span class="n">temp</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">IntergenicRegion</span><span class="p">(</span><span class="n">breakpoint</span><span class="o">.</span><span class="n">chr</span><span class="p">,</span> <span class="n">last</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">breakpoint</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">NEG</span><span class="p">))</span>
+
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">curr</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">neg_intervals</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">i</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">prev</span> <span class="o">=</span> <span class="n">neg_intervals</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">temp</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">IntergenicRegion</span><span class="p">(</span><span class="n">breakpoint</span><span class="o">.</span><span class="n">chr</span><span class="p">,</span> <span class="n">prev</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">curr</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">NEG</span><span class="p">))</span>
+                <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+                    <span class="k">pass</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">temp</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">IntergenicRegion</span><span class="p">(</span><span class="n">breakpoint</span><span class="o">.</span><span class="n">chr</span><span class="p">,</span> <span class="n">breakpoint</span><span class="o">.</span><span class="n">start</span><span class="p">,</span> <span class="n">breakpoint</span><span class="o">.</span><span class="n">end</span><span class="p">,</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">NEG</span><span class="p">))</span>
+    <span class="n">neg_overlapping_transcripts</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">temp</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">pos_overlapping_transcripts</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">AssertionError</span><span class="p">(</span><span class="s1">&#39;neither strand group should ever be empty&#39;</span><span class="p">,</span> <span class="n">pos_overlapping_transcripts</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">neg_overlapping_transcripts</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">AssertionError</span><span class="p">(</span><span class="s1">&#39;neither strand group should ever be empty&#39;</span><span class="p">,</span> <span class="n">neg_overlapping_transcripts</span><span class="p">)</span>
+    <span class="k">return</span> <span class="p">(</span>
+        <span class="nb">sorted</span><span class="p">(</span><span class="n">pos_overlapping_transcripts</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="o">.</span><span class="n">position</span><span class="p">),</span>
+        <span class="nb">sorted</span><span class="p">(</span><span class="n">neg_overlapping_transcripts</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="o">.</span><span class="n">position</span><span class="p">))</span>
+
+
+<span class="k">def</span> <span class="nf">_gather_annotations</span><span class="p">(</span><span class="n">ref</span><span class="p">,</span> <span class="n">bp</span><span class="p">,</span> <span class="n">proximity</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    each annotation is defined by the annotations selected at the breakpoints</span>
+<span class="sd">    the other annotations are given relative to this</span>
+<span class="sd">    the annotation at the breakpoint can be a transcript or an intergenic region</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        ref (:class:`dict` of :class:`list` of :any:`Gene` by :class:`str`): the list of reference genes hashed</span>
+<span class="sd">            by chromosomes</span>
+<span class="sd">        breakpoint_pairs (:class:`list` of :any:`BreakpointPair`): breakpoint pairs we wish to annotate as events</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        :class:`list` of :class:`Annotation`: The annotations</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">annotations</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+    <span class="n">break1_pos</span><span class="p">,</span> <span class="n">break1_neg</span> <span class="o">=</span> <span class="n">_gather_breakpoint_annotations</span><span class="p">(</span><span class="n">ref</span><span class="p">,</span> <span class="n">bp</span><span class="o">.</span><span class="n">break1</span><span class="p">)</span>
+    <span class="n">break2_pos</span><span class="p">,</span> <span class="n">break2_neg</span> <span class="o">=</span> <span class="n">_gather_breakpoint_annotations</span><span class="p">(</span><span class="n">ref</span><span class="p">,</span> <span class="n">bp</span><span class="o">.</span><span class="n">break2</span><span class="p">)</span>
+
+    <span class="n">combinations</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">if</span> <span class="n">bp</span><span class="o">.</span><span class="n">stranded</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">bp</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">strand</span> <span class="o">==</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">POS</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">bp</span><span class="o">.</span><span class="n">break2</span><span class="o">.</span><span class="n">strand</span> <span class="o">==</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">POS</span><span class="p">:</span>
+                <span class="n">combinations</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">itertools</span><span class="o">.</span><span class="n">product</span><span class="p">(</span><span class="n">break1_pos</span><span class="p">,</span> <span class="n">break2_pos</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">combinations</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">itertools</span><span class="o">.</span><span class="n">product</span><span class="p">(</span><span class="n">break1_pos</span><span class="p">,</span> <span class="n">break2_neg</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">bp</span><span class="o">.</span><span class="n">break2</span><span class="o">.</span><span class="n">strand</span> <span class="o">==</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">POS</span><span class="p">:</span>
+                <span class="n">combinations</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">itertools</span><span class="o">.</span><span class="n">product</span><span class="p">(</span><span class="n">break1_neg</span><span class="p">,</span> <span class="n">break2_pos</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">combinations</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">itertools</span><span class="o">.</span><span class="n">product</span><span class="p">(</span><span class="n">break1_neg</span><span class="p">,</span> <span class="n">break2_neg</span><span class="p">))</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c1"># single transcript starts ....</span>
+        <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">break1_pos</span><span class="p">)</span> <span class="o">|</span> <span class="nb">set</span><span class="p">(</span><span class="n">break1_neg</span><span class="p">))</span> <span class="o">&amp;</span> <span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">break2_pos</span><span class="p">)</span> <span class="o">|</span> <span class="nb">set</span><span class="p">(</span><span class="n">break2_neg</span><span class="p">)):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">t</span><span class="o">.</span><span class="n">gene</span>
+            <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+                <span class="k">pass</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">combinations</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">t</span><span class="p">,</span> <span class="n">t</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">bp</span><span class="o">.</span><span class="n">opposing_strands</span><span class="p">:</span>
+            <span class="n">combinations</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">itertools</span><span class="o">.</span><span class="n">product</span><span class="p">(</span><span class="n">break1_pos</span><span class="p">,</span> <span class="n">break2_neg</span><span class="p">))</span>
+            <span class="n">combinations</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">itertools</span><span class="o">.</span><span class="n">product</span><span class="p">(</span><span class="n">break1_neg</span><span class="p">,</span> <span class="n">break2_pos</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">combinations</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">itertools</span><span class="o">.</span><span class="n">product</span><span class="p">(</span><span class="n">break1_pos</span><span class="p">,</span> <span class="n">break2_pos</span><span class="p">))</span>
+            <span class="n">combinations</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">itertools</span><span class="o">.</span><span class="n">product</span><span class="p">(</span><span class="n">break1_neg</span><span class="p">,</span> <span class="n">break2_neg</span><span class="p">))</span>
+
+    <span class="n">same</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">a1</span><span class="p">,</span> <span class="n">a2</span> <span class="ow">in</span> <span class="n">combinations</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        if a1 != a2 and hasattr(a1, &#39;exons&#39;) != hasattr(a2, &#39;exons&#39;) and not bp.interchromosomal:</span>
+<span class="sd">            # one is a transcript, the other an intergenic region</span>
+<span class="sd">            # take the transcript if it covers both breakpoints</span>
+<span class="sd">            # this is due to the special case &#39;single transcript inversion&#39;</span>
+<span class="sd">            if hasattr(a1, &#39;exons&#39;):</span>
+<span class="sd">                if Interval.overlaps(bp.break1, a1) and Interval.overlaps(bp.break2, a1):</span>
+<span class="sd">                    a2 = a1</span>
+<span class="sd">            else:</span>
+<span class="sd">                if Interval.overlaps(bp.break1, a2) and Interval.overlaps(bp.break2, a2):</span>
+<span class="sd">                    a1 = a2</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">a1</span><span class="p">,</span> <span class="n">a2</span><span class="p">)</span> <span class="ow">in</span> <span class="n">annotations</span><span class="p">:</span>  <span class="c1"># ignore duplicates</span>
+            <span class="k">continue</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">a1</span><span class="o">.</span><span class="n">gene</span> <span class="o">==</span> <span class="n">a2</span><span class="o">.</span><span class="n">gene</span> <span class="ow">and</span> <span class="n">a1</span> <span class="o">!=</span> <span class="n">a2</span><span class="p">:</span>
+                <span class="k">continue</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="k">pass</span>
+
+        <span class="k">if</span> <span class="n">a1</span> <span class="o">==</span> <span class="n">a2</span> <span class="ow">and</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">a1</span><span class="p">,</span> <span class="s1">&#39;exons&#39;</span><span class="p">):</span>
+            <span class="n">same</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">a1</span><span class="p">)</span>
+
+        <span class="n">b1_itvl</span> <span class="o">=</span> <span class="n">bp</span><span class="o">.</span><span class="n">break1</span> <span class="o">&amp;</span> <span class="n">a1</span>
+        <span class="n">b2_itvl</span> <span class="o">=</span> <span class="n">bp</span><span class="o">.</span><span class="n">break2</span> <span class="o">&amp;</span> <span class="n">a2</span>
+        <span class="n">bpp</span> <span class="o">=</span> <span class="n">BreakpointPair</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">bp</span><span class="p">)</span>
+        <span class="n">bpp</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">start</span> <span class="o">=</span> <span class="n">b1_itvl</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">bpp</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">end</span> <span class="o">=</span> <span class="n">b1_itvl</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">bpp</span><span class="o">.</span><span class="n">break2</span><span class="o">.</span><span class="n">start</span> <span class="o">=</span> <span class="n">b2_itvl</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">bpp</span><span class="o">.</span><span class="n">break2</span><span class="o">.</span><span class="n">end</span> <span class="o">=</span> <span class="n">b2_itvl</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+        <span class="n">a</span> <span class="o">=</span> <span class="n">Annotation</span><span class="p">(</span><span class="n">bpp</span><span class="p">,</span> <span class="n">a1</span><span class="p">,</span> <span class="n">a2</span><span class="p">,</span> <span class="n">proximity</span><span class="o">=</span><span class="n">proximity</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">gene</span> <span class="ow">in</span> <span class="n">ref</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">bp</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">chr</span><span class="p">,</span> <span class="p">[]):</span>
+            <span class="n">a</span><span class="o">.</span><span class="n">add_gene</span><span class="p">(</span><span class="n">gene</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">bp</span><span class="o">.</span><span class="n">interchromosomal</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">gene</span> <span class="ow">in</span> <span class="n">ref</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">bp</span><span class="o">.</span><span class="n">break2</span><span class="o">.</span><span class="n">chr</span><span class="p">,</span> <span class="p">[]):</span>
+                <span class="n">a</span><span class="o">.</span><span class="n">add_gene</span><span class="p">(</span><span class="n">gene</span><span class="p">)</span>
+        <span class="n">annotations</span><span class="p">[(</span><span class="n">a1</span><span class="p">,</span> <span class="n">a2</span><span class="p">)]</span> <span class="o">=</span> <span class="n">a</span>
+    <span class="n">filtered</span> <span class="o">=</span> <span class="p">[]</span>  <span class="c1"># remove any inter-gene/inter-region annotations where a same transcript was found</span>
+    <span class="k">for</span> <span class="n">pair</span><span class="p">,</span> <span class="n">ann</span> <span class="ow">in</span> <span class="n">annotations</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">a1</span><span class="p">,</span> <span class="n">a2</span> <span class="o">=</span> <span class="n">pair</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">a1</span> <span class="ow">in</span> <span class="n">same</span> <span class="ow">or</span> <span class="n">a2</span> <span class="ow">in</span> <span class="n">same</span><span class="p">)</span> <span class="ow">and</span> <span class="n">a1</span> <span class="o">!=</span> <span class="n">a2</span><span class="p">:</span>
+            <span class="k">pass</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">filtered</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ann</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">filtered</span>
+
+
+<div class="viewcode-block" id="choose_more_annotated"><a class="viewcode-back" href="../../../auto/mavis.annotate.variant.html#mavis.annotate.variant.choose_more_annotated">[docs]</a><span class="k">def</span> <span class="nf">choose_more_annotated</span><span class="p">(</span><span class="n">ann_list</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    for a given set of annotations if there are annotations which contain transcripts and</span>
+<span class="sd">    annotations that are simply intergenic regions, discard the intergenic region annotations</span>
+
+<span class="sd">    similarly if there are annotations where both breakpoints fall in a transcript and</span>
+<span class="sd">    annotations where one or more breakpoints lands in an intergenic region, discard those</span>
+<span class="sd">    that land in the intergenic region</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        ann_list (list of :class:`Annotation`): list of input annotations</span>
+
+<span class="sd">    Warning:</span>
+<span class="sd">        input annotations are assumed to be the same event (the same validation_id)</span>
+<span class="sd">        the logic used would not apply to different events</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        list of :class:`Annotation`: the filtered list</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">two_transcript</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">one_transcript</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">intergenic</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">for</span> <span class="n">ann</span> <span class="ow">in</span> <span class="n">ann_list</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">ann</span><span class="o">.</span><span class="n">transcript1</span><span class="p">,</span> <span class="n">IntergenicRegion</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">ann</span><span class="o">.</span><span class="n">transcript2</span><span class="p">,</span> <span class="n">IntergenicRegion</span><span class="p">):</span>
+            <span class="n">intergenic</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ann</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">ann</span><span class="o">.</span><span class="n">transcript1</span><span class="p">,</span> <span class="n">IntergenicRegion</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">ann</span><span class="o">.</span><span class="n">transcript2</span><span class="p">,</span> <span class="n">IntergenicRegion</span><span class="p">):</span>
+            <span class="n">one_transcript</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ann</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">two_transcript</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ann</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">two_transcript</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">two_transcript</span>
+    <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">one_transcript</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">one_transcript</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">intergenic</span></div>
+
+
+<div class="viewcode-block" id="choose_transcripts_by_priority"><a class="viewcode-back" href="../../../auto/mavis.annotate.variant.html#mavis.annotate.variant.choose_transcripts_by_priority">[docs]</a><span class="k">def</span> <span class="nf">choose_transcripts_by_priority</span><span class="p">(</span><span class="n">ann_list</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    for each set of annotations with the same combinations of genes, choose the</span>
+<span class="sd">    annotation with the most &quot;best_transcripts&quot; or most &quot;alphanumeric&quot; choices</span>
+<span class="sd">    of transcript. Throw an error if they are identical</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        ann_list (list of :class:`Annotation`): input annotations</span>
+
+<span class="sd">    Warning:</span>
+<span class="sd">        input annotations are assumed to be the same event (the same validation_id)</span>
+<span class="sd">        the logic used would not apply to different events</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        list of :class:`Annotation`: the filtered list</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">annotations_by_gene_combination</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">genes</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+
+    <span class="k">for</span> <span class="n">ann</span> <span class="ow">in</span> <span class="n">ann_list</span><span class="p">:</span>
+        <span class="n">gene1</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">gene2</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">gene1</span> <span class="o">=</span> <span class="n">ann</span><span class="o">.</span><span class="n">transcript1</span><span class="o">.</span><span class="n">gene</span>
+            <span class="n">genes</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">gene1</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="k">pass</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">gene2</span> <span class="o">=</span> <span class="n">ann</span><span class="o">.</span><span class="n">transcript2</span><span class="o">.</span><span class="n">gene</span>
+            <span class="n">genes</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">gene2</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="k">pass</span>
+        <span class="n">annotations_by_gene_combination</span><span class="o">.</span><span class="n">setdefault</span><span class="p">((</span><span class="n">gene1</span><span class="p">,</span> <span class="n">gene2</span><span class="p">),</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ann</span><span class="p">)</span>
+
+    <span class="n">filtered_annotations</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">g</span><span class="p">,</span> <span class="n">sublist</span> <span class="ow">in</span> <span class="n">annotations_by_gene_combination</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">gene1</span><span class="p">,</span> <span class="n">gene2</span> <span class="o">=</span> <span class="n">g</span>
+        <span class="k">if</span> <span class="n">gene1</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">gene2</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">filtered_annotations</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">sublist</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">gene2</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">ann</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">sublist</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">a</span><span class="p">:</span> <span class="n">gene1</span><span class="o">.</span><span class="n">transcript_priority</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">transcript1</span><span class="p">))</span>
+            <span class="n">filtered_annotations</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ann</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">gene1</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">ann</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">sublist</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">a</span><span class="p">:</span> <span class="n">gene2</span><span class="o">.</span><span class="n">transcript_priority</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">transcript2</span><span class="p">))</span>
+            <span class="n">filtered_annotations</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ann</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">ann</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">sublist</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">a</span><span class="p">:</span> <span class="p">(</span>
+                <span class="n">gene1</span><span class="o">.</span><span class="n">transcript_priority</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">transcript1</span><span class="p">)</span> <span class="o">+</span> <span class="n">gene2</span><span class="o">.</span><span class="n">transcript_priority</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">transcript2</span><span class="p">),</span>
+                <span class="n">gene1</span><span class="o">.</span><span class="n">transcript_priority</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">transcript1</span><span class="p">),</span>
+                <span class="n">gene2</span><span class="o">.</span><span class="n">transcript_priority</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">transcript2</span><span class="p">)</span>
+            <span class="p">))</span>
+            <span class="n">filtered_annotations</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ann</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">filtered_annotations</span></div>
+
+
+<div class="viewcode-block" id="annotate_events"><a class="viewcode-back" href="../../../auto/mavis.annotate.variant.html#mavis.annotate.variant.annotate_events">[docs]</a><span class="k">def</span> <span class="nf">annotate_events</span><span class="p">(</span>
+    <span class="n">bpps</span><span class="p">,</span>
+    <span class="n">annotations</span><span class="p">,</span>
+    <span class="n">reference_genome</span><span class="p">,</span>
+    <span class="n">max_proximity</span><span class="o">=</span><span class="mi">5000</span><span class="p">,</span>
+    <span class="n">min_orf_size</span><span class="o">=</span><span class="mi">200</span><span class="p">,</span>
+    <span class="n">min_domain_mapping_match</span><span class="o">=</span><span class="mf">0.95</span><span class="p">,</span>
+    <span class="n">max_orf_cap</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span>
+    <span class="n">log</span><span class="o">=</span><span class="n">devnull</span><span class="p">,</span>
+    <span class="n">filters</span><span class="o">=</span><span class="kc">None</span>
+<span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Args:</span>
+<span class="sd">        bpps (list of :class:`~mavis.breakpoint.BreakpointPair`): list of events</span>
+<span class="sd">        annotations: reference annotations</span>
+<span class="sd">        reference_genome (dict of string by string): dictionary of reference sequences by name</span>
+<span class="sd">        max_proximity (int): see :term:`max_proximity`</span>
+<span class="sd">        min_orf_size (int): see :term:`min_orf_size`</span>
+<span class="sd">        min_domain_mapping_match (float): see :term:`min_domain_mapping_match`</span>
+<span class="sd">        max_orf_cap (int): see :term:`max_orf_cap`</span>
+<span class="sd">        log (callable): callable function to take in strings and time_stamp args</span>
+<span class="sd">        filters (list of callable): list of functions taking in a list and returning a list for filtering</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        list of :class:`Annotation`: list of the putative annotations</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">filters</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">filters</span> <span class="o">=</span> <span class="p">[</span><span class="n">choose_more_annotated</span><span class="p">,</span> <span class="n">choose_transcripts_by_priority</span><span class="p">]</span>
+    <span class="n">results</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">total</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">bpps</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">bpp</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">bpps</span><span class="p">):</span>
+        <span class="n">log</span><span class="p">(</span><span class="s1">&#39;(</span><span class="si">{}</span><span class="s1"> of </span><span class="si">{}</span><span class="s1">) gathering annotations for&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">total</span><span class="p">),</span> <span class="n">bpp</span><span class="p">)</span>
+        <span class="n">bpp</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">validation_id</span><span class="p">]</span> <span class="o">=</span> <span class="n">bpp</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">validation_id</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">uuid</span><span class="p">()))</span>
+        <span class="n">ann_list</span> <span class="o">=</span> <span class="n">_gather_annotations</span><span class="p">(</span>
+            <span class="n">annotations</span><span class="p">,</span>
+            <span class="n">bpp</span><span class="p">,</span>
+            <span class="n">proximity</span><span class="o">=</span><span class="n">max_proximity</span>
+        <span class="p">)</span>
+        <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">filters</span><span class="p">:</span>
+            <span class="n">ann_list</span> <span class="o">=</span> <span class="n">f</span><span class="p">(</span><span class="n">ann_list</span><span class="p">)</span>  <span class="c1"># apply the filter</span>
+        <span class="n">results</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">ann_list</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">j</span><span class="p">,</span> <span class="n">ann</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">ann_list</span><span class="p">):</span>
+            <span class="n">ann</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">annotation_id</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">{}</span><span class="s1">-a</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">ann</span><span class="o">.</span><span class="n">validation_id</span><span class="p">,</span> <span class="n">j</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">ann</span><span class="o">.</span><span class="n">untemplated_seq</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">ann</span><span class="o">.</span><span class="n">break1</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">ann</span><span class="o">.</span><span class="n">break2</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">ann</span><span class="o">.</span><span class="n">event_type</span> <span class="o">!=</span> <span class="n">SVTYPE</span><span class="o">.</span><span class="n">INS</span><span class="p">:</span>
+                    <span class="n">ann</span><span class="o">.</span><span class="n">untemplated_seq</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+                    <span class="n">ann</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">assumed_untemplated</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">ann</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">assumed_untemplated</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="c1"># try building the fusion product</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">ft</span> <span class="o">=</span> <span class="n">FusionTranscript</span><span class="o">.</span><span class="n">build</span><span class="p">(</span>
+                    <span class="n">ann</span><span class="p">,</span> <span class="n">reference_genome</span><span class="p">,</span>
+                    <span class="n">min_orf_size</span><span class="o">=</span><span class="n">min_orf_size</span><span class="p">,</span>
+                    <span class="n">max_orf_cap</span><span class="o">=</span><span class="n">max_orf_cap</span><span class="p">,</span>
+                    <span class="n">min_domain_mapping_match</span><span class="o">=</span><span class="n">min_domain_mapping_match</span>
+                <span class="p">)</span>
+                <span class="n">ann</span><span class="o">.</span><span class="n">fusion</span> <span class="o">=</span> <span class="n">ft</span>
+            <span class="k">except</span> <span class="n">NotSpecifiedError</span><span class="p">:</span>
+                <span class="k">pass</span>  <span class="c1"># shouldn&#39;t build fusions for non-specific calls anyway</span>
+            <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+                <span class="k">pass</span>  <span class="c1"># will be thrown when transcript1/2 are intergenic ranges and not actual transcripts</span>
+            <span class="k">except</span> <span class="ne">NotImplementedError</span><span class="p">:</span>
+                <span class="k">pass</span>  <span class="c1"># anti-sense fusions will throw this error</span>
+            <span class="k">except</span> <span class="ne">KeyError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="n">log</span><span class="p">(</span><span class="s1">&#39;warning. could not build fusion product&#39;</span><span class="p">,</span> <span class="nb">repr</span><span class="p">(</span><span class="n">e</span><span class="p">))</span>
+        <span class="n">log</span><span class="p">(</span><span class="s1">&#39;generated&#39;</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">ann_list</span><span class="p">),</span> <span class="s1">&#39;annotations&#39;</span><span class="p">,</span> <span class="n">time_stamp</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">results</span></div>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2017, creisle.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../',
+            VERSION:'',
+            LANGUAGE:'None',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

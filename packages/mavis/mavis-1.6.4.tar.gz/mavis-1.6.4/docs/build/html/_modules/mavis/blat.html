@@ -1,0 +1,628 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>mavis.blat &mdash; MAVIS  documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  
+
+  
+    <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+
+  
+        <link rel="author" title="About these documents"
+              href="../../about.html"/>
+        <link rel="index" title="Index"
+              href="../../genindex.html"/>
+        <link rel="search" title="Search" href="../../search.html"/>
+    <link rel="top" title="MAVIS  documentation" href="../../index.html"/>
+        <link rel="up" title="Module code" href="../index.html"/> 
+
+  
+  <script src="../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../index.html" class="icon icon-home"> MAVIS
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                1.6.4
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../about.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../pipeline.html">Running the Pipeline</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../mavis_input.html">MAVIS standard input file format</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../reference.html">Reference Input Files</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../configuration.html">Configuration and Settings</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tools_supported.html">Supported SV Callers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../illustrations.html">Illustrations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../faqs.html">Frequently Asked Questions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../theory.html">Theory and Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../development.html">Guidelines for Contributors</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../package.html">Package Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../citations.html">Literature</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">MAVIS</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../index.html">Module code</a> &raquo;</li>
+        
+      <li>mavis.blat</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for mavis.blat</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+
+
+<span class="sd">::</span>
+
+<span class="sd">    In general the coordinates in psl files are “zero based half open.” The first base in a sequence is numbered</span>
+<span class="sd">    zero rather than one. When representing a range the end coordinate is not included in the range. Thus the first</span>
+<span class="sd">    100 bases of a sequence are represented as 0-100, and the second 100 bases are represented as 100-200. There is</span>
+<span class="sd">    another little unusual feature in the .psl format. It has to do with how coordinates are handled on the</span>
+<span class="sd">    negative strand. In the qStart/qEnd fields the coordinates are where it matches from the point of view of the forward</span>
+<span class="sd">    strand (even when the match is on the reverse strand). However on the qStarts[] list, the coordinates are reversed.</span>
+
+<span class="sd">-- http://wiki.bits.vib.be/index.php/Blat</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">import</span> <span class="nn">math</span>
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">import</span> <span class="nn">subprocess</span>
+<span class="kn">import</span> <span class="nn">warnings</span>
+
+<span class="kn">import</span> <span class="nn">tab</span>
+
+<span class="kn">from</span> <span class="nn">.align</span> <span class="k">import</span> <span class="n">query_coverage_interval</span><span class="p">,</span> <span class="n">SUPPORTED_ALIGNER</span>
+<span class="kn">from</span> <span class="nn">.bam</span> <span class="k">import</span> <span class="n">cigar</span> <span class="k">as</span> <span class="n">_cigar</span>
+<span class="kn">from</span> <span class="nn">.bam.cigar</span> <span class="k">import</span> <span class="n">QUERY_ALIGNED_STATES</span>
+<span class="kn">from</span> <span class="nn">.bam.read</span> <span class="k">import</span> <span class="n">SamRead</span>
+<span class="kn">from</span> <span class="nn">.constants</span> <span class="k">import</span> <span class="n">CIGAR</span><span class="p">,</span> <span class="n">DNA_ALPHABET</span><span class="p">,</span> <span class="n">NA_MAPPING_QUALITY</span><span class="p">,</span> <span class="n">PYSAM_READ_FLAGS</span><span class="p">,</span> <span class="n">reverse_complement</span><span class="p">,</span> <span class="n">STRAND</span>
+<span class="kn">from</span> <span class="nn">.interval</span> <span class="k">import</span> <span class="n">Interval</span>
+<span class="kn">from</span> <span class="nn">.util</span> <span class="k">import</span> <span class="n">devnull</span>
+
+
+<div class="viewcode-block" id="Blat"><a class="viewcode-back" href="../../auto/mavis.blat.html#mavis.blat.Blat">[docs]</a><span class="k">class</span> <span class="nc">Blat</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+<div class="viewcode-block" id="Blat.millibad"><a class="viewcode-back" href="../../auto/mavis.blat.html#mavis.blat.Blat.millibad">[docs]</a>    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">millibad</span><span class="p">(</span><span class="n">row</span><span class="p">,</span> <span class="n">is_protein</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">is_mrna</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        this function is used in calculating percent identity</span>
+<span class="sd">        direct translation of the perl code</span>
+<span class="sd">        # https://genome.ucsc.edu/FAQ/FAQblat.html#blat4</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">size_mul</span> <span class="o">=</span> <span class="mi">1</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">is_protein</span> <span class="k">else</span> <span class="mi">3</span>
+        <span class="k">if</span> <span class="n">is_protein</span> <span class="ow">and</span> <span class="n">is_mrna</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span><span class="s1">&#39;cannot be a protein AND and mRNA&#39;</span><span class="p">)</span>
+        <span class="n">q_ali_size</span> <span class="o">=</span> <span class="n">size_mul</span> <span class="o">*</span> <span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;qend&#39;</span><span class="p">]</span> <span class="o">-</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;qstart&#39;</span><span class="p">])</span>
+        <span class="n">t_ali_size</span> <span class="o">=</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;tend&#39;</span><span class="p">]</span> <span class="o">-</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;tstart&#39;</span><span class="p">]</span>
+        <span class="n">ali_size</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">q_ali_size</span><span class="p">,</span> <span class="n">t_ali_size</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">ali_size</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="mi">0</span>
+
+        <span class="n">size_dif</span> <span class="o">=</span> <span class="n">q_ali_size</span> <span class="o">-</span> <span class="n">t_ali_size</span>
+        <span class="k">if</span> <span class="n">size_dif</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">is_mrna</span><span class="p">:</span>
+                <span class="n">size_dif</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">size_dif</span> <span class="o">=</span> <span class="nb">abs</span><span class="p">(</span><span class="n">size_dif</span><span class="p">)</span>
+
+        <span class="n">insert_factor</span> <span class="o">=</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;qgap_count&#39;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">is_mrna</span><span class="p">:</span>
+            <span class="n">insert_factor</span> <span class="o">+=</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;tgap_count&#39;</span><span class="p">]</span>
+
+        <span class="n">total</span> <span class="o">=</span> <span class="n">size_mul</span> <span class="o">*</span> <span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;match&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;repmatch&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;mismatch&#39;</span><span class="p">])</span>
+        <span class="k">if</span> <span class="n">total</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">millibad</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="n">round_away_from_zero</span> <span class="o">=</span> <span class="mi">3</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">size_dif</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">round_away_from_zero</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">round_away_from_zero</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">round_away_from_zero</span> <span class="o">-</span> <span class="mf">0.5</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">round_away_from_zero</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">round_away_from_zero</span> <span class="o">+</span> <span class="mf">0.5</span><span class="p">)</span>
+            <span class="n">millibad</span> <span class="o">=</span> <span class="p">(</span><span class="mi">1000</span> <span class="o">*</span> <span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;mismatch&#39;</span><span class="p">]</span> <span class="o">*</span> <span class="n">size_mul</span> <span class="o">+</span> <span class="n">insert_factor</span> <span class="o">+</span> <span class="n">round_away_from_zero</span><span class="p">))</span> <span class="o">/</span> <span class="n">total</span>
+            <span class="k">return</span> <span class="n">millibad</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="mi">0</span></div>
+
+<div class="viewcode-block" id="Blat.score"><a class="viewcode-back" href="../../auto/mavis.blat.html#mavis.blat.Blat.score">[docs]</a>    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">score</span><span class="p">(</span><span class="n">row</span><span class="p">,</span> <span class="n">is_protein</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        direct translation from ucsc guidelines on replicating the web blat score</span>
+<span class="sd">        https://genome.ucsc.edu/FAQ/FAQblat.html#blat4</span>
+
+<span class="sd">        below are lines from the perl code i&#39;ve re-written in python</span>
+
+<span class="sd">        ::</span>
+
+<span class="sd">            my $sizeMul = pslIsProtein($blockCount, $strand, $tStart, $tEnd, $tSize, $tStarts, $blockSizes);</span>
+<span class="sd">            sizmul = 1 for DNA</span>
+<span class="sd">            my $pslScore = $sizeMul * ($matches + ($repMatches &gt;&gt; 1) ) - $sizeMul * $misMatches - $qNumInsert - $tNumIns</span>
+<span class="sd">                ert)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">size_mul</span> <span class="o">=</span> <span class="mi">1</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">is_protein</span> <span class="k">else</span> <span class="mi">3</span>
+        <span class="n">score</span> <span class="o">=</span> <span class="n">size_mul</span> <span class="o">*</span> <span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;match&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;repmatch&#39;</span><span class="p">]</span> <span class="o">&gt;&gt;</span> <span class="mi">1</span><span class="p">))</span> \
+            <span class="o">-</span> <span class="n">size_mul</span> <span class="o">*</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;mismatch&#39;</span><span class="p">]</span> \
+            <span class="o">-</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;qgap_count&#39;</span><span class="p">]</span> \
+            <span class="o">-</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;tgap_count&#39;</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">score</span></div>
+
+<div class="viewcode-block" id="Blat.percent_identity"><a class="viewcode-back" href="../../auto/mavis.blat.html#mavis.blat.Blat.percent_identity">[docs]</a>    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">percent_identity</span><span class="p">(</span><span class="n">row</span><span class="p">,</span> <span class="n">is_protein</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">is_mrna</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="k">return</span> <span class="mi">100</span> <span class="o">-</span> <span class="nb">int</span><span class="p">(</span><span class="n">Blat</span><span class="o">.</span><span class="n">millibad</span><span class="p">(</span><span class="n">row</span><span class="p">,</span> <span class="n">is_protein</span><span class="p">,</span> <span class="n">is_mrna</span><span class="p">))</span> <span class="o">*</span> <span class="mf">0.1</span></div>
+
+<div class="viewcode-block" id="Blat.read_pslx"><a class="viewcode-back" href="../../auto/mavis.blat.html#mavis.blat.Blat.read_pslx">[docs]</a>    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">read_pslx</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">seqid_to_sequence_mapping</span><span class="p">,</span> <span class="n">is_protein</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="n">pslx_header</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="s1">&#39;match&#39;</span><span class="p">,</span> <span class="s1">&#39;mismatch&#39;</span><span class="p">,</span> <span class="s1">&#39;repmatch&#39;</span><span class="p">,</span> <span class="s1">&#39;ncount&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;qgap_count&#39;</span><span class="p">,</span> <span class="s1">&#39;qgap_bases&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;tgap_count&#39;</span><span class="p">,</span> <span class="s1">&#39;tgap_bases&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;strand&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;qname&#39;</span><span class="p">,</span> <span class="s1">&#39;qsize&#39;</span><span class="p">,</span> <span class="s1">&#39;qstart&#39;</span><span class="p">,</span> <span class="s1">&#39;qend&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;tname&#39;</span><span class="p">,</span> <span class="s1">&#39;tsize&#39;</span><span class="p">,</span> <span class="s1">&#39;tstart&#39;</span><span class="p">,</span> <span class="s1">&#39;tend&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;block_count&#39;</span><span class="p">,</span> <span class="s1">&#39;block_sizes&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;qstarts&#39;</span><span class="p">,</span> <span class="s1">&#39;tstarts&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;qseqs&#39;</span><span class="p">,</span> <span class="s1">&#39;tseqs&#39;</span>
+        <span class="p">]</span>
+
+        <span class="k">def</span> <span class="nf">split_csv_trailing_seq</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+            <span class="k">return</span> <span class="p">[</span><span class="n">s</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="s1">&#39;,$&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="p">)]</span>
+
+        <span class="k">def</span> <span class="nf">split_csv_trailing_ints</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+            <span class="k">return</span> <span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">s</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="s1">&#39;,$&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="p">)]</span>
+
+        <span class="n">header</span><span class="p">,</span> <span class="n">rows</span> <span class="o">=</span> <span class="n">tab</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span>
+            <span class="n">filename</span><span class="p">,</span>
+            <span class="n">header</span><span class="o">=</span><span class="n">pslx_header</span><span class="p">,</span>
+            <span class="n">cast</span><span class="o">=</span><span class="p">{</span>
+                <span class="s1">&#39;match&#39;</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+                <span class="s1">&#39;mismatch&#39;</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+                <span class="s1">&#39;repmatch&#39;</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+                <span class="s1">&#39;ncount&#39;</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+                <span class="s1">&#39;qgap_count&#39;</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+                <span class="s1">&#39;qgap_bases&#39;</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+                <span class="s1">&#39;tgap_count&#39;</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+                <span class="s1">&#39;tgap_bases&#39;</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+                <span class="s1">&#39;qsize&#39;</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+                <span class="s1">&#39;qstart&#39;</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+                <span class="s1">&#39;qend&#39;</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+                <span class="s1">&#39;tsize&#39;</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+                <span class="s1">&#39;tstart&#39;</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+                <span class="s1">&#39;tend&#39;</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+                <span class="s1">&#39;block_count&#39;</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+                <span class="s1">&#39;tname&#39;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="s1">&#39;^chr&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">x</span><span class="p">),</span>
+                <span class="s1">&#39;block_sizes&#39;</span><span class="p">:</span> <span class="n">split_csv_trailing_ints</span><span class="p">,</span>
+                <span class="s1">&#39;qstarts&#39;</span><span class="p">:</span> <span class="n">split_csv_trailing_ints</span><span class="p">,</span>
+                <span class="s1">&#39;tstarts&#39;</span><span class="p">:</span> <span class="n">split_csv_trailing_ints</span><span class="p">,</span>
+                <span class="s1">&#39;qseqs&#39;</span><span class="p">:</span> <span class="n">split_csv_trailing_seq</span><span class="p">,</span>
+                <span class="s1">&#39;tseqs&#39;</span><span class="p">:</span> <span class="n">split_csv_trailing_seq</span>
+            <span class="p">},</span>
+            <span class="n">validate</span><span class="o">=</span><span class="p">{</span>
+                <span class="s1">&#39;strand&#39;</span><span class="p">:</span> <span class="sa">r</span><span class="s1">&#39;^[\+-]$&#39;</span>
+            <span class="p">}</span>
+        <span class="p">)</span>
+
+        <span class="n">final_rows</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">rows</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">row</span><span class="p">[</span><span class="s1">&#39;score&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">Blat</span><span class="o">.</span><span class="n">score</span><span class="p">(</span><span class="n">row</span><span class="p">,</span> <span class="n">is_protein</span><span class="o">=</span><span class="n">is_protein</span><span class="p">)</span>
+                <span class="n">row</span><span class="p">[</span><span class="s1">&#39;percent_ident&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">Blat</span><span class="o">.</span><span class="n">percent_identity</span><span class="p">(</span><span class="n">row</span><span class="p">,</span> <span class="n">is_protein</span><span class="o">=</span><span class="n">is_protein</span><span class="p">)</span>
+                <span class="n">qseq</span> <span class="o">=</span> <span class="n">seqid_to_sequence_mapping</span><span class="p">[</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;qname&#39;</span><span class="p">]]</span>
+                <span class="n">row</span><span class="p">[</span><span class="s1">&#39;qseq_full&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">qseq</span>
+
+                <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="p">[</span>
+                    <span class="s1">&#39;qgap_count&#39;</span><span class="p">,</span> <span class="s1">&#39;qgap_bases&#39;</span><span class="p">,</span> <span class="s1">&#39;tgap_count&#39;</span><span class="p">,</span>
+                    <span class="s1">&#39;tgap_bases&#39;</span><span class="p">,</span> <span class="s1">&#39;qsize&#39;</span><span class="p">,</span> <span class="s1">&#39;tsize&#39;</span><span class="p">,</span> <span class="s1">&#39;ncount&#39;</span><span class="p">,</span>
+                    <span class="s1">&#39;match&#39;</span><span class="p">,</span> <span class="s1">&#39;mismatch&#39;</span><span class="p">,</span> <span class="s1">&#39;repmatch&#39;</span>
+                <span class="p">]:</span>
+                    <span class="k">if</span> <span class="n">row</span><span class="p">[</span><span class="n">x</span><span class="p">]</span> <span class="o">&lt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">verbose</span><span class="p">:</span>
+                        <span class="k">raise</span> <span class="ne">AssertionError</span><span class="p">(</span>
+                            <span class="s1">&#39;Blat error: blat returned a negative number, which are not allowed: </span><span class="si">{}</span><span class="s1">=</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                                <span class="n">x</span><span class="p">,</span> <span class="n">row</span><span class="p">[</span><span class="n">x</span><span class="p">]))</span>
+                <span class="n">final_rows</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">row</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">AssertionError</span> <span class="k">as</span> <span class="n">err</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span>
+                    <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="nb">repr</span><span class="p">(</span><span class="n">err</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">header</span><span class="p">,</span> <span class="n">final_rows</span></div>
+
+<div class="viewcode-block" id="Blat.pslx_row_to_pysam"><a class="viewcode-back" href="../../auto/mavis.blat.html#mavis.blat.Blat.pslx_row_to_pysam">[docs]</a>    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">pslx_row_to_pysam</span><span class="p">(</span><span class="n">row</span><span class="p">,</span> <span class="n">bam_cache</span><span class="p">,</span> <span class="n">reference_genome</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        given a &#39;row&#39; from reading a pslx file. converts the row to a BlatAlignedSegment object</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            row (dict of str): a row object from the &#39;read_pslx&#39; method</span>
+<span class="sd">            bam_cache (BamCache): the bam file/cache to use as a template for creating reference_id from chr name</span>
+<span class="sd">            reference_genome (:class:`dict` of :class:`Bio.SeqRecord` by :class:`str`):</span>
+<span class="sd">              dict of reference sequence by template/chr name</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">chrom</span> <span class="o">=</span> <span class="n">bam_cache</span><span class="o">.</span><span class="n">reference_id</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;tname&#39;</span><span class="p">])</span>
+        <span class="n">query_sequence</span> <span class="o">=</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;qseq_full&#39;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;strand&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">NEG</span><span class="p">:</span>
+            <span class="n">query_sequence</span> <span class="o">=</span> <span class="n">reverse_complement</span><span class="p">(</span><span class="n">query_sequence</span><span class="p">)</span>
+            <span class="n">temp</span> <span class="o">=</span> <span class="p">[</span><span class="n">q</span> <span class="o">+</span> <span class="n">b</span> <span class="k">for</span> <span class="n">q</span><span class="p">,</span> <span class="n">b</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;qstarts&#39;</span><span class="p">],</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;block_sizes&#39;</span><span class="p">])]</span>
+            <span class="n">temp</span> <span class="o">=</span> <span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="n">query_sequence</span><span class="p">)</span> <span class="o">-</span> <span class="n">q</span> <span class="k">for</span> <span class="n">q</span> <span class="ow">in</span> <span class="n">temp</span><span class="p">][::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+        <span class="c1"># note: converting to inclusive range [] vs end-exclusive [)</span>
+        <span class="n">reference_sequence</span> <span class="o">=</span> <span class="n">reference_genome</span><span class="p">[</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;tname&#39;</span><span class="p">]]</span><span class="o">.</span><span class="n">seq</span> <span class="k">if</span> <span class="n">reference_genome</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="n">query_ranges</span> <span class="o">=</span> <span class="p">[</span><span class="n">Interval</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">x</span> <span class="o">+</span> <span class="n">y</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;qstarts&#39;</span><span class="p">],</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;block_sizes&#39;</span><span class="p">])]</span>
+        <span class="n">ref_ranges</span> <span class="o">=</span> <span class="p">[</span><span class="n">Interval</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">x</span> <span class="o">+</span> <span class="n">y</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;tstarts&#39;</span><span class="p">],</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;block_sizes&#39;</span><span class="p">])]</span>
+
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">query_ranges</span><span class="p">)):</span>
+            <span class="c1"># first check for blat errors</span>
+            <span class="k">if</span> <span class="n">query_ranges</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">start</span> <span class="o">&lt;=</span> <span class="n">query_ranges</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">end</span> <span class="ow">or</span> <span class="n">ref_ranges</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">start</span> <span class="o">&lt;=</span> <span class="n">ref_ranges</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">end</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">AssertionError</span><span class="p">(</span><span class="s1">&#39;block ranges overlap in row&#39;</span><span class="p">,</span> <span class="n">row</span><span class="p">)</span>
+
+        <span class="c1"># try extending by consuming from the next aligned portion</span>
+        <span class="k">if</span> <span class="n">reference_sequence</span><span class="p">:</span>
+            <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="n">new_query_ranges</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="n">new_ref_ranges</span> <span class="o">=</span> <span class="p">[]</span>
+
+            <span class="k">while</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">query_ranges</span><span class="p">):</span>
+                <span class="n">qpos</span> <span class="o">=</span> <span class="n">query_ranges</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span>
+                <span class="n">rpos</span> <span class="o">=</span> <span class="n">ref_ranges</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span>
+                <span class="n">shift</span> <span class="o">=</span> <span class="mi">0</span>
+                <span class="k">while</span> <span class="n">qpos</span> <span class="o">+</span> <span class="n">shift</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">query_sequence</span><span class="p">)</span> <span class="ow">and</span> <span class="n">rpos</span> <span class="o">+</span> <span class="n">shift</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">reference_sequence</span><span class="p">):</span>
+                    <span class="k">if</span> <span class="n">DNA_ALPHABET</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">query_sequence</span><span class="p">[</span><span class="n">qpos</span> <span class="o">+</span> <span class="n">shift</span><span class="p">],</span> <span class="n">reference_sequence</span><span class="p">[</span><span class="n">rpos</span> <span class="o">+</span> <span class="n">shift</span><span class="p">]):</span>
+                        <span class="n">shift</span> <span class="o">+=</span> <span class="mi">1</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="k">break</span>
+
+                <span class="k">if</span> <span class="n">shift</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">new_query_ranges</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">query_ranges</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+                    <span class="n">new_ref_ranges</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ref_ranges</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+                    <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span>
+                    <span class="k">continue</span>
+
+                <span class="n">new_query_ranges</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">query_ranges</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="n">query_ranges</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">shift</span><span class="p">))</span>
+                <span class="n">new_ref_ranges</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">ref_ranges</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="n">ref_ranges</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">shift</span><span class="p">))</span>
+
+                <span class="n">next_index</span> <span class="o">=</span> <span class="n">i</span> <span class="o">+</span> <span class="mi">1</span>
+                <span class="k">while</span> <span class="n">shift</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">next_index</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">query_ranges</span><span class="p">):</span>
+                    <span class="n">size</span> <span class="o">=</span> <span class="n">query_ranges</span><span class="p">[</span><span class="n">next_index</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">query_ranges</span><span class="p">[</span><span class="n">next_index</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span>
+                    <span class="k">if</span> <span class="n">size</span> <span class="o">&gt;</span> <span class="n">shift</span><span class="p">:</span>
+                        <span class="n">new_query_ranges</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">query_ranges</span><span class="p">[</span><span class="n">next_index</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">shift</span><span class="p">,</span> <span class="n">query_ranges</span><span class="p">[</span><span class="n">next_index</span><span class="p">][</span><span class="mi">1</span><span class="p">]))</span>
+                        <span class="n">new_ref_ranges</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">ref_ranges</span><span class="p">[</span><span class="n">next_index</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">shift</span><span class="p">,</span> <span class="n">ref_ranges</span><span class="p">[</span><span class="n">next_index</span><span class="p">][</span><span class="mi">1</span><span class="p">]))</span>
+                        <span class="n">shift</span> <span class="o">=</span> <span class="mi">0</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">shift</span> <span class="o">-=</span> <span class="n">size</span>
+                    <span class="n">next_index</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="n">i</span> <span class="o">=</span> <span class="n">next_index</span>
+            <span class="n">query_ranges</span> <span class="o">=</span> <span class="n">new_query_ranges</span>
+            <span class="n">ref_ranges</span> <span class="o">=</span> <span class="n">new_ref_ranges</span>
+        <span class="n">seq</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+        <span class="n">cigar</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">query_ranges</span><span class="p">)):</span>
+            <span class="n">rcurr</span> <span class="o">=</span> <span class="n">ref_ranges</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="n">qcurr</span> <span class="o">=</span> <span class="n">query_ranges</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="n">size</span> <span class="o">=</span> <span class="n">qcurr</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">qcurr</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span>
+            <span class="k">if</span> <span class="n">i</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>  <span class="c1"># will be an ins/del depending on the distance from the last block</span>
+                <span class="c1"># append based on the prev range</span>
+                <span class="n">rprev</span> <span class="o">=</span> <span class="n">ref_ranges</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span>
+                <span class="n">qprev</span> <span class="o">=</span> <span class="n">query_ranges</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span>
+                <span class="n">qjump</span> <span class="o">=</span> <span class="n">qcurr</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="n">qprev</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+                <span class="n">rjump</span> <span class="o">=</span> <span class="n">rcurr</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="n">rprev</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">rjump</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>  <span class="c1"># reference is consecutive</span>
+                    <span class="k">if</span> <span class="n">qjump</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>  <span class="c1"># query range skipped. insertion to the reference sequence</span>
+                        <span class="n">cigar</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">CIGAR</span><span class="o">.</span><span class="n">I</span><span class="p">,</span> <span class="n">qjump</span> <span class="o">-</span> <span class="mi">1</span><span class="p">))</span>
+                        <span class="c1"># adds the inserted seq for the pysam read</span>
+                        <span class="n">seq</span> <span class="o">+=</span> <span class="n">query_sequence</span><span class="p">[</span><span class="n">qprev</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:</span><span class="n">qcurr</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span>
+                <span class="k">elif</span> <span class="n">qjump</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>  <span class="c1"># query is consecutive</span>
+                    <span class="k">if</span> <span class="n">rjump</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>  <span class="c1"># reference range skipped. deletion of the reference sequence</span>
+                        <span class="n">cigar</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">CIGAR</span><span class="o">.</span><span class="n">D</span><span class="p">,</span> <span class="n">rjump</span> <span class="o">-</span> <span class="mi">1</span><span class="p">))</span>
+                <span class="k">else</span><span class="p">:</span>  <span class="c1"># indel</span>
+                    <span class="n">seq</span> <span class="o">+=</span> <span class="n">query_sequence</span><span class="p">[</span><span class="n">qprev</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:</span><span class="n">qcurr</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span>
+                    <span class="n">cigar</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">CIGAR</span><span class="o">.</span><span class="n">I</span><span class="p">,</span> <span class="n">qjump</span> <span class="o">-</span> <span class="mi">1</span><span class="p">))</span>
+                    <span class="n">cigar</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">CIGAR</span><span class="o">.</span><span class="n">D</span><span class="p">,</span> <span class="n">rjump</span> <span class="o">-</span> <span class="mi">1</span><span class="p">))</span>
+            <span class="c1"># compute the match/mismatch for the current block</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">reference_sequence</span><span class="p">:</span>
+                <span class="n">cigar</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">CIGAR</span><span class="o">.</span><span class="n">M</span><span class="p">,</span> <span class="n">size</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">ref_seq</span><span class="p">,</span> <span class="n">query_seq</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">reference_sequence</span><span class="p">[</span><span class="n">rcurr</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span><span class="n">rcurr</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">],</span> <span class="n">query_sequence</span><span class="p">[</span><span class="n">qcurr</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span><span class="n">qcurr</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]):</span>
+                    <span class="k">if</span> <span class="n">DNA_ALPHABET</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">ref_seq</span><span class="p">,</span> <span class="n">query_seq</span><span class="p">):</span>
+                        <span class="n">cigar</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">CIGAR</span><span class="o">.</span><span class="n">EQ</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">cigar</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">CIGAR</span><span class="o">.</span><span class="n">X</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+            <span class="n">seq</span> <span class="o">+=</span> <span class="n">query_sequence</span><span class="p">[</span><span class="n">qcurr</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span><span class="n">qcurr</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span>
+        <span class="c1"># add initial soft-clipping</span>
+        <span class="k">if</span> <span class="n">query_ranges</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>  <span class="c1"># first block starts after the query start</span>
+            <span class="n">temp</span> <span class="o">=</span> <span class="n">query_sequence</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="n">query_ranges</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]]</span>
+            <span class="n">seq</span> <span class="o">=</span> <span class="n">temp</span> <span class="o">+</span> <span class="n">seq</span>
+            <span class="n">cigar</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="p">(</span><span class="n">CIGAR</span><span class="o">.</span><span class="n">S</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">temp</span><span class="p">)))</span>
+        <span class="k">if</span> <span class="n">query_ranges</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">query_sequence</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">temp</span> <span class="o">=</span> <span class="n">query_sequence</span><span class="p">[</span><span class="n">query_ranges</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:]</span>
+            <span class="n">seq</span> <span class="o">+=</span> <span class="n">temp</span>
+            <span class="n">cigar</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">CIGAR</span><span class="o">.</span><span class="n">S</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">temp</span><span class="p">)))</span>
+        <span class="n">read</span> <span class="o">=</span> <span class="n">SamRead</span><span class="p">(</span><span class="n">reference_name</span><span class="o">=</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;tname&#39;</span><span class="p">],</span> <span class="n">alignment_score</span><span class="o">=</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;score&#39;</span><span class="p">])</span>
+        <span class="n">read</span><span class="o">.</span><span class="n">query_sequence</span> <span class="o">=</span> <span class="n">seq</span>
+        <span class="n">read</span><span class="o">.</span><span class="n">reference_start</span> <span class="o">=</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;tstarts&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">read</span><span class="o">.</span><span class="n">reference_id</span> <span class="o">=</span> <span class="n">chrom</span>
+        <span class="n">read</span><span class="o">.</span><span class="n">cigar</span> <span class="o">=</span> <span class="n">_cigar</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">cigar</span><span class="p">)</span>
+        <span class="n">read</span><span class="o">.</span><span class="n">query_name</span> <span class="o">=</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;qname&#39;</span><span class="p">]</span>
+        <span class="n">read</span><span class="o">.</span><span class="n">mapping_quality</span> <span class="o">=</span> <span class="n">NA_MAPPING_QUALITY</span>
+        <span class="k">if</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;strand&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">NEG</span><span class="p">:</span>
+            <span class="n">read</span><span class="o">.</span><span class="n">flag</span> <span class="o">=</span> <span class="n">read</span><span class="o">.</span><span class="n">flag</span> <span class="o">|</span> <span class="n">PYSAM_READ_FLAGS</span><span class="o">.</span><span class="n">REVERSE</span>
+            <span class="c1"># read.cigar = read.cigar[::-1] # DON&#39;t REVERSE b/c blat reports on the positive strand already</span>
+        <span class="k">if</span> <span class="n">read</span><span class="o">.</span><span class="n">query_sequence</span> <span class="o">!=</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;qseq_full&#39;</span><span class="p">]</span> <span class="ow">and</span> <span class="n">read</span><span class="o">.</span><span class="n">query_sequence</span> <span class="o">!=</span> <span class="n">reverse_complement</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;qseq_full&#39;</span><span class="p">]):</span>
+            <span class="k">raise</span> <span class="ne">AssertionError</span><span class="p">(</span>
+                <span class="s1">&#39;read sequence should reproduce input sequence&#39;</span><span class="p">,</span>
+                <span class="n">read</span><span class="o">.</span><span class="n">cigar</span><span class="p">,</span>
+                <span class="n">read</span><span class="o">.</span><span class="n">query_sequence</span><span class="p">,</span>
+                <span class="n">row</span><span class="p">[</span><span class="s1">&#39;qseq_full&#39;</span><span class="p">],</span>
+                <span class="n">reverse_complement</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;qseq_full&#39;</span><span class="p">])</span>
+            <span class="p">)</span>
+        <span class="n">qcons</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">([</span><span class="n">v</span> <span class="k">for</span> <span class="n">c</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">read</span><span class="o">.</span><span class="n">cigar</span> <span class="k">if</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">QUERY_ALIGNED_STATES</span><span class="p">])</span>
+        <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">read</span><span class="o">.</span><span class="n">query_sequence</span><span class="p">)</span> <span class="o">==</span> <span class="n">qcons</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">query_coverage_interval</span><span class="p">(</span><span class="n">read</span><span class="p">)</span>
+        <span class="k">except</span> <span class="p">(</span><span class="ne">AttributeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">)</span> <span class="k">as</span> <span class="n">err</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">err</span>
+        <span class="k">return</span> <span class="n">read</span></div></div>
+
+
+<div class="viewcode-block" id="get_blat_version"><a class="viewcode-back" href="../../auto/mavis.blat.html#mavis.blat.get_blat_version">[docs]</a><span class="k">def</span> <span class="nf">get_blat_version</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    executes a subprocess to try and run blat and parse the version number from the output</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        &gt;&gt;&gt; get_blat_version()</span>
+<span class="sd">        &#39;36x2&#39;</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">proc</span> <span class="o">=</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">getoutput</span><span class="p">([</span><span class="n">SUPPORTED_ALIGNER</span><span class="o">.</span><span class="n">BLAT</span><span class="p">])</span>
+    <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">proc</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">):</span>
+        <span class="n">match</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;blat - Standalone BLAT v. (\d+(x\d+)?)&#39;</span><span class="p">,</span> <span class="n">line</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">match</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;unable to parse blat version number from:&#39;</span><span class="si">{}</span><span class="s2">&#39;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">proc</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="process_blat_output"><a class="viewcode-back" href="../../auto/mavis.blat.html#mavis.blat.process_blat_output">[docs]</a><span class="k">def</span> <span class="nf">process_blat_output</span><span class="p">(</span>
+        <span class="n">input_bam_cache</span><span class="p">,</span>
+        <span class="n">query_id_mapping</span><span class="p">,</span>
+        <span class="n">reference_genome</span><span class="p">,</span>
+        <span class="n">aligner_output_file</span><span class="o">=</span><span class="s1">&#39;aligner_out.temp&#39;</span><span class="p">,</span>
+        <span class="n">blat_min_percent_of_max_score</span><span class="o">=</span><span class="mf">0.8</span><span class="p">,</span>
+        <span class="n">blat_min_identity</span><span class="o">=</span><span class="mf">0.7</span><span class="p">,</span>
+        <span class="n">blat_limit_top_aln</span><span class="o">=</span><span class="mi">25</span><span class="p">,</span>
+        <span class="n">is_protein</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    converts the blat output pslx (unheadered file) to bam reads</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">is_protein</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s1">&#39;currently does not support aligning protein sequences&#39;</span><span class="p">)</span>
+
+    <span class="n">_</span><span class="p">,</span> <span class="n">rows</span> <span class="o">=</span> <span class="n">Blat</span><span class="o">.</span><span class="n">read_pslx</span><span class="p">(</span><span class="n">aligner_output_file</span><span class="p">,</span> <span class="n">query_id_mapping</span><span class="p">,</span> <span class="n">is_protein</span><span class="o">=</span><span class="n">is_protein</span><span class="p">)</span>
+
+    <span class="c1"># split the rows by query id</span>
+    <span class="n">rows_by_query</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">rows</span><span class="p">:</span>
+        <span class="n">rows_by_query</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;qname&#39;</span><span class="p">],</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">row</span><span class="p">)</span>
+
+    <span class="n">reads_by_query</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">sequences</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">query_id_mapping</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
+    <span class="k">for</span> <span class="n">seq</span> <span class="ow">in</span> <span class="n">sequences</span><span class="p">:</span>
+        <span class="n">reads_by_query</span><span class="p">[</span><span class="n">seq</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">query_id</span><span class="p">,</span> <span class="n">rows</span> <span class="ow">in</span> <span class="n">rows_by_query</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">query_seq</span> <span class="o">=</span> <span class="n">query_id_mapping</span><span class="p">[</span><span class="n">query_id</span><span class="p">]</span>
+        <span class="c1"># filter on percent id</span>
+        <span class="n">score_ranks</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">count</span><span class="p">,</span> <span class="n">score</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="nb">sorted</span><span class="p">([</span><span class="n">r</span><span class="p">[</span><span class="s1">&#39;score&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">rows</span><span class="p">],</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">)):</span>
+            <span class="n">score_ranks</span><span class="p">[</span><span class="n">score</span><span class="p">]</span> <span class="o">=</span> <span class="n">count</span>
+
+        <span class="n">filtered_rows</span> <span class="o">=</span> <span class="p">[</span><span class="n">row</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">rows</span> <span class="k">if</span> <span class="nb">round</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;percent_ident&#39;</span><span class="p">],</span> <span class="mi">0</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="n">blat_min_identity</span><span class="p">]</span>
+
+        <span class="c1"># filter on score</span>
+        <span class="n">filtered_rows</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="p">[</span><span class="s1">&#39;score&#39;</span><span class="p">],</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">reads</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="c1"># compute ranks first</span>
+
+        <span class="k">for</span> <span class="n">count</span><span class="p">,</span> <span class="n">row</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">filtered_rows</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">count</span> <span class="o">&gt;=</span> <span class="n">blat_limit_top_aln</span><span class="p">:</span>
+                <span class="k">break</span>
+            <span class="n">row</span><span class="p">[</span><span class="s1">&#39;rank&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">score_ranks</span><span class="p">[</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;score&#39;</span><span class="p">]]</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">read</span> <span class="o">=</span> <span class="n">Blat</span><span class="o">.</span><span class="n">pslx_row_to_pysam</span><span class="p">(</span><span class="n">row</span><span class="p">,</span> <span class="n">input_bam_cache</span><span class="p">,</span> <span class="n">reference_genome</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">KeyError</span> <span class="k">as</span> <span class="n">err</span><span class="p">:</span>
+                <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+                    <span class="s1">&#39;warning: reference template name not recognized </span><span class="si">{0}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">err</span><span class="p">))</span>
+            <span class="k">except</span> <span class="ne">AssertionError</span> <span class="k">as</span> <span class="n">err</span><span class="p">:</span>
+                <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s1">&#39;warning: invalid blat alignment: </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">repr</span><span class="p">(</span><span class="n">err</span><span class="p">)))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;rank&#39;</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">read</span><span class="o">.</span><span class="n">mapping_quality</span> <span class="o">=</span> <span class="mi">0</span>
+                <span class="n">read</span><span class="o">.</span><span class="n">set_tag</span><span class="p">(</span><span class="n">PYSAM_READ_FLAGS</span><span class="o">.</span><span class="n">BLAT_SCORE</span><span class="p">,</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;score&#39;</span><span class="p">],</span> <span class="n">value_type</span><span class="o">=</span><span class="s1">&#39;i&#39;</span><span class="p">)</span>
+                <span class="n">read</span><span class="o">.</span><span class="n">set_tag</span><span class="p">(</span><span class="n">PYSAM_READ_FLAGS</span><span class="o">.</span><span class="n">BLAT_ALIGNMENTS</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">filtered_rows</span><span class="p">),</span> <span class="n">value_type</span><span class="o">=</span><span class="s1">&#39;i&#39;</span><span class="p">)</span>
+                <span class="n">read</span><span class="o">.</span><span class="n">set_tag</span><span class="p">(</span><span class="n">PYSAM_READ_FLAGS</span><span class="o">.</span><span class="n">BLAT_PMS</span><span class="p">,</span> <span class="n">blat_min_percent_of_max_score</span><span class="p">,</span> <span class="n">value_type</span><span class="o">=</span><span class="s1">&#39;f&#39;</span><span class="p">)</span>
+                <span class="n">read</span><span class="o">.</span><span class="n">set_tag</span><span class="p">(</span><span class="n">PYSAM_READ_FLAGS</span><span class="o">.</span><span class="n">BLAT_RANK</span><span class="p">,</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;rank&#39;</span><span class="p">],</span> <span class="n">value_type</span><span class="o">=</span><span class="s1">&#39;i&#39;</span><span class="p">)</span>
+                <span class="n">read</span><span class="o">.</span><span class="n">set_tag</span><span class="p">(</span><span class="n">PYSAM_READ_FLAGS</span><span class="o">.</span><span class="n">BLAT_PERCENT_IDENTITY</span><span class="p">,</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;percent_ident&#39;</span><span class="p">],</span> <span class="n">value_type</span><span class="o">=</span><span class="s1">&#39;f&#39;</span><span class="p">)</span>
+                <span class="n">reads</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">read</span><span class="p">)</span>
+        <span class="n">reads_by_query</span><span class="p">[</span><span class="n">query_seq</span><span class="p">]</span> <span class="o">=</span> <span class="n">reads</span>
+    <span class="k">return</span> <span class="n">reads_by_query</span></div>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2017, creisle.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../',
+            VERSION:'',
+            LANGUAGE:'None',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

@@ -1,0 +1,1172 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>mavis.validate.call &mdash; MAVIS  documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+    <link rel="stylesheet" href="../../../_static/custom.css" type="text/css" />
+  
+
+  
+        <link rel="author" title="About these documents"
+              href="../../../about.html"/>
+        <link rel="index" title="Index"
+              href="../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../search.html"/>
+    <link rel="top" title="MAVIS  documentation" href="../../../index.html"/>
+        <link rel="up" title="Module code" href="../../index.html"/> 
+
+  
+  <script src="../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home"> MAVIS
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                1.6.4
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../about.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../pipeline.html">Running the Pipeline</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../mavis_input.html">MAVIS standard input file format</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../reference.html">Reference Input Files</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../configuration.html">Configuration and Settings</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../tools_supported.html">Supported SV Callers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../illustrations.html">Illustrations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../faqs.html">Frequently Asked Questions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../theory.html">Theory and Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../development.html">Guidelines for Contributors</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../package.html">Package Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../citations.html">Literature</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">MAVIS</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+      <li>mavis.validate.call</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for mavis.validate.call</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">functools</span> <span class="k">import</span> <span class="n">partial</span>
+<span class="kn">import</span> <span class="nn">itertools</span>
+<span class="kn">import</span> <span class="nn">math</span>
+<span class="kn">import</span> <span class="nn">statistics</span>
+<span class="kn">import</span> <span class="nn">warnings</span>
+
+<span class="kn">from</span> <span class="nn">.evidence</span> <span class="k">import</span> <span class="n">TranscriptomeEvidence</span>
+<span class="kn">from</span> <span class="nn">..align</span> <span class="k">import</span> <span class="n">SplitAlignment</span><span class="p">,</span> <span class="n">query_coverage_interval</span><span class="p">,</span> <span class="n">call_read_events</span><span class="p">,</span> <span class="n">call_paired_read_event</span>
+<span class="kn">from</span> <span class="nn">..bam</span> <span class="k">import</span> <span class="n">read</span> <span class="k">as</span> <span class="n">_read</span>
+<span class="kn">from</span> <span class="nn">..util</span> <span class="k">import</span> <span class="n">log</span>
+
+<span class="kn">from</span> <span class="nn">..breakpoint</span> <span class="k">import</span> <span class="n">Breakpoint</span><span class="p">,</span> <span class="n">BreakpointPair</span>
+<span class="kn">from</span> <span class="nn">..constants</span> <span class="k">import</span> <span class="n">CALL_METHOD</span><span class="p">,</span> <span class="n">CIGAR</span><span class="p">,</span> <span class="n">COLUMNS</span><span class="p">,</span> <span class="n">ORIENT</span><span class="p">,</span> <span class="n">PROTOCOL</span><span class="p">,</span> <span class="n">PYSAM_READ_FLAGS</span><span class="p">,</span> <span class="n">STRAND</span><span class="p">,</span> <span class="n">SVTYPE</span><span class="p">,</span> <span class="n">reverse_complement</span>
+<span class="kn">from</span> <span class="nn">..interval</span> <span class="k">import</span> <span class="n">Interval</span>
+
+
+<div class="viewcode-block" id="EventCall"><a class="viewcode-back" href="../../../auto/mavis.validate.call.html#mavis.validate.call.EventCall">[docs]</a><span class="k">class</span> <span class="nc">EventCall</span><span class="p">(</span><span class="n">BreakpointPair</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    class for holding evidence and the related calls since we can&#39;t freeze the evidence object</span>
+<span class="sd">    directly without a lot of copying. Instead we use call objects which are basically</span>
+<span class="sd">    just a reference to the evidence object and decisions on class, exact breakpoints, etc</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">has_compatible</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">False</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">compatible_type</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">True</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">b1</span><span class="p">,</span> <span class="n">b2</span><span class="p">,</span>
+        <span class="n">source_evidence</span><span class="p">,</span>
+        <span class="n">event_type</span><span class="p">,</span>
+        <span class="n">call_method</span><span class="p">,</span>
+        <span class="n">contig</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">contig_alignment</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">untemplated_seq</span><span class="o">=</span><span class="kc">None</span>
+    <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Args:</span>
+<span class="sd">            evidence (Evidence): the evidence object we are calling based on</span>
+<span class="sd">            event_type (SVTYPE): the type of structural variant</span>
+<span class="sd">            breakpoint_pair (BreakpointPair): the breakpoint pair representing the exact breakpoints</span>
+<span class="sd">            call_method (CALL_METHOD): the way the breakpoints were called</span>
+<span class="sd">            contig (Contig): the contig used to call the breakpoints (if applicable)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">BreakpointPair</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span> <span class="n">b1</span><span class="p">,</span> <span class="n">b2</span><span class="p">,</span>
+            <span class="n">stranded</span><span class="o">=</span><span class="n">source_evidence</span><span class="o">.</span><span class="n">stranded</span> <span class="ow">and</span> <span class="n">source_evidence</span><span class="o">.</span><span class="n">bam_cache</span><span class="o">.</span><span class="n">stranded</span><span class="p">,</span>
+            <span class="n">untemplated_seq</span><span class="o">=</span><span class="n">untemplated_seq</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">source_evidence</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">source_evidence</span><span class="o">.</span><span class="n">bam_cache</span><span class="o">.</span><span class="n">stranded</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">strand</span> <span class="o">=</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">NS</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">break2</span><span class="o">.</span><span class="n">strand</span> <span class="o">=</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">NS</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">source_evidence</span> <span class="o">=</span> <span class="n">source_evidence</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">spanning_reads</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">flanking_pairs</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">break1_split_reads</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">break2_split_reads</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">compatible_flanking_pairs</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="c1"># check that the event type is compatible</span>
+        <span class="k">if</span> <span class="n">event_type</span> <span class="o">==</span> <span class="n">SVTYPE</span><span class="o">.</span><span class="n">DUP</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">compatible_type</span> <span class="o">=</span> <span class="n">SVTYPE</span><span class="o">.</span><span class="n">INS</span>
+        <span class="k">elif</span> <span class="n">event_type</span> <span class="o">==</span> <span class="n">SVTYPE</span><span class="o">.</span><span class="n">INS</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">compatible_type</span> <span class="o">=</span> <span class="n">SVTYPE</span><span class="o">.</span><span class="n">DUP</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">compatible_type</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">event_type</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">BreakpointPair</span><span class="o">.</span><span class="n">classify</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">compatible_type</span> <span class="ow">in</span> <span class="n">BreakpointPair</span><span class="o">.</span><span class="n">classify</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+            <span class="n">event_type</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">compatible_type</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">compatible_type</span><span class="p">,</span> <span class="n">event_type</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">event_type</span> <span class="o">=</span> <span class="n">SVTYPE</span><span class="o">.</span><span class="n">enforce</span><span class="p">(</span><span class="n">event_type</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">event_type</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">BreakpointPair</span><span class="o">.</span><span class="n">classify</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">|</span> <span class="p">{</span><span class="bp">self</span><span class="o">.</span><span class="n">compatible_type</span><span class="p">}:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s1">&#39;event_type is not compatible with the breakpoint call&#39;</span><span class="p">,</span>
+                <span class="s1">&#39;expected event type=&#39;</span><span class="p">,</span> <span class="n">event_type</span><span class="p">,</span> <span class="s1">&#39;event classified types=&#39;</span><span class="p">,</span> <span class="n">BreakpointPair</span><span class="o">.</span><span class="n">classify</span><span class="p">(</span><span class="bp">self</span><span class="p">),</span>
+                <span class="s1">&#39;compatible type=&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">compatible_type</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">contig</span> <span class="o">=</span> <span class="n">contig</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">call_method</span> <span class="o">=</span> <span class="n">CALL_METHOD</span><span class="o">.</span><span class="n">enforce</span><span class="p">(</span><span class="n">call_method</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">contig</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">call_method</span> <span class="o">!=</span> <span class="n">CALL_METHOD</span><span class="o">.</span><span class="n">CONTIG</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;if a contig is given the call method must be by contig&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">contig_alignment</span> <span class="o">=</span> <span class="n">contig_alignment</span>
+
+<div class="viewcode-block" id="EventCall.get_bed_repesentation"><a class="viewcode-back" href="../../../auto/mavis.validate.call.html#mavis.validate.call.EventCall.get_bed_repesentation">[docs]</a>    <span class="k">def</span> <span class="nf">get_bed_repesentation</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">bed</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">validation_id</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;-&#39;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">event_type</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">interchromosomal</span><span class="p">:</span>
+            <span class="n">bed</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">chr</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">start</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">end</span><span class="p">,</span> <span class="n">name</span><span class="p">))</span>
+            <span class="n">bed</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">break2</span><span class="o">.</span><span class="n">chr</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">break2</span><span class="o">.</span><span class="n">start</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">break2</span><span class="o">.</span><span class="n">end</span><span class="p">,</span> <span class="n">name</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">bed</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">chr</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">start</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">break2</span><span class="o">.</span><span class="n">end</span><span class="p">,</span> <span class="n">name</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">bed</span></div>
+
+<div class="viewcode-block" id="EventCall.support"><a class="viewcode-back" href="../../../auto/mavis.validate.call.html#mavis.validate.call.EventCall.support">[docs]</a>    <span class="k">def</span> <span class="nf">support</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;return a set of all reads which support the call&quot;&quot;&quot;</span>
+        <span class="n">support</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="n">support</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">spanning_reads</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">read</span><span class="p">,</span> <span class="n">mate</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">flanking_pairs</span> <span class="o">|</span> <span class="bp">self</span><span class="o">.</span><span class="n">compatible_flanking_pairs</span><span class="p">:</span>
+            <span class="n">support</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">read</span><span class="p">)</span>
+            <span class="n">support</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">mate</span><span class="p">)</span>
+        <span class="n">support</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">break1_split_reads</span><span class="p">)</span>
+        <span class="n">support</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">break2_split_reads</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">contig</span><span class="p">:</span>
+            <span class="n">support</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">contig</span><span class="o">.</span><span class="n">input_reads</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">support</span></div>
+
+<div class="viewcode-block" id="EventCall.is_supplementary"><a class="viewcode-back" href="../../../auto/mavis.validate.call.html#mavis.validate.call.EventCall.is_supplementary">[docs]</a>    <span class="k">def</span> <span class="nf">is_supplementary</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        check if the current event call was the target event given the source evidence object or an off-target call, i.e.</span>
+<span class="sd">        something that was called as part of the original target.</span>
+<span class="sd">        This is important b/c if the current event was not one of the original target it may not be fully investigated in</span>
+<span class="sd">        other libraries</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="ow">not</span> <span class="nb">all</span><span class="p">([</span>
+            <span class="p">{</span><span class="bp">self</span><span class="o">.</span><span class="n">event_type</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">compatible_type</span><span class="p">}</span> <span class="o">&amp;</span> <span class="n">BreakpointPair</span><span class="o">.</span><span class="n">classify</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">source_evidence</span><span class="p">),</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">break1</span> <span class="o">&amp;</span> <span class="bp">self</span><span class="o">.</span><span class="n">source_evidence</span><span class="o">.</span><span class="n">outer_window1</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">break2</span> <span class="o">&amp;</span> <span class="bp">self</span><span class="o">.</span><span class="n">source_evidence</span><span class="o">.</span><span class="n">outer_window2</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">chr</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">source_evidence</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">chr</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">break2</span><span class="o">.</span><span class="n">chr</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">source_evidence</span><span class="o">.</span><span class="n">break2</span><span class="o">.</span><span class="n">chr</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">opposing_strands</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">source_evidence</span><span class="o">.</span><span class="n">opposing_strands</span>
+        <span class="p">])</span></div>
+
+<div class="viewcode-block" id="EventCall.add_flanking_support"><a class="viewcode-back" href="../../../auto/mavis.validate.call.html#mavis.validate.call.EventCall.add_flanking_support">[docs]</a>    <span class="k">def</span> <span class="nf">add_flanking_support</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">flanking_pairs</span><span class="p">,</span> <span class="n">is_compatible</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        counts the flanking read-pair support for the event called. The original source evidence may</span>
+<span class="sd">        have contained evidence for multiple events and uses a larger range so flanking pairs here</span>
+<span class="sd">        are checked specifically against the current breakpoint call</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            tuple:</span>
+<span class="sd">            * :class:`set` of :class:`str` - set of the read query_names</span>
+<span class="sd">            * :class:`int` - the median insert size</span>
+<span class="sd">            * :class:`int` - the standard deviation (from the median) of the insert size</span>
+
+<span class="sd">        see :ref:`theory - determining flanking support &lt;theory-determining-flanking-support&gt;`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">min_frag</span> <span class="o">=</span> <span class="nb">max</span><span class="p">([</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">source_evidence</span><span class="o">.</span><span class="n">min_expected_fragment_size</span> <span class="o">+</span> <span class="n">Interval</span><span class="o">.</span><span class="n">dist</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">break1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">break2</span><span class="p">),</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">source_evidence</span><span class="o">.</span><span class="n">max_expected_fragment_size</span><span class="p">])</span>
+        <span class="n">max_frag</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">break1</span> <span class="o">|</span> <span class="bp">self</span><span class="o">.</span><span class="n">break2</span><span class="p">)</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">source_evidence</span><span class="o">.</span><span class="n">max_expected_fragment_size</span>
+        <span class="k">for</span> <span class="n">read</span><span class="p">,</span> <span class="n">mate</span> <span class="ow">in</span> <span class="n">flanking_pairs</span><span class="p">:</span>
+            <span class="c1"># check that the fragment size is reasonable</span>
+            <span class="n">fragment_size</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">source_evidence</span><span class="o">.</span><span class="n">compute_fragment_size</span><span class="p">(</span><span class="n">read</span><span class="p">,</span> <span class="n">mate</span><span class="p">)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">event_type</span> <span class="o">==</span> <span class="n">SVTYPE</span><span class="o">.</span><span class="n">DEL</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">fragment_size</span><span class="o">.</span><span class="n">end</span> <span class="o">&lt;</span> <span class="n">min_frag</span> <span class="ow">or</span> <span class="n">fragment_size</span><span class="o">.</span><span class="n">start</span> <span class="o">&gt;</span> <span class="n">max_frag</span><span class="p">:</span>
+                    <span class="k">continue</span>
+            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">event_type</span> <span class="o">==</span> <span class="n">SVTYPE</span><span class="o">.</span><span class="n">INS</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">fragment_size</span><span class="o">.</span><span class="n">start</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">source_evidence</span><span class="o">.</span><span class="n">min_expected_fragment_size</span><span class="p">:</span>
+                    <span class="k">continue</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">interchromosomal</span> <span class="o">!=</span> <span class="p">(</span><span class="n">read</span><span class="o">.</span><span class="n">reference_id</span> <span class="o">!=</span> <span class="n">mate</span><span class="o">.</span><span class="n">reference_id</span><span class="p">):</span>
+                <span class="k">continue</span>
+            <span class="c1"># check that the flanking reads work with the current call</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">_read</span><span class="o">.</span><span class="n">orientation_supports_type</span><span class="p">(</span>
+                    <span class="n">read</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">event_type</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">is_compatible</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">compatible_type</span><span class="p">):</span>
+                <span class="k">continue</span>
+            <span class="c1"># check that the positions make sense</span>
+            <span class="n">left</span> <span class="o">=</span> <span class="n">ORIENT</span><span class="o">.</span><span class="n">LEFT</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">is_compatible</span> <span class="k">else</span> <span class="n">ORIENT</span><span class="o">.</span><span class="n">RIGHT</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">orient</span> <span class="o">==</span> <span class="n">left</span><span class="p">:</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">break2</span><span class="o">.</span><span class="n">orient</span> <span class="o">==</span> <span class="n">left</span><span class="p">:</span>  <span class="c1"># L L</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="nb">all</span><span class="p">([</span>
+                        <span class="n">read</span><span class="o">.</span><span class="n">reference_start</span> <span class="o">+</span> <span class="mi">1</span> <span class="o">&lt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">end</span><span class="p">,</span>
+                        <span class="n">mate</span><span class="o">.</span><span class="n">reference_start</span> <span class="o">+</span> <span class="mi">1</span> <span class="o">&lt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">break2</span><span class="o">.</span><span class="n">end</span><span class="p">,</span>
+                        <span class="n">mate</span><span class="o">.</span><span class="n">reference_end</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">start</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">interchromosomal</span>
+                    <span class="p">]):</span>
+                        <span class="k">continue</span>
+                <span class="k">else</span><span class="p">:</span>  <span class="c1"># L R</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="nb">all</span><span class="p">([</span>
+                        <span class="n">read</span><span class="o">.</span><span class="n">reference_start</span> <span class="o">+</span> <span class="mi">1</span> <span class="o">&lt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">end</span><span class="p">,</span>
+                        <span class="n">mate</span><span class="o">.</span><span class="n">reference_end</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">break2</span><span class="o">.</span><span class="n">start</span>
+                    <span class="p">]):</span>
+                        <span class="k">continue</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">break2</span><span class="o">.</span><span class="n">orient</span> <span class="o">==</span> <span class="n">left</span><span class="p">:</span>  <span class="c1"># R L</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="nb">all</span><span class="p">([</span>
+                        <span class="n">read</span><span class="o">.</span><span class="n">reference_end</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">start</span><span class="p">,</span>
+                        <span class="n">mate</span><span class="o">.</span><span class="n">reference_start</span> <span class="o">+</span> <span class="mi">1</span> <span class="o">&lt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">break2</span><span class="o">.</span><span class="n">end</span>
+                    <span class="p">]):</span>
+                        <span class="k">continue</span>
+                <span class="k">else</span><span class="p">:</span>  <span class="c1"># R R</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="nb">all</span><span class="p">([</span>
+                        <span class="n">read</span><span class="o">.</span><span class="n">reference_end</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">start</span><span class="p">,</span>
+                        <span class="n">mate</span><span class="o">.</span><span class="n">reference_end</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">break2</span><span class="o">.</span><span class="n">start</span><span class="p">,</span>
+                        <span class="n">read</span><span class="o">.</span><span class="n">reference_end</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">break2</span><span class="o">.</span><span class="n">end</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">interchromosomal</span>
+                    <span class="p">]):</span>
+                        <span class="k">continue</span>
+            <span class="k">if</span> <span class="n">is_compatible</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">compatible_flanking_pairs</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">read</span><span class="p">,</span> <span class="n">mate</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">flanking_pairs</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">read</span><span class="p">,</span> <span class="n">mate</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="EventCall.add_break1_split_read"><a class="viewcode-back" href="../../../auto/mavis.validate.call.html#mavis.validate.call.EventCall.add_break1_split_read">[docs]</a>    <span class="k">def</span> <span class="nf">add_break1_split_read</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">read</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Args:</span>
+<span class="sd">            read (pysam.AlignedSegment): putative split read supporting the first breakpoint</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">pos</span> <span class="o">=</span> <span class="n">_read</span><span class="o">.</span><span class="n">breakpoint_pos</span><span class="p">(</span><span class="n">read</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">orient</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+            <span class="k">if</span> <span class="n">Interval</span><span class="o">.</span><span class="n">overlaps</span><span class="p">((</span><span class="n">pos</span><span class="p">,</span> <span class="n">pos</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">break1</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">break1_split_reads</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">read</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="k">pass</span></div>
+
+<div class="viewcode-block" id="EventCall.add_break2_split_read"><a class="viewcode-back" href="../../../auto/mavis.validate.call.html#mavis.validate.call.EventCall.add_break2_split_read">[docs]</a>    <span class="k">def</span> <span class="nf">add_break2_split_read</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">read</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Args:</span>
+<span class="sd">            read (pysam.AlignedSegment): putative split read supporting the second breakpoint</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">pos</span> <span class="o">=</span> <span class="n">_read</span><span class="o">.</span><span class="n">breakpoint_pos</span><span class="p">(</span><span class="n">read</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">break2</span><span class="o">.</span><span class="n">orient</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+            <span class="k">if</span> <span class="n">Interval</span><span class="o">.</span><span class="n">overlaps</span><span class="p">((</span><span class="n">pos</span><span class="p">,</span> <span class="n">pos</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">break2</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">break2_split_reads</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">read</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="k">pass</span></div>
+
+<div class="viewcode-block" id="EventCall.add_spanning_read"><a class="viewcode-back" href="../../../auto/mavis.validate.call.html#mavis.validate.call.EventCall.add_spanning_read">[docs]</a>    <span class="k">def</span> <span class="nf">add_spanning_read</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">read</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Args:</span>
+<span class="sd">            read (pysam.AlignedSegment): putative spanning read</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">event</span> <span class="ow">in</span> <span class="n">call_read_events</span><span class="p">(</span><span class="n">read</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">event</span> <span class="o">==</span> <span class="bp">self</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">event_type</span> <span class="ow">in</span> <span class="n">BreakpointPair</span><span class="o">.</span><span class="n">classify</span><span class="p">(</span><span class="n">event</span><span class="p">,</span> <span class="n">distance</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">source_evidence</span><span class="o">.</span><span class="n">distance</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">spanning_reads</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">read</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">__hash__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s1">&#39;this object type does not support hashing&#39;</span><span class="p">)</span>
+
+<div class="viewcode-block" id="EventCall.flanking_metrics"><a class="viewcode-back" href="../../../auto/mavis.validate.call.html#mavis.validate.call.EventCall.flanking_metrics">[docs]</a>    <span class="k">def</span> <span class="nf">flanking_metrics</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        computes the median and standard deviation of the flanking pairs. Note that standard</span>
+<span class="sd">        deviation is calculated wrt the median and not the average. Also that the fragment size</span>
+<span class="sd">        is calculated as a range so the start and end of the range are used in computing these</span>
+<span class="sd">        metrics</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            tuple:</span>
+<span class="sd">                - ``float`` - the median fragment size</span>
+<span class="sd">                - ``float`` - the fragment size standard deviation wrt the median</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">fragment_sizes</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">read</span><span class="p">,</span> <span class="n">mate</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">flanking_pairs</span><span class="p">:</span>
+            <span class="c1"># check that the fragment size is reasonable</span>
+            <span class="n">fsize_range</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">source_evidence</span><span class="o">.</span><span class="n">compute_fragment_size</span><span class="p">(</span><span class="n">read</span><span class="p">,</span> <span class="n">mate</span><span class="p">)</span>
+            <span class="n">fragment_sizes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">fsize_range</span><span class="o">.</span><span class="n">start</span><span class="p">)</span>
+            <span class="n">fragment_sizes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">fsize_range</span><span class="o">.</span><span class="n">end</span><span class="p">)</span>
+        <span class="n">median</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">stdev</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">if</span> <span class="n">fragment_sizes</span><span class="p">:</span>
+            <span class="n">median</span> <span class="o">=</span> <span class="n">statistics</span><span class="o">.</span><span class="n">median</span><span class="p">(</span><span class="n">fragment_sizes</span><span class="p">)</span>
+            <span class="n">err</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">for</span> <span class="n">insert</span> <span class="ow">in</span> <span class="n">fragment_sizes</span><span class="p">:</span>
+                <span class="n">err</span> <span class="o">+=</span> <span class="n">math</span><span class="o">.</span><span class="n">pow</span><span class="p">(</span><span class="n">insert</span> <span class="o">-</span> <span class="n">median</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+            <span class="n">err</span> <span class="o">/=</span> <span class="nb">len</span><span class="p">(</span><span class="n">fragment_sizes</span><span class="p">)</span>
+            <span class="n">stdev</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">err</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">median</span><span class="p">,</span> <span class="n">stdev</span></div>
+
+<div class="viewcode-block" id="EventCall.break1_split_read_names"><a class="viewcode-back" href="../../../auto/mavis.validate.call.html#mavis.validate.call.EventCall.break1_split_read_names">[docs]</a>    <span class="k">def</span> <span class="nf">break1_split_read_names</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tgt</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">both</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Args:</span>
+<span class="sd">            tgt (bool): return only target re-aligned read names</span>
+<span class="sd">            both (bool): return both original alignments and target-realigned</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">reads</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">read</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">break1_split_reads</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">read</span><span class="o">.</span><span class="n">has_tag</span><span class="p">(</span><span class="n">PYSAM_READ_FLAGS</span><span class="o">.</span><span class="n">TARGETED_ALIGNMENT</span><span class="p">)</span> <span class="ow">and</span> <span class="n">read</span><span class="o">.</span><span class="n">get_tag</span><span class="p">(</span><span class="n">PYSAM_READ_FLAGS</span><span class="o">.</span><span class="n">TARGETED_ALIGNMENT</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">tgt</span><span class="p">:</span>
+                    <span class="n">reads</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">read</span><span class="o">.</span><span class="n">query_name</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="ow">not</span> <span class="n">tgt</span><span class="p">:</span>
+                <span class="n">reads</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">read</span><span class="o">.</span><span class="n">query_name</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">both</span><span class="p">:</span>
+                <span class="n">reads</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">read</span><span class="o">.</span><span class="n">query_name</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">reads</span></div>
+
+<div class="viewcode-block" id="EventCall.break2_split_read_names"><a class="viewcode-back" href="../../../auto/mavis.validate.call.html#mavis.validate.call.EventCall.break2_split_read_names">[docs]</a>    <span class="k">def</span> <span class="nf">break2_split_read_names</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tgt</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">both</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Args:</span>
+<span class="sd">            tgt (bool): return only target re-aligned read names</span>
+<span class="sd">            both (bool): return both original alignments and target-realigned</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">reads</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">read</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">break2_split_reads</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">read</span><span class="o">.</span><span class="n">has_tag</span><span class="p">(</span><span class="n">PYSAM_READ_FLAGS</span><span class="o">.</span><span class="n">TARGETED_ALIGNMENT</span><span class="p">)</span> <span class="ow">and</span> <span class="n">read</span><span class="o">.</span><span class="n">get_tag</span><span class="p">(</span><span class="n">PYSAM_READ_FLAGS</span><span class="o">.</span><span class="n">TARGETED_ALIGNMENT</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">tgt</span><span class="p">:</span>
+                    <span class="n">reads</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">read</span><span class="o">.</span><span class="n">query_name</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="ow">not</span> <span class="n">tgt</span><span class="p">:</span>
+                <span class="n">reads</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">read</span><span class="o">.</span><span class="n">query_name</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">both</span><span class="p">:</span>
+                <span class="n">reads</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">read</span><span class="o">.</span><span class="n">query_name</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">reads</span></div>
+
+<div class="viewcode-block" id="EventCall.linking_split_read_names"><a class="viewcode-back" href="../../../auto/mavis.validate.call.html#mavis.validate.call.EventCall.linking_split_read_names">[docs]</a>    <span class="k">def</span> <span class="nf">linking_split_read_names</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">break1_split_read_names</span><span class="p">(</span><span class="n">both</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="o">&amp;</span> <span class="bp">self</span><span class="o">.</span><span class="n">break2_split_read_names</span><span class="p">(</span><span class="n">both</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="EventCall.characterize_repeat_region"><a class="viewcode-back" href="../../../auto/mavis.validate.call.html#mavis.validate.call.EventCall.characterize_repeat_region">[docs]</a>    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">characterize_repeat_region</span><span class="p">(</span><span class="n">event</span><span class="p">,</span> <span class="n">reference_genome</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        For a given event, determines the number of repeats the insertion/duplication/deletion is following.</span>
+<span class="sd">        This is most useful in flagging homopolymer regions. Will raise a ValueError if the current event is</span>
+<span class="sd">        not an expected type or is non-specific.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">event</span><span class="o">.</span><span class="n">break1</span><span class="p">)</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">event</span><span class="o">.</span><span class="n">break2</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Cannot characterize a repeat region for a non-specific call&#39;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="ow">not</span> <span class="nb">any</span><span class="p">([</span>
+            <span class="n">event</span><span class="o">.</span><span class="n">event_type</span> <span class="o">==</span> <span class="n">SVTYPE</span><span class="o">.</span><span class="n">INS</span> <span class="ow">and</span> <span class="n">event</span><span class="o">.</span><span class="n">untemplated_seq</span><span class="p">,</span>
+            <span class="n">event</span><span class="o">.</span><span class="n">event_type</span> <span class="ow">in</span> <span class="p">{</span><span class="n">SVTYPE</span><span class="o">.</span><span class="n">DEL</span><span class="p">,</span> <span class="n">SVTYPE</span><span class="o">.</span><span class="n">DUP</span><span class="p">}</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">event</span><span class="o">.</span><span class="n">untemplated_seq</span>
+        <span class="p">]):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s1">&#39;Characterizing repeat regions does not make sense for the given event type&#39;</span><span class="p">,</span>
+                <span class="n">event</span><span class="o">.</span><span class="n">event_type</span><span class="p">,</span> <span class="n">event</span><span class="o">.</span><span class="n">untemplated_seq</span><span class="p">)</span>
+
+        <span class="n">expected_sequence</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">rightmost</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">event</span><span class="o">.</span><span class="n">event_type</span> <span class="o">==</span> <span class="n">SVTYPE</span><span class="o">.</span><span class="n">DEL</span><span class="p">:</span>
+            <span class="n">expected_sequence</span> <span class="o">=</span> <span class="n">reference_genome</span><span class="p">[</span><span class="n">event</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">chr</span><span class="p">]</span><span class="o">.</span><span class="n">seq</span><span class="p">[</span><span class="n">event</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">start</span><span class="p">:</span><span class="n">event</span><span class="o">.</span><span class="n">break2</span><span class="o">.</span><span class="n">end</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span>
+            <span class="n">rightmost</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">start</span>
+        <span class="k">elif</span> <span class="n">event</span><span class="o">.</span><span class="n">event_type</span> <span class="o">==</span> <span class="n">SVTYPE</span><span class="o">.</span><span class="n">DUP</span><span class="p">:</span>
+            <span class="n">expected_sequence</span> <span class="o">=</span> <span class="n">reference_genome</span><span class="p">[</span><span class="n">event</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">chr</span><span class="p">]</span><span class="o">.</span><span class="n">seq</span><span class="p">[</span><span class="n">event</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">start</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span><span class="n">event</span><span class="o">.</span><span class="n">break2</span><span class="o">.</span><span class="n">end</span><span class="p">]</span>
+            <span class="n">rightmost</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">start</span> <span class="o">-</span> <span class="mi">1</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">expected_sequence</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">untemplated_seq</span>
+            <span class="n">rightmost</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">start</span>
+
+        <span class="n">repeat_count</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">while</span> <span class="n">rightmost</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="n">expected_sequence</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">expected_sequence</span><span class="p">:</span>
+            <span class="n">ref</span> <span class="o">=</span> <span class="n">reference_genome</span><span class="p">[</span><span class="n">event</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">chr</span><span class="p">]</span><span class="o">.</span><span class="n">seq</span><span class="p">[</span><span class="n">rightmost</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="n">expected_sequence</span><span class="p">):</span><span class="n">rightmost</span><span class="p">]</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">ref</span> <span class="o">!=</span> <span class="n">expected_sequence</span><span class="p">:</span>
+                <span class="k">break</span>
+            <span class="n">repeat_count</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="n">rightmost</span> <span class="o">-=</span> <span class="nb">len</span><span class="p">(</span><span class="n">expected_sequence</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">repeat_count</span></div>
+
+<div class="viewcode-block" id="EventCall.flatten"><a class="viewcode-back" href="../../../auto/mavis.validate.call.html#mavis.validate.call.EventCall.flatten">[docs]</a>    <span class="k">def</span> <span class="nf">flatten</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        converts the current call to a dictionary for a row in a tabbed file</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">row</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">source_evidence</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+        <span class="n">row</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">BreakpointPair</span><span class="o">.</span><span class="n">flatten</span><span class="p">(</span><span class="bp">self</span><span class="p">))</span>  <span class="c1"># this will overwrite the evidence breakpoint which is what we want</span>
+        <span class="n">row</span><span class="o">.</span><span class="n">update</span><span class="p">({</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">call_method</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">call_method</span><span class="p">,</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">event_type</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">event_type</span><span class="p">,</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">contig_seq</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">contig_remap_score</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">contig_alignment_score</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">contig_blat_rank</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">contig_remapped_reads</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">contig_remapped_read_names</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">contig_strand_specific</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">contig_alignment_query_consumption</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">contig_build_score</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">contig_alignment_query_name</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">contig_remap_coverage</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">contig_read_depth</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">contig_break1_read_depth</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">contig_break2_read_depth</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">supplementary_call</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_supplementary</span><span class="p">()</span>
+        <span class="p">})</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">repeat_count</span><span class="p">]</span> <span class="o">=</span> <span class="n">EventCall</span><span class="o">.</span><span class="n">characterize_repeat_region</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">source_evidence</span><span class="o">.</span><span class="n">reference_genome</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+            <span class="n">row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">repeat_count</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="n">median</span><span class="p">,</span> <span class="n">stdev</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">flanking_metrics</span><span class="p">()</span>
+        <span class="n">flank</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">read</span><span class="p">,</span> <span class="n">mate</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">flanking_pairs</span><span class="p">:</span>
+            <span class="n">flank</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="n">read</span><span class="o">.</span><span class="n">query_name</span><span class="p">,</span> <span class="n">mate</span><span class="o">.</span><span class="n">query_name</span><span class="p">})</span>
+        <span class="n">row</span><span class="o">.</span><span class="n">update</span><span class="p">({</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">flanking_pairs</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">flanking_pairs</span><span class="p">),</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">flanking_median_fragment_size</span><span class="p">:</span> <span class="n">median</span><span class="p">,</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">flanking_stdev_fragment_size</span><span class="p">:</span> <span class="n">stdev</span><span class="p">,</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">flanking_pairs_read_names</span><span class="p">:</span> <span class="s1">&#39;;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">flank</span><span class="p">)))</span>
+        <span class="p">})</span>
+
+        <span class="n">row</span><span class="o">.</span><span class="n">update</span><span class="p">({</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">break1_split_reads</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">break1_split_read_names</span><span class="p">()),</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">break1_split_reads_forced</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">break1_split_read_names</span><span class="p">(</span><span class="n">tgt</span><span class="o">=</span><span class="kc">True</span><span class="p">)),</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">break1_split_read_names</span><span class="p">:</span> <span class="s1">&#39;;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">break1_split_read_names</span><span class="p">(</span><span class="n">both</span><span class="o">=</span><span class="kc">True</span><span class="p">))),</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">break2_split_reads</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">break2_split_read_names</span><span class="p">()),</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">break2_split_reads_forced</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">break2_split_read_names</span><span class="p">(</span><span class="n">tgt</span><span class="o">=</span><span class="kc">True</span><span class="p">)),</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">break2_split_read_names</span><span class="p">:</span> <span class="s1">&#39;;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">break2_split_read_names</span><span class="p">(</span><span class="n">both</span><span class="o">=</span><span class="kc">True</span><span class="p">))),</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">linking_split_reads</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">linking_split_read_names</span><span class="p">()),</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">linking_split_read_names</span><span class="p">:</span> <span class="s1">&#39;;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">linking_split_read_names</span><span class="p">())),</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">spanning_reads</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">spanning_reads</span><span class="p">),</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">spanning_read_names</span><span class="p">:</span> <span class="s1">&#39;;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">sorted</span><span class="p">([</span><span class="n">r</span><span class="o">.</span><span class="n">query_name</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">spanning_reads</span><span class="p">]))</span>
+        <span class="p">})</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">has_compatible</span><span class="p">:</span>
+            <span class="n">row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">flanking_pairs_compatible</span><span class="p">]</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">compatible_flanking_pairs</span><span class="p">)</span>
+            <span class="n">names</span> <span class="o">=</span> <span class="p">{</span><span class="n">f</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">query_name</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">compatible_flanking_pairs</span><span class="p">}</span>
+            <span class="n">names</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="n">f</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">query_name</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">compatible_flanking_pairs</span><span class="p">})</span>
+            <span class="n">row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">flanking_pairs_compatible_read_names</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">names</span><span class="p">))</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">net_size</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">{}</span><span class="s1">-</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">net_size</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">source_evidence</span><span class="o">.</span><span class="n">distance</span><span class="p">))</span>
+        <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+            <span class="n">row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">net_size</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="c1"># add contig specific metrics and columns</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">contig</span><span class="p">:</span>
+            <span class="n">blat_score</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">contig_alignment</span><span class="o">.</span><span class="n">read1</span><span class="o">.</span><span class="n">has_tag</span><span class="p">(</span><span class="s1">&#39;br&#39;</span><span class="p">):</span>
+                <span class="n">blat_score</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">contig_alignment</span><span class="o">.</span><span class="n">read1</span><span class="o">.</span><span class="n">get_tag</span><span class="p">(</span><span class="s1">&#39;br&#39;</span><span class="p">)</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">contig_alignment</span><span class="o">.</span><span class="n">read2</span><span class="p">:</span>
+                    <span class="n">blat_score</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">contig_alignment</span><span class="o">.</span><span class="n">read2</span><span class="o">.</span><span class="n">get_tag</span><span class="p">(</span><span class="s1">&#39;br&#39;</span><span class="p">)</span>
+                    <span class="n">blat_score</span> <span class="o">=</span> <span class="nb">round</span><span class="p">(</span><span class="n">blat_score</span> <span class="o">/</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="n">cseq</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">contig_alignment</span><span class="o">.</span><span class="n">query_sequence</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">break1_read_depth</span> <span class="o">=</span> <span class="n">SplitAlignment</span><span class="o">.</span><span class="n">breakpoint_contig_remapped_depth</span><span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">break1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">contig</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">contig_alignment</span><span class="o">.</span><span class="n">read1</span>
+                <span class="p">)</span>
+            <span class="k">except</span> <span class="ne">AssertionError</span><span class="p">:</span>
+                <span class="n">break1_read_depth</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">break2_read_depth</span> <span class="o">=</span> <span class="n">SplitAlignment</span><span class="o">.</span><span class="n">breakpoint_contig_remapped_depth</span><span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">break2</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">contig</span><span class="p">,</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">contig_alignment</span><span class="o">.</span><span class="n">read1</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">contig_alignment</span><span class="o">.</span><span class="n">read2</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">contig_alignment</span><span class="o">.</span><span class="n">read2</span>
+                <span class="p">)</span>
+            <span class="k">except</span> <span class="ne">AssertionError</span><span class="p">:</span>
+                <span class="n">break2_read_depth</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="n">row</span><span class="o">.</span><span class="n">update</span><span class="p">({</span>
+                <span class="n">COLUMNS</span><span class="o">.</span><span class="n">contig_seq</span><span class="p">:</span> <span class="n">cseq</span><span class="p">,</span>  <span class="c1"># don&#39;t output sequence directly from contig b/c must always be wrt to the positive strand</span>
+                <span class="n">COLUMNS</span><span class="o">.</span><span class="n">contig_remap_score</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">contig</span><span class="o">.</span><span class="n">remap_score</span><span class="p">(),</span>
+                <span class="n">COLUMNS</span><span class="o">.</span><span class="n">contig_alignment_score</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">contig_alignment</span><span class="o">.</span><span class="n">score</span><span class="p">(),</span>
+                <span class="n">COLUMNS</span><span class="o">.</span><span class="n">contig_blat_rank</span><span class="p">:</span> <span class="n">blat_score</span><span class="p">,</span>
+                <span class="n">COLUMNS</span><span class="o">.</span><span class="n">contig_remapped_reads</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">contig</span><span class="o">.</span><span class="n">input_reads</span><span class="p">),</span>
+                <span class="n">COLUMNS</span><span class="o">.</span><span class="n">contig_remapped_read_names</span><span class="p">:</span>
+                    <span class="s1">&#39;;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="nb">set</span><span class="p">([</span><span class="n">r</span><span class="o">.</span><span class="n">query_name</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">contig</span><span class="o">.</span><span class="n">input_reads</span><span class="p">]))),</span>
+                <span class="n">COLUMNS</span><span class="o">.</span><span class="n">contig_strand_specific</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">contig</span><span class="o">.</span><span class="n">strand_specific</span><span class="p">,</span>
+                <span class="n">COLUMNS</span><span class="o">.</span><span class="n">contig_alignment_query_consumption</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">contig_alignment</span><span class="o">.</span><span class="n">query_consumption</span><span class="p">(),</span>
+                <span class="n">COLUMNS</span><span class="o">.</span><span class="n">contig_build_score</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">contig</span><span class="o">.</span><span class="n">score</span><span class="p">,</span>
+                <span class="n">COLUMNS</span><span class="o">.</span><span class="n">contig_alignment_query_name</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">contig_alignment</span><span class="o">.</span><span class="n">query_name</span><span class="p">,</span>
+                <span class="n">COLUMNS</span><span class="o">.</span><span class="n">contig_remap_coverage</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">contig</span><span class="o">.</span><span class="n">remap_coverage</span><span class="p">(),</span>
+                <span class="n">COLUMNS</span><span class="o">.</span><span class="n">contig_read_depth</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">contig</span><span class="o">.</span><span class="n">remap_depth</span><span class="p">(),</span>
+                <span class="n">COLUMNS</span><span class="o">.</span><span class="n">contig_break1_read_depth</span><span class="p">:</span> <span class="n">break1_read_depth</span><span class="p">,</span>
+                <span class="n">COLUMNS</span><span class="o">.</span><span class="n">contig_break2_read_depth</span><span class="p">:</span> <span class="n">break2_read_depth</span>
+            <span class="p">})</span>
+        <span class="k">return</span> <span class="n">row</span></div></div>
+
+
+<span class="k">def</span> <span class="nf">_call_by_contigs</span><span class="p">(</span><span class="n">source_evidence</span><span class="p">):</span>
+    <span class="c1"># try calling by contigs</span>
+    <span class="n">all_contig_calls</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">ctg</span> <span class="ow">in</span> <span class="n">source_evidence</span><span class="o">.</span><span class="n">contigs</span><span class="p">:</span>
+        <span class="n">curr_contig_calls</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">aln</span> <span class="ow">in</span> <span class="n">ctg</span><span class="o">.</span><span class="n">alignments</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">aln</span><span class="o">.</span><span class="n">is_putative_indel</span> <span class="ow">and</span> <span class="n">aln</span><span class="o">.</span><span class="n">net_size</span><span class="p">(</span><span class="n">source_evidence</span><span class="o">.</span><span class="n">distance</span><span class="p">)</span> <span class="o">==</span> <span class="n">Interval</span><span class="p">(</span><span class="mi">0</span><span class="p">):</span>
+                <span class="k">continue</span>
+            <span class="k">for</span> <span class="n">event_type</span> <span class="ow">in</span> <span class="n">BreakpointPair</span><span class="o">.</span><span class="n">classify</span><span class="p">(</span><span class="n">aln</span><span class="p">,</span> <span class="n">distance</span><span class="o">=</span><span class="n">source_evidence</span><span class="o">.</span><span class="n">distance</span><span class="p">):</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">new_event</span> <span class="o">=</span> <span class="n">EventCall</span><span class="p">(</span>
+                        <span class="n">aln</span><span class="o">.</span><span class="n">break1</span><span class="p">,</span>
+                        <span class="n">aln</span><span class="o">.</span><span class="n">break2</span><span class="p">,</span>
+                        <span class="n">source_evidence</span><span class="p">,</span>
+                        <span class="n">event_type</span><span class="p">,</span>
+                        <span class="n">contig</span><span class="o">=</span><span class="n">ctg</span><span class="p">,</span>
+                        <span class="n">contig_alignment</span><span class="o">=</span><span class="n">aln</span><span class="p">,</span>
+                        <span class="n">untemplated_seq</span><span class="o">=</span><span class="n">aln</span><span class="o">.</span><span class="n">untemplated_seq</span><span class="p">,</span>
+                        <span class="n">call_method</span><span class="o">=</span><span class="n">CALL_METHOD</span><span class="o">.</span><span class="n">CONTIG</span>
+                    <span class="p">)</span>
+                <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="c1"># add the flanking support</span>
+                <span class="n">new_event</span><span class="o">.</span><span class="n">add_flanking_support</span><span class="p">(</span><span class="n">source_evidence</span><span class="o">.</span><span class="n">flanking_pairs</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">new_event</span><span class="o">.</span><span class="n">has_compatible</span><span class="p">:</span>
+                    <span class="n">new_event</span><span class="o">.</span><span class="n">add_flanking_support</span><span class="p">(</span><span class="n">source_evidence</span><span class="o">.</span><span class="n">compatible_flanking_pairs</span><span class="p">,</span> <span class="n">is_compatible</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+                <span class="c1"># add any spanning reads that call the same event</span>
+                <span class="k">for</span> <span class="n">read</span> <span class="ow">in</span> <span class="n">source_evidence</span><span class="o">.</span><span class="n">spanning_reads</span><span class="p">:</span>
+                    <span class="n">new_event</span><span class="o">.</span><span class="n">add_spanning_read</span><span class="p">(</span><span class="n">read</span><span class="p">)</span>
+                <span class="c1"># add any split read support (this will be consumed for non-contig calls)</span>
+                <span class="k">for</span> <span class="n">read</span> <span class="ow">in</span> <span class="n">source_evidence</span><span class="o">.</span><span class="n">split_reads</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
+                    <span class="n">new_event</span><span class="o">.</span><span class="n">add_break1_split_read</span><span class="p">(</span><span class="n">read</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">read</span> <span class="ow">in</span> <span class="n">source_evidence</span><span class="o">.</span><span class="n">split_reads</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span>
+                    <span class="n">new_event</span><span class="o">.</span><span class="n">add_break2_split_read</span><span class="p">(</span><span class="n">read</span><span class="p">)</span>
+
+                <span class="n">curr_contig_calls</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">new_event</span><span class="p">)</span>
+        <span class="c1"># remove any supplementary calls that are not associated with a target call</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">all</span><span class="p">([</span><span class="n">c</span><span class="o">.</span><span class="n">is_supplementary</span><span class="p">()</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">curr_contig_calls</span><span class="p">]):</span>
+            <span class="n">all_contig_calls</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">curr_contig_calls</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">all_contig_calls</span>
+
+
+<div class="viewcode-block" id="filter_consumed_pairs"><a class="viewcode-back" href="../../../auto/mavis.validate.call.html#mavis.validate.call.filter_consumed_pairs">[docs]</a><span class="k">def</span> <span class="nf">filter_consumed_pairs</span><span class="p">(</span><span class="n">pairs</span><span class="p">,</span> <span class="n">consumed_reads</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    given a set of read tuples, returns all tuples where neither read in the tuple is in the consumed set</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        pairs (set of tuples of :class:`pysam.AlignedSegment` and :class:`pysam.AlignedSegment`): pairs to be filtered</span>
+<span class="sd">        consumed_reads: (set of :class:`pysam.AlignedSegment`): set of reads that have been used/consumed</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        set of tuples of :class:`pysam.AlignedSegment` and :class:`pysam.AlignedSegment`: set of filtered tuples</span>
+
+<span class="sd">    Note:</span>
+<span class="sd">        this will work with any hash-able object</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        &gt;&gt;&gt; pairs = {(1, 2), (3, 4), (5, 6)}</span>
+<span class="sd">        &gt;&gt;&gt; consumed_reads = {1, 2, 4}</span>
+<span class="sd">        &gt;&gt;&gt; filter_consumed_pairs(pairs, consumed_reads)</span>
+<span class="sd">        {(5, 6)}</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">temp</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">read</span><span class="p">,</span> <span class="n">mate</span> <span class="ow">in</span> <span class="n">pairs</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">read</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">consumed_reads</span> <span class="ow">and</span> <span class="n">mate</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">consumed_reads</span><span class="p">:</span>
+            <span class="n">temp</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">read</span><span class="p">,</span> <span class="n">mate</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">temp</span></div>
+
+
+<span class="k">def</span> <span class="nf">_call_by_spanning_reads</span><span class="p">(</span><span class="n">source_evidence</span><span class="p">,</span> <span class="n">consumed_evidence</span><span class="p">):</span>
+    <span class="n">spanning_calls</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">available_flanking_pairs</span> <span class="o">=</span> <span class="n">filter_consumed_pairs</span><span class="p">(</span><span class="n">source_evidence</span><span class="o">.</span><span class="n">flanking_pairs</span><span class="p">,</span> <span class="n">consumed_evidence</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">read</span> <span class="ow">in</span> <span class="n">source_evidence</span><span class="o">.</span><span class="n">spanning_reads</span> <span class="o">-</span> <span class="n">consumed_evidence</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">event</span> <span class="ow">in</span> <span class="n">call_read_events</span><span class="p">(</span><span class="n">read</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">event</span><span class="o">.</span><span class="n">query_consumption</span><span class="p">()</span> <span class="o">&gt;=</span> <span class="n">source_evidence</span><span class="o">.</span><span class="n">contig_aln_min_query_consumption</span><span class="p">:</span>
+                <span class="n">spanning_calls</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">event</span><span class="p">,</span> <span class="nb">set</span><span class="p">())</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">read</span><span class="p">)</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">event</span><span class="p">,</span> <span class="n">reads</span> <span class="ow">in</span> <span class="n">spanning_calls</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">if</span> <span class="nb">any</span><span class="p">([</span>
+            <span class="nb">len</span><span class="p">(</span><span class="n">reads</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">source_evidence</span><span class="o">.</span><span class="n">min_spanning_reads_resolution</span><span class="p">,</span>
+            <span class="n">source_evidence</span><span class="o">.</span><span class="n">opposing_strands</span> <span class="o">!=</span> <span class="n">event</span><span class="o">.</span><span class="n">opposing_strands</span>
+        <span class="p">]):</span>
+            <span class="k">continue</span>
+        <span class="n">event</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">seq</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># unless we are collecting a consensus we shouldn&#39;t assign sequences to the breaks</span>
+        <span class="n">event</span><span class="o">.</span><span class="n">break2</span><span class="o">.</span><span class="n">seq</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">source_evidence</span><span class="o">.</span><span class="n">stranded</span><span class="p">:</span>
+            <span class="n">event</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">strand</span> <span class="o">=</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">NS</span>
+            <span class="n">event</span><span class="o">.</span><span class="n">break2</span><span class="o">.</span><span class="n">strand</span> <span class="o">=</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">NS</span>
+        <span class="k">for</span> <span class="n">event_type</span> <span class="ow">in</span> <span class="n">BreakpointPair</span><span class="o">.</span><span class="n">classify</span><span class="p">(</span><span class="n">source_evidence</span><span class="p">)</span> <span class="o">&amp;</span> <span class="n">BreakpointPair</span><span class="o">.</span><span class="n">classify</span><span class="p">(</span><span class="n">event</span><span class="p">,</span> <span class="n">distance</span><span class="o">=</span><span class="n">source_evidence</span><span class="o">.</span><span class="n">distance</span><span class="p">):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">new_event</span> <span class="o">=</span> <span class="n">EventCall</span><span class="p">(</span>
+                    <span class="n">event</span><span class="o">.</span><span class="n">break1</span><span class="p">,</span> <span class="n">event</span><span class="o">.</span><span class="n">break2</span><span class="p">,</span>
+                    <span class="n">source_evidence</span><span class="p">,</span>
+                    <span class="n">event_type</span><span class="p">,</span>
+                    <span class="n">CALL_METHOD</span><span class="o">.</span><span class="n">SPAN</span><span class="p">,</span>
+                    <span class="n">untemplated_seq</span><span class="o">=</span><span class="n">event</span><span class="o">.</span><span class="n">untemplated_seq</span>
+                <span class="p">)</span>
+            <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">new_event</span><span class="o">.</span><span class="n">spanning_reads</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">reads</span><span class="p">)</span>
+            <span class="c1"># add any supporting split reads</span>
+            <span class="c1"># add the flanking support</span>
+            <span class="n">new_event</span><span class="o">.</span><span class="n">add_flanking_support</span><span class="p">(</span><span class="n">available_flanking_pairs</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">new_event</span><span class="o">.</span><span class="n">has_compatible</span><span class="p">:</span>
+                <span class="n">new_event</span><span class="o">.</span><span class="n">add_flanking_support</span><span class="p">(</span><span class="n">available_flanking_pairs</span><span class="p">,</span> <span class="n">is_compatible</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="c1"># add any split read support (this will be consumed for non-contig calls)</span>
+            <span class="k">for</span> <span class="n">read</span> <span class="ow">in</span> <span class="n">source_evidence</span><span class="o">.</span><span class="n">split_reads</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="n">consumed_evidence</span><span class="p">:</span>
+                <span class="n">new_event</span><span class="o">.</span><span class="n">add_break1_split_read</span><span class="p">(</span><span class="n">read</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">read</span> <span class="ow">in</span> <span class="n">source_evidence</span><span class="o">.</span><span class="n">split_reads</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">consumed_evidence</span><span class="p">:</span>
+                <span class="n">new_event</span><span class="o">.</span><span class="n">add_break2_split_read</span><span class="p">(</span><span class="n">read</span><span class="p">)</span>
+
+            <span class="n">result</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">new_event</span><span class="p">)</span>
+    <span class="c1"># remove any supplementary calls that are not associated with a target call</span>
+    <span class="n">target_call_reads</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">event</span> <span class="ow">in</span> <span class="n">result</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">event</span><span class="o">.</span><span class="n">is_supplementary</span><span class="p">():</span>
+            <span class="n">target_call_reads</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">event</span><span class="o">.</span><span class="n">spanning_reads</span><span class="p">)</span>
+    <span class="n">filtered_events</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">event</span> <span class="ow">in</span> <span class="n">result</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">event</span><span class="o">.</span><span class="n">is_supplementary</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">event</span><span class="o">.</span><span class="n">spanning_reads</span> <span class="o">&amp;</span> <span class="n">target_call_reads</span><span class="p">:</span>
+                <span class="n">filtered_events</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">event</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">filtered_events</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">event</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">filtered_events</span>
+
+
+<div class="viewcode-block" id="call_events"><a class="viewcode-back" href="../../../auto/mavis.validate.call.html#mavis.validate.call.call_events">[docs]</a><span class="k">def</span> <span class="nf">call_events</span><span class="p">(</span><span class="n">source_evidence</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    generates a set of event calls based on the evidence associated with the source_evidence object</span>
+<span class="sd">    will also narrow down the event type</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        source_evidence (Evidence): the input evidence</span>
+<span class="sd">        event_type (SVTYPE): the type of event we are collecting evidence for</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        :class:`list` of :class:`EventCall`: list of calls</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">consumed_evidence</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>  <span class="c1"># keep track to minimize evidence re-use</span>
+    <span class="n">calls</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">errors</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+
+    <span class="n">contig_calls</span> <span class="o">=</span> <span class="n">_call_by_contigs</span><span class="p">(</span><span class="n">source_evidence</span><span class="p">)</span>
+    <span class="n">calls</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">contig_calls</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">call</span> <span class="ow">in</span> <span class="n">contig_calls</span><span class="p">:</span>
+        <span class="n">consumed_evidence</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">call</span><span class="o">.</span><span class="n">support</span><span class="p">())</span>
+
+    <span class="n">spanning_calls</span> <span class="o">=</span> <span class="n">_call_by_spanning_reads</span><span class="p">(</span><span class="n">source_evidence</span><span class="p">,</span> <span class="n">consumed_evidence</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">call</span> <span class="ow">in</span> <span class="n">spanning_calls</span><span class="p">:</span>
+        <span class="n">consumed_evidence</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">call</span><span class="o">.</span><span class="n">support</span><span class="p">())</span>
+    <span class="n">calls</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">spanning_calls</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">event_type</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">source_evidence</span><span class="o">.</span><span class="n">putative_event_types</span><span class="p">()):</span>
+        <span class="c1"># try calling by split/flanking reads</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">contig_consumed_evidence</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+            <span class="n">contig_consumed_evidence</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">consumed_evidence</span><span class="p">)</span>
+            <span class="n">calls</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">_call_by_supporting_reads</span><span class="p">(</span><span class="n">source_evidence</span><span class="p">,</span> <span class="n">event_type</span><span class="p">,</span> <span class="n">contig_consumed_evidence</span><span class="p">))</span>
+        <span class="k">except</span> <span class="ne">UserWarning</span> <span class="k">as</span> <span class="n">err</span><span class="p">:</span>
+            <span class="n">errors</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">err</span><span class="p">))</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">calls</span> <span class="ow">and</span> <span class="n">errors</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">UserWarning</span><span class="p">(</span><span class="s1">&#39;;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">errors</span><span class="p">))))</span>
+    <span class="k">elif</span> <span class="ow">not</span> <span class="n">calls</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">UserWarning</span><span class="p">(</span><span class="s1">&#39;insufficient evidence to call events&#39;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">calls</span></div>
+
+
+<span class="k">def</span> <span class="nf">_call_interval_by_flanking_coverage</span><span class="p">(</span><span class="n">coverage</span><span class="p">,</span> <span class="n">orientation</span><span class="p">,</span> <span class="n">max_expected_fragment_size</span><span class="p">,</span> <span class="n">read_length</span><span class="p">,</span> <span class="n">distance</span><span class="p">,</span> <span class="n">traverse</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">max_expected_fragment_size</span> <span class="o">&lt;=</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">read_length</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s1">&#39;max_expected_fragment_size and read_length must be positive integers&#39;</span><span class="p">,</span>
+            <span class="n">max_expected_fragment_size</span><span class="p">,</span> <span class="n">read_length</span><span class="p">)</span>
+
+    <span class="n">coverage_d</span> <span class="o">=</span> <span class="n">distance</span><span class="p">(</span><span class="n">coverage</span><span class="o">.</span><span class="n">start</span><span class="p">,</span> <span class="n">coverage</span><span class="o">.</span><span class="n">end</span><span class="p">)</span><span class="o">.</span><span class="n">start</span> <span class="o">+</span> <span class="mi">1</span>  <span class="c1"># minimum distance of the coverage</span>
+    <span class="n">max_interval</span> <span class="o">=</span> <span class="n">max_expected_fragment_size</span> <span class="o">-</span> <span class="n">read_length</span>
+    <span class="k">if</span> <span class="n">coverage_d</span> <span class="o">&gt;</span> <span class="n">max_interval</span><span class="p">:</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="s1">&#39;length of the coverage interval (</span><span class="si">{}</span><span class="s1">) is greater than the maximum expected (</span><span class="si">{}</span><span class="s1">)&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="n">coverage_d</span><span class="p">,</span> <span class="n">max_interval</span><span class="p">)</span>
+        <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">AssertionError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">orientation</span> <span class="o">==</span> <span class="n">ORIENT</span><span class="o">.</span><span class="n">LEFT</span><span class="p">:</span>
+        <span class="n">start</span> <span class="o">=</span> <span class="n">coverage</span><span class="o">.</span><span class="n">end</span>
+        <span class="n">end</span> <span class="o">=</span> <span class="n">traverse</span><span class="p">(</span><span class="n">coverage</span><span class="o">.</span><span class="n">end</span><span class="p">,</span> <span class="n">max_interval</span> <span class="o">-</span> <span class="n">coverage_d</span><span class="p">,</span> <span class="n">ORIENT</span><span class="o">.</span><span class="n">RIGHT</span><span class="p">)</span><span class="o">.</span><span class="n">end</span>
+        <span class="k">return</span> <span class="n">Interval</span><span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">orientation</span> <span class="o">==</span> <span class="n">ORIENT</span><span class="o">.</span><span class="n">RIGHT</span><span class="p">:</span>
+        <span class="n">end</span> <span class="o">=</span> <span class="n">coverage</span><span class="o">.</span><span class="n">start</span>
+        <span class="n">start</span> <span class="o">=</span> <span class="nb">max</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="n">traverse</span><span class="p">(</span><span class="n">coverage</span><span class="o">.</span><span class="n">start</span><span class="p">,</span> <span class="n">max_interval</span> <span class="o">-</span> <span class="n">coverage_d</span><span class="p">,</span> <span class="n">ORIENT</span><span class="o">.</span><span class="n">LEFT</span><span class="p">)</span><span class="o">.</span><span class="n">start</span><span class="p">])</span>
+        <span class="k">return</span> <span class="n">Interval</span><span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;orientation must be specific&#39;</span><span class="p">,</span> <span class="n">orientation</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">_call_by_flanking_pairs</span><span class="p">(</span>
+        <span class="n">evidence</span><span class="p">,</span> <span class="n">event_type</span><span class="p">,</span> <span class="n">first_breakpoint_called</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">second_breakpoint_called</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">consumed_evidence</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Given a set of flanking reads, computes the coverage interval (the area that is covered by flanking read alignments)</span>
+<span class="sd">    this area gives the starting position for computing the breakpoint interval.</span>
+
+<span class="sd">    .. todo::</span>
+
+<span class="sd">        pre-split pairs into clusters by position and fragment size. This will enable calling multiple</span>
+<span class="sd">        events in close proximity by flanking reads only. It will also aid in stopping FP reads from</span>
+<span class="sd">        interfering with resolving events by flanking pairs.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">consumed_evidence</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">consumed_evidence</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="c1"># for all flanking read pairs mark the farthest possible distance to the breakpoint</span>
+    <span class="c1"># the start/end of the read on the breakpoint side</span>
+    <span class="n">first_positions</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">second_positions</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="n">flanking_count</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">cover1_reads</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">cover2_reads</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">available_flanking_pairs</span> <span class="o">=</span> <span class="n">filter_consumed_pairs</span><span class="p">(</span><span class="n">evidence</span><span class="o">.</span><span class="n">flanking_pairs</span><span class="p">,</span> <span class="n">consumed_evidence</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">read</span><span class="p">,</span> <span class="n">mate</span> <span class="ow">in</span> <span class="n">available_flanking_pairs</span><span class="p">:</span>
+        <span class="c1"># check that the fragment size is reasonable</span>
+        <span class="n">fragment_size</span> <span class="o">=</span> <span class="n">evidence</span><span class="o">.</span><span class="n">compute_fragment_size</span><span class="p">(</span><span class="n">read</span><span class="p">,</span> <span class="n">mate</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">event_type</span> <span class="o">==</span> <span class="n">SVTYPE</span><span class="o">.</span><span class="n">DEL</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">fragment_size</span><span class="o">.</span><span class="n">end</span> <span class="o">&lt;=</span> <span class="n">evidence</span><span class="o">.</span><span class="n">max_expected_fragment_size</span><span class="p">:</span>
+                <span class="k">continue</span>
+        <span class="k">elif</span> <span class="n">event_type</span> <span class="o">==</span> <span class="n">SVTYPE</span><span class="o">.</span><span class="n">INS</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">fragment_size</span><span class="o">.</span><span class="n">start</span> <span class="o">&gt;=</span> <span class="n">evidence</span><span class="o">.</span><span class="n">min_expected_fragment_size</span><span class="p">:</span>
+                <span class="k">continue</span>
+        <span class="n">flanking_count</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="n">cover1_reads</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">read</span><span class="p">)</span>
+        <span class="n">cover2_reads</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">mate</span><span class="p">)</span>
+        <span class="n">first_positions</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="n">read</span><span class="o">.</span><span class="n">reference_start</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">read</span><span class="o">.</span><span class="n">reference_end</span><span class="p">])</span>
+        <span class="n">second_positions</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="n">mate</span><span class="o">.</span><span class="n">reference_start</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">mate</span><span class="o">.</span><span class="n">reference_end</span><span class="p">])</span>
+    <span class="k">if</span> <span class="n">flanking_count</span> <span class="o">&lt;</span> <span class="n">evidence</span><span class="o">.</span><span class="n">min_flanking_pairs_resolution</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">AssertionError</span><span class="p">(</span><span class="s1">&#39;insufficient coverage to call </span><span class="si">{}</span><span class="s1"> by flanking reads&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">event_type</span><span class="p">))</span>
+
+    <span class="n">cover1</span> <span class="o">=</span> <span class="n">Interval</span><span class="p">(</span><span class="nb">min</span><span class="p">(</span><span class="n">first_positions</span><span class="p">),</span> <span class="nb">max</span><span class="p">(</span><span class="n">first_positions</span><span class="p">))</span>
+    <span class="n">cover2</span> <span class="o">=</span> <span class="n">Interval</span><span class="p">(</span><span class="nb">min</span><span class="p">(</span><span class="n">second_positions</span><span class="p">),</span> <span class="nb">max</span><span class="p">(</span><span class="n">second_positions</span><span class="p">))</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">evidence</span><span class="o">.</span><span class="n">interchromosomal</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">Interval</span><span class="o">.</span><span class="n">overlaps</span><span class="p">(</span><span class="n">cover1</span><span class="p">,</span> <span class="n">cover2</span><span class="p">)</span> <span class="ow">and</span> <span class="n">event_type</span> <span class="o">!=</span> <span class="n">SVTYPE</span><span class="o">.</span><span class="n">DUP</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">AssertionError</span><span class="p">(</span><span class="s1">&#39;flanking read coverage overlaps. cannot call by flanking reads&#39;</span><span class="p">,</span> <span class="n">cover1</span><span class="p">,</span> <span class="n">cover2</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">event_type</span> <span class="o">==</span> <span class="n">SVTYPE</span><span class="o">.</span><span class="n">DUP</span> <span class="ow">and</span> <span class="p">(</span><span class="n">cover1</span><span class="o">.</span><span class="n">start</span> <span class="o">&gt;</span> <span class="n">cover2</span><span class="o">.</span><span class="n">start</span> <span class="ow">or</span> <span class="n">cover2</span><span class="o">.</span><span class="n">end</span> <span class="o">&lt;</span> <span class="n">cover1</span><span class="o">.</span><span class="n">end</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">AssertionError</span><span class="p">(</span><span class="s1">&#39;flanking coverage for duplications must have some distinct positions&#39;</span><span class="p">,</span> <span class="n">cover1</span><span class="p">,</span> <span class="n">cover2</span><span class="p">)</span>
+
+    <span class="n">break1_strand</span> <span class="o">=</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">NS</span>
+    <span class="n">break2_strand</span> <span class="o">=</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">NS</span>
+    <span class="k">if</span> <span class="n">evidence</span><span class="o">.</span><span class="n">stranded</span><span class="p">:</span>
+        <span class="n">break1_strand</span> <span class="o">=</span> <span class="n">evidence</span><span class="o">.</span><span class="n">decide_sequenced_strand</span><span class="p">(</span><span class="n">cover1_reads</span><span class="p">)</span>
+        <span class="n">break2_strand</span> <span class="o">=</span> <span class="n">evidence</span><span class="o">.</span><span class="n">decide_sequenced_strand</span><span class="p">(</span><span class="n">cover2_reads</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">first_breakpoint_called</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">second_breakpoint_called</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+
+        <span class="n">window1</span> <span class="o">=</span> <span class="n">_call_interval_by_flanking_coverage</span><span class="p">(</span>
+            <span class="n">cover1</span><span class="p">,</span> <span class="n">evidence</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">orient</span><span class="p">,</span> <span class="n">evidence</span><span class="o">.</span><span class="n">max_expected_fragment_size</span><span class="p">,</span> <span class="n">evidence</span><span class="o">.</span><span class="n">read_length</span><span class="p">,</span>
+            <span class="n">distance</span><span class="o">=</span><span class="n">evidence</span><span class="o">.</span><span class="n">distance</span><span class="p">,</span> <span class="n">traverse</span><span class="o">=</span><span class="n">evidence</span><span class="o">.</span><span class="n">traverse</span>
+        <span class="p">)</span>
+
+        <span class="n">window2</span> <span class="o">=</span> <span class="n">_call_interval_by_flanking_coverage</span><span class="p">(</span>
+            <span class="n">cover2</span><span class="p">,</span> <span class="n">evidence</span><span class="o">.</span><span class="n">break2</span><span class="o">.</span><span class="n">orient</span><span class="p">,</span> <span class="n">evidence</span><span class="o">.</span><span class="n">max_expected_fragment_size</span><span class="p">,</span> <span class="n">evidence</span><span class="o">.</span><span class="n">read_length</span><span class="p">,</span>
+            <span class="n">distance</span><span class="o">=</span><span class="n">evidence</span><span class="o">.</span><span class="n">distance</span><span class="p">,</span> <span class="n">traverse</span><span class="o">=</span><span class="n">evidence</span><span class="o">.</span><span class="n">traverse</span>
+        <span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">evidence</span><span class="o">.</span><span class="n">interchromosomal</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">window1</span><span class="o">.</span><span class="n">start</span> <span class="o">&gt;</span> <span class="n">window2</span><span class="o">.</span><span class="n">end</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">AssertionError</span><span class="p">(</span><span class="s1">&#39;flanking window regions are incompatible&#39;</span><span class="p">,</span> <span class="n">window1</span><span class="p">,</span> <span class="n">window2</span><span class="p">)</span>
+            <span class="n">window1</span><span class="o">.</span><span class="n">end</span> <span class="o">=</span> <span class="nb">min</span><span class="p">([</span><span class="n">window1</span><span class="o">.</span><span class="n">end</span><span class="p">,</span> <span class="n">window2</span><span class="o">.</span><span class="n">end</span><span class="p">,</span> <span class="n">cover2</span><span class="o">.</span><span class="n">start</span> <span class="o">-</span> <span class="p">(</span><span class="mi">0</span> <span class="k">if</span> <span class="n">event_type</span> <span class="o">==</span> <span class="n">SVTYPE</span><span class="o">.</span><span class="n">DUP</span> <span class="k">else</span> <span class="mi">1</span><span class="p">)])</span>
+            <span class="n">window2</span><span class="o">.</span><span class="n">start</span> <span class="o">=</span> <span class="nb">max</span><span class="p">([</span><span class="n">window1</span><span class="o">.</span><span class="n">start</span><span class="p">,</span> <span class="n">window2</span><span class="o">.</span><span class="n">start</span><span class="p">,</span> <span class="n">cover1</span><span class="o">.</span><span class="n">end</span> <span class="o">+</span> <span class="p">(</span><span class="mi">0</span> <span class="k">if</span> <span class="n">event_type</span> <span class="o">==</span> <span class="n">SVTYPE</span><span class="o">.</span><span class="n">DUP</span> <span class="k">else</span> <span class="mi">1</span><span class="p">)])</span>
+        <span class="n">first_breakpoint_called</span> <span class="o">=</span> <span class="n">Breakpoint</span><span class="p">(</span>
+            <span class="n">evidence</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">chr</span><span class="p">,</span> <span class="n">window1</span><span class="o">.</span><span class="n">start</span><span class="p">,</span> <span class="n">window1</span><span class="o">.</span><span class="n">end</span><span class="p">,</span>
+            <span class="n">orient</span><span class="o">=</span><span class="n">evidence</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">orient</span><span class="p">,</span>
+            <span class="n">strand</span><span class="o">=</span><span class="n">break1_strand</span>
+        <span class="p">)</span>
+
+        <span class="n">second_breakpoint_called</span> <span class="o">=</span> <span class="n">Breakpoint</span><span class="p">(</span>
+            <span class="n">evidence</span><span class="o">.</span><span class="n">break2</span><span class="o">.</span><span class="n">chr</span><span class="p">,</span> <span class="n">window2</span><span class="o">.</span><span class="n">start</span><span class="p">,</span> <span class="n">window2</span><span class="o">.</span><span class="n">end</span><span class="p">,</span>
+            <span class="n">orient</span><span class="o">=</span><span class="n">evidence</span><span class="o">.</span><span class="n">break2</span><span class="o">.</span><span class="n">orient</span><span class="p">,</span>
+            <span class="n">strand</span><span class="o">=</span><span class="n">break2_strand</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">first_breakpoint_called</span><span class="p">,</span> <span class="n">second_breakpoint_called</span>
+
+    <span class="k">elif</span> <span class="n">second_breakpoint_called</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="c1"># does the input breakpoint make sense with the coverage?</span>
+        <span class="k">if</span> <span class="nb">any</span><span class="p">([</span>
+            <span class="n">first_breakpoint_called</span><span class="o">.</span><span class="n">orient</span> <span class="o">==</span> <span class="n">ORIENT</span><span class="o">.</span><span class="n">LEFT</span> <span class="ow">and</span> <span class="n">cover1</span><span class="o">.</span><span class="n">end</span> <span class="o">&gt;</span> <span class="n">first_breakpoint_called</span><span class="o">.</span><span class="n">end</span><span class="p">,</span>
+            <span class="n">first_breakpoint_called</span><span class="o">.</span><span class="n">orient</span> <span class="o">==</span> <span class="n">ORIENT</span><span class="o">.</span><span class="n">RIGHT</span> <span class="ow">and</span> <span class="n">cover1</span><span class="o">.</span><span class="n">start</span> <span class="o">&lt;</span> <span class="n">first_breakpoint_called</span><span class="o">.</span><span class="n">start</span>
+        <span class="p">]):</span>
+            <span class="k">raise</span> <span class="ne">AssertionError</span><span class="p">(</span>
+                <span class="s1">&#39;input breakpoint is incompatible with flanking coverage&#39;</span><span class="p">,</span> <span class="n">cover1</span><span class="p">,</span> <span class="n">first_breakpoint_called</span><span class="p">)</span>
+
+        <span class="n">window</span> <span class="o">=</span> <span class="n">_call_interval_by_flanking_coverage</span><span class="p">(</span>
+            <span class="n">cover2</span><span class="p">,</span> <span class="n">evidence</span><span class="o">.</span><span class="n">break2</span><span class="o">.</span><span class="n">orient</span><span class="p">,</span> <span class="n">evidence</span><span class="o">.</span><span class="n">max_expected_fragment_size</span><span class="p">,</span> <span class="n">evidence</span><span class="o">.</span><span class="n">read_length</span><span class="p">,</span>
+            <span class="n">distance</span><span class="o">=</span><span class="n">evidence</span><span class="o">.</span><span class="n">distance</span><span class="p">,</span> <span class="n">traverse</span><span class="o">=</span><span class="n">evidence</span><span class="o">.</span><span class="n">traverse</span>
+        <span class="p">)</span>
+        <span class="c1"># trim the putative window by the input breakpoint location for intrachromosomal events</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">evidence</span><span class="o">.</span><span class="n">interchromosomal</span><span class="p">:</span>
+            <span class="n">window</span><span class="o">.</span><span class="n">start</span> <span class="o">=</span> <span class="nb">max</span><span class="p">([</span>
+                <span class="n">window</span><span class="o">.</span><span class="n">start</span><span class="p">,</span> <span class="n">first_breakpoint_called</span><span class="o">.</span><span class="n">start</span> <span class="o">+</span> <span class="p">(</span><span class="mi">0</span> <span class="k">if</span> <span class="n">event_type</span> <span class="o">==</span> <span class="n">SVTYPE</span><span class="o">.</span><span class="n">DUP</span> <span class="k">else</span> <span class="mi">1</span><span class="p">),</span> <span class="n">cover1</span><span class="o">.</span><span class="n">end</span> <span class="o">+</span> <span class="mi">1</span><span class="p">])</span>
+            <span class="k">if</span> <span class="n">window</span><span class="o">.</span><span class="n">start</span> <span class="o">&gt;</span> <span class="n">window</span><span class="o">.</span><span class="n">end</span> <span class="ow">or</span> <span class="n">window</span><span class="o">.</span><span class="n">end</span> <span class="o">&lt;</span> <span class="n">first_breakpoint_called</span><span class="o">.</span><span class="n">start</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">AssertionError</span><span class="p">(</span><span class="s1">&#39;input breakpoint incompatible with call&#39;</span><span class="p">,</span> <span class="n">window</span><span class="p">,</span> <span class="n">first_breakpoint_called</span><span class="p">)</span>
+        <span class="n">second_breakpoint_called</span> <span class="o">=</span> <span class="n">Breakpoint</span><span class="p">(</span>
+            <span class="n">evidence</span><span class="o">.</span><span class="n">break2</span><span class="o">.</span><span class="n">chr</span><span class="p">,</span> <span class="n">window</span><span class="o">.</span><span class="n">start</span><span class="p">,</span> <span class="n">window</span><span class="o">.</span><span class="n">end</span><span class="p">,</span>
+            <span class="n">orient</span><span class="o">=</span><span class="n">evidence</span><span class="o">.</span><span class="n">break2</span><span class="o">.</span><span class="n">orient</span><span class="p">,</span>
+            <span class="n">strand</span><span class="o">=</span><span class="n">break2_strand</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">first_breakpoint_called</span><span class="p">,</span> <span class="n">second_breakpoint_called</span>
+
+    <span class="k">elif</span> <span class="n">first_breakpoint_called</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="c1"># does the input breakpoint make sense with the coverage?</span>
+        <span class="k">if</span> <span class="nb">any</span><span class="p">([</span>
+            <span class="n">second_breakpoint_called</span><span class="o">.</span><span class="n">orient</span> <span class="o">==</span> <span class="n">ORIENT</span><span class="o">.</span><span class="n">LEFT</span> <span class="ow">and</span> <span class="n">cover2</span><span class="o">.</span><span class="n">end</span> <span class="o">&gt;</span> <span class="n">second_breakpoint_called</span><span class="o">.</span><span class="n">end</span><span class="p">,</span>
+            <span class="n">second_breakpoint_called</span><span class="o">.</span><span class="n">orient</span> <span class="o">==</span> <span class="n">ORIENT</span><span class="o">.</span><span class="n">RIGHT</span> <span class="ow">and</span> <span class="n">cover2</span><span class="o">.</span><span class="n">start</span> <span class="o">&lt;</span> <span class="n">second_breakpoint_called</span><span class="o">.</span><span class="n">start</span>
+        <span class="p">]):</span>
+            <span class="k">raise</span> <span class="ne">AssertionError</span><span class="p">(</span>
+                <span class="s1">&#39;input breakpoint is incompatible with flanking coverage&#39;</span><span class="p">,</span> <span class="n">cover2</span><span class="p">,</span> <span class="n">second_breakpoint_called</span><span class="p">)</span>
+
+        <span class="n">window</span> <span class="o">=</span> <span class="n">_call_interval_by_flanking_coverage</span><span class="p">(</span>
+            <span class="n">cover1</span><span class="p">,</span> <span class="n">evidence</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">orient</span><span class="p">,</span> <span class="n">evidence</span><span class="o">.</span><span class="n">max_expected_fragment_size</span><span class="p">,</span> <span class="n">evidence</span><span class="o">.</span><span class="n">read_length</span><span class="p">,</span>
+            <span class="n">distance</span><span class="o">=</span><span class="n">evidence</span><span class="o">.</span><span class="n">distance</span><span class="p">,</span> <span class="n">traverse</span><span class="o">=</span><span class="n">evidence</span><span class="o">.</span><span class="n">traverse</span>
+        <span class="p">)</span>
+
+        <span class="c1"># trim the putative window by the input breakpoint location for intrachromosomal events</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">evidence</span><span class="o">.</span><span class="n">interchromosomal</span><span class="p">:</span>
+            <span class="n">window</span><span class="o">.</span><span class="n">end</span> <span class="o">=</span> <span class="nb">min</span><span class="p">([</span>
+                <span class="n">window</span><span class="o">.</span><span class="n">end</span><span class="p">,</span> <span class="n">second_breakpoint_called</span><span class="o">.</span><span class="n">end</span> <span class="o">-</span> <span class="p">(</span><span class="mi">0</span> <span class="k">if</span> <span class="n">event_type</span> <span class="o">==</span> <span class="n">SVTYPE</span><span class="o">.</span><span class="n">DUP</span> <span class="k">else</span> <span class="mi">1</span><span class="p">),</span> <span class="n">cover2</span><span class="o">.</span><span class="n">start</span> <span class="o">-</span> <span class="mi">1</span><span class="p">])</span>
+            <span class="k">if</span> <span class="n">window</span><span class="o">.</span><span class="n">end</span> <span class="o">&lt;</span> <span class="n">window</span><span class="o">.</span><span class="n">start</span> <span class="ow">or</span> <span class="n">window</span><span class="o">.</span><span class="n">start</span> <span class="o">&gt;</span> <span class="n">second_breakpoint_called</span><span class="o">.</span><span class="n">end</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">AssertionError</span><span class="p">(</span><span class="s1">&#39;input breakpoint incompatible with call&#39;</span><span class="p">,</span> <span class="n">window</span><span class="p">,</span> <span class="n">second_breakpoint_called</span><span class="p">)</span>
+        <span class="n">first_breakpoint_called</span> <span class="o">=</span> <span class="n">Breakpoint</span><span class="p">(</span>
+            <span class="n">evidence</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">chr</span><span class="p">,</span> <span class="n">window</span><span class="o">.</span><span class="n">start</span><span class="p">,</span> <span class="n">window</span><span class="o">.</span><span class="n">end</span><span class="p">,</span>
+            <span class="n">orient</span><span class="o">=</span><span class="n">evidence</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">orient</span><span class="p">,</span>
+            <span class="n">strand</span><span class="o">=</span><span class="n">break1_strand</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">first_breakpoint_called</span><span class="p">,</span> <span class="n">second_breakpoint_called</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;cannot input both breakpoints&#39;</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">_call_by_supporting_reads</span><span class="p">(</span><span class="n">evidence</span><span class="p">,</span> <span class="n">event_type</span><span class="p">,</span> <span class="n">consumed_evidence</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    use split read evidence to resolve bp-level calls for breakpoint pairs (where possible)</span>
+<span class="sd">    if a bp level call is not possible for one of the breakpoints then returns None</span>
+<span class="sd">    if no breakpoints can be resolved returns the original event only with NO split read evidence</span>
+<span class="sd">    also sets the SV type call if multiple are input</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">consumed_evidence</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">consumed_evidence</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="n">pos1</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">pos2</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="n">available_flanking_pairs</span> <span class="o">=</span> <span class="n">filter_consumed_pairs</span><span class="p">(</span><span class="n">evidence</span><span class="o">.</span><span class="n">flanking_pairs</span><span class="p">,</span> <span class="n">consumed_evidence</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">breakpoint</span><span class="p">,</span> <span class="n">pos_dict</span> <span class="ow">in</span> <span class="p">[(</span><span class="mi">0</span><span class="p">,</span> <span class="n">evidence</span><span class="o">.</span><span class="n">break1</span><span class="p">,</span> <span class="n">pos1</span><span class="p">),</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">evidence</span><span class="o">.</span><span class="n">break2</span><span class="p">,</span> <span class="n">pos2</span><span class="p">)]:</span>
+        <span class="k">for</span> <span class="n">read</span> <span class="ow">in</span> <span class="n">evidence</span><span class="o">.</span><span class="n">split_reads</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">-</span> <span class="n">consumed_evidence</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">pos</span> <span class="o">=</span> <span class="n">_read</span><span class="o">.</span><span class="n">breakpoint_pos</span><span class="p">(</span><span class="n">read</span><span class="p">,</span> <span class="n">breakpoint</span><span class="o">.</span><span class="n">orient</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+                <span class="k">if</span> <span class="n">pos</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">pos_dict</span><span class="p">:</span>
+                    <span class="n">pos_dict</span><span class="p">[</span><span class="n">pos</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+                <span class="n">pos_dict</span><span class="p">[</span><span class="n">pos</span><span class="p">]</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">read</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+                <span class="k">pass</span>
+        <span class="n">putative_positions</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">pos_dict</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+        <span class="k">for</span> <span class="n">pos</span> <span class="ow">in</span> <span class="n">putative_positions</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">pos_dict</span><span class="p">[</span><span class="n">pos</span><span class="p">])</span> <span class="o">&lt;</span> <span class="n">evidence</span><span class="o">.</span><span class="n">min_splits_reads_resolution</span><span class="p">:</span>
+                <span class="k">del</span> <span class="n">pos_dict</span><span class="p">[</span><span class="n">pos</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+                <span class="k">for</span> <span class="n">read</span> <span class="ow">in</span> <span class="n">pos_dict</span><span class="p">[</span><span class="n">pos</span><span class="p">]:</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="n">read</span><span class="o">.</span><span class="n">has_tag</span><span class="p">(</span><span class="n">PYSAM_READ_FLAGS</span><span class="o">.</span><span class="n">TARGETED_ALIGNMENT</span><span class="p">)</span> <span class="ow">or</span> \
+                            <span class="ow">not</span> <span class="n">read</span><span class="o">.</span><span class="n">get_tag</span><span class="p">(</span><span class="n">PYSAM_READ_FLAGS</span><span class="o">.</span><span class="n">TARGETED_ALIGNMENT</span><span class="p">):</span>
+                        <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="k">if</span> <span class="n">count</span> <span class="o">&lt;</span> <span class="n">evidence</span><span class="o">.</span><span class="n">min_non_target_aligned_split_reads</span><span class="p">:</span>
+                    <span class="k">del</span> <span class="n">pos_dict</span><span class="p">[</span><span class="n">pos</span><span class="p">]</span>
+
+    <span class="n">linked_pairings</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="c1"># now pair up the breakpoints with their putative partners</span>
+    <span class="k">for</span> <span class="n">first</span><span class="p">,</span> <span class="n">second</span> <span class="ow">in</span> <span class="n">itertools</span><span class="o">.</span><span class="n">product</span><span class="p">(</span><span class="n">pos1</span><span class="p">,</span> <span class="n">pos2</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">evidence</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">chr</span> <span class="o">==</span> <span class="n">evidence</span><span class="o">.</span><span class="n">break2</span><span class="o">.</span><span class="n">chr</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">first</span> <span class="o">&gt;=</span> <span class="n">second</span><span class="p">:</span>
+                <span class="k">continue</span>
+        <span class="n">links</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">read_names</span> <span class="o">=</span> <span class="nb">set</span><span class="p">([</span><span class="n">r</span><span class="o">.</span><span class="n">query_name</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">pos1</span><span class="p">[</span><span class="n">first</span><span class="p">]])</span>
+        <span class="n">reads</span> <span class="o">=</span> <span class="nb">set</span><span class="p">([(</span><span class="n">r</span><span class="o">.</span><span class="n">query_name</span><span class="p">,</span> <span class="n">r</span><span class="o">.</span><span class="n">query_sequence</span><span class="p">)</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">pos1</span><span class="p">[</span><span class="n">first</span><span class="p">]])</span>
+        <span class="n">tgt_align</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">read</span> <span class="ow">in</span> <span class="n">pos2</span><span class="p">[</span><span class="n">second</span><span class="p">]:</span>
+            <span class="k">if</span> <span class="n">read</span><span class="o">.</span><span class="n">query_name</span> <span class="ow">in</span> <span class="n">read_names</span><span class="p">:</span>
+                <span class="n">links</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">read</span><span class="o">.</span><span class="n">query_name</span><span class="p">,</span> <span class="n">read</span><span class="o">.</span><span class="n">query_sequence</span><span class="p">)</span> <span class="ow">in</span> <span class="n">reads</span><span class="p">:</span>
+                <span class="n">tgt_align</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="n">links</span> <span class="o">&lt;</span> <span class="n">evidence</span><span class="o">.</span><span class="n">min_linking_split_reads</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="n">deletion_size</span> <span class="o">=</span> <span class="n">second</span> <span class="o">-</span> <span class="n">first</span> <span class="o">-</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="n">tgt_align</span> <span class="o">&gt;=</span> <span class="n">evidence</span><span class="o">.</span><span class="n">min_double_aligned_to_estimate_insertion_size</span><span class="p">:</span>
+            <span class="c1"># we can estimate the fragment size</span>
+            <span class="n">max_insert</span> <span class="o">=</span> <span class="n">evidence</span><span class="o">.</span><span class="n">read_length</span> <span class="o">-</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">evidence</span><span class="o">.</span><span class="n">min_softclipping</span>
+            <span class="k">if</span> <span class="n">event_type</span> <span class="o">==</span> <span class="n">SVTYPE</span><span class="o">.</span><span class="n">INS</span> <span class="ow">and</span> <span class="n">max_insert</span> <span class="o">&lt;</span> <span class="n">deletion_size</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="k">elif</span> <span class="n">event_type</span> <span class="o">==</span> <span class="n">SVTYPE</span><span class="o">.</span><span class="n">DEL</span> <span class="ow">and</span> <span class="n">deletion_size</span> <span class="o">&lt;</span> <span class="n">max_insert</span><span class="p">:</span>
+                <span class="k">continue</span>
+        <span class="k">elif</span> <span class="n">links</span> <span class="o">&gt;=</span> <span class="n">evidence</span><span class="o">.</span><span class="n">min_double_aligned_to_estimate_insertion_size</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">deletion_size</span> <span class="o">&gt;</span> <span class="n">evidence</span><span class="o">.</span><span class="n">max_expected_fragment_size</span> <span class="ow">and</span> <span class="n">event_type</span> <span class="o">==</span> <span class="n">SVTYPE</span><span class="o">.</span><span class="n">INS</span><span class="p">:</span>
+                <span class="k">continue</span>
+
+        <span class="c1"># check if any of the aligned reads are &#39;double&#39; aligned</span>
+        <span class="n">double_aligned</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">read</span> <span class="ow">in</span> <span class="n">pos1</span><span class="p">[</span><span class="n">first</span><span class="p">]</span> <span class="o">|</span> <span class="n">pos2</span><span class="p">[</span><span class="n">second</span><span class="p">]:</span>
+            <span class="n">seq_key</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">sorted</span><span class="p">([</span>
+                <span class="n">read</span><span class="o">.</span><span class="n">query_name</span><span class="p">,</span> <span class="n">read</span><span class="o">.</span><span class="n">query_sequence</span><span class="p">,</span> <span class="n">reverse_complement</span><span class="p">(</span><span class="n">read</span><span class="o">.</span><span class="n">query_sequence</span><span class="p">)</span>
+            <span class="p">]))</span>  <span class="c1"># seq and revseq are equal</span>
+            <span class="n">double_aligned</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">seq_key</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">read</span><span class="p">)</span>
+
+        <span class="c1"># now create calls using the double aligned split read pairs if possible (to resolve untemplated sequence)</span>
+        <span class="n">resolved_calls</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+        <span class="n">event_types</span> <span class="o">=</span> <span class="p">{</span><span class="n">event_type</span><span class="p">}</span>
+        <span class="k">if</span> <span class="n">event_type</span> <span class="ow">in</span> <span class="p">{</span><span class="n">SVTYPE</span><span class="o">.</span><span class="n">DUP</span><span class="p">,</span> <span class="n">SVTYPE</span><span class="o">.</span><span class="n">INS</span><span class="p">}:</span>
+            <span class="n">event_types</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="n">SVTYPE</span><span class="o">.</span><span class="n">DUP</span><span class="p">,</span> <span class="n">SVTYPE</span><span class="o">.</span><span class="n">INS</span><span class="p">})</span>
+        <span class="k">for</span> <span class="n">reads</span> <span class="ow">in</span> <span class="p">[</span><span class="n">d</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">double_aligned</span><span class="o">.</span><span class="n">values</span><span class="p">()</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">d</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">]:</span>
+            <span class="k">for</span> <span class="n">read1</span><span class="p">,</span> <span class="n">read2</span> <span class="ow">in</span> <span class="n">itertools</span><span class="o">.</span><span class="n">combinations</span><span class="p">(</span><span class="n">reads</span><span class="p">,</span> <span class="mi">2</span><span class="p">):</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">call</span> <span class="o">=</span> <span class="n">call_paired_read_event</span><span class="p">(</span><span class="n">read1</span><span class="p">,</span> <span class="n">read2</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="n">evidence</span><span class="o">.</span><span class="n">stranded</span><span class="p">:</span>
+                        <span class="n">call</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">strand</span> <span class="o">=</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">NS</span>
+                        <span class="n">call</span><span class="o">.</span><span class="n">break2</span><span class="o">.</span><span class="n">strand</span> <span class="o">=</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">NS</span>
+                    <span class="k">if</span> <span class="n">BreakpointPair</span><span class="o">.</span><span class="n">classify</span><span class="p">(</span><span class="n">call</span><span class="p">)</span> <span class="o">&amp;</span> <span class="n">event_types</span><span class="p">:</span>  <span class="c1"># ensure we are calling the correct event types</span>
+                        <span class="n">resolved_calls</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">call</span><span class="p">,</span> <span class="p">(</span><span class="nb">set</span><span class="p">(),</span> <span class="nb">set</span><span class="p">()))</span>
+                        <span class="n">resolved_calls</span><span class="p">[</span><span class="n">call</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">read1</span><span class="p">)</span>
+                        <span class="n">resolved_calls</span><span class="p">[</span><span class="n">call</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">read2</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">AssertionError</span><span class="p">:</span>
+                    <span class="k">pass</span>  <span class="c1"># will be thrown if the reads do not actually belong together</span>
+
+        <span class="c1"># if no calls were resolved set the untemplated seq to None</span>
+        <span class="n">first_breakpoint</span> <span class="o">=</span> <span class="n">Breakpoint</span><span class="p">(</span><span class="n">evidence</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">chr</span><span class="p">,</span> <span class="n">first</span><span class="p">,</span> <span class="n">strand</span><span class="o">=</span><span class="n">evidence</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">strand</span><span class="p">,</span> <span class="n">orient</span><span class="o">=</span><span class="n">evidence</span><span class="o">.</span><span class="n">break1</span><span class="o">.</span><span class="n">orient</span><span class="p">)</span>
+        <span class="n">second_breakpoint</span> <span class="o">=</span> <span class="n">Breakpoint</span><span class="p">(</span><span class="n">evidence</span><span class="o">.</span><span class="n">break2</span><span class="o">.</span><span class="n">chr</span><span class="p">,</span> <span class="n">second</span><span class="p">,</span> <span class="n">strand</span><span class="o">=</span><span class="n">evidence</span><span class="o">.</span><span class="n">break2</span><span class="o">.</span><span class="n">strand</span><span class="p">,</span> <span class="n">orient</span><span class="o">=</span><span class="n">evidence</span><span class="o">.</span><span class="n">break2</span><span class="o">.</span><span class="n">orient</span><span class="p">)</span>
+        <span class="n">bpp</span> <span class="o">=</span> <span class="n">BreakpointPair</span><span class="p">(</span><span class="n">first_breakpoint</span><span class="p">,</span> <span class="n">second_breakpoint</span><span class="p">,</span> <span class="n">event_type</span><span class="o">=</span><span class="n">event_type</span><span class="p">)</span>
+        <span class="n">resolved_calls</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">bpp</span><span class="p">,</span> <span class="p">(</span><span class="nb">set</span><span class="p">(),</span> <span class="nb">set</span><span class="p">()))</span>
+
+        <span class="n">uncons_break1_reads</span> <span class="o">=</span> <span class="n">evidence</span><span class="o">.</span><span class="n">split_reads</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="n">consumed_evidence</span>
+        <span class="n">uncons_break2_reads</span> <span class="o">=</span> <span class="n">evidence</span><span class="o">.</span><span class="n">split_reads</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">consumed_evidence</span>
+
+        <span class="k">for</span> <span class="n">call</span><span class="p">,</span> <span class="p">(</span><span class="n">reads1</span><span class="p">,</span> <span class="n">reads2</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span>
+            <span class="n">resolved_calls</span><span class="o">.</span><span class="n">items</span><span class="p">(),</span>
+            <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">]),</span> <span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
+            <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span>
+        <span class="p">):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">call</span> <span class="o">=</span> <span class="n">EventCall</span><span class="p">(</span>
+                    <span class="n">call</span><span class="o">.</span><span class="n">break1</span><span class="p">,</span> <span class="n">call</span><span class="o">.</span><span class="n">break2</span><span class="p">,</span> <span class="n">evidence</span><span class="p">,</span> <span class="n">event_type</span><span class="p">,</span>
+                    <span class="n">call_method</span><span class="o">=</span><span class="n">CALL_METHOD</span><span class="o">.</span><span class="n">SPLIT</span><span class="p">,</span> <span class="n">untemplated_seq</span><span class="o">=</span><span class="n">call</span><span class="o">.</span><span class="n">untemplated_seq</span>
+                <span class="p">)</span>
+                <span class="n">call</span><span class="o">.</span><span class="n">break1_split_reads</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">reads1</span> <span class="o">-</span> <span class="n">consumed_evidence</span><span class="p">)</span>
+                <span class="n">call</span><span class="o">.</span><span class="n">break2_split_reads</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">reads2</span> <span class="o">-</span> <span class="n">consumed_evidence</span><span class="p">)</span>
+                <span class="n">call</span><span class="o">.</span><span class="n">add_flanking_support</span><span class="p">(</span><span class="n">available_flanking_pairs</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">call</span><span class="o">.</span><span class="n">has_compatible</span><span class="p">:</span>
+                    <span class="n">call</span><span class="o">.</span><span class="n">add_flanking_support</span><span class="p">(</span><span class="n">available_flanking_pairs</span><span class="p">,</span> <span class="n">is_compatible</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                <span class="c1"># add the initial reads</span>
+                <span class="k">for</span> <span class="n">read</span> <span class="ow">in</span> <span class="n">uncons_break1_reads</span> <span class="o">-</span> <span class="n">consumed_evidence</span><span class="p">:</span>
+                    <span class="n">call</span><span class="o">.</span><span class="n">add_break1_split_read</span><span class="p">(</span><span class="n">read</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">read</span> <span class="ow">in</span> <span class="n">uncons_break2_reads</span> <span class="o">-</span> <span class="n">consumed_evidence</span><span class="p">:</span>
+                    <span class="n">call</span><span class="o">.</span><span class="n">add_break2_split_read</span><span class="p">(</span><span class="n">read</span><span class="p">)</span>
+                <span class="n">linking_reads</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">call</span><span class="o">.</span><span class="n">linking_split_read_names</span><span class="p">())</span>
+                <span class="k">if</span> <span class="n">call</span><span class="o">.</span><span class="n">event_type</span> <span class="o">==</span> <span class="n">SVTYPE</span><span class="o">.</span><span class="n">INS</span><span class="p">:</span>  <span class="c1"># may not expect linking split reads for insertions</span>
+                    <span class="n">linking_reads</span> <span class="o">+=</span> <span class="nb">len</span><span class="p">(</span><span class="n">call</span><span class="o">.</span><span class="n">flanking_pairs</span><span class="p">)</span>
+                <span class="c1"># does it pass the requirements?</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="nb">any</span><span class="p">([</span>
+                    <span class="nb">len</span><span class="p">(</span><span class="n">call</span><span class="o">.</span><span class="n">break1_split_read_names</span><span class="p">(</span><span class="n">both</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span> <span class="o">&lt;</span> <span class="n">evidence</span><span class="o">.</span><span class="n">min_splits_reads_resolution</span><span class="p">,</span>
+                    <span class="nb">len</span><span class="p">(</span><span class="n">call</span><span class="o">.</span><span class="n">break2_split_read_names</span><span class="p">(</span><span class="n">both</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span> <span class="o">&lt;</span> <span class="n">evidence</span><span class="o">.</span><span class="n">min_splits_reads_resolution</span><span class="p">,</span>
+                    <span class="nb">len</span><span class="p">(</span><span class="n">call</span><span class="o">.</span><span class="n">break1_split_read_names</span><span class="p">())</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">,</span>
+                    <span class="nb">len</span><span class="p">(</span><span class="n">call</span><span class="o">.</span><span class="n">break2_split_read_names</span><span class="p">())</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">,</span>
+                    <span class="n">linking_reads</span> <span class="o">&lt;</span> <span class="n">evidence</span><span class="o">.</span><span class="n">min_linking_split_reads</span><span class="p">,</span>
+                <span class="p">]):</span>
+                    <span class="n">linked_pairings</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">call</span><span class="p">)</span>
+                    <span class="c1"># consume the evidence</span>
+                    <span class="n">consumed_evidence</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">call</span><span class="o">.</span><span class="n">break1_split_reads</span><span class="p">)</span>
+                    <span class="n">consumed_evidence</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">call</span><span class="o">.</span><span class="n">break2_split_reads</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>  <span class="c1"># incompatible types</span>
+                <span class="k">continue</span>
+
+    <span class="k">for</span> <span class="n">call</span> <span class="ow">in</span> <span class="n">linked_pairings</span><span class="p">:</span>
+        <span class="n">consumed_evidence</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">call</span><span class="o">.</span><span class="n">support</span><span class="p">())</span>
+
+    <span class="n">error_messages</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="n">available_flanking_pairs</span> <span class="o">=</span> <span class="n">filter_consumed_pairs</span><span class="p">(</span><span class="n">available_flanking_pairs</span><span class="p">,</span> <span class="n">consumed_evidence</span><span class="p">)</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">first</span><span class="p">,</span> <span class="n">second</span> <span class="o">=</span> <span class="n">_call_by_flanking_pairs</span><span class="p">(</span><span class="n">evidence</span><span class="p">,</span> <span class="n">event_type</span><span class="p">,</span> <span class="n">consumed_evidence</span><span class="o">=</span><span class="n">consumed_evidence</span><span class="p">)</span>
+        <span class="n">call</span> <span class="o">=</span> <span class="n">EventCall</span><span class="p">(</span>
+            <span class="n">first</span><span class="p">,</span> <span class="n">second</span><span class="p">,</span> <span class="n">evidence</span><span class="p">,</span> <span class="n">event_type</span><span class="p">,</span>
+            <span class="n">call_method</span><span class="o">=</span><span class="n">CALL_METHOD</span><span class="o">.</span><span class="n">FLANK</span>
+        <span class="p">)</span>
+        <span class="n">call</span><span class="o">.</span><span class="n">add_flanking_support</span><span class="p">(</span><span class="n">available_flanking_pairs</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">call</span><span class="o">.</span><span class="n">has_compatible</span><span class="p">:</span>
+            <span class="n">call</span><span class="o">.</span><span class="n">add_flanking_support</span><span class="p">(</span><span class="n">available_flanking_pairs</span><span class="p">,</span> <span class="n">is_compatible</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">linked_pairings</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">call</span><span class="p">)</span>
+    <span class="k">except</span> <span class="p">(</span><span class="ne">AssertionError</span><span class="p">,</span> <span class="ne">UserWarning</span><span class="p">)</span> <span class="k">as</span> <span class="n">err</span><span class="p">:</span>
+        <span class="n">error_messages</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">err</span><span class="p">))</span>
+    <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>  <span class="c1"># incompatible type</span>
+        <span class="k">pass</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">linked_pairings</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">UserWarning</span><span class="p">(</span><span class="s1">&#39;;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">error_messages</span><span class="p">)))</span>
+    <span class="k">return</span> <span class="n">linked_pairings</span>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2017, creisle.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../',
+            VERSION:'',
+            LANGUAGE:'None',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

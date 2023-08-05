@@ -1,0 +1,654 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>mavis.annotate.protein &mdash; MAVIS  documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+    <link rel="stylesheet" href="../../../_static/custom.css" type="text/css" />
+  
+
+  
+        <link rel="author" title="About these documents"
+              href="../../../about.html"/>
+        <link rel="index" title="Index"
+              href="../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../search.html"/>
+    <link rel="top" title="MAVIS  documentation" href="../../../index.html"/>
+        <link rel="up" title="Module code" href="../../index.html"/> 
+
+  
+  <script src="../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home"> MAVIS
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                1.6.4
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../about.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../pipeline.html">Running the Pipeline</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../mavis_input.html">MAVIS standard input file format</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../reference.html">Reference Input Files</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../configuration.html">Configuration and Settings</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../tools_supported.html">Supported SV Callers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../illustrations.html">Illustrations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../faqs.html">Frequently Asked Questions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../theory.html">Theory and Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../development.html">Guidelines for Contributors</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../package.html">Package Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../citations.html">Literature</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">MAVIS</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+      <li>mavis.annotate.protein</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for mavis.annotate.protein</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">itertools</span>
+
+<span class="kn">from</span> <span class="nn">.base</span> <span class="k">import</span> <span class="n">BioInterval</span>
+<span class="kn">from</span> <span class="nn">..constants</span> <span class="k">import</span> <span class="n">CODON_SIZE</span><span class="p">,</span> <span class="n">START_AA</span><span class="p">,</span> <span class="n">STOP_AA</span><span class="p">,</span> <span class="n">translate</span>
+<span class="kn">from</span> <span class="nn">..error</span> <span class="k">import</span> <span class="n">NotSpecifiedError</span>
+<span class="kn">from</span> <span class="nn">..interval</span> <span class="k">import</span> <span class="n">Interval</span>
+
+
+<div class="viewcode-block" id="calculate_orf"><a class="viewcode-back" href="../../../auto/mavis.annotate.protein.html#mavis.annotate.protein.calculate_orf">[docs]</a><span class="k">def</span> <span class="nf">calculate_orf</span><span class="p">(</span><span class="n">spliced_cdna_sequence</span><span class="p">,</span> <span class="n">min_orf_size</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    calculate all possible open reading frames given a spliced cdna sequence (no introns)</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        spliced_cdna_sequence (str): the sequence</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        :any:`list` of :any:`Interval`: list of open reading frame positions on the input sequence</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># do not revcomp</span>
+    <span class="k">assert</span> <span class="n">START_AA</span> <span class="o">!=</span> <span class="n">STOP_AA</span>
+    <span class="n">cds_orfs</span> <span class="o">=</span> <span class="p">[]</span>  <span class="c1"># (cds_start, cds_end)</span>
+    <span class="k">for</span> <span class="n">offset</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">CODON_SIZE</span><span class="p">):</span>
+        <span class="n">aa_sequence</span> <span class="o">=</span> <span class="n">translate</span><span class="p">(</span><span class="n">spliced_cdna_sequence</span><span class="p">,</span> <span class="n">offset</span><span class="p">)</span>
+        <span class="c1"># now calc the open reading frames</span>
+        <span class="n">orf_intervals</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">current_start</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">curr_amino_acid</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">aa_sequence</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">curr_amino_acid</span> <span class="o">==</span> <span class="n">START_AA</span><span class="p">:</span>
+                <span class="n">pos</span> <span class="o">=</span> <span class="n">i</span> <span class="o">*</span> <span class="n">CODON_SIZE</span> <span class="o">+</span> <span class="mi">1</span> <span class="o">+</span> <span class="n">offset</span>
+                <span class="k">if</span> <span class="n">current_start</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">current_start</span> <span class="o">=</span> <span class="n">pos</span>
+            <span class="k">elif</span> <span class="n">curr_amino_acid</span> <span class="o">==</span> <span class="n">STOP_AA</span><span class="p">:</span>
+                <span class="n">pos</span> <span class="o">=</span> <span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">CODON_SIZE</span> <span class="o">+</span> <span class="n">offset</span>
+                <span class="k">if</span> <span class="n">current_start</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>  <span class="c1"># close the current interval</span>
+                    <span class="n">itvl</span> <span class="o">=</span> <span class="n">Interval</span><span class="p">(</span><span class="n">current_start</span><span class="p">,</span> <span class="n">pos</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">min_orf_size</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="nb">len</span><span class="p">(</span><span class="n">itvl</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="n">min_orf_size</span><span class="p">:</span>
+                        <span class="n">orf_intervals</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">itvl</span><span class="p">)</span>
+                    <span class="n">current_start</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">cds_orfs</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">orf_intervals</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">cds_orfs</span></div>
+
+
+<div class="viewcode-block" id="DomainRegion"><a class="viewcode-back" href="../../../auto/mavis.annotate.protein.html#mavis.annotate.protein.DomainRegion">[docs]</a><span class="k">class</span> <span class="nc">DomainRegion</span><span class="p">(</span><span class="n">BioInterval</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">,</span> <span class="n">seq</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">domain</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="n">BioInterval</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">domain</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">,</span> <span class="n">seq</span><span class="o">=</span><span class="n">seq</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">seq</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">seq</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">AssertionError</span><span class="p">(</span><span class="s1">&#39;domain region seq must be of equal length&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="p">,</span> <span class="n">seq</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Domain"><a class="viewcode-back" href="../../../auto/mavis.annotate.protein.html#mavis.annotate.protein.Domain">[docs]</a><span class="k">class</span> <span class="nc">Domain</span><span class="p">:</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">regions</span><span class="p">,</span> <span class="n">translation</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Args:</span>
+<span class="sd">            name (str): the name of the domain i.e. PF00876</span>
+<span class="sd">            regions (:any:`list` of :any:`DomainRegion`): the amino acid ranges that are part of the domain</span>
+<span class="sd">            transcript (Transcript): the &#39;parent&#39; transcript this domain belongs to</span>
+<span class="sd">        Raises:</span>
+<span class="sd">            AttributeError: if the end of any region is less than the start</span>
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; Domain(&#39;DNA binding domain&#39;, [(1, 4), (10, 24)], transcript)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">reference_object</span> <span class="o">=</span> <span class="n">translation</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">regions</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">regions</span><span class="p">)))</span>  <span class="c1"># remove duplicates</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">data</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">regions</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span><span class="s1">&#39;at least one region must be given&#39;</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">region1</span><span class="p">,</span> <span class="n">region2</span> <span class="ow">in</span> <span class="n">itertools</span><span class="o">.</span><span class="n">combinations</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">regions</span><span class="p">,</span> <span class="mi">2</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">Interval</span><span class="o">.</span><span class="n">overlaps</span><span class="p">(</span><span class="n">region1</span><span class="p">,</span> <span class="n">region2</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span><span class="s1">&#39;regions cannot overlap&#39;</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">regions</span><span class="p">)):</span>
+            <span class="n">curr</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">regions</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">curr</span><span class="p">,</span> <span class="s1">&#39;seq&#39;</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">regions</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">DomainRegion</span><span class="p">(</span><span class="n">curr</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">curr</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">translation</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;:class:`~mavis.annotate.Translation`: the Translation this domain belongs to&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">reference_object</span>
+
+<div class="viewcode-block" id="Domain.key"><a class="viewcode-back" href="../../../auto/mavis.annotate.protein.html#mavis.annotate.protein.Domain.key">[docs]</a>    <span class="k">def</span> <span class="nf">key</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;:class:`tuple`: a tuple representing the items expected to be unique. for hashing and comparing&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">translation</span><span class="p">])</span></div>
+
+<div class="viewcode-block" id="Domain.score_region_mapping"><a class="viewcode-back" href="../../../auto/mavis.annotate.protein.html#mavis.annotate.protein.Domain.score_region_mapping">[docs]</a>    <span class="k">def</span> <span class="nf">score_region_mapping</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">reference_genome</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        compares the sequence in each DomainRegion to the sequence collected for that domain region from the</span>
+<span class="sd">        translation object</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            reference_genome (:class:`dict` of :class:`Bio.SeqRecord` by :class:`str`): dict of reference sequence</span>
+<span class="sd">                by template/chr name</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            tuple of int and int: tuple contains</span>
+
+<span class="sd">                - int: the number of matching amino acids</span>
+<span class="sd">                - int: the total number of amino acids</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">translation</span><span class="p">:</span>
+            <span class="n">aa_seq</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">translation</span><span class="o">.</span><span class="n">get_aa_seq</span><span class="p">(</span><span class="n">reference_genome</span><span class="p">)</span>
+            <span class="n">total</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="n">matches</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">for</span> <span class="n">region</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">regions</span><span class="p">:</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">region</span><span class="o">.</span><span class="n">seq</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="n">NotSpecifiedError</span><span class="p">(</span><span class="s1">&#39;insufficient sequence information&#39;</span><span class="p">)</span>
+                <span class="n">ref</span> <span class="o">=</span> <span class="n">aa_seq</span><span class="p">[</span><span class="n">region</span><span class="o">.</span><span class="n">start</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span><span class="n">region</span><span class="o">.</span><span class="n">end</span><span class="p">]</span>
+                <span class="k">for</span> <span class="n">aa1</span><span class="p">,</span> <span class="n">aa2</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">ref</span><span class="p">,</span> <span class="n">region</span><span class="o">.</span><span class="n">seq</span><span class="p">):</span>
+                    <span class="k">if</span> <span class="n">aa1</span> <span class="o">==</span> <span class="n">aa2</span><span class="p">:</span>
+                        <span class="n">matches</span> <span class="o">+=</span> <span class="mi">1</span>
+                    <span class="n">total</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">return</span> <span class="n">matches</span><span class="p">,</span> <span class="n">total</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">NotSpecifiedError</span><span class="p">(</span><span class="s1">&#39;insufficient sequence information&#39;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Domain.get_seqs"><a class="viewcode-back" href="../../../auto/mavis.annotate.protein.html#mavis.annotate.protein.Domain.get_seqs">[docs]</a>    <span class="k">def</span> <span class="nf">get_seqs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">reference_genome</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ignore_cache</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        returns the amino acid sequences for each of the domain regions associated with</span>
+<span class="sd">        this domain in the order of the regions (sorted by start)</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            reference_genome (:class:`dict` of :class:`Bio.SeqRecord` by :class:`str`): dict of reference sequence</span>
+<span class="sd">                by template/chr name</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            :class:`list` of :class:`str`: list of amino acid sequences for each DomainRegion</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            AttributeError: if there is not enough sequence information given to determine this</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">sequences</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">ignore_cache</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">region</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">regions</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">region</span><span class="o">.</span><span class="n">seq</span><span class="p">:</span>
+                    <span class="n">sequences</span><span class="p">[</span><span class="n">region</span><span class="p">]</span> <span class="o">=</span> <span class="n">region</span><span class="o">.</span><span class="n">seq</span>
+        <span class="k">if</span> <span class="nb">any</span><span class="p">([</span><span class="n">r</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">sequences</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">regions</span><span class="p">]):</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">translation</span><span class="p">:</span>
+                <span class="n">aa_seq</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">translation</span><span class="o">.</span><span class="n">get_aa_seq</span><span class="p">(</span><span class="n">reference_genome</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">region</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">regions</span><span class="p">:</span>
+                    <span class="n">region_seq</span> <span class="o">=</span> <span class="n">aa_seq</span><span class="p">[</span><span class="n">region</span><span class="o">.</span><span class="n">start</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span><span class="n">region</span><span class="o">.</span><span class="n">end</span><span class="p">]</span>
+                    <span class="k">if</span> <span class="n">region</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">sequences</span><span class="p">:</span>
+                        <span class="n">sequences</span><span class="p">[</span><span class="n">region</span><span class="p">]</span> <span class="o">=</span> <span class="n">region_seq</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">NotSpecifiedError</span><span class="p">(</span><span class="s1">&#39;insufficient sequence information&#39;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">sequences</span><span class="p">[</span><span class="n">r</span><span class="p">]</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">regions</span><span class="p">]</span></div>
+
+<div class="viewcode-block" id="Domain.align_seq"><a class="viewcode-back" href="../../../auto/mavis.annotate.protein.html#mavis.annotate.protein.Domain.align_seq">[docs]</a>    <span class="k">def</span> <span class="nf">align_seq</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">input_sequence</span><span class="p">,</span> <span class="n">reference_genome</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">min_region_match</span><span class="o">=</span><span class="mf">0.5</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        align each region to the input sequence starting with the last one.</span>
+<span class="sd">        then take the subset of sequence that remains to align the second last and so on</span>
+<span class="sd">        return a list of intervals for the alignment. If multiple alignments are found,</span>
+<span class="sd">        then raise an error</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            input_sequence (str): the sequence to be aligned to</span>
+<span class="sd">            reference_genome (:class:`dict` of :class:`Bio.SeqRecord` by :class:`str`): dict of reference sequence</span>
+<span class="sd">                by template/chr name</span>
+<span class="sd">            min_region_match (float): percent between 0 and 1. Each region must have a score len(seq) * min_region_match</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            tuple: tuple contains</span>
+
+<span class="sd">                - int: the number of matches</span>
+<span class="sd">                - int: the total number of amino acids to be aligned</span>
+<span class="sd">                - :any:`list` of :any:`DomainRegion`: the list of domain regions on the new input sequence</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            AttributeError: if sequence information is not available</span>
+<span class="sd">            UserWarning: if a valid alignment could not be found or no best alignment was found</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">seq_list</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_seqs</span><span class="p">(</span><span class="n">reference_genome</span><span class="p">)</span>
+
+        <span class="n">dr_by_seq</span> <span class="o">=</span> <span class="p">{</span><span class="n">s</span><span class="p">:</span> <span class="n">d</span> <span class="k">for</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">seq_list</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">regions</span><span class="p">)}</span>
+        <span class="n">seq_list</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">seq_list</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">dr_by_seq</span><span class="p">[</span><span class="n">x</span><span class="p">]</span><span class="o">.</span><span class="n">start</span><span class="p">)</span>
+        <span class="n">total</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">([</span><span class="nb">len</span><span class="p">(</span><span class="n">s</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">seq_list</span><span class="p">])</span>
+
+        <span class="k">if</span> <span class="n">total</span> <span class="o">&gt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">input_sequence</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">UserWarning</span><span class="p">(</span><span class="s1">&#39;could not map the sequences to the input&#39;</span><span class="p">)</span>
+
+        <span class="n">results</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">last_min_end</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">seq</span> <span class="ow">in</span> <span class="n">seq_list</span><span class="p">:</span>
+            <span class="c1"># align the current sequence to find the best matches</span>
+            <span class="n">scores</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="n">min_match</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="nb">round</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">seq</span><span class="p">)</span> <span class="o">*</span> <span class="n">min_region_match</span><span class="p">,</span> <span class="mi">0</span><span class="p">)))</span>
+            <span class="k">for</span> <span class="n">pos</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">last_min_end</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">input_sequence</span><span class="p">)</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="n">seq</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+                <span class="n">score</span> <span class="o">=</span> <span class="mi">0</span>
+                <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">seq</span><span class="p">)):</span>
+                    <span class="k">if</span> <span class="n">input_sequence</span><span class="p">[</span><span class="n">pos</span> <span class="o">+</span> <span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span> <span class="o">==</span> <span class="n">seq</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">upper</span><span class="p">():</span>
+                        <span class="n">score</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="k">if</span> <span class="n">score</span> <span class="o">&gt;</span> <span class="n">min_match</span><span class="p">:</span>
+                    <span class="n">scores</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">Interval</span><span class="p">(</span><span class="n">pos</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">pos</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">seq</span><span class="p">)),</span> <span class="n">score</span><span class="p">))</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">scores</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">UserWarning</span><span class="p">(</span><span class="s1">&#39;could not align a given region&#39;</span><span class="p">,</span> <span class="n">seq</span><span class="p">)</span>
+            <span class="n">best_score</span> <span class="o">=</span> <span class="nb">max</span><span class="p">([</span><span class="n">s</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">scores</span><span class="p">])</span>
+            <span class="n">best</span> <span class="o">=</span> <span class="p">[</span><span class="n">s</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">scores</span> <span class="k">if</span> <span class="n">s</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="n">best_score</span><span class="p">]</span>
+            <span class="n">results</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">best</span><span class="p">)</span>
+            <span class="n">last_min_end</span> <span class="o">=</span> <span class="nb">min</span><span class="p">([</span><span class="n">s</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">end</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">best</span><span class="p">])</span>
+        <span class="c1"># take the best score for each region and see if they work in sequence</span>
+        <span class="n">combinations</span> <span class="o">=</span> <span class="p">[[</span><span class="n">p</span><span class="p">]</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">results</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span>
+        <span class="k">for</span> <span class="n">scores</span> <span class="ow">in</span> <span class="n">results</span><span class="p">[</span><span class="mi">1</span><span class="p">:]:</span>
+            <span class="n">temp_combos</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">pos</span><span class="p">,</span> <span class="n">score</span> <span class="ow">in</span> <span class="n">scores</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">curr</span> <span class="ow">in</span> <span class="n">combinations</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">pos</span><span class="o">.</span><span class="n">start</span> <span class="o">&gt;</span> <span class="n">curr</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">end</span><span class="p">:</span>
+                        <span class="n">temp_combos</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">curr</span><span class="p">[:]</span> <span class="o">+</span> <span class="p">[(</span><span class="n">pos</span><span class="p">,</span> <span class="n">score</span><span class="p">)])</span>
+            <span class="n">combinations</span> <span class="o">=</span> <span class="n">temp_combos</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">combinations</span><span class="p">:</span>
+                <span class="k">break</span>
+
+        <span class="c1"># compute the cumulative scores for the putative alignments</span>
+        <span class="n">best_score</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">best_scoring_alignments</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">alignment</span> <span class="ow">in</span> <span class="n">combinations</span><span class="p">:</span>
+            <span class="n">cumu_score</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">([</span><span class="n">s</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">alignment</span><span class="p">])</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">best_scoring_alignments</span> <span class="ow">or</span> <span class="n">cumu_score</span> <span class="o">&gt;</span> <span class="n">best_score</span><span class="p">:</span>
+                <span class="n">best_scoring_alignments</span> <span class="o">=</span> <span class="p">[</span><span class="n">alignment</span><span class="p">]</span>
+                <span class="n">best_score</span> <span class="o">=</span> <span class="n">cumu_score</span>
+            <span class="k">elif</span> <span class="n">cumu_score</span> <span class="o">==</span> <span class="n">best_score</span><span class="p">:</span>
+                <span class="n">best_scoring_alignments</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">alignment</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">best_scoring_alignments</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">UserWarning</span><span class="p">(</span><span class="s1">&#39;could not map the sequences to the input&#39;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">best_scoring_alignments</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">UserWarning</span><span class="p">(</span><span class="s1">&#39;multiple mappings of equal score&#39;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">alignment</span> <span class="o">=</span> <span class="p">[</span><span class="n">s</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">best_scoring_alignments</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span>
+            <span class="n">regions</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">itvl</span><span class="p">,</span> <span class="n">seq</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">alignment</span><span class="p">,</span> <span class="n">seq_list</span><span class="p">):</span>
+                <span class="n">regions</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">DomainRegion</span><span class="p">(</span><span class="n">itvl</span><span class="o">.</span><span class="n">start</span><span class="p">,</span> <span class="n">itvl</span><span class="o">.</span><span class="n">end</span><span class="p">,</span> <span class="n">seq</span><span class="p">))</span>
+            <span class="k">return</span> <span class="n">best_score</span><span class="p">,</span> <span class="n">total</span><span class="p">,</span> <span class="n">regions</span></div></div>
+
+
+<div class="viewcode-block" id="Translation"><a class="viewcode-back" href="../../../auto/mavis.annotate.protein.html#mavis.annotate.protein.Translation">[docs]</a><span class="k">class</span> <span class="nc">Translation</span><span class="p">(</span><span class="n">BioInterval</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">,</span> <span class="n">transcript</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">domains</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">seq</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        describes the splicing pattern and cds start and end with reference to a particular transcript</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            start (int): start of the coding sequence (cds) relative to the start of the first exon in the transcript</span>
+<span class="sd">            end (int): end of the coding sequence (cds) relative to the start of the first exon in the transcript</span>
+<span class="sd">            transcript (Transcript): the transcript this is a Translation of</span>
+<span class="sd">            domains (:class:`list` of :any:`Domain`): a list of the domains on this translation</span>
+<span class="sd">            sequence (str): the cds sequence</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">domains</span> <span class="o">=</span> <span class="p">[]</span> <span class="k">if</span> <span class="n">domains</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">domains</span>
+        <span class="n">BioInterval</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">reference_object</span><span class="o">=</span><span class="n">transcript</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="n">end</span><span class="p">,</span> <span class="n">seq</span><span class="o">=</span><span class="n">seq</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">domains</span> <span class="o">=</span> <span class="p">[</span><span class="n">d</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">domains</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="n">start</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span><span class="s1">&#39;start must be a positive integer&#39;</span><span class="p">,</span> <span class="n">start</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">transcript</span> <span class="ow">and</span> <span class="n">end</span> <span class="o">&gt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">transcript</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span><span class="s1">&#39;translation cannot be outside of related transcript range&#39;</span><span class="p">,</span> <span class="n">end</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">transcript</span><span class="p">))</span>
+
+        <span class="k">for</span> <span class="n">domain</span> <span class="ow">in</span> <span class="n">domains</span><span class="p">:</span>
+            <span class="n">domain</span><span class="o">.</span><span class="n">reference_object</span> <span class="o">=</span> <span class="bp">self</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">transcript</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;:class:`~mavis.annotate.genomic.Transcript`: the spliced transcript this translation belongs to</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">reference_object</span>
+
+<div class="viewcode-block" id="Translation.convert_aa_to_cdna"><a class="viewcode-back" href="../../../auto/mavis.annotate.protein.html#mavis.annotate.protein.Translation.convert_aa_to_cdna">[docs]</a>    <span class="k">def</span> <span class="nf">convert_aa_to_cdna</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pos</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Args:</span>
+<span class="sd">            pos (int): the amino acid position</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            Interval: the cdna equivalent (with CODON_SIZE uncertainty)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">Interval</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span> <span class="o">-</span> <span class="mi">1</span> <span class="o">+</span> <span class="p">(</span><span class="n">pos</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="mi">3</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">start</span> <span class="o">-</span> <span class="mi">1</span> <span class="o">+</span> <span class="n">pos</span> <span class="o">*</span> <span class="mi">3</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Translation.convert_cdna_to_aa"><a class="viewcode-back" href="../../../auto/mavis.annotate.protein.html#mavis.annotate.protein.Translation.convert_cdna_to_aa">[docs]</a>    <span class="k">def</span> <span class="nf">convert_cdna_to_aa</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pos</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Args:</span>
+<span class="sd">            pos (int): the cdna position</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            int: the protein/amino-acid position</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            AttributeError: the cdna position is not translated</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">pos</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">start</span> <span class="ow">or</span> <span class="n">pos</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">end</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">IndexError</span><span class="p">(</span><span class="s1">&#39;position is out of bounds&#39;</span><span class="p">)</span>
+        <span class="n">pos</span> <span class="o">=</span> <span class="n">pos</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">start</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="n">aa_pos</span> <span class="o">=</span> <span class="n">pos</span> <span class="o">//</span> <span class="n">CODON_SIZE</span>
+        <span class="k">if</span> <span class="n">pos</span> <span class="o">%</span> <span class="n">CODON_SIZE</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">aa_pos</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">return</span> <span class="n">aa_pos</span></div>
+
+<div class="viewcode-block" id="Translation.convert_genomic_to_cds"><a class="viewcode-back" href="../../../auto/mavis.annotate.protein.html#mavis.annotate.protein.Translation.convert_genomic_to_cds">[docs]</a>    <span class="k">def</span> <span class="nf">convert_genomic_to_cds</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pos</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        converts a genomic position to its cds (coding sequence) equivalent</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            pos (int): the genomic position</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            int: the cds position (negative if before the initiation start site)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">cds</span><span class="p">,</span> <span class="n">shift</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">convert_genomic_to_nearest_cds</span><span class="p">(</span><span class="n">pos</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">shift</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">IndexError</span><span class="p">(</span><span class="s1">&#39;conversion failed. position is outside the exonic region&#39;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">cds</span></div>
+
+<div class="viewcode-block" id="Translation.convert_genomic_to_nearest_cds"><a class="viewcode-back" href="../../../auto/mavis.annotate.protein.html#mavis.annotate.protein.Translation.convert_genomic_to_nearest_cds">[docs]</a>    <span class="k">def</span> <span class="nf">convert_genomic_to_nearest_cds</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pos</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        converts a genomic position to its cds equivalent or (if intronic) the nearest cds and shift</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            pos (int): the genomic position</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            tuple of int and int:</span>
+<span class="sd">                * *int* - the cds position</span>
+<span class="sd">                * *int* - the intronic shift</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">cds_pos</span><span class="p">,</span> <span class="n">shift</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">transcript</span><span class="o">.</span><span class="n">convert_genomic_to_nearest_cdna</span><span class="p">(</span><span class="n">pos</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">cds_pos</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">:</span>
+            <span class="n">cds_pos</span> <span class="o">=</span> <span class="n">cds_pos</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">start</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">cds_pos</span> <span class="o">-=</span> <span class="bp">self</span><span class="o">.</span><span class="n">start</span>
+        <span class="k">return</span> <span class="n">cds_pos</span><span class="p">,</span> <span class="n">shift</span></div>
+
+<div class="viewcode-block" id="Translation.convert_genomic_to_cds_notation"><a class="viewcode-back" href="../../../auto/mavis.annotate.protein.html#mavis.annotate.protein.Translation.convert_genomic_to_cds_notation">[docs]</a>    <span class="k">def</span> <span class="nf">convert_genomic_to_cds_notation</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pos</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        converts a genomic position to its cds (coding sequence) equivalent using</span>
+<span class="sd">        `hgvs &lt;http://www.hgvs.org/mutnomen/recs-DNA.html&gt;`_ cds notation</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            pos (int): the genomic position</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: the cds position notation</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; tl = Translation(...)</span>
+<span class="sd">            # a position before the translation start</span>
+<span class="sd">            &gt;&gt;&gt; tl.convert_genomic_to_cds_notation(1010)</span>
+<span class="sd">            &#39;-50&#39;</span>
+<span class="sd">            # a position after the translation end</span>
+<span class="sd">            &gt;&gt;&gt; tl.convert_genomic_to_cds_notation(2031)</span>
+<span class="sd">            &#39;*72&#39;</span>
+<span class="sd">            # an intronic position</span>
+<span class="sd">            &gt;&gt;&gt; tl.convert_genomic_to_cds_notation(1542)</span>
+<span class="sd">            &#39;50+10&#39;</span>
+<span class="sd">            &gt;&gt;&gt; tl.convert_genomic_to_cds_notation(1589)</span>
+<span class="sd">            &#39;51-14&#39;</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">cds_pos</span><span class="p">,</span> <span class="n">shift</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">convert_genomic_to_nearest_cds</span><span class="p">(</span><span class="n">pos</span><span class="p">)</span>
+        <span class="n">offset_suffix</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+        <span class="k">if</span> <span class="n">shift</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">offset_suffix</span> <span class="o">=</span> <span class="s1">&#39;+</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">shift</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">shift</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">offset_suffix</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">shift</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">cds_pos</span> <span class="o">&gt;</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+            <span class="k">return</span> <span class="s1">&#39;*</span><span class="si">{}{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">cds_pos</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="p">),</span> <span class="n">offset_suffix</span><span class="p">)</span>
+        <span class="k">return</span> <span class="s1">&#39;</span><span class="si">{}{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">cds_pos</span><span class="p">,</span> <span class="n">offset_suffix</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Translation.get_cds_seq"><a class="viewcode-back" href="../../../auto/mavis.annotate.protein.html#mavis.annotate.protein.Translation.get_cds_seq">[docs]</a>    <span class="k">def</span> <span class="nf">get_cds_seq</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">reference_genome</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ignore_cache</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Args:</span>
+<span class="sd">            reference_genome (:class:`dict` of :class:`Bio.SeqRecord` by :class:`str`): dict of reference sequence</span>
+<span class="sd">                by template/chr name</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: the cds sequence</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            AttributeError: if the reference sequence has not been given and is not set</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">seq</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">ignore_cache</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">seq</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">transcript</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">transcript</span><span class="o">.</span><span class="n">get_strand</span><span class="p">():</span>
+            <span class="n">seq</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">transcript</span><span class="o">.</span><span class="n">get_seq</span><span class="p">(</span><span class="n">reference_genome</span><span class="p">,</span> <span class="n">ignore_cache</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">seq</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span><span class="bp">self</span><span class="o">.</span><span class="n">end</span><span class="p">]</span>
+        <span class="k">raise</span> <span class="n">NotSpecifiedError</span><span class="p">(</span><span class="s1">&#39;insufficient seq information&#39;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Translation.get_seq"><a class="viewcode-back" href="../../../auto/mavis.annotate.protein.html#mavis.annotate.protein.Translation.get_seq">[docs]</a>    <span class="k">def</span> <span class="nf">get_seq</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">reference_genome</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ignore_cache</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        wrapper for the sequence method</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            reference_genome (:class:`dict` of :class:`Bio.SeqRecord` by :class:`str`): dict of reference sequence</span>
+<span class="sd">                by template/chr name</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_cds_seq</span><span class="p">(</span><span class="n">reference_genome</span><span class="p">,</span> <span class="n">ignore_cache</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Translation.get_aa_seq"><a class="viewcode-back" href="../../../auto/mavis.annotate.protein.html#mavis.annotate.protein.Translation.get_aa_seq">[docs]</a>    <span class="k">def</span> <span class="nf">get_aa_seq</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">reference_genome</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ignore_cache</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Args:</span>
+<span class="sd">            reference_genome (:class:`dict` of :class:`Bio.SeqRecord` by :class:`str`): dict of reference sequence</span>
+<span class="sd">                by template/chr name</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: the amino acid sequence</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            AttributeError: if the reference sequence has not been given and is not set</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">cds</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_cds_seq</span><span class="p">(</span><span class="n">reference_genome</span><span class="p">,</span> <span class="n">ignore_cache</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">translate</span><span class="p">(</span><span class="n">cds</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Translation.key"><a class="viewcode-back" href="../../../auto/mavis.annotate.protein.html#mavis.annotate.protein.Translation.key">[docs]</a>    <span class="k">def</span> <span class="nf">key</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;see :func:`structural_variant.annotate.base.BioInterval.key`&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">BioInterval</span><span class="o">.</span><span class="n">key</span><span class="p">(</span><span class="bp">self</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">splicing_pattern</span></div></div>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2017, creisle.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../',
+            VERSION:'',
+            LANGUAGE:'None',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

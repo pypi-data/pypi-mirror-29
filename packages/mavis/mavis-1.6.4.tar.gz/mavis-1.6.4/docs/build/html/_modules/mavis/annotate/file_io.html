@@ -1,0 +1,644 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>mavis.annotate.file_io &mdash; MAVIS  documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+    <link rel="stylesheet" href="../../../_static/custom.css" type="text/css" />
+  
+
+  
+        <link rel="author" title="About these documents"
+              href="../../../about.html"/>
+        <link rel="index" title="Index"
+              href="../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../search.html"/>
+    <link rel="top" title="MAVIS  documentation" href="../../../index.html"/>
+        <link rel="up" title="Module code" href="../../index.html"/> 
+
+  
+  <script src="../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home"> MAVIS
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                1.6.4
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../about.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../pipeline.html">Running the Pipeline</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../mavis_input.html">MAVIS standard input file format</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../reference.html">Reference Input Files</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../configuration.html">Configuration and Settings</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../tools_supported.html">Supported SV Callers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../illustrations.html">Illustrations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../faqs.html">Frequently Asked Questions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../theory.html">Theory and Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../development.html">Guidelines for Contributors</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../package.html">Package Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../citations.html">Literature</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">MAVIS</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+      <li>mavis.annotate.file_io</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for mavis.annotate.file_io</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">module which holds all functions relating to loading reference files</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">import</span> <span class="nn">json</span>
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">import</span> <span class="nn">warnings</span>
+
+<span class="kn">from</span> <span class="nn">Bio</span> <span class="k">import</span> <span class="n">SeqIO</span>
+<span class="kn">import</span> <span class="nn">tab</span>
+
+<span class="kn">from</span> <span class="nn">.base</span> <span class="k">import</span> <span class="n">BioInterval</span><span class="p">,</span> <span class="n">ReferenceName</span>
+<span class="kn">from</span> <span class="nn">.genomic</span> <span class="k">import</span> <span class="n">Exon</span><span class="p">,</span> <span class="n">Gene</span><span class="p">,</span> <span class="n">Template</span><span class="p">,</span> <span class="n">Transcript</span><span class="p">,</span> <span class="n">PreTranscript</span>
+<span class="kn">from</span> <span class="nn">.protein</span> <span class="k">import</span> <span class="n">Domain</span><span class="p">,</span> <span class="n">Translation</span>
+<span class="kn">from</span> <span class="nn">..constants</span> <span class="k">import</span> <span class="n">CODON_SIZE</span><span class="p">,</span> <span class="n">GIEMSA_STAIN</span><span class="p">,</span> <span class="n">START_AA</span><span class="p">,</span> <span class="n">STOP_AA</span><span class="p">,</span> <span class="n">STRAND</span><span class="p">,</span> <span class="n">translate</span>
+<span class="kn">from</span> <span class="nn">..interval</span> <span class="k">import</span> <span class="n">Interval</span>
+<span class="kn">from</span> <span class="nn">..util</span> <span class="k">import</span> <span class="n">devnull</span>
+
+
+<div class="viewcode-block" id="load_masking_regions"><a class="viewcode-back" href="../../../auto/mavis.annotate.file_io.html#mavis.annotate.file_io.load_masking_regions">[docs]</a><span class="k">def</span> <span class="nf">load_masking_regions</span><span class="p">(</span><span class="n">filepath</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    reads a file of regions. The expect input format for the file is tab-delimited and</span>
+<span class="sd">    the header should contain the following columns</span>
+
+<span class="sd">    - chr: the chromosome</span>
+<span class="sd">    - start: start of the region, 1-based inclusive</span>
+<span class="sd">    - end: end of the region, 1-based inclusive</span>
+<span class="sd">    - name: the name/label of the region</span>
+
+<span class="sd">    For example:</span>
+
+<span class="sd">    .. code-block:: text</span>
+
+<span class="sd">        #chr    start   end     name</span>
+<span class="sd">        chr20	25600000	27500000	centromere</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        filepath (str): path to the input tab-delimited file</span>
+<span class="sd">    Returns:</span>
+<span class="sd">        :class:`dict` of :class:`list` of :class:`BioInterval` by :class:`str`: a dictionary keyed by chromosome name with values of lists of regions on the chromosome</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        &gt;&gt;&gt; m = load_masking_regions(&#39;filename&#39;)</span>
+<span class="sd">        &gt;&gt;&gt; m[&#39;1&#39;]</span>
+<span class="sd">        [BioInterval(), BioInterval(), ...]</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">_</span><span class="p">,</span> <span class="n">rows</span> <span class="o">=</span> <span class="n">tab</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span>
+        <span class="n">filepath</span><span class="p">,</span>
+        <span class="n">require</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;chr&#39;</span><span class="p">,</span> <span class="s1">&#39;start&#39;</span><span class="p">,</span> <span class="s1">&#39;end&#39;</span><span class="p">,</span> <span class="s1">&#39;name&#39;</span><span class="p">],</span>
+        <span class="n">cast</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;start&#39;</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="s1">&#39;end&#39;</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="s1">&#39;chr&#39;</span><span class="p">:</span> <span class="n">ReferenceName</span><span class="p">}</span>
+    <span class="p">)</span>
+    <span class="n">regions</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">rows</span><span class="p">:</span>
+        <span class="n">mask_region</span> <span class="o">=</span> <span class="n">BioInterval</span><span class="p">(</span><span class="n">reference_object</span><span class="o">=</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;chr&#39;</span><span class="p">],</span> <span class="n">start</span><span class="o">=</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;start&#39;</span><span class="p">],</span> <span class="n">end</span><span class="o">=</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;end&#39;</span><span class="p">],</span> <span class="n">name</span><span class="o">=</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">])</span>
+        <span class="n">regions</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">mask_region</span><span class="o">.</span><span class="n">reference_object</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">mask_region</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">regions</span></div>
+
+
+<div class="viewcode-block" id="load_reference_genes"><a class="viewcode-back" href="../../../auto/mavis.annotate.file_io.html#mavis.annotate.file_io.load_reference_genes">[docs]</a><span class="k">def</span> <span class="nf">load_reference_genes</span><span class="p">(</span><span class="o">*</span><span class="n">pos</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    *Deprecated* Use :func:`load_annotations` instead</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s1">&#39;this function has been replaced by load_annotations&#39;</span><span class="p">,</span> <span class="ne">DeprecationWarning</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">load_annotations</span><span class="p">(</span><span class="o">*</span><span class="n">pos</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="load_annotations"><a class="viewcode-back" href="../../../auto/mavis.annotate.file_io.html#mavis.annotate.file_io.load_annotations">[docs]</a><span class="k">def</span> <span class="nf">load_annotations</span><span class="p">(</span><span class="n">filepath</span><span class="p">,</span> <span class="n">warn</span><span class="o">=</span><span class="n">devnull</span><span class="p">,</span> <span class="n">reference_genome</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">filetype</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">best_transcripts_only</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    loads gene models from an input file. Expects a tabbed or json file.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        filepath (str): path to the input file</span>
+<span class="sd">        verbose (bool): output extra information to stdout</span>
+<span class="sd">        reference_genome (:class:`dict` of :class:`Bio.SeqRecord` by :class:`str`): dict of reference sequence by</span>
+<span class="sd">            template/chr name</span>
+<span class="sd">        filetype (str): json or tab/tsv. only required if the file type can&#39;t be interpolated from the path extension</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        :class:`dict` of :class:`list` of :class:`~mavis.annotate.genomic.Gene` by :class:`str`: lists of genes keyed by chromosome name</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">filetype</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">m</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="s1">&#39;.*\.(?P&lt;ext&gt;tsv|tab|json)$&#39;</span><span class="p">,</span> <span class="n">filepath</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">m</span><span class="p">:</span>
+            <span class="n">filetype</span> <span class="o">=</span> <span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;ext&#39;</span><span class="p">)</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">if</span> <span class="n">filetype</span> <span class="o">==</span> <span class="s1">&#39;json&#39;</span><span class="p">:</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">filepath</span><span class="p">)</span> <span class="k">as</span> <span class="n">fh</span><span class="p">:</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">fh</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">filetype</span> <span class="o">==</span> <span class="s1">&#39;tab&#39;</span> <span class="ow">or</span> <span class="n">filetype</span> <span class="o">==</span> <span class="s1">&#39;tsv&#39;</span><span class="p">:</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">convert_tab_to_json</span><span class="p">(</span><span class="n">filepath</span><span class="p">,</span> <span class="n">warn</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s1">&#39;unsupported filetype:&#39;</span><span class="p">,</span> <span class="n">filetype</span><span class="p">,</span> <span class="n">filepath</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">parse_annotations_json</span><span class="p">(</span>
+        <span class="n">data</span><span class="p">,</span> <span class="n">reference_genome</span><span class="o">=</span><span class="n">reference_genome</span><span class="p">,</span> <span class="n">best_transcripts_only</span><span class="o">=</span><span class="n">best_transcripts_only</span><span class="p">,</span> <span class="n">warn</span><span class="o">=</span><span class="n">warn</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="parse_annotations_json"><a class="viewcode-back" href="../../../auto/mavis.annotate.file_io.html#mavis.annotate.file_io.parse_annotations_json">[docs]</a><span class="k">def</span> <span class="nf">parse_annotations_json</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">reference_genome</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">best_transcripts_only</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">warn</span><span class="o">=</span><span class="n">devnull</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    parses a json of annotation information into annotation objects</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">genes_by_chr</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">gene_dict</span> <span class="ow">in</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;genes&#39;</span><span class="p">]:</span>
+        <span class="k">if</span> <span class="n">gene_dict</span><span class="p">[</span><span class="s1">&#39;strand&#39;</span><span class="p">]</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;1&#39;</span><span class="p">,</span> <span class="s1">&#39;+&#39;</span><span class="p">]:</span>
+            <span class="n">gene_dict</span><span class="p">[</span><span class="s1">&#39;strand&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">POS</span>
+        <span class="k">elif</span> <span class="n">gene_dict</span><span class="p">[</span><span class="s1">&#39;strand&#39;</span><span class="p">]</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;-1&#39;</span><span class="p">,</span> <span class="s1">&#39;-&#39;</span><span class="p">]:</span>
+            <span class="n">gene_dict</span><span class="p">[</span><span class="s1">&#39;strand&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">NEG</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">AssertionError</span><span class="p">(</span><span class="s1">&#39;input has unexpected form. strand must be 1 or -1 but found&#39;</span><span class="p">,</span> <span class="n">gene_dict</span><span class="p">[</span><span class="s1">&#39;strand&#39;</span><span class="p">])</span>
+
+        <span class="n">gene</span> <span class="o">=</span> <span class="n">Gene</span><span class="p">(</span>
+            <span class="nb">chr</span><span class="o">=</span><span class="n">gene_dict</span><span class="p">[</span><span class="s1">&#39;chr&#39;</span><span class="p">],</span>
+            <span class="n">start</span><span class="o">=</span><span class="n">gene_dict</span><span class="p">[</span><span class="s1">&#39;start&#39;</span><span class="p">],</span>
+            <span class="n">end</span><span class="o">=</span><span class="n">gene_dict</span><span class="p">[</span><span class="s1">&#39;end&#39;</span><span class="p">],</span>
+            <span class="n">name</span><span class="o">=</span><span class="n">gene_dict</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">],</span>
+            <span class="n">aliases</span><span class="o">=</span><span class="n">gene_dict</span><span class="p">[</span><span class="s1">&#39;aliases&#39;</span><span class="p">],</span>
+            <span class="n">strand</span><span class="o">=</span><span class="n">gene_dict</span><span class="p">[</span><span class="s1">&#39;strand&#39;</span><span class="p">]</span>
+        <span class="p">)</span>
+
+        <span class="n">has_best</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">for</span> <span class="n">transcript</span> <span class="ow">in</span> <span class="n">gene_dict</span><span class="p">[</span><span class="s1">&#39;transcripts&#39;</span><span class="p">]:</span>
+            <span class="n">transcript</span><span class="p">[</span><span class="s1">&#39;is_best_transcript&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">tab</span><span class="o">.</span><span class="n">cast_boolean</span><span class="p">(</span><span class="n">transcript</span><span class="p">[</span><span class="s1">&#39;is_best_transcript&#39;</span><span class="p">])</span>
+            <span class="n">transcript</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s1">&#39;exons&#39;</span><span class="p">,</span> <span class="p">[])</span>
+            <span class="n">exons</span> <span class="o">=</span> <span class="p">[</span><span class="n">Exon</span><span class="p">(</span><span class="n">strand</span><span class="o">=</span><span class="n">gene</span><span class="o">.</span><span class="n">strand</span><span class="p">,</span> <span class="o">**</span><span class="n">ex</span><span class="p">)</span> <span class="k">for</span> <span class="n">ex</span> <span class="ow">in</span> <span class="n">transcript</span><span class="p">[</span><span class="s1">&#39;exons&#39;</span><span class="p">]]</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">exons</span><span class="p">:</span>
+                <span class="n">exons</span> <span class="o">=</span> <span class="p">[(</span><span class="n">transcript</span><span class="p">[</span><span class="s1">&#39;start&#39;</span><span class="p">],</span> <span class="n">transcript</span><span class="p">[</span><span class="s1">&#39;end&#39;</span><span class="p">])]</span>
+            <span class="n">pre_transcript</span> <span class="o">=</span> <span class="n">PreTranscript</span><span class="p">(</span>
+                <span class="n">name</span><span class="o">=</span><span class="n">transcript</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">],</span>
+                <span class="n">gene</span><span class="o">=</span><span class="n">gene</span><span class="p">,</span>
+                <span class="n">exons</span><span class="o">=</span><span class="n">exons</span><span class="p">,</span>
+                <span class="n">is_best_transcript</span><span class="o">=</span><span class="n">transcript</span><span class="p">[</span><span class="s1">&#39;is_best_transcript&#39;</span><span class="p">]</span>
+            <span class="p">)</span>
+            <span class="k">if</span> <span class="n">pre_transcript</span><span class="o">.</span><span class="n">is_best_transcript</span><span class="p">:</span>
+                <span class="n">has_best</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="k">if</span> <span class="n">best_transcripts_only</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">pre_transcript</span><span class="o">.</span><span class="n">is_best_transcript</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">gene</span><span class="o">.</span><span class="n">transcripts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">pre_transcript</span><span class="p">)</span>
+
+            <span class="k">for</span> <span class="n">spl_patt</span> <span class="ow">in</span> <span class="n">pre_transcript</span><span class="o">.</span><span class="n">generate_splicing_patterns</span><span class="p">():</span>
+                <span class="c1"># make splice transcripts and translations</span>
+                <span class="n">spl_tx</span> <span class="o">=</span> <span class="n">Transcript</span><span class="p">(</span><span class="n">pre_transcript</span><span class="p">,</span> <span class="n">spl_patt</span><span class="p">)</span>
+                <span class="n">pre_transcript</span><span class="o">.</span><span class="n">spliced_transcripts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">spl_tx</span><span class="p">)</span>
+
+                <span class="k">if</span> <span class="n">transcript</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;cdna_coding_end&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">transcript</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;cdna_coding_start&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="n">tx_length</span> <span class="o">=</span> <span class="n">transcript</span><span class="p">[</span><span class="s1">&#39;cdna_coding_end&#39;</span><span class="p">]</span> <span class="o">-</span> <span class="n">transcript</span><span class="p">[</span><span class="s1">&#39;cdna_coding_start&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span>
+                <span class="c1"># check that the translation makes sense before including it</span>
+                <span class="k">if</span> <span class="n">tx_length</span> <span class="o">%</span> <span class="n">CODON_SIZE</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">warn</span><span class="p">(</span><span class="s1">&#39;Ignoring translation. The translated region is not a multiple of three&#39;</span><span class="p">)</span>
+                    <span class="k">continue</span>
+                <span class="n">tx_length</span> <span class="o">=</span> <span class="n">tx_length</span> <span class="o">//</span> <span class="n">CODON_SIZE</span>
+                <span class="n">domains</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="k">for</span> <span class="n">dom</span> <span class="ow">in</span> <span class="n">transcript</span><span class="p">[</span><span class="s1">&#39;domains&#39;</span><span class="p">]:</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="n">regions</span> <span class="o">=</span> <span class="p">[</span><span class="n">Interval</span><span class="p">(</span><span class="n">r</span><span class="p">[</span><span class="s1">&#39;start&#39;</span><span class="p">],</span> <span class="n">r</span><span class="p">[</span><span class="s1">&#39;end&#39;</span><span class="p">])</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">dom</span><span class="p">[</span><span class="s1">&#39;regions&#39;</span><span class="p">]]</span>
+                        <span class="n">regions</span> <span class="o">=</span> <span class="n">Interval</span><span class="o">.</span><span class="n">min_nonoverlapping</span><span class="p">(</span><span class="o">*</span><span class="n">regions</span><span class="p">)</span>
+                        <span class="k">for</span> <span class="n">region</span> <span class="ow">in</span> <span class="n">regions</span><span class="p">:</span>
+                            <span class="k">if</span> <span class="n">region</span><span class="o">.</span><span class="n">start</span> <span class="o">&lt;</span> <span class="mi">1</span> <span class="ow">or</span> <span class="n">region</span><span class="o">.</span><span class="n">end</span> <span class="o">&gt;</span> <span class="n">tx_length</span><span class="p">:</span>
+                                <span class="k">raise</span> <span class="ne">AssertionError</span><span class="p">(</span><span class="s1">&#39;region cannot be outside the translated length&#39;</span><span class="p">)</span>
+                        <span class="n">domains</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                            <span class="n">Domain</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">dom</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">],</span> <span class="n">data</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;desc&#39;</span><span class="p">:</span> <span class="n">dom</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;desc&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)},</span> <span class="n">regions</span><span class="o">=</span><span class="n">regions</span><span class="p">)</span>
+                        <span class="p">)</span>
+                    <span class="k">except</span> <span class="ne">AssertionError</span> <span class="k">as</span> <span class="n">err</span><span class="p">:</span>
+                        <span class="n">warn</span><span class="p">(</span><span class="nb">repr</span><span class="p">(</span><span class="n">err</span><span class="p">))</span>
+                <span class="n">translation</span> <span class="o">=</span> <span class="n">Translation</span><span class="p">(</span>
+                    <span class="n">transcript</span><span class="p">[</span><span class="s1">&#39;cdna_coding_start&#39;</span><span class="p">],</span> <span class="n">transcript</span><span class="p">[</span><span class="s1">&#39;cdna_coding_end&#39;</span><span class="p">],</span> <span class="n">transcript</span><span class="o">=</span><span class="n">spl_tx</span><span class="p">,</span> <span class="n">domains</span><span class="o">=</span><span class="n">domains</span>
+                <span class="p">)</span>
+                <span class="k">if</span> <span class="n">reference_genome</span> <span class="ow">and</span> <span class="n">gene</span><span class="o">.</span><span class="n">chr</span> <span class="ow">in</span> <span class="n">reference_genome</span><span class="p">:</span>
+                    <span class="c1"># get the sequence near here to see why these are wrong?</span>
+                    <span class="n">seq</span> <span class="o">=</span> <span class="n">pre_transcript</span><span class="o">.</span><span class="n">get_cdna_seq</span><span class="p">(</span><span class="n">spl_tx</span><span class="o">.</span><span class="n">splicing_pattern</span><span class="p">,</span> <span class="n">reference_genome</span><span class="p">)</span>
+                    <span class="n">met</span> <span class="o">=</span> <span class="n">seq</span><span class="p">[</span><span class="n">translation</span><span class="o">.</span><span class="n">start</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span><span class="n">translation</span><span class="o">.</span><span class="n">start</span> <span class="o">+</span> <span class="mi">2</span><span class="p">]</span>
+                    <span class="n">stop</span> <span class="o">=</span> <span class="n">seq</span><span class="p">[</span><span class="n">translation</span><span class="o">.</span><span class="n">end</span> <span class="o">-</span> <span class="n">CODON_SIZE</span><span class="p">:</span> <span class="n">translation</span><span class="o">.</span><span class="n">end</span><span class="p">]</span>
+                    <span class="k">if</span> <span class="n">translate</span><span class="p">(</span><span class="n">met</span><span class="p">)</span> <span class="o">!=</span> <span class="n">START_AA</span> <span class="ow">or</span> <span class="n">translate</span><span class="p">(</span><span class="n">stop</span><span class="p">)</span> <span class="o">!=</span> <span class="n">STOP_AA</span><span class="p">:</span>
+                        <span class="n">warn</span><span class="p">(</span>
+                            <span class="s1">&#39;Sequence error. The sequence computed from the reference does look like &#39;</span>
+                            <span class="s1">&#39;a valid translation&#39;</span>
+                        <span class="p">)</span>
+                        <span class="k">continue</span>
+                <span class="n">spl_tx</span><span class="o">.</span><span class="n">translations</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">translation</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">best_transcripts_only</span> <span class="ow">or</span> <span class="n">has_best</span><span class="p">:</span>
+            <span class="n">genes_by_chr</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">gene</span><span class="o">.</span><span class="n">chr</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">gene</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">genes_by_chr</span></div>
+
+
+<span class="k">def</span> <span class="nf">_load_reference_genes_json</span><span class="p">(</span><span class="n">filepath</span><span class="p">,</span> <span class="n">reference_genome</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">best_transcripts_only</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">warn</span><span class="o">=</span><span class="n">devnull</span><span class="p">):</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">filepath</span><span class="p">)</span> <span class="k">as</span> <span class="n">fh</span><span class="p">:</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">fh</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">parse_annotations_json</span><span class="p">(</span>
+            <span class="n">data</span><span class="p">,</span> <span class="n">reference_genome</span><span class="o">=</span><span class="n">reference_genome</span><span class="p">,</span> <span class="n">best_transcripts_only</span><span class="o">=</span><span class="n">best_transcripts_only</span><span class="p">,</span> <span class="n">warn</span><span class="o">=</span><span class="n">warn</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="convert_tab_to_json"><a class="viewcode-back" href="../../../auto/mavis.annotate.file_io.html#mavis.annotate.file_io.convert_tab_to_json">[docs]</a><span class="k">def</span> <span class="nf">convert_tab_to_json</span><span class="p">(</span><span class="n">filepath</span><span class="p">,</span> <span class="n">warn</span><span class="o">=</span><span class="n">devnull</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    given a file in the std input format (see below) reads and return a list of genes (and sub-objects)</span>
+
+<span class="sd">    +-----------------------+---------------------------+-----------------------------------------------------------+</span>
+<span class="sd">    | column name           | example                   | description                                               |</span>
+<span class="sd">    +=======================+===========================+===========================================================+</span>
+<span class="sd">    | ensembl_transcript_id | ENST000001                |                                                           |</span>
+<span class="sd">    +-----------------------+---------------------------+-----------------------------------------------------------+</span>
+<span class="sd">    | ensembl_gene_id       | ENSG000001                |                                                           |</span>
+<span class="sd">    +-----------------------+---------------------------+-----------------------------------------------------------+</span>
+<span class="sd">    | strand                | -1                        | positive or negative 1                                    |</span>
+<span class="sd">    +-----------------------+---------------------------+-----------------------------------------------------------+</span>
+<span class="sd">    | cdna_coding_start     | 44                        | where translation begins relative to the start of the cdna|</span>
+<span class="sd">    +-----------------------+---------------------------+-----------------------------------------------------------+</span>
+<span class="sd">    | cdna_coding_end       | 150                       | where translation terminates                              |</span>
+<span class="sd">    +-----------------------+---------------------------+-----------------------------------------------------------+</span>
+<span class="sd">    | genomic_exon_ranges   | 100-201;334-412;779-830   | semi-colon demitited exon start/ends                      |</span>
+<span class="sd">    +-----------------------+---------------------------+-----------------------------------------------------------+</span>
+<span class="sd">    | AA_domain_ranges      | DBD:220-251,260-271       | semi-colon delimited list of domains                      |</span>
+<span class="sd">    +-----------------------+---------------------------+-----------------------------------------------------------+</span>
+<span class="sd">    | hugo_names            | KRAS                      | hugo gene name                                            |</span>
+<span class="sd">    +-----------------------+---------------------------+-----------------------------------------------------------+</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        filepath (str): path to the input tab-delimited file</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        :class:`dict` of :class:`list` of :any:`Gene` by :class:`str`: a dictionary keyed by chromosome name with values of list of genes on the chromosome</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        &gt;&gt;&gt; ref = load_reference_genes(&#39;filename&#39;)</span>
+<span class="sd">        &gt;&gt;&gt; ref[&#39;1&#39;]</span>
+<span class="sd">        [Gene(), Gene(), ....]</span>
+
+<span class="sd">    Warning:</span>
+<span class="sd">        does not load translations unless then start with &#39;M&#39;, end with &#39;*&#39; and have a length of multiple 3</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">parse_exon_list</span><span class="p">(</span><span class="n">row</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">row</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[]</span>
+        <span class="n">exons</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">temp</span> <span class="ow">in</span> <span class="n">re</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;[; ]&#39;</span><span class="p">,</span> <span class="n">row</span><span class="p">):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">start</span><span class="p">,</span> <span class="n">end</span> <span class="o">=</span> <span class="n">temp</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;-&#39;</span><span class="p">)</span>
+                <span class="n">exons</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s1">&#39;start&#39;</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">start</span><span class="p">),</span> <span class="s1">&#39;end&#39;</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">end</span><span class="p">)})</span>
+            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">err</span><span class="p">:</span>
+                <span class="n">warn</span><span class="p">(</span><span class="s1">&#39;exon error:&#39;</span><span class="p">,</span> <span class="nb">repr</span><span class="p">(</span><span class="n">temp</span><span class="p">),</span> <span class="nb">repr</span><span class="p">(</span><span class="n">err</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">exons</span>
+
+    <span class="k">def</span> <span class="nf">parse_domain_list</span><span class="p">(</span><span class="n">row</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">row</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[]</span>
+        <span class="n">domains</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">domain</span> <span class="ow">in</span> <span class="n">row</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;;&#39;</span><span class="p">):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">name</span><span class="p">,</span> <span class="n">temp</span> <span class="o">=</span> <span class="n">domain</span><span class="o">.</span><span class="n">rsplit</span><span class="p">(</span><span class="s1">&#39;:&#39;</span><span class="p">)</span>
+                <span class="n">temp</span> <span class="o">=</span> <span class="n">temp</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="p">)</span>
+                <span class="n">temp</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;-&#39;</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">temp</span><span class="p">]</span>
+                <span class="n">regions</span> <span class="o">=</span> <span class="p">[{</span><span class="s1">&#39;start&#39;</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="s1">&#39;end&#39;</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">y</span><span class="p">)}</span> <span class="k">for</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="ow">in</span> <span class="n">temp</span><span class="p">]</span>
+                <span class="n">domains</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="n">name</span><span class="p">,</span> <span class="s1">&#39;regions&#39;</span><span class="p">:</span> <span class="n">regions</span><span class="p">})</span>
+            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">err</span><span class="p">:</span>
+                <span class="n">warn</span><span class="p">(</span><span class="s1">&#39;error in domain:&#39;</span><span class="p">,</span> <span class="n">domain</span><span class="p">,</span> <span class="n">row</span><span class="p">,</span> <span class="nb">repr</span><span class="p">(</span><span class="n">err</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">domains</span>
+
+    <span class="k">def</span> <span class="nf">nullable_int</span><span class="p">(</span><span class="n">row</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">row</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">row</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+            <span class="n">row</span> <span class="o">=</span> <span class="n">tab</span><span class="o">.</span><span class="n">cast_null</span><span class="p">(</span><span class="n">row</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">row</span>
+
+    <span class="n">_</span><span class="p">,</span> <span class="n">rows</span> <span class="o">=</span> <span class="n">tab</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span>
+        <span class="n">filepath</span><span class="p">,</span>
+        <span class="n">require</span><span class="o">=</span><span class="p">[</span>
+            <span class="s1">&#39;ensembl_gene_id&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;chr&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;ensembl_transcript_id&#39;</span>
+        <span class="p">],</span>
+        <span class="n">add_default</span><span class="o">=</span><span class="p">{</span>
+            <span class="s1">&#39;cdna_coding_start&#39;</span><span class="p">:</span> <span class="s1">&#39;null&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;cdna_coding_end&#39;</span><span class="p">:</span> <span class="s1">&#39;null&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;AA_domain_ranges&#39;</span><span class="p">:</span> <span class="s1">&#39;&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;genomic_exon_ranges&#39;</span><span class="p">:</span> <span class="s1">&#39;&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;hugo_names&#39;</span><span class="p">:</span> <span class="s1">&#39;&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;transcript_genomic_start&#39;</span><span class="p">:</span> <span class="s1">&#39;null&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;transcript_genomic_end&#39;</span><span class="p">:</span> <span class="s1">&#39;null&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;best_ensembl_transcript_id&#39;</span><span class="p">:</span> <span class="s1">&#39;null&#39;</span>
+        <span class="p">},</span>
+        <span class="n">cast</span><span class="o">=</span><span class="p">{</span>
+            <span class="s1">&#39;genomic_exon_ranges&#39;</span><span class="p">:</span> <span class="n">parse_exon_list</span><span class="p">,</span>
+            <span class="s1">&#39;AA_domain_ranges&#39;</span><span class="p">:</span> <span class="n">parse_domain_list</span><span class="p">,</span>
+            <span class="s1">&#39;cdna_coding_end&#39;</span><span class="p">:</span> <span class="n">nullable_int</span><span class="p">,</span>
+            <span class="s1">&#39;cdna_coding_start&#39;</span><span class="p">:</span> <span class="n">nullable_int</span><span class="p">,</span>
+            <span class="s1">&#39;transcript_genomic_end&#39;</span><span class="p">:</span> <span class="n">nullable_int</span><span class="p">,</span>
+            <span class="s1">&#39;transcript_genomic_start&#39;</span><span class="p">:</span> <span class="n">nullable_int</span><span class="p">,</span>
+            <span class="s1">&#39;gene_start&#39;</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+            <span class="s1">&#39;gene_end&#39;</span><span class="p">:</span> <span class="nb">int</span>
+        <span class="p">}</span>
+    <span class="p">)</span>
+    <span class="n">genes</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">rows</span><span class="p">:</span>
+        <span class="n">gene</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;chr&#39;</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;chr&#39;</span><span class="p">],</span>
+            <span class="s1">&#39;start&#39;</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;gene_start&#39;</span><span class="p">],</span>
+            <span class="s1">&#39;end&#39;</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;gene_end&#39;</span><span class="p">],</span>
+            <span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;ensembl_gene_id&#39;</span><span class="p">],</span>
+            <span class="s1">&#39;strand&#39;</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;strand&#39;</span><span class="p">],</span>
+            <span class="s1">&#39;aliases&#39;</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;hugo_names&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;;&#39;</span><span class="p">)</span> <span class="k">if</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;hugo_names&#39;</span><span class="p">]</span> <span class="k">else</span> <span class="p">[],</span>
+            <span class="s1">&#39;transcripts&#39;</span><span class="p">:</span> <span class="p">[]</span>
+        <span class="p">}</span>
+        <span class="k">if</span> <span class="n">gene</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">genes</span><span class="p">:</span>
+            <span class="n">genes</span><span class="p">[</span><span class="n">gene</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]]</span> <span class="o">=</span> <span class="n">gene</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">gene</span> <span class="o">=</span> <span class="n">genes</span><span class="p">[</span><span class="n">gene</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]]</span>
+
+        <span class="n">transcript</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;is_best_transcript&#39;</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;best_ensembl_transcript_id&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;ensembl_transcript_id&#39;</span><span class="p">],</span>
+            <span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;ensembl_transcript_id&#39;</span><span class="p">],</span>
+            <span class="s1">&#39;exons&#39;</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;genomic_exon_ranges&#39;</span><span class="p">],</span>
+            <span class="s1">&#39;domains&#39;</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;AA_domain_ranges&#39;</span><span class="p">],</span>
+            <span class="s1">&#39;start&#39;</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;transcript_genomic_start&#39;</span><span class="p">],</span>
+            <span class="s1">&#39;end&#39;</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;transcript_genomic_end&#39;</span><span class="p">],</span>
+            <span class="s1">&#39;cdna_coding_start&#39;</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;cdna_coding_start&#39;</span><span class="p">],</span>
+            <span class="s1">&#39;cdna_coding_end&#39;</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;cdna_coding_end&#39;</span><span class="p">],</span>
+            <span class="s1">&#39;aliases&#39;</span><span class="p">:</span> <span class="p">[]</span>
+        <span class="p">}</span>
+        <span class="n">gene</span><span class="p">[</span><span class="s1">&#39;transcripts&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">transcript</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="p">{</span><span class="s1">&#39;genes&#39;</span><span class="p">:</span> <span class="n">genes</span><span class="o">.</span><span class="n">values</span><span class="p">()}</span></div>
+
+
+<div class="viewcode-block" id="load_reference_genome"><a class="viewcode-back" href="../../../auto/mavis.annotate.file_io.html#mavis.annotate.file_io.load_reference_genome">[docs]</a><span class="k">def</span> <span class="nf">load_reference_genome</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">low_mem</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Args:</span>
+<span class="sd">        filename (str): the path to the file containing the input fasta genome</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        :class:`dict` of :class:`Bio.SeqRecord` by :class:`str`: a dictionary representing the sequences in the fasta file</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">reference_genome</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">low_mem</span><span class="p">:</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="s1">&#39;rU&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fh</span><span class="p">:</span>
+            <span class="n">reference_genome</span> <span class="o">=</span> <span class="n">SeqIO</span><span class="o">.</span><span class="n">to_dict</span><span class="p">(</span><span class="n">SeqIO</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span><span class="n">fh</span><span class="p">,</span> <span class="s1">&#39;fasta&#39;</span><span class="p">))</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">reference_genome</span> <span class="o">=</span> <span class="n">SeqIO</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="s1">&#39;fasta&#39;</span><span class="p">)</span>
+
+    <span class="n">names</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">reference_genome</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+
+    <span class="c1"># to fix hg38 issues</span>
+    <span class="k">for</span> <span class="n">template_name</span> <span class="ow">in</span> <span class="n">names</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">template_name</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;chr&#39;</span><span class="p">):</span>
+            <span class="n">truncated</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="s1">&#39;^chr&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">template_name</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">truncated</span> <span class="ow">in</span> <span class="n">reference_genome</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span>
+                    <span class="s1">&#39;template names </span><span class="si">{}</span><span class="s1"> and </span><span class="si">{}</span><span class="s1"> are considered equal but both have been defined in the reference&#39;</span>
+                    <span class="s1">&#39;loaded&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">template_name</span><span class="p">,</span> <span class="n">truncated</span><span class="p">))</span>
+            <span class="n">reference_genome</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">truncated</span><span class="p">,</span> <span class="n">reference_genome</span><span class="p">[</span><span class="n">template_name</span><span class="p">]</span><span class="o">.</span><span class="n">upper</span><span class="p">())</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">prefixed</span> <span class="o">=</span> <span class="s1">&#39;chr&#39;</span> <span class="o">+</span> <span class="n">template_name</span>
+            <span class="k">if</span> <span class="n">prefixed</span> <span class="ow">in</span> <span class="n">reference_genome</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span>
+                    <span class="s1">&#39;template names </span><span class="si">{}</span><span class="s1"> and </span><span class="si">{}</span><span class="s1"> are considered equal but both have been defined in the reference&#39;</span>
+                    <span class="s1">&#39;loaded&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">template_name</span><span class="p">,</span> <span class="n">prefixed</span><span class="p">))</span>
+            <span class="n">reference_genome</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">prefixed</span><span class="p">,</span> <span class="n">reference_genome</span><span class="p">[</span><span class="n">template_name</span><span class="p">]</span><span class="o">.</span><span class="n">upper</span><span class="p">())</span>
+        <span class="n">reference_genome</span><span class="p">[</span><span class="n">template_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">reference_genome</span><span class="p">[</span><span class="n">template_name</span><span class="p">]</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">reference_genome</span></div>
+
+
+<div class="viewcode-block" id="load_templates"><a class="viewcode-back" href="../../../auto/mavis.annotate.file_io.html#mavis.annotate.file_io.load_templates">[docs]</a><span class="k">def</span> <span class="nf">load_templates</span><span class="p">(</span><span class="n">filename</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    primarily useful if template drawings are required and is not necessary otherwise</span>
+<span class="sd">    assumes the input file is 0-indexed with [start,end) style. Columns are expected in</span>
+<span class="sd">    the following order, tab-delimited. A header should not be given</span>
+
+<span class="sd">    1. name</span>
+<span class="sd">    2. start</span>
+<span class="sd">    3. end</span>
+<span class="sd">    4. band_name</span>
+<span class="sd">    5. giemsa_stain</span>
+
+<span class="sd">    for example</span>
+
+<span class="sd">    .. code-block:: text</span>
+
+<span class="sd">        chr1	0	2300000	p36.33	gneg</span>
+<span class="sd">        chr1	2300000	5400000	p36.32	gpos25</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        filename (str): the path to the file with the cytoband template information</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        :class:`list` of :class:`Template`: list of the templates loaded</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">header</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">,</span> <span class="s1">&#39;start&#39;</span><span class="p">,</span> <span class="s1">&#39;end&#39;</span><span class="p">,</span> <span class="s1">&#39;band_name&#39;</span><span class="p">,</span> <span class="s1">&#39;giemsa_stain&#39;</span><span class="p">]</span>
+    <span class="n">header</span><span class="p">,</span> <span class="n">rows</span> <span class="o">=</span> <span class="n">tab</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span>
+        <span class="n">filename</span><span class="p">,</span>
+        <span class="n">header</span><span class="o">=</span><span class="n">header</span><span class="p">,</span>
+        <span class="n">cast</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;start&#39;</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="s1">&#39;end&#39;</span><span class="p">:</span> <span class="nb">int</span><span class="p">},</span>
+        <span class="n">in_</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;giemsa_stain&#39;</span><span class="p">:</span> <span class="n">GIEMSA_STAIN</span><span class="o">.</span><span class="n">values</span><span class="p">()}</span>
+    <span class="p">)</span>
+
+    <span class="n">bands_by_template</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">rows</span><span class="p">:</span>
+        <span class="n">band</span> <span class="o">=</span> <span class="n">BioInterval</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;start&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;end&#39;</span><span class="p">],</span> <span class="n">name</span><span class="o">=</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;band_name&#39;</span><span class="p">],</span> <span class="n">data</span><span class="o">=</span><span class="n">row</span><span class="p">)</span>
+        <span class="n">bands_by_template</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">],</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">band</span><span class="p">)</span>
+
+    <span class="n">templates</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">tname</span><span class="p">,</span> <span class="n">bands</span> <span class="ow">in</span> <span class="n">bands_by_template</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">start</span> <span class="o">=</span> <span class="nb">min</span><span class="p">([</span><span class="n">b</span><span class="o">.</span><span class="n">start</span> <span class="k">for</span> <span class="n">b</span> <span class="ow">in</span> <span class="n">bands</span><span class="p">])</span>
+        <span class="n">end</span> <span class="o">=</span> <span class="nb">max</span><span class="p">([</span><span class="n">b</span><span class="o">.</span><span class="n">end</span> <span class="k">for</span> <span class="n">b</span> <span class="ow">in</span> <span class="n">bands</span><span class="p">])</span>
+        <span class="n">end</span> <span class="o">=</span> <span class="n">Template</span><span class="p">(</span><span class="n">tname</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">,</span> <span class="n">bands</span><span class="o">=</span><span class="n">bands</span><span class="p">)</span>
+        <span class="n">templates</span><span class="p">[</span><span class="n">end</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">end</span>
+    <span class="k">return</span> <span class="n">templates</span></div>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2017, creisle.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../',
+            VERSION:'',
+            LANGUAGE:'None',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

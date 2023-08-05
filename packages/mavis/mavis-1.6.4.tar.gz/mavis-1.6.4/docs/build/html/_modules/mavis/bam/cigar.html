@@ -1,0 +1,728 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>mavis.bam.cigar &mdash; MAVIS  documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+    <link rel="stylesheet" href="../../../_static/custom.css" type="text/css" />
+  
+
+  
+        <link rel="author" title="About these documents"
+              href="../../../about.html"/>
+        <link rel="index" title="Index"
+              href="../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../search.html"/>
+    <link rel="top" title="MAVIS  documentation" href="../../../index.html"/>
+        <link rel="up" title="Module code" href="../../index.html"/> 
+
+  
+  <script src="../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home"> MAVIS
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                1.6.4
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../about.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../pipeline.html">Running the Pipeline</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../mavis_input.html">MAVIS standard input file format</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../reference.html">Reference Input Files</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../configuration.html">Configuration and Settings</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../tools_supported.html">Supported SV Callers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../illustrations.html">Illustrations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../faqs.html">Frequently Asked Questions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../theory.html">Theory and Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../development.html">Guidelines for Contributors</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../package.html">Package Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../citations.html">Literature</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">MAVIS</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+      <li>mavis.bam.cigar</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for mavis.bam.cigar</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">holds methods related to processing cigar tuples. Cigar tuples are generally</span>
+<span class="sd">an iterable list of tuples where the first element in each tuple is the</span>
+<span class="sd">CIGAR value (i.e. 1 for an insertion), and the second value is the frequency</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">from</span> <span class="nn">..constants</span> <span class="k">import</span> <span class="n">CIGAR</span><span class="p">,</span> <span class="n">DNA_ALPHABET</span><span class="p">,</span> <span class="n">GAP</span>
+
+<span class="n">EVENT_STATES</span> <span class="o">=</span> <span class="p">{</span><span class="n">CIGAR</span><span class="o">.</span><span class="n">D</span><span class="p">,</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">I</span><span class="p">,</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">X</span><span class="p">}</span>
+<span class="n">ALIGNED_STATES</span> <span class="o">=</span> <span class="p">{</span><span class="n">CIGAR</span><span class="o">.</span><span class="n">M</span><span class="p">,</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">X</span><span class="p">,</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">EQ</span><span class="p">}</span>
+<span class="n">REFERENCE_ALIGNED_STATES</span> <span class="o">=</span> <span class="n">ALIGNED_STATES</span> <span class="o">|</span> <span class="p">{</span><span class="n">CIGAR</span><span class="o">.</span><span class="n">D</span><span class="p">,</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">N</span><span class="p">}</span>
+<span class="n">QUERY_ALIGNED_STATES</span> <span class="o">=</span> <span class="n">ALIGNED_STATES</span> <span class="o">|</span> <span class="p">{</span><span class="n">CIGAR</span><span class="o">.</span><span class="n">I</span><span class="p">,</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">S</span><span class="p">}</span>
+<span class="n">CLIPPING_STATE</span> <span class="o">=</span> <span class="p">{</span><span class="n">CIGAR</span><span class="o">.</span><span class="n">S</span><span class="p">,</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">H</span><span class="p">}</span>
+
+
+<div class="viewcode-block" id="recompute_cigar_mismatch"><a class="viewcode-back" href="../../../auto/mavis.bam.cigar.html#mavis.bam.cigar.recompute_cigar_mismatch">[docs]</a><span class="k">def</span> <span class="nf">recompute_cigar_mismatch</span><span class="p">(</span><span class="n">read</span><span class="p">,</span> <span class="n">ref</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    for cigar tuples where M is used, recompute to replace with X/= for increased</span>
+<span class="sd">    utility and specificity</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        read (pysam.AlignedSegment): the input read</span>
+<span class="sd">        ref (str): the reference sequence</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        :class:`list` of :class:`tuple` of :class:`int` and :class:`int`: the cigar tuple</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">offset</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="n">ref_pos</span> <span class="o">=</span> <span class="n">read</span><span class="o">.</span><span class="n">reference_start</span>
+    <span class="n">seq_pos</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="k">for</span> <span class="n">cigar_value</span><span class="p">,</span> <span class="n">freq</span> <span class="ow">in</span> <span class="n">read</span><span class="o">.</span><span class="n">cigar</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">cigar_value</span> <span class="ow">in</span> <span class="n">ALIGNED_STATES</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">offset</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">freq</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">DNA_ALPHABET</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">ref</span><span class="p">[</span><span class="n">ref_pos</span><span class="p">],</span> <span class="n">read</span><span class="o">.</span><span class="n">query_sequence</span><span class="p">[</span><span class="n">seq_pos</span><span class="p">]):</span>
+                    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">result</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">result</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">EQ</span><span class="p">:</span>
+                        <span class="n">result</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">CIGAR</span><span class="o">.</span><span class="n">EQ</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">result</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">CIGAR</span><span class="o">.</span><span class="n">EQ</span><span class="p">,</span> <span class="n">result</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">result</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">result</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">X</span><span class="p">:</span>
+                        <span class="n">result</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">CIGAR</span><span class="o">.</span><span class="n">X</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">result</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">CIGAR</span><span class="o">.</span><span class="n">X</span><span class="p">,</span> <span class="n">result</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+                <span class="n">ref_pos</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="n">seq_pos</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="n">cigar_value</span> <span class="ow">in</span> <span class="n">QUERY_ALIGNED_STATES</span><span class="p">:</span>
+            <span class="n">seq_pos</span> <span class="o">+=</span> <span class="n">freq</span>
+        <span class="k">if</span> <span class="n">cigar_value</span> <span class="ow">in</span> <span class="n">REFERENCE_ALIGNED_STATES</span><span class="p">:</span>
+            <span class="n">ref_pos</span> <span class="o">+=</span> <span class="n">freq</span>
+        <span class="n">result</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">cigar_value</span><span class="p">,</span> <span class="n">freq</span><span class="p">))</span>
+    <span class="k">assert</span> <span class="nb">sum</span><span class="p">([</span><span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">result</span><span class="p">])</span> <span class="o">==</span> <span class="nb">sum</span><span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">read</span><span class="o">.</span><span class="n">cigar</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">result</span></div>
+
+
+<div class="viewcode-block" id="longest_fuzzy_match"><a class="viewcode-back" href="../../../auto/mavis.bam.cigar.html#mavis.bam.cigar.longest_fuzzy_match">[docs]</a><span class="k">def</span> <span class="nf">longest_fuzzy_match</span><span class="p">(</span><span class="n">cigar</span><span class="p">,</span> <span class="n">max_fuzzy_interupt</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    computes the longest sequence of exact matches allowing for &#39;x&#39; event interrupts</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        cigar: cigar tuples</span>
+<span class="sd">        max_fuzzy_interupt (int): number of mismatches allowed</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">temp</span> <span class="o">=</span> <span class="n">join</span><span class="p">(</span><span class="n">cigar</span><span class="p">)</span>
+    <span class="n">longest_fuzzy_match</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">pos</span><span class="p">,</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">temp</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">c</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">EQ</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="n">current_fuzzy_match</span> <span class="o">=</span> <span class="n">c</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">pos</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="n">fuzzy_count</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">while</span> <span class="n">pos</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">temp</span><span class="p">)</span> <span class="ow">and</span> <span class="n">fuzzy_count</span> <span class="o">&lt;=</span> <span class="n">max_fuzzy_interupt</span><span class="p">:</span>
+            <span class="n">v</span><span class="p">,</span> <span class="n">f</span> <span class="o">=</span> <span class="n">temp</span><span class="p">[</span><span class="n">pos</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">v</span> <span class="o">!=</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">EQ</span><span class="p">:</span>
+                <span class="n">fuzzy_count</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">current_fuzzy_match</span> <span class="o">+=</span> <span class="n">f</span>
+            <span class="n">pos</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="n">current_fuzzy_match</span> <span class="o">&gt;</span> <span class="n">longest_fuzzy_match</span><span class="p">:</span>
+            <span class="n">longest_fuzzy_match</span> <span class="o">=</span> <span class="n">current_fuzzy_match</span>
+    <span class="k">return</span> <span class="n">longest_fuzzy_match</span></div>
+
+
+<div class="viewcode-block" id="longest_exact_match"><a class="viewcode-back" href="../../../auto/mavis.bam.cigar.html#mavis.bam.cigar.longest_exact_match">[docs]</a><span class="k">def</span> <span class="nf">longest_exact_match</span><span class="p">(</span><span class="n">cigar</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    returns the longest consecutive exact match</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        cigar (:class:`list` of :class:`tuple` of :class:`int` and :class:`int`): the cigar tuples</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">longest_fuzzy_match</span><span class="p">(</span><span class="n">cigar</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="score"><a class="viewcode-back" href="../../../auto/mavis.bam.cigar.html#mavis.bam.cigar.score">[docs]</a><span class="k">def</span> <span class="nf">score</span><span class="p">(</span><span class="n">cigar</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;scoring based on sw alignment properties with gap extension penalties</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        cigar (:class:`list` of :class:`~mavis.constants.CIGAR` and :class:`int`):</span>
+<span class="sd">          list of cigar tuple values</span>
+<span class="sd">        MISMATCH (int): mismatch penalty</span>
+<span class="sd">        MATCH (int): match penalty</span>
+<span class="sd">        GAP (int): initial gap penalty</span>
+<span class="sd">        GAP_EXTEND (int): gap extension penalty</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        int: the score value</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">mismatch</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;MISMATCH&#39;</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">match</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;MATCH&#39;</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="n">gap</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;GAP&#39;</span><span class="p">,</span> <span class="o">-</span><span class="mi">4</span><span class="p">)</span>
+    <span class="n">gap_extend</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;GAP_EXTEND&#39;</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="n">score</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">v</span><span class="p">,</span> <span class="n">freq</span> <span class="ow">in</span> <span class="n">cigar</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">v</span> <span class="o">==</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">EQ</span><span class="p">:</span>
+            <span class="n">score</span> <span class="o">+=</span> <span class="n">match</span> <span class="o">*</span> <span class="n">freq</span>
+        <span class="k">elif</span> <span class="n">v</span> <span class="o">==</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">X</span><span class="p">:</span>
+            <span class="n">score</span> <span class="o">+=</span> <span class="n">mismatch</span> <span class="o">*</span> <span class="n">freq</span>
+        <span class="k">elif</span> <span class="n">v</span> <span class="ow">in</span> <span class="p">[</span><span class="n">CIGAR</span><span class="o">.</span><span class="n">I</span><span class="p">,</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">D</span><span class="p">]:</span>
+            <span class="n">score</span> <span class="o">+=</span> <span class="n">gap</span> <span class="o">+</span> <span class="n">gap_extend</span> <span class="o">*</span> <span class="p">(</span><span class="n">freq</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">v</span> <span class="ow">in</span> <span class="p">[</span><span class="n">CIGAR</span><span class="o">.</span><span class="n">S</span><span class="p">,</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">N</span><span class="p">]:</span>
+            <span class="k">pass</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">AssertionError</span><span class="p">(</span><span class="s1">&#39;unexpected cigar value&#39;</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">score</span></div>
+
+
+<div class="viewcode-block" id="match_percent"><a class="viewcode-back" href="../../../auto/mavis.bam.cigar.html#mavis.bam.cigar.match_percent">[docs]</a><span class="k">def</span> <span class="nf">match_percent</span><span class="p">(</span><span class="n">cigar</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    calculates the percent of aligned bases (matches or mismatches) that are matches</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">matches</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">mismatches</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">v</span><span class="p">,</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">cigar</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">v</span> <span class="o">==</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">EQ</span><span class="p">:</span>
+            <span class="n">matches</span> <span class="o">+=</span> <span class="n">f</span>
+        <span class="k">elif</span> <span class="n">v</span> <span class="o">==</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">X</span><span class="p">:</span>
+            <span class="n">mismatches</span> <span class="o">+=</span> <span class="n">f</span>
+        <span class="k">elif</span> <span class="n">v</span> <span class="o">==</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">M</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span><span class="s1">&#39;cannot calculate match percent with non-specific alignments&#39;</span><span class="p">,</span> <span class="n">cigar</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">matches</span> <span class="o">+</span> <span class="n">mismatches</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span><span class="s1">&#39;input cigar str does not have any aligned sections (X or =)&#39;</span><span class="p">,</span> <span class="n">cigar</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">matches</span> <span class="o">/</span> <span class="p">(</span><span class="n">matches</span> <span class="o">+</span> <span class="n">mismatches</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="join"><a class="viewcode-back" href="../../../auto/mavis.bam.cigar.html#mavis.bam.cigar.join">[docs]</a><span class="k">def</span> <span class="nf">join</span><span class="p">(</span><span class="o">*</span><span class="n">pos</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    given a number of cigar lists, joins them and merges any consecutive tuples</span>
+<span class="sd">    with the same cigar value</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        &gt;&gt;&gt; join([(1, 1), (4, 7)], [(4, 3), (2, 4)])</span>
+<span class="sd">        [(1, 1), (4, 10), (2, 4)]</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">cigar</span> <span class="ow">in</span> <span class="n">pos</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">v</span><span class="p">,</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">cigar</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">result</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">result</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">v</span><span class="p">:</span>
+                <span class="n">result</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">f</span> <span class="o">+</span> <span class="n">result</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">])</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">result</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">v</span><span class="p">,</span> <span class="n">f</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">result</span></div>
+
+
+<div class="viewcode-block" id="extend_softclipping"><a class="viewcode-back" href="../../../auto/mavis.bam.cigar.html#mavis.bam.cigar.extend_softclipping">[docs]</a><span class="k">def</span> <span class="nf">extend_softclipping</span><span class="p">(</span><span class="n">cigar</span><span class="p">,</span> <span class="n">min_exact_to_stop_softclipping</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    given some input cigar, extends softclipping if there are mismatches/insertions/deletions</span>
+<span class="sd">    close to the end of the aligned portion. The stopping point is defined by the</span>
+<span class="sd">    min_exact_to_stop_softclipping parameter. this function will throw an error if there is no</span>
+<span class="sd">    exact match aligned portion to signal stop</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        original_cigar (:class:`list` of :class:`~mavis.constants.CIGAR` and :class:`int`): the input cigar</span>
+<span class="sd">        min_exact_to_stop_softclipping (int): number of exact matches to terminate extension</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        tuple:</span>
+<span class="sd">            - :class:`list` of :class:`~mavis.constants.CIGAR` and :class:`int` - new cigar list</span>
+<span class="sd">            - :class:`int` - shift from the original start position</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">new_cigar</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">anchors</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">cigar</span><span class="p">)</span> <span class="k">if</span> <span class="n">v</span> <span class="ow">in</span> <span class="p">{</span><span class="n">CIGAR</span><span class="o">.</span><span class="n">EQ</span><span class="p">,</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">M</span><span class="p">}</span> <span class="ow">and</span> <span class="n">f</span> <span class="o">&gt;=</span> <span class="n">min_exact_to_stop_softclipping</span><span class="p">]</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">anchors</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span><span class="s1">&#39;cannot compute on this cigar as there is no stop point&#39;</span><span class="p">)</span>
+    <span class="n">start_anchor</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">anchors</span><span class="p">)</span>
+    <span class="n">end_anchor</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">anchors</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">cigar</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">H</span><span class="p">:</span>
+        <span class="n">start_anchor</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">if</span> <span class="n">cigar</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">H</span><span class="p">:</span>
+        <span class="n">end_anchor</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">cigar</span><span class="p">)</span>
+    <span class="n">start_query_aligned</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">([</span><span class="n">f</span> <span class="k">for</span> <span class="n">v</span><span class="p">,</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">cigar</span><span class="p">[:</span><span class="n">start_anchor</span><span class="p">]</span> <span class="k">if</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">QUERY_ALIGNED_STATES</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="n">start_ref_aligned</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">([</span><span class="n">f</span> <span class="k">for</span> <span class="n">v</span><span class="p">,</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">cigar</span><span class="p">[:</span><span class="n">start_anchor</span><span class="p">]</span> <span class="k">if</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">REFERENCE_ALIGNED_STATES</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="n">end_query_aligned</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">([</span><span class="n">f</span> <span class="k">for</span> <span class="n">v</span><span class="p">,</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">cigar</span><span class="p">[</span><span class="n">end_anchor</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:]</span> <span class="k">if</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">QUERY_ALIGNED_STATES</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="n">new_cigar</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">if</span> <span class="n">start_query_aligned</span><span class="p">:</span>
+        <span class="n">new_cigar</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">CIGAR</span><span class="o">.</span><span class="n">S</span><span class="p">,</span> <span class="n">start_query_aligned</span><span class="p">))</span>
+    <span class="n">new_cigar</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">cigar</span><span class="p">[</span><span class="n">start_anchor</span><span class="p">:</span><span class="n">end_anchor</span> <span class="o">+</span> <span class="mi">1</span><span class="p">])</span>
+    <span class="k">if</span> <span class="n">end_query_aligned</span><span class="p">:</span>
+        <span class="n">new_cigar</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">CIGAR</span><span class="o">.</span><span class="n">S</span><span class="p">,</span> <span class="n">end_query_aligned</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">new_cigar</span><span class="p">,</span> <span class="n">start_ref_aligned</span></div>
+
+
+<div class="viewcode-block" id="compute"><a class="viewcode-back" href="../../../auto/mavis.bam.cigar.html#mavis.bam.cigar.compute">[docs]</a><span class="k">def</span> <span class="nf">compute</span><span class="p">(</span><span class="n">ref</span><span class="p">,</span> <span class="n">alt</span><span class="p">,</span> <span class="n">force_softclipping</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">min_exact_to_stop_softclipping</span><span class="o">=</span><span class="mi">6</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    given a ref and alt sequence compute the cigar string representing the alt</span>
+
+<span class="sd">    returns the cigar tuples along with the start position of the alt relative to the ref</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">force_softclipping</span><span class="p">:</span>
+        <span class="n">min_exact_to_stop_softclipping</span> <span class="o">=</span> <span class="mi">1</span>
+
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">ref</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">alt</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span><span class="s1">&#39;ref and alt must be the same length&#39;</span><span class="p">)</span>
+    <span class="n">cigar</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">r</span><span class="p">,</span> <span class="n">a</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">ref</span><span class="p">,</span> <span class="n">alt</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">r</span> <span class="o">==</span> <span class="n">a</span> <span class="ow">and</span> <span class="n">r</span> <span class="o">==</span> <span class="n">GAP</span><span class="p">:</span>
+            <span class="k">pass</span>
+        <span class="k">elif</span> <span class="n">r</span> <span class="o">==</span> <span class="n">GAP</span><span class="p">:</span>
+            <span class="n">cigar</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">CIGAR</span><span class="o">.</span><span class="n">I</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+        <span class="k">elif</span> <span class="n">a</span> <span class="o">==</span> <span class="n">GAP</span><span class="p">:</span>
+            <span class="n">cigar</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">CIGAR</span><span class="o">.</span><span class="n">D</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+        <span class="k">elif</span> <span class="n">DNA_ALPHABET</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">a</span><span class="p">):</span>
+            <span class="n">cigar</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">CIGAR</span><span class="o">.</span><span class="n">EQ</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">cigar</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">CIGAR</span><span class="o">.</span><span class="n">X</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+    <span class="n">cigar</span> <span class="o">=</span> <span class="n">join</span><span class="p">(</span><span class="n">cigar</span><span class="p">)</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">c</span><span class="p">,</span> <span class="n">rs</span> <span class="o">=</span> <span class="n">extend_softclipping</span><span class="p">(</span><span class="n">cigar</span><span class="p">,</span> <span class="n">min_exact_to_stop_softclipping</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">c</span><span class="p">,</span> <span class="n">rs</span>
+    <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">cigar</span><span class="p">,</span> <span class="mi">0</span></div>
+
+
+<div class="viewcode-block" id="convert_for_igv"><a class="viewcode-back" href="../../../auto/mavis.bam.cigar.html#mavis.bam.cigar.convert_for_igv">[docs]</a><span class="k">def</span> <span class="nf">convert_for_igv</span><span class="p">(</span><span class="n">cigar</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    igv does not support the extended CIGAR values for match v mismatch</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        &gt;&gt;&gt; convert_for_igv([(7, 4), (8, 1), (7, 5)])</span>
+<span class="sd">        [(0, 10)]</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">v</span><span class="p">,</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">cigar</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">ALIGNED_STATES</span><span class="p">:</span>
+            <span class="n">v</span> <span class="o">=</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">M</span>
+        <span class="n">result</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">v</span><span class="p">,</span> <span class="n">f</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">join</span><span class="p">(</span><span class="n">result</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="alignment_matches"><a class="viewcode-back" href="../../../auto/mavis.bam.cigar.html#mavis.bam.cigar.alignment_matches">[docs]</a><span class="k">def</span> <span class="nf">alignment_matches</span><span class="p">(</span><span class="n">cigar</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    counts the number of aligned bases irrespective of match/mismatch</span>
+<span class="sd">    this is equivalent to counting all CIGAR.M</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">v</span><span class="p">,</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">cigar</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">ALIGNED_STATES</span><span class="p">:</span>
+            <span class="n">result</span> <span class="o">+=</span> <span class="n">f</span>
+    <span class="k">return</span> <span class="n">result</span></div>
+
+
+<div class="viewcode-block" id="merge_indels"><a class="viewcode-back" href="../../../auto/mavis.bam.cigar.html#mavis.bam.cigar.merge_indels">[docs]</a><span class="k">def</span> <span class="nf">merge_indels</span><span class="p">(</span><span class="n">cigar</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    For a given cigar tuple, merges adjacent insertions/deletions</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        &gt;&gt;&gt; merge_indels([(CIGAR.EQ, 10), (CIGAR.I, 3), (CIGAR.D, 4), (CIGAR.I, 2), (CIGAR.D, 2), (CIGAR.EQ, 10)])</span>
+<span class="sd">        [(CIGAR.EQ, 10), (CIGAR.I, 5), (CIGAR.D, 6), (CIGAR.EQ, 10)]</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">new_cigar</span> <span class="o">=</span> <span class="n">cigar</span><span class="p">[:]</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">new_cigar</span><span class="p">)):</span>
+        <span class="n">t</span> <span class="o">=</span> <span class="n">i</span> <span class="o">-</span> <span class="mi">1</span>  <span class="c1"># for bubbling</span>
+        <span class="k">if</span> <span class="n">new_cigar</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">I</span><span class="p">:</span>
+            <span class="k">while</span> <span class="n">t</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">new_cigar</span><span class="p">[</span><span class="n">t</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">D</span><span class="p">:</span>
+                    <span class="k">break</span>
+                <span class="n">t</span> <span class="o">-=</span> <span class="mi">1</span>
+            <span class="k">if</span> <span class="n">t</span> <span class="o">&lt;</span> <span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">t</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="n">new_cigar</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">new_cigar</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">=</span> <span class="n">new_cigar</span><span class="p">[</span><span class="n">t</span><span class="p">],</span> <span class="n">new_cigar</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+    <span class="n">new_cigar</span> <span class="o">=</span> <span class="n">join</span><span class="p">(</span><span class="n">new_cigar</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">new_cigar</span></div>
+
+
+<div class="viewcode-block" id="hgvs_standardize_cigar"><a class="viewcode-back" href="../../../auto/mavis.bam.cigar.html#mavis.bam.cigar.hgvs_standardize_cigar">[docs]</a><span class="k">def</span> <span class="nf">hgvs_standardize_cigar</span><span class="p">(</span><span class="n">read</span><span class="p">,</span> <span class="n">reference_seq</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    extend alignments as long as matches are possible.</span>
+<span class="sd">    call insertions before deletions</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">cigar</span> <span class="o">=</span> <span class="n">join</span><span class="p">(</span><span class="n">read</span><span class="o">.</span><span class="n">cigar</span><span class="p">)</span>
+    <span class="n">new_cigar</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="c1"># ensure that any del ins become ins del</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">cigar</span><span class="p">)):</span>
+        <span class="n">convert</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">if</span> <span class="n">cigar</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">X</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">i</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">cigar</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="ow">in</span> <span class="p">[</span><span class="n">CIGAR</span><span class="o">.</span><span class="n">I</span><span class="p">,</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">D</span><span class="p">,</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">N</span><span class="p">]:</span>
+                    <span class="n">convert</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="k">if</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">cigar</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">cigar</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="ow">in</span> <span class="p">[</span><span class="n">CIGAR</span><span class="o">.</span><span class="n">I</span><span class="p">,</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">D</span><span class="p">,</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">N</span><span class="p">]:</span>
+                    <span class="n">convert</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">if</span> <span class="n">cigar</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">N</span><span class="p">:</span>
+            <span class="n">new_cigar</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">CIGAR</span><span class="o">.</span><span class="n">D</span><span class="p">,</span> <span class="n">cigar</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">1</span><span class="p">]))</span>
+        <span class="k">elif</span> <span class="n">convert</span><span class="p">:</span>
+            <span class="n">new_cigar</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">CIGAR</span><span class="o">.</span><span class="n">I</span><span class="p">,</span> <span class="n">cigar</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">1</span><span class="p">]))</span>
+            <span class="n">new_cigar</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">CIGAR</span><span class="o">.</span><span class="n">D</span><span class="p">,</span> <span class="n">cigar</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">1</span><span class="p">]))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">new_cigar</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cigar</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+    <span class="n">new_cigar</span> <span class="o">=</span> <span class="n">merge_indels</span><span class="p">(</span><span class="n">new_cigar</span><span class="p">)</span>
+    <span class="c1"># now we need to extend any insertions</span>
+    <span class="n">rpos</span> <span class="o">=</span> <span class="n">read</span><span class="o">.</span><span class="n">reference_start</span>
+    <span class="n">qpos</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">cigar</span> <span class="o">=</span> <span class="p">[</span><span class="n">new_cigar</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span>
+    <span class="k">if</span> <span class="n">cigar</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="ow">in</span> <span class="n">REFERENCE_ALIGNED_STATES</span><span class="p">:</span>
+        <span class="n">rpos</span> <span class="o">+=</span> <span class="n">cigar</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">cigar</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="ow">in</span> <span class="n">QUERY_ALIGNED_STATES</span><span class="p">:</span>
+        <span class="n">qpos</span> <span class="o">+=</span> <span class="n">cigar</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">i</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="k">while</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">new_cigar</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">new_cigar</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">c</span><span class="p">,</span> <span class="n">v</span> <span class="o">=</span> <span class="n">new_cigar</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="n">next_c</span><span class="p">,</span> <span class="n">next_v</span> <span class="o">=</span> <span class="n">new_cigar</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span>
+            <span class="n">prev_c</span><span class="p">,</span> <span class="n">prev_v</span> <span class="o">=</span> <span class="n">new_cigar</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span>
+
+            <span class="k">if</span> <span class="n">c</span> <span class="o">==</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">I</span><span class="p">:</span>
+                <span class="n">qseq</span> <span class="o">=</span> <span class="n">read</span><span class="o">.</span><span class="n">query_sequence</span><span class="p">[</span><span class="n">qpos</span><span class="p">:</span><span class="n">qpos</span> <span class="o">+</span> <span class="n">v</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">next_c</span> <span class="o">==</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">EQ</span> <span class="ow">and</span> <span class="n">prev_c</span> <span class="o">==</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">EQ</span><span class="p">:</span>
+                    <span class="n">rseq</span> <span class="o">=</span> <span class="n">reference_seq</span><span class="p">[</span><span class="n">rpos</span><span class="p">:</span><span class="n">rpos</span> <span class="o">+</span> <span class="n">next_v</span><span class="p">]</span>
+                    <span class="n">t</span> <span class="o">=</span> <span class="mi">0</span>
+                    <span class="k">while</span> <span class="n">t</span> <span class="o">&lt;</span> <span class="n">next_v</span> <span class="ow">and</span> <span class="n">rseq</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">==</span> <span class="n">read</span><span class="o">.</span><span class="n">query_sequence</span><span class="p">[</span><span class="n">qpos</span> <span class="o">+</span> <span class="n">t</span><span class="p">]:</span>
+                        <span class="n">t</span> <span class="o">+=</span> <span class="mi">1</span>
+                    <span class="k">if</span> <span class="n">t</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                        <span class="n">cigar</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">CIGAR</span><span class="o">.</span><span class="n">EQ</span><span class="p">,</span> <span class="n">t</span><span class="p">))</span>
+                        <span class="n">rpos</span> <span class="o">+=</span> <span class="n">t</span>
+                        <span class="n">qpos</span> <span class="o">+=</span> <span class="n">t</span>
+                        <span class="k">if</span> <span class="n">t</span> <span class="o">==</span> <span class="n">next_v</span><span class="p">:</span>
+                            <span class="k">del</span> <span class="n">new_cigar</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="n">new_cigar</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">next_c</span><span class="p">,</span> <span class="n">next_v</span> <span class="o">-</span> <span class="n">t</span>
+                        <span class="k">continue</span>
+                <span class="k">elif</span> <span class="n">next_c</span> <span class="o">==</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">D</span> <span class="ow">and</span> <span class="n">prev_c</span> <span class="o">==</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">EQ</span><span class="p">:</span>
+                    <span class="c1"># reduce the insertion and deletion by extending the alignment if possible</span>
+                    <span class="n">delseq</span> <span class="o">=</span> <span class="n">reference_seq</span><span class="p">[</span><span class="n">rpos</span><span class="p">:</span> <span class="n">rpos</span> <span class="o">+</span> <span class="n">next_v</span><span class="p">]</span>
+                    <span class="n">start</span> <span class="o">=</span> <span class="mi">0</span>
+                    <span class="n">end</span> <span class="o">=</span> <span class="mi">0</span>
+                    <span class="n">shift</span> <span class="o">=</span> <span class="kc">True</span>
+                    <span class="k">while</span> <span class="nb">max</span><span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">)</span> <span class="o">&lt;</span> <span class="nb">min</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">delseq</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">qseq</span><span class="p">))</span> <span class="ow">and</span> <span class="n">shift</span><span class="p">:</span>
+                        <span class="n">shift</span> <span class="o">=</span> <span class="kc">False</span>
+                        <span class="k">if</span> <span class="n">qseq</span><span class="p">[</span><span class="n">start</span><span class="p">]</span> <span class="o">==</span> <span class="n">delseq</span><span class="p">[</span><span class="n">start</span><span class="p">]:</span>
+                            <span class="n">start</span> <span class="o">+=</span> <span class="mi">1</span>
+                            <span class="n">shift</span> <span class="o">=</span> <span class="kc">True</span>
+                        <span class="k">if</span> <span class="n">qseq</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span> <span class="o">-</span> <span class="n">end</span><span class="p">]</span> <span class="o">==</span> <span class="n">delseq</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span> <span class="o">-</span> <span class="n">end</span><span class="p">]:</span>
+                            <span class="n">end</span> <span class="o">+=</span> <span class="mi">1</span>
+                            <span class="n">shift</span> <span class="o">=</span> <span class="kc">True</span>
+                    <span class="k">if</span> <span class="n">start</span><span class="p">:</span>
+                        <span class="n">cigar</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">CIGAR</span><span class="o">.</span><span class="n">EQ</span><span class="p">,</span> <span class="n">start</span><span class="p">))</span>
+                        <span class="k">if</span> <span class="n">start</span> <span class="o">&lt;</span> <span class="n">next_v</span><span class="p">:</span>
+                            <span class="n">new_cigar</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">next_c</span><span class="p">,</span> <span class="n">next_v</span> <span class="o">-</span> <span class="n">start</span><span class="p">)</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="k">del</span> <span class="n">new_cigar</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span>
+                        <span class="k">if</span> <span class="n">start</span> <span class="o">&lt;</span> <span class="n">v</span><span class="p">:</span>
+                            <span class="n">new_cigar</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="n">v</span> <span class="o">-</span> <span class="n">start</span><span class="p">)</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="k">del</span> <span class="n">new_cigar</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+                        <span class="n">qpos</span> <span class="o">+=</span> <span class="n">start</span>
+                        <span class="n">rpos</span> <span class="o">+=</span> <span class="n">start</span>
+                        <span class="k">continue</span>
+                    <span class="k">elif</span> <span class="n">end</span><span class="p">:</span>
+                        <span class="k">if</span> <span class="n">end</span> <span class="o">&lt;</span> <span class="n">v</span><span class="p">:</span>
+                            <span class="n">cigar</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">c</span><span class="p">,</span> <span class="n">v</span> <span class="o">-</span> <span class="n">end</span><span class="p">))</span>
+                        <span class="k">if</span> <span class="n">end</span> <span class="o">&lt;</span> <span class="n">next_v</span><span class="p">:</span>
+                            <span class="n">cigar</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">next_c</span><span class="p">,</span> <span class="n">next_v</span> <span class="o">-</span> <span class="n">end</span><span class="p">))</span>
+                        <span class="n">cigar</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">CIGAR</span><span class="o">.</span><span class="n">EQ</span><span class="p">,</span> <span class="n">end</span><span class="p">))</span>
+                        <span class="n">qpos</span> <span class="o">+=</span> <span class="n">v</span>
+                        <span class="n">rpos</span> <span class="o">+=</span> <span class="n">next_v</span>
+                        <span class="n">i</span> <span class="o">+=</span> <span class="mi">2</span>
+                        <span class="k">continue</span>
+                <span class="n">qpos</span> <span class="o">+=</span> <span class="n">v</span>
+
+            <span class="k">elif</span> <span class="n">c</span> <span class="o">==</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">D</span><span class="p">:</span>
+                <span class="n">rseq</span> <span class="o">=</span> <span class="n">reference_seq</span><span class="p">[</span><span class="n">rpos</span><span class="p">:</span><span class="n">rpos</span> <span class="o">+</span> <span class="n">v</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">next_c</span> <span class="o">==</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">EQ</span> <span class="ow">and</span> <span class="n">prev_c</span> <span class="o">==</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">EQ</span><span class="p">:</span>
+                    <span class="n">qseq</span> <span class="o">=</span> <span class="n">read</span><span class="o">.</span><span class="n">query_sequence</span><span class="p">[</span><span class="n">qpos</span><span class="p">:</span><span class="n">qpos</span> <span class="o">+</span> <span class="n">next_v</span><span class="p">]</span>
+                    <span class="n">t</span> <span class="o">=</span> <span class="mi">0</span>
+                    <span class="k">while</span> <span class="n">t</span> <span class="o">&lt;</span> <span class="n">next_v</span> <span class="ow">and</span> <span class="n">qseq</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">==</span> <span class="n">reference_seq</span><span class="p">[</span><span class="n">rpos</span> <span class="o">+</span> <span class="n">t</span><span class="p">]:</span>
+                        <span class="n">t</span> <span class="o">+=</span> <span class="mi">1</span>
+                    <span class="k">if</span> <span class="n">t</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                        <span class="n">cigar</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">CIGAR</span><span class="o">.</span><span class="n">EQ</span><span class="p">,</span> <span class="n">t</span><span class="p">))</span>
+                        <span class="n">qpos</span> <span class="o">+=</span> <span class="n">t</span>
+                        <span class="n">rpos</span> <span class="o">+=</span> <span class="n">t</span>
+                        <span class="k">if</span> <span class="n">t</span> <span class="o">==</span> <span class="n">next_v</span><span class="p">:</span>
+                            <span class="k">del</span> <span class="n">new_cigar</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="n">new_cigar</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">next_c</span><span class="p">,</span> <span class="n">next_v</span> <span class="o">-</span> <span class="n">t</span>
+                        <span class="k">continue</span>
+                <span class="n">rpos</span> <span class="o">+=</span> <span class="n">v</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">QUERY_ALIGNED_STATES</span><span class="p">:</span>
+                    <span class="n">qpos</span> <span class="o">+=</span> <span class="n">v</span>
+                <span class="k">if</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">REFERENCE_ALIGNED_STATES</span><span class="p">:</span>
+                    <span class="n">rpos</span> <span class="o">+=</span> <span class="n">v</span>
+        <span class="n">cigar</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">new_cigar</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+        <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span>
+    <span class="k">return</span> <span class="n">join</span><span class="p">(</span><span class="n">cigar</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="convert_string_to_cigar"><a class="viewcode-back" href="../../../auto/mavis.bam.cigar.html#mavis.bam.cigar.convert_string_to_cigar">[docs]</a><span class="k">def</span> <span class="nf">convert_string_to_cigar</span><span class="p">(</span><span class="n">string</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Given a cigar string, converts it to the appropriate cigar tuple</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        &gt;&gt;&gt; convert_string_to_cigar(&#39;8M2I1D9X&#39;)</span>
+<span class="sd">        [(CIGAR.M, 8), (CIGAR.I, 2), (CIGAR.D, 1), (CIGAR.X, 9)]</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">patt</span> <span class="o">=</span> <span class="sa">r</span><span class="s1">&#39;(\d+(\D))&#39;</span>
+    <span class="n">cigar</span> <span class="o">=</span> <span class="p">[</span><span class="n">m</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="n">re</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="n">patt</span><span class="p">,</span> <span class="n">string</span><span class="p">)]</span>
+    <span class="n">cigar</span> <span class="o">=</span> <span class="p">[(</span><span class="n">CIGAR</span><span class="p">[</span><span class="n">match</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]]</span> <span class="k">if</span> <span class="n">match</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">!=</span> <span class="s1">&#39;=&#39;</span> <span class="k">else</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">EQ</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="n">match</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]))</span> <span class="k">for</span> <span class="n">match</span> <span class="ow">in</span> <span class="n">cigar</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">cigar</span></div>
+
+
+<div class="viewcode-block" id="convert_cigar_to_string"><a class="viewcode-back" href="../../../auto/mavis.bam.cigar.html#mavis.bam.cigar.convert_cigar_to_string">[docs]</a><span class="k">def</span> <span class="nf">convert_cigar_to_string</span><span class="p">(</span><span class="n">cigar</span><span class="p">):</span>
+    <span class="k">return</span> <span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="s1">&#39;</span><span class="si">{}{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">reverse</span><span class="p">(</span><span class="n">s</span><span class="p">)</span> <span class="k">if</span> <span class="n">s</span> <span class="o">!=</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">EQ</span> <span class="k">else</span> <span class="s1">&#39;=&#39;</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span><span class="p">,</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">cigar</span><span class="p">])</span></div>
+
+
+<div class="viewcode-block" id="merge_internal_events"><a class="viewcode-back" href="../../../auto/mavis.bam.cigar.html#mavis.bam.cigar.merge_internal_events">[docs]</a><span class="k">def</span> <span class="nf">merge_internal_events</span><span class="p">(</span><span class="n">cigar</span><span class="p">,</span> <span class="n">inner_anchor</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">outer_anchor</span><span class="o">=</span><span class="mi">10</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    merges events (insertions, deletions, mismatches) within a cigar if they are</span>
+<span class="sd">    between exact matches on either side (anchors) and separated by less exact</span>
+<span class="sd">    matches than the given parameter</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        cigar (list): a list of tuples of cigar states and counts</span>
+<span class="sd">        inner_anchor (int): minimum number of consecutive exact matches separating events</span>
+<span class="sd">        outer_anchor (int): minimum consecutively aligned exact matches to anchor an end for merging</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        list: new list of cigar tuples with merged events</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        &gt;&gt;&gt; merge_internal_events([(CIGAR.EQ, 10), (CIGAR.X, 1), (CIGAR.EQ, 2), (CIGAR.D, 1), (CIGAR.EQ, 10)])</span>
+<span class="sd">        [(CIGAR.EQ, 10), (CIGAR.I, 3), (CIGAR.D, 4), (CIGAR.EQ, 10)]</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">read_cigar</span> <span class="o">=</span> <span class="n">join</span><span class="p">(</span><span class="n">cigar</span><span class="p">)</span>
+    <span class="n">prefix</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="c1"># get the initial anchors</span>
+    <span class="n">exact_match_pos</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">tup</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">read_cigar</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">tup</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">in</span> <span class="p">[</span><span class="n">CIGAR</span><span class="o">.</span><span class="n">EQ</span><span class="p">,</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">M</span><span class="p">]</span> <span class="ow">and</span> <span class="n">tup</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="n">outer_anchor</span><span class="p">:</span>
+            <span class="n">exact_match_pos</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">i</span><span class="p">,</span> <span class="n">tup</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
+
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">exact_match_pos</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">read_cigar</span>
+
+    <span class="n">ppos</span> <span class="o">=</span> <span class="n">exact_match_pos</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">prefix</span> <span class="o">=</span> <span class="n">read_cigar</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span> <span class="n">ppos</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span>
+    <span class="n">spos</span> <span class="o">=</span> <span class="n">exact_match_pos</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">suffix</span> <span class="o">=</span> <span class="n">read_cigar</span><span class="p">[</span><span class="n">spos</span><span class="p">:</span><span class="kc">None</span><span class="p">]</span>
+    <span class="n">read_cigar</span> <span class="o">=</span> <span class="n">read_cigar</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="n">prefix</span><span class="p">):</span><span class="nb">len</span><span class="p">(</span><span class="n">suffix</span><span class="p">)</span> <span class="o">*</span> <span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">new_cigar</span> <span class="o">=</span> <span class="n">prefix</span>
+    <span class="k">for</span> <span class="n">state</span><span class="p">,</span> <span class="n">count</span> <span class="ow">in</span> <span class="n">read_cigar</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">state</span> <span class="o">==</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">X</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">new_cigar</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="ow">in</span> <span class="n">EVENT_STATES</span><span class="p">:</span>
+                <span class="n">new_cigar</span><span class="o">.</span><span class="n">extend</span><span class="p">([(</span><span class="n">CIGAR</span><span class="o">.</span><span class="n">I</span><span class="p">,</span> <span class="n">count</span><span class="p">),</span> <span class="p">(</span><span class="n">CIGAR</span><span class="o">.</span><span class="n">D</span><span class="p">,</span> <span class="n">count</span><span class="p">)])</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">new_cigar</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">state</span><span class="p">,</span> <span class="n">count</span><span class="p">))</span>
+        <span class="k">elif</span> <span class="n">state</span> <span class="ow">in</span> <span class="n">EVENT_STATES</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">new_cigar</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">X</span><span class="p">:</span>
+                <span class="n">new_cigar</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">I</span><span class="p">,</span> <span class="n">new_cigar</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span>
+                <span class="n">new_cigar</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">CIGAR</span><span class="o">.</span><span class="n">D</span><span class="p">,</span> <span class="n">new_cigar</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">]))</span>
+            <span class="n">new_cigar</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">state</span><span class="p">,</span> <span class="n">count</span><span class="p">))</span>
+        <span class="k">elif</span> <span class="n">state</span> <span class="ow">in</span> <span class="p">[</span><span class="n">CIGAR</span><span class="o">.</span><span class="n">EQ</span><span class="p">,</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">M</span><span class="p">]:</span>
+            <span class="k">if</span> <span class="n">count</span> <span class="o">&gt;=</span> <span class="n">inner_anchor</span> <span class="ow">or</span> <span class="n">new_cigar</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">EVENT_STATES</span><span class="p">:</span>
+                <span class="n">new_cigar</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">state</span><span class="p">,</span> <span class="n">count</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">new_cigar</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">X</span><span class="p">:</span>
+                    <span class="n">new_cigar</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">CIGAR</span><span class="o">.</span><span class="n">I</span><span class="p">,</span> <span class="n">new_cigar</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span>
+                    <span class="n">new_cigar</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">CIGAR</span><span class="o">.</span><span class="n">D</span><span class="p">,</span> <span class="n">new_cigar</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">]))</span>
+                <span class="n">new_cigar</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">CIGAR</span><span class="o">.</span><span class="n">I</span><span class="p">,</span> <span class="n">count</span><span class="p">))</span>
+                <span class="n">new_cigar</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">CIGAR</span><span class="o">.</span><span class="n">D</span><span class="p">,</span> <span class="n">count</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">new_cigar</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">state</span><span class="p">,</span> <span class="n">count</span><span class="p">))</span>
+    <span class="n">new_cigar</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">suffix</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">merge_indels</span><span class="p">(</span><span class="n">new_cigar</span><span class="p">)</span></div>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2017, creisle.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../',
+            VERSION:'',
+            LANGUAGE:'None',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

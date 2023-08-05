@@ -1,0 +1,649 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>mavis.tools &mdash; MAVIS  documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  
+
+  
+    <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+
+  
+        <link rel="author" title="About these documents"
+              href="../../about.html"/>
+        <link rel="index" title="Index"
+              href="../../genindex.html"/>
+        <link rel="search" title="Search" href="../../search.html"/>
+    <link rel="top" title="MAVIS  documentation" href="../../index.html"/>
+        <link rel="up" title="Module code" href="../index.html"/> 
+
+  
+  <script src="../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../index.html" class="icon icon-home"> MAVIS
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                1.6.4
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../about.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../pipeline.html">Running the Pipeline</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../mavis_input.html">MAVIS standard input file format</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../reference.html">Reference Input Files</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../configuration.html">Configuration and Settings</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tools_supported.html">Supported SV Callers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../illustrations.html">Illustrations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../faqs.html">Frequently Asked Questions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../theory.html">Theory and Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../development.html">Guidelines for Contributors</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../package.html">Package Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../citations.html">Literature</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">MAVIS</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../index.html">Module code</a> &raquo;</li>
+        
+      <li>mavis.tools</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for mavis.tools</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">glob</span>
+<span class="kn">import</span> <span class="nn">itertools</span>
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">import</span> <span class="nn">warnings</span>
+
+<span class="kn">from</span> <span class="nn">braceexpand</span> <span class="k">import</span> <span class="n">braceexpand</span>
+<span class="kn">from</span> <span class="nn">shortuuid</span> <span class="k">import</span> <span class="n">uuid</span>
+<span class="kn">import</span> <span class="nn">tab</span>
+<span class="kn">from</span> <span class="nn">pysam</span> <span class="k">import</span> <span class="n">VariantFile</span>
+<span class="kn">from</span> <span class="nn">argparse</span> <span class="k">import</span> <span class="n">Namespace</span>
+
+<span class="kn">from</span> <span class="nn">.breakpoint</span> <span class="k">import</span> <span class="n">Breakpoint</span><span class="p">,</span> <span class="n">BreakpointPair</span>
+<span class="kn">from</span> <span class="nn">.constants</span> <span class="k">import</span> <span class="n">COLUMNS</span><span class="p">,</span> <span class="n">MavisNamespace</span><span class="p">,</span> <span class="n">ORIENT</span><span class="p">,</span> <span class="n">STRAND</span><span class="p">,</span> <span class="n">SVTYPE</span>
+<span class="kn">from</span> <span class="nn">.error</span> <span class="k">import</span> <span class="n">InvalidRearrangement</span>
+<span class="kn">from</span> <span class="nn">.util</span> <span class="k">import</span> <span class="n">devnull</span><span class="p">,</span> <span class="n">read_bpp_from_input_file</span>
+
+<span class="n">SUPPORTED_TOOL</span> <span class="o">=</span> <span class="n">MavisNamespace</span><span class="p">(</span>
+    <span class="n">MANTA</span><span class="o">=</span><span class="s1">&#39;manta&#39;</span><span class="p">,</span>
+    <span class="n">DELLY</span><span class="o">=</span><span class="s1">&#39;delly&#39;</span><span class="p">,</span>
+    <span class="n">TA</span><span class="o">=</span><span class="s1">&#39;transabyss&#39;</span><span class="p">,</span>
+    <span class="n">PINDEL</span><span class="o">=</span><span class="s1">&#39;pindel&#39;</span><span class="p">,</span>
+    <span class="n">CHIMERASCAN</span><span class="o">=</span><span class="s1">&#39;chimerascan&#39;</span><span class="p">,</span>
+    <span class="n">MAVIS</span><span class="o">=</span><span class="s1">&#39;mavis&#39;</span><span class="p">,</span>
+    <span class="n">DEFUSE</span><span class="o">=</span><span class="s1">&#39;defuse&#39;</span><span class="p">,</span>
+    <span class="n">BREAKDANCER</span><span class="o">=</span><span class="s1">&#39;breakdancer&#39;</span><span class="p">,</span>
+    <span class="n">VCF</span><span class="o">=</span><span class="s1">&#39;vcf&#39;</span>
+<span class="p">)</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Supported Tools used to call SVs and then used as input into MAVIS</span>
+
+<span class="sd">- chimerascan [Iyer-2011]_</span>
+<span class="sd">- defuse [McPherson-2011]_</span>
+<span class="sd">- delly [Rausch-2012]_</span>
+<span class="sd">- manta [Chen-2016]_</span>
+<span class="sd">- pindel [Ye-2009]_</span>
+<span class="sd">- transabyss [Robertson-2010]_</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="n">TOOL_SVTYPE_MAPPING</span> <span class="o">=</span> <span class="p">{</span><span class="n">v</span><span class="p">:</span> <span class="p">[</span><span class="n">v</span><span class="p">]</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">SVTYPE</span><span class="o">.</span><span class="n">values</span><span class="p">()}</span>
+<span class="n">TOOL_SVTYPE_MAPPING</span><span class="o">.</span><span class="n">update</span><span class="p">({</span>
+    <span class="s1">&#39;DEL&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">SVTYPE</span><span class="o">.</span><span class="n">DEL</span><span class="p">],</span>
+    <span class="s1">&#39;INS&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">SVTYPE</span><span class="o">.</span><span class="n">INS</span><span class="p">],</span>
+    <span class="s1">&#39;ITX&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">SVTYPE</span><span class="o">.</span><span class="n">DUP</span><span class="p">],</span>
+    <span class="s1">&#39;CTX&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">SVTYPE</span><span class="o">.</span><span class="n">TRANS</span><span class="p">,</span> <span class="n">SVTYPE</span><span class="o">.</span><span class="n">ITRANS</span><span class="p">],</span>
+    <span class="s1">&#39;INV&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">SVTYPE</span><span class="o">.</span><span class="n">INV</span><span class="p">],</span>
+    <span class="s1">&#39;BND&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">SVTYPE</span><span class="o">.</span><span class="n">TRANS</span><span class="p">,</span> <span class="n">SVTYPE</span><span class="o">.</span><span class="n">ITRANS</span><span class="p">],</span>
+    <span class="s1">&#39;TRA&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">SVTYPE</span><span class="o">.</span><span class="n">TRANS</span><span class="p">,</span> <span class="n">SVTYPE</span><span class="o">.</span><span class="n">ITRANS</span><span class="p">],</span>
+    <span class="s1">&#39;CNV&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">SVTYPE</span><span class="o">.</span><span class="n">DUP</span><span class="p">],</span>
+    <span class="s1">&#39;RPL&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">SVTYPE</span><span class="o">.</span><span class="n">INS</span><span class="p">],</span>
+    <span class="s1">&#39;DUP:TANDEM&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">SVTYPE</span><span class="o">.</span><span class="n">DUP</span><span class="p">],</span>
+    <span class="s1">&#39;DUP&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">SVTYPE</span><span class="o">.</span><span class="n">DUP</span><span class="p">],</span>
+    <span class="s1">&#39;interchromosomal&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">SVTYPE</span><span class="o">.</span><span class="n">TRANS</span><span class="p">,</span> <span class="n">SVTYPE</span><span class="o">.</span><span class="n">ITRANS</span><span class="p">],</span>
+    <span class="s1">&#39;eversion&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">SVTYPE</span><span class="o">.</span><span class="n">DUP</span><span class="p">],</span>
+    <span class="s1">&#39;translocation&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">SVTYPE</span><span class="o">.</span><span class="n">TRANS</span><span class="p">,</span> <span class="n">SVTYPE</span><span class="o">.</span><span class="n">ITRANS</span><span class="p">],</span>
+    <span class="s1">&#39;ins&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">SVTYPE</span><span class="o">.</span><span class="n">INS</span><span class="p">],</span>
+    <span class="s1">&#39;del&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">SVTYPE</span><span class="o">.</span><span class="n">DEL</span><span class="p">],</span>
+    <span class="s1">&#39;dup&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">SVTYPE</span><span class="o">.</span><span class="n">DUP</span><span class="p">],</span>
+    <span class="s1">&#39;ITD&#39;</span><span class="p">:</span> <span class="p">[</span><span class="n">SVTYPE</span><span class="o">.</span><span class="n">DUP</span><span class="p">]</span>
+<span class="p">})</span>
+
+<span class="n">TRACKING_COLUMN</span> <span class="o">=</span> <span class="s1">&#39;tracking_id&#39;</span>
+
+
+<div class="viewcode-block" id="convert_tool_output"><a class="viewcode-back" href="../../auto/mavis.tools.html#mavis.tools.convert_tool_output">[docs]</a><span class="k">def</span> <span class="nf">convert_tool_output</span><span class="p">(</span><span class="n">input_file</span><span class="p">,</span> <span class="n">file_type</span><span class="o">=</span><span class="n">SUPPORTED_TOOL</span><span class="o">.</span><span class="n">MAVIS</span><span class="p">,</span> <span class="n">stranded</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">log</span><span class="o">=</span><span class="n">devnull</span><span class="p">,</span> <span class="n">collapse</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">assume_no_untemplated</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Reads output from a given SV caller and converts to a set of MAVIS breakpoint pairs. Also collapses duplicates</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">fnames</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">braceexpand</span><span class="p">(</span><span class="n">input_file</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">subname</span> <span class="ow">in</span> <span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">name</span><span class="p">):</span>
+            <span class="n">fnames</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">subname</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">fnames</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">OSError</span><span class="p">(</span><span class="s1">&#39;no such file&#39;</span><span class="p">,</span> <span class="n">input_file</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">fname</span> <span class="ow">in</span> <span class="n">fnames</span><span class="p">:</span>
+        <span class="n">result</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">_convert_tool_output</span><span class="p">(</span><span class="n">fname</span><span class="p">,</span> <span class="n">file_type</span><span class="p">,</span> <span class="n">stranded</span><span class="p">,</span> <span class="n">log</span><span class="p">,</span> <span class="n">assume_no_untemplated</span><span class="o">=</span><span class="n">assume_no_untemplated</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">collapse</span><span class="p">:</span>
+        <span class="n">collapse_mapping</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">bpp</span> <span class="ow">in</span> <span class="n">result</span><span class="p">:</span>
+            <span class="n">collapse_mapping</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">bpp</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">bpp</span><span class="p">)</span>
+        <span class="n">log</span><span class="p">(</span><span class="s1">&#39;collapsed&#39;</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">result</span><span class="p">),</span> <span class="s1">&#39;to&#39;</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">collapse_mapping</span><span class="p">),</span> <span class="s1">&#39;calls&#39;</span><span class="p">)</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">collapse_mapping</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+    <span class="k">return</span> <span class="n">result</span></div>
+
+
+<span class="k">def</span> <span class="nf">_parse_transabyss</span><span class="p">(</span><span class="n">row</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    transforms the transabyss output into the common format for expansion. Maps the input column</span>
+<span class="sd">    names to column names which MAVIS can read</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">std_row</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">if</span> <span class="n">TRACKING_COLUMN</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">row</span><span class="p">:</span>
+        <span class="n">std_row</span><span class="p">[</span><span class="n">TRACKING_COLUMN</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">{}</span><span class="s1">-</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">SUPPORTED_TOOL</span><span class="o">.</span><span class="n">TA</span><span class="p">,</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">])</span>
+
+    <span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">event_type</span><span class="p">]</span> <span class="o">=</span> <span class="n">row</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;rearrangement&#39;</span><span class="p">,</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;type&#39;</span><span class="p">])</span>
+    <span class="k">for</span> <span class="n">retained_column</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;genes&#39;</span><span class="p">,</span> <span class="s1">&#39;gene&#39;</span><span class="p">]:</span>
+        <span class="k">if</span> <span class="n">retained_column</span> <span class="ow">in</span> <span class="n">row</span><span class="p">:</span>
+            <span class="n">std_row</span><span class="p">[</span><span class="s1">&#39;</span><span class="si">{}</span><span class="s1">_</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">SUPPORTED_TOOL</span><span class="o">.</span><span class="n">TA</span><span class="p">,</span> <span class="n">retained_column</span><span class="p">)]</span> <span class="o">=</span> <span class="n">row</span><span class="p">[</span><span class="n">retained_column</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">event_type</span><span class="p">]</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;LSR&#39;</span><span class="p">,</span> <span class="s1">&#39;translocation&#39;</span><span class="p">]:</span>
+        <span class="k">del</span> <span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">event_type</span><span class="p">]</span>
+    <span class="k">if</span> <span class="s1">&#39;breakpoint&#39;</span> <span class="ow">in</span> <span class="n">row</span><span class="p">:</span>
+        <span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">break1_orientation</span><span class="p">],</span> <span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">break2_orientation</span><span class="p">]</span> <span class="o">=</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;orientations&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="p">)</span>
+        <span class="n">match</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span>
+            <span class="sa">r</span><span class="s1">&#39;^(?P&lt;chr1&gt;[^:]+):(?P&lt;pos1_start&gt;\d+)\|(?P&lt;chr2&gt;[^:]+):(?P&lt;pos2_start&gt;\d+)$&#39;</span><span class="p">,</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;breakpoint&#39;</span><span class="p">])</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">match</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">OSError</span><span class="p">(</span>
+                <span class="s1">&#39;file format error: the breakpoint column did not satisfy the expected pattern&#39;</span><span class="p">,</span> <span class="n">row</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">group</span><span class="p">,</span> <span class="n">col</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span>
+            <span class="p">[</span><span class="s1">&#39;chr1&#39;</span><span class="p">,</span> <span class="s1">&#39;pos1_start&#39;</span><span class="p">,</span> <span class="s1">&#39;chr2&#39;</span><span class="p">,</span> <span class="s1">&#39;pos2_start&#39;</span><span class="p">],</span>
+            <span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">break1_chromosome</span><span class="p">,</span> <span class="n">COLUMNS</span><span class="o">.</span><span class="n">break1_position_start</span><span class="p">,</span> <span class="n">COLUMNS</span><span class="o">.</span><span class="n">break2_chromosome</span><span class="p">,</span> <span class="n">COLUMNS</span><span class="o">.</span><span class="n">break2_position_start</span><span class="p">]</span>
+        <span class="p">):</span>
+            <span class="n">std_row</span><span class="p">[</span><span class="n">col</span><span class="p">]</span> <span class="o">=</span> <span class="n">match</span><span class="p">[</span><span class="n">group</span><span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">std_row</span><span class="o">.</span><span class="n">update</span><span class="p">({</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">break1_chromosome</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;chr&#39;</span><span class="p">],</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">break1_position_start</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;chr_start&#39;</span><span class="p">]),</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">break2_position_start</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;chr_end&#39;</span><span class="p">])</span>
+        <span class="p">})</span>
+        <span class="k">if</span> <span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">event_type</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;del&#39;</span><span class="p">:</span>
+            <span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">break1_position_start</span><span class="p">]</span> <span class="o">-=</span> <span class="mi">1</span>
+            <span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">break2_position_start</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">elif</span> <span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">event_type</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;ins&#39;</span><span class="p">:</span>
+            <span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">break2_position_start</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+
+        <span class="c1"># add the untemplated sequence where appropriate</span>
+        <span class="k">if</span> <span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">event_type</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;del&#39;</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;alt&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;na&#39;</span>
+            <span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">untemplated_seq</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+        <span class="k">elif</span> <span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">event_type</span><span class="p">]</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;dup&#39;</span><span class="p">,</span> <span class="s1">&#39;ITD&#39;</span><span class="p">]:</span>
+            <span class="n">length</span> <span class="o">=</span> <span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">break2_position_start</span><span class="p">]</span> <span class="o">-</span> <span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">break1_position_start</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;alt&#39;</span><span class="p">])</span> <span class="o">!=</span> <span class="n">length</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">AssertionError</span><span class="p">(</span>
+                    <span class="s1">&#39;expected alternate sequence to be equal to the length of the event&#39;</span><span class="p">,</span>
+                    <span class="nb">len</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;alt&#39;</span><span class="p">]),</span> <span class="n">length</span><span class="p">,</span> <span class="n">row</span><span class="p">,</span> <span class="n">std_row</span><span class="p">)</span>
+            <span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">untemplated_seq</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+        <span class="k">elif</span> <span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">event_type</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;ins&#39;</span><span class="p">:</span>
+            <span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">untemplated_seq</span><span class="p">]</span> <span class="o">=</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;alt&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s1">&#39;unexpected indel type&#39;</span><span class="p">,</span> <span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">event_type</span><span class="p">])</span>
+    <span class="k">return</span> <span class="n">std_row</span>
+
+
+<span class="k">def</span> <span class="nf">_parse_chimerascan</span><span class="p">(</span><span class="n">row</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    transforms the chimerscan output into the common format for expansion. Maps the input column</span>
+<span class="sd">    names to column names which MAVIS can read</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">std_row</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">retained_column</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;genes5p&#39;</span><span class="p">,</span> <span class="s1">&#39;genes3p&#39;</span><span class="p">]:</span>
+        <span class="k">if</span> <span class="n">retained_column</span> <span class="ow">in</span> <span class="n">row</span><span class="p">:</span>
+            <span class="n">std_row</span><span class="p">[</span><span class="s1">&#39;</span><span class="si">{}</span><span class="s1">_</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">SUPPORTED_TOOL</span><span class="o">.</span><span class="n">CHIMERASCAN</span><span class="p">,</span> <span class="n">retained_column</span><span class="p">)]</span> <span class="o">=</span> <span class="n">row</span><span class="p">[</span><span class="n">retained_column</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">TRACKING_COLUMN</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">row</span><span class="p">:</span>
+        <span class="n">std_row</span><span class="p">[</span><span class="n">TRACKING_COLUMN</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">{}</span><span class="s1">-</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">SUPPORTED_TOOL</span><span class="o">.</span><span class="n">CHIMERASCAN</span><span class="p">,</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;chimera_cluster_id&#39;</span><span class="p">])</span>
+
+    <span class="n">std_row</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">break1_chromosome</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;chrom5p&#39;</span><span class="p">],</span> <span class="n">COLUMNS</span><span class="o">.</span><span class="n">break2_chromosome</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;chrom3p&#39;</span><span class="p">]})</span>
+    <span class="k">if</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;strand5p&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;+&#39;</span><span class="p">:</span>
+        <span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">break1_position_start</span><span class="p">]</span> <span class="o">=</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;end5p&#39;</span><span class="p">]</span>
+        <span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">break1_orientation</span><span class="p">]</span> <span class="o">=</span> <span class="n">ORIENT</span><span class="o">.</span><span class="n">LEFT</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">break1_position_start</span><span class="p">]</span> <span class="o">=</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;start5p&#39;</span><span class="p">]</span>
+        <span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">break1_orientation</span><span class="p">]</span> <span class="o">=</span> <span class="n">ORIENT</span><span class="o">.</span><span class="n">RIGHT</span>
+    <span class="k">if</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;strand3p&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;+&#39;</span><span class="p">:</span>
+        <span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">break2_position_start</span><span class="p">]</span> <span class="o">=</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;start3p&#39;</span><span class="p">]</span>
+        <span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">break2_orientation</span><span class="p">]</span> <span class="o">=</span> <span class="n">ORIENT</span><span class="o">.</span><span class="n">RIGHT</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">break2_position_start</span><span class="p">]</span> <span class="o">=</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;end3p&#39;</span><span class="p">]</span>
+        <span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">break2_orientation</span><span class="p">]</span> <span class="o">=</span> <span class="n">ORIENT</span><span class="o">.</span><span class="n">LEFT</span>
+    <span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">opposing_strands</span><span class="p">]</span> <span class="o">=</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;strand5p&#39;</span><span class="p">]</span> <span class="o">!=</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;strand3p&#39;</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">std_row</span>
+
+
+<span class="k">def</span> <span class="nf">_parse_bnd_alt</span><span class="p">(</span><span class="n">alt</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    parses the alt statement from vcf files using the specification in vcf 4.2/4.2.</span>
+
+<span class="sd">    Assumes that the reference base is always the outermost base (this is based on the spec and also manta results as</span>
+<span class="sd">    the spec was missing some cases)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">match</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;^(?P&lt;ref&gt;\w)(?P&lt;useq&gt;\w*)\[(?P&lt;chr&gt;[^:]+):(?P&lt;pos&gt;\d+)\[$&#39;</span><span class="p">,</span> <span class="n">alt</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">match</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;chr&#39;</span><span class="p">),</span> <span class="nb">int</span><span class="p">(</span><span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;pos&#39;</span><span class="p">)),</span> <span class="n">ORIENT</span><span class="o">.</span><span class="n">RIGHT</span><span class="p">,</span> <span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;ref&#39;</span><span class="p">),</span> <span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;useq&#39;</span><span class="p">))</span>
+    <span class="n">match</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;^\[(?P&lt;chr&gt;[^:]+):(?P&lt;pos&gt;\d+)\[(?P&lt;useq&gt;\w*)(?P&lt;ref&gt;\w)$&#39;</span><span class="p">,</span> <span class="n">alt</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">match</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;chr&#39;</span><span class="p">),</span> <span class="nb">int</span><span class="p">(</span><span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;pos&#39;</span><span class="p">)),</span> <span class="n">ORIENT</span><span class="o">.</span><span class="n">RIGHT</span><span class="p">,</span> <span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;ref&#39;</span><span class="p">),</span> <span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;useq&#39;</span><span class="p">))</span>
+    <span class="n">match</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;^\](?P&lt;chr&gt;[^:]+):(?P&lt;pos&gt;\d+)\](?P&lt;useq&gt;\w*)(?P&lt;ref&gt;\w)$&#39;</span><span class="p">,</span> <span class="n">alt</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">match</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;chr&#39;</span><span class="p">),</span> <span class="nb">int</span><span class="p">(</span><span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;pos&#39;</span><span class="p">)),</span> <span class="n">ORIENT</span><span class="o">.</span><span class="n">LEFT</span><span class="p">,</span> <span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;ref&#39;</span><span class="p">),</span> <span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;useq&#39;</span><span class="p">))</span>
+    <span class="n">match</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;^(?P&lt;ref&gt;\w)(?P&lt;useq&gt;\w*)](?P&lt;chr&gt;[^:]+):(?P&lt;pos&gt;\d+)\]$&#39;</span><span class="p">,</span> <span class="n">alt</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">match</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;chr&#39;</span><span class="p">),</span> <span class="nb">int</span><span class="p">(</span><span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;pos&#39;</span><span class="p">)),</span> <span class="n">ORIENT</span><span class="o">.</span><span class="n">LEFT</span><span class="p">,</span> <span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;ref&#39;</span><span class="p">),</span> <span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;useq&#39;</span><span class="p">))</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s1">&#39;alt specification in unexpected format&#39;</span><span class="p">,</span> <span class="n">alt</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">_parse_vcf_record</span><span class="p">(</span><span class="n">record</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    converts a vcf record</span>
+
+<span class="sd">    Note:</span>
+<span class="sd">        CT = connection type, If given this field will be used in determining the orientation at the breakpoints.</span>
+<span class="sd">        From https://groups.google.com/forum/#!topic/delly-users/6Mq2juBraRY, we can expect certain CT types for</span>
+<span class="sd">        certain event types</span>
+<span class="sd">            - translocation/inverted translocation: 3to3, 3to5, 5to3, 5to5</span>
+<span class="sd">            - inversion: 3to3, 5to5</span>
+<span class="sd">            - deletion: 3to5</span>
+<span class="sd">            - duplication: 5to3</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">records</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">alt</span> <span class="ow">in</span> <span class="n">record</span><span class="o">.</span><span class="n">alts</span> <span class="k">if</span> <span class="n">record</span><span class="o">.</span><span class="n">alts</span> <span class="k">else</span> <span class="p">[</span><span class="kc">None</span><span class="p">]:</span>
+        <span class="n">info</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">record</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">info</span><span class="p">[</span><span class="n">entry</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span> <span class="o">=</span> <span class="n">entry</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">entry</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="k">else</span> <span class="n">entry</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">std_row</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">if</span> <span class="n">record</span><span class="o">.</span><span class="n">id</span> <span class="ow">and</span> <span class="n">record</span><span class="o">.</span><span class="n">id</span> <span class="o">!=</span> <span class="s1">&#39;N&#39;</span><span class="p">:</span>  <span class="c1"># to account for NovoBreak N in the ID field</span>
+            <span class="n">std_row</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">record</span><span class="o">.</span><span class="n">id</span>
+
+        <span class="k">if</span> <span class="n">info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;SVTYPE&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="o">==</span> <span class="s1">&#39;BND&#39;</span><span class="p">:</span>
+            <span class="n">chr2</span><span class="p">,</span> <span class="n">end</span><span class="p">,</span> <span class="n">orient2</span><span class="p">,</span> <span class="n">ref</span><span class="p">,</span> <span class="n">alt</span> <span class="o">=</span> <span class="n">_parse_bnd_alt</span><span class="p">(</span><span class="n">alt</span><span class="p">)</span>
+            <span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">break2_orientation</span><span class="p">]</span> <span class="o">=</span> <span class="n">orient2</span>
+            <span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">untemplated_seq</span><span class="p">]</span> <span class="o">=</span> <span class="n">alt</span>
+            <span class="k">if</span> <span class="n">record</span><span class="o">.</span><span class="n">ref</span> <span class="o">!=</span> <span class="n">ref</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">AssertionError</span><span class="p">(</span>
+                    <span class="s1">&#39;Expected the ref specification in the vcf record to match the sequence &#39;</span>
+                    <span class="s1">&#39;in the alt string: </span><span class="si">{}</span><span class="s1"> vs </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">record</span><span class="o">.</span><span class="n">ref</span><span class="p">,</span> <span class="n">ref</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">chr2</span> <span class="o">=</span> <span class="n">info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;CHR2&#39;</span><span class="p">,</span> <span class="n">record</span><span class="o">.</span><span class="n">chrom</span><span class="p">)</span>
+            <span class="n">end</span> <span class="o">=</span> <span class="n">record</span><span class="o">.</span><span class="n">stop</span>
+            <span class="k">if</span> <span class="n">alt</span> <span class="ow">and</span> <span class="n">record</span><span class="o">.</span><span class="n">ref</span> <span class="ow">and</span> <span class="n">re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;^[A-Z]+$&#39;</span><span class="p">,</span> <span class="n">alt</span><span class="p">)</span> <span class="ow">and</span> <span class="n">re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;^[A-Z]+&#39;</span><span class="p">,</span> <span class="n">record</span><span class="o">.</span><span class="n">ref</span><span class="p">):</span>
+                <span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">untemplated_seq</span><span class="p">]</span> <span class="o">=</span> <span class="n">alt</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span>
+                <span class="n">size</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">alt</span><span class="p">)</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="n">record</span><span class="o">.</span><span class="n">ref</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">size</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">event_type</span><span class="p">]</span> <span class="o">=</span> <span class="n">SVTYPE</span><span class="o">.</span><span class="n">INS</span>
+                <span class="k">elif</span> <span class="n">size</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">event_type</span><span class="p">]</span> <span class="o">=</span> <span class="n">SVTYPE</span><span class="o">.</span><span class="n">DEL</span>
+        <span class="n">std_row</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">break1_chromosome</span><span class="p">:</span> <span class="n">record</span><span class="o">.</span><span class="n">chrom</span><span class="p">,</span> <span class="n">COLUMNS</span><span class="o">.</span><span class="n">break2_chromosome</span><span class="p">:</span> <span class="n">chr2</span><span class="p">})</span>
+        <span class="k">if</span> <span class="n">info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;PRECISE&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>  <span class="c1"># DELLY CI only apply when split reads were not used to refine the breakpoint which is then flagged</span>
+            <span class="n">std_row</span><span class="o">.</span><span class="n">update</span><span class="p">({</span>
+                <span class="n">COLUMNS</span><span class="o">.</span><span class="n">break1_position_start</span><span class="p">:</span> <span class="n">record</span><span class="o">.</span><span class="n">pos</span><span class="p">,</span>
+                <span class="n">COLUMNS</span><span class="o">.</span><span class="n">break1_position_end</span><span class="p">:</span> <span class="n">record</span><span class="o">.</span><span class="n">pos</span><span class="p">,</span>
+                <span class="n">COLUMNS</span><span class="o">.</span><span class="n">break2_position_start</span><span class="p">:</span> <span class="n">end</span><span class="p">,</span>
+                <span class="n">COLUMNS</span><span class="o">.</span><span class="n">break2_position_end</span><span class="p">:</span> <span class="n">end</span>
+            <span class="p">})</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">std_row</span><span class="o">.</span><span class="n">update</span><span class="p">({</span>
+                <span class="n">COLUMNS</span><span class="o">.</span><span class="n">break1_position_start</span><span class="p">:</span> <span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">record</span><span class="o">.</span><span class="n">pos</span> <span class="o">+</span> <span class="n">info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;CIPOS&#39;</span><span class="p">,</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">))[</span><span class="mi">0</span><span class="p">]),</span>
+                <span class="n">COLUMNS</span><span class="o">.</span><span class="n">break1_position_end</span><span class="p">:</span> <span class="n">record</span><span class="o">.</span><span class="n">pos</span> <span class="o">+</span> <span class="n">info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;CIPOS&#39;</span><span class="p">,</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">))[</span><span class="mi">1</span><span class="p">],</span>
+                <span class="n">COLUMNS</span><span class="o">.</span><span class="n">break2_position_start</span><span class="p">:</span> <span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">end</span> <span class="o">+</span> <span class="n">info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;CIEND&#39;</span><span class="p">,</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">))[</span><span class="mi">0</span><span class="p">]),</span>
+                <span class="n">COLUMNS</span><span class="o">.</span><span class="n">break2_position_end</span><span class="p">:</span> <span class="n">end</span> <span class="o">+</span> <span class="n">info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;CIEND&#39;</span><span class="p">,</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">))[</span><span class="mi">1</span><span class="p">]</span>
+            <span class="p">})</span>
+
+        <span class="k">if</span> <span class="s1">&#39;SVTYPE&#39;</span> <span class="ow">in</span> <span class="n">info</span><span class="p">:</span>
+            <span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">event_type</span><span class="p">]</span> <span class="o">=</span> <span class="n">info</span><span class="p">[</span><span class="s1">&#39;SVTYPE&#39;</span><span class="p">]</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">orient1</span><span class="p">,</span> <span class="n">orient2</span> <span class="o">=</span> <span class="n">info</span><span class="p">[</span><span class="s1">&#39;CT&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;to&#39;</span><span class="p">)</span>
+            <span class="n">connection_type</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;3&#39;</span><span class="p">:</span> <span class="n">ORIENT</span><span class="o">.</span><span class="n">LEFT</span><span class="p">,</span> <span class="s1">&#39;5&#39;</span><span class="p">:</span> <span class="n">ORIENT</span><span class="o">.</span><span class="n">RIGHT</span><span class="p">,</span> <span class="s1">&#39;N&#39;</span><span class="p">:</span> <span class="n">ORIENT</span><span class="o">.</span><span class="n">NS</span><span class="p">}</span>
+            <span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">break1_orientation</span><span class="p">]</span> <span class="o">=</span> <span class="n">connection_type</span><span class="p">[</span><span class="n">orient1</span><span class="p">]</span>
+            <span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">break2_orientation</span><span class="p">]</span> <span class="o">=</span> <span class="n">connection_type</span><span class="p">[</span><span class="n">orient2</span><span class="p">]</span>
+        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+            <span class="k">pass</span>
+        <span class="n">records</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">std_row</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">records</span>
+
+
+<span class="k">def</span> <span class="nf">_convert_tool_row</span><span class="p">(</span><span class="n">row</span><span class="p">,</span> <span class="n">file_type</span><span class="p">,</span> <span class="n">stranded</span><span class="p">,</span> <span class="n">assume_no_untemplated</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    converts a row parsed from an input file to the appropriate column names for it to be converted to MAVIS style row</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">std_row</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">std_row</span><span class="p">[</span><span class="n">TRACKING_COLUMN</span><span class="p">]</span> <span class="o">=</span> <span class="n">row</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">TRACKING_COLUMN</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">std_row</span><span class="p">[</span><span class="n">TRACKING_COLUMN</span><span class="p">]</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">row</span><span class="p">,</span> <span class="n">TRACKING_COLUMN</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="k">pass</span>
+    <span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">break1_orientation</span><span class="p">]</span> <span class="o">=</span> <span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">break2_orientation</span><span class="p">]</span> <span class="o">=</span> <span class="n">ORIENT</span><span class="o">.</span><span class="n">NS</span>
+    <span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">break1_strand</span><span class="p">]</span> <span class="o">=</span> <span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">break2_strand</span><span class="p">]</span> <span class="o">=</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">NS</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="c1"># convert the specified file type to a standard format</span>
+    <span class="k">if</span> <span class="n">file_type</span> <span class="ow">in</span> <span class="p">[</span><span class="n">SUPPORTED_TOOL</span><span class="o">.</span><span class="n">DELLY</span><span class="p">,</span> <span class="n">SUPPORTED_TOOL</span><span class="o">.</span><span class="n">MANTA</span><span class="p">,</span> <span class="n">SUPPORTED_TOOL</span><span class="o">.</span><span class="n">PINDEL</span><span class="p">,</span> <span class="n">SUPPORTED_TOOL</span><span class="o">.</span><span class="n">VCF</span><span class="p">]:</span>
+
+        <span class="n">std_row</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">row</span><span class="p">)</span>
+
+    <span class="k">elif</span> <span class="n">file_type</span> <span class="o">==</span> <span class="n">SUPPORTED_TOOL</span><span class="o">.</span><span class="n">CHIMERASCAN</span><span class="p">:</span>
+
+        <span class="n">std_row</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">_parse_chimerascan</span><span class="p">(</span><span class="n">row</span><span class="p">))</span>
+
+    <span class="k">elif</span> <span class="n">file_type</span> <span class="o">==</span> <span class="n">SUPPORTED_TOOL</span><span class="o">.</span><span class="n">DEFUSE</span><span class="p">:</span>
+
+        <span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">break1_orientation</span><span class="p">]</span> <span class="o">=</span> <span class="n">ORIENT</span><span class="o">.</span><span class="n">LEFT</span> <span class="k">if</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;genomic_strand1&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">POS</span> <span class="k">else</span> <span class="n">ORIENT</span><span class="o">.</span><span class="n">RIGHT</span>
+        <span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">break2_orientation</span><span class="p">]</span> <span class="o">=</span> <span class="n">ORIENT</span><span class="o">.</span><span class="n">LEFT</span> <span class="k">if</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;genomic_strand2&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">POS</span> <span class="k">else</span> <span class="n">ORIENT</span><span class="o">.</span><span class="n">RIGHT</span>
+        <span class="n">std_row</span><span class="o">.</span><span class="n">update</span><span class="p">({</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">break1_chromosome</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;gene_chromosome1&#39;</span><span class="p">],</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">break2_chromosome</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;gene_chromosome2&#39;</span><span class="p">],</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">break1_position_start</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;genomic_break_pos1&#39;</span><span class="p">],</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">break2_position_start</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;genomic_break_pos2&#39;</span><span class="p">]</span>
+        <span class="p">})</span>
+        <span class="k">if</span> <span class="n">TRACKING_COLUMN</span> <span class="ow">in</span> <span class="n">row</span><span class="p">:</span>
+            <span class="n">std_row</span><span class="p">[</span><span class="n">TRACKING_COLUMN</span><span class="p">]</span> <span class="o">=</span> <span class="n">row</span><span class="p">[</span><span class="n">TRACKING_COLUMN</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">std_row</span><span class="p">[</span><span class="n">TRACKING_COLUMN</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">{}</span><span class="s1">-</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">file_type</span><span class="p">,</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;cluster_id&#39;</span><span class="p">])</span>
+
+    <span class="k">elif</span> <span class="n">file_type</span> <span class="o">==</span> <span class="n">SUPPORTED_TOOL</span><span class="o">.</span><span class="n">TA</span><span class="p">:</span>
+
+        <span class="n">std_row</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">_parse_transabyss</span><span class="p">(</span><span class="n">row</span><span class="p">))</span>
+
+    <span class="k">elif</span> <span class="n">file_type</span> <span class="o">==</span> <span class="n">SUPPORTED_TOOL</span><span class="o">.</span><span class="n">BREAKDANCER</span><span class="p">:</span>
+
+        <span class="n">std_row</span><span class="o">.</span><span class="n">update</span><span class="p">({</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">event_type</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;Type&#39;</span><span class="p">],</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">break1_chromosome</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;Chr1&#39;</span><span class="p">],</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">break2_chromosome</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;Chr2&#39;</span><span class="p">],</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">break1_position_start</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;Pos1&#39;</span><span class="p">],</span>
+            <span class="n">COLUMNS</span><span class="o">.</span><span class="n">break2_position_start</span><span class="p">:</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;Pos2&#39;</span><span class="p">],</span>
+        <span class="p">})</span>
+
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s1">&#39;unsupported file type&#39;</span><span class="p">,</span> <span class="n">file_type</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">stranded</span><span class="p">:</span>
+        <span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">break1_strand</span><span class="p">]</span> <span class="o">=</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">break1_strand</span><span class="p">])</span>
+        <span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">break2_strand</span><span class="p">]</span> <span class="o">=</span> <span class="n">STRAND</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">break2_strand</span><span class="p">])</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">break1_strand</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">STRAND</span><span class="o">.</span><span class="n">NS</span><span class="p">]</span>
+        <span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">break2_strand</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">STRAND</span><span class="o">.</span><span class="n">NS</span><span class="p">]</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">std_row</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">TRACKING_COLUMN</span><span class="p">,</span> <span class="kc">None</span><span class="p">):</span>
+        <span class="n">std_row</span><span class="p">[</span><span class="n">TRACKING_COLUMN</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">{}</span><span class="s1">-</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">file_type</span><span class="p">,</span> <span class="n">std_row</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;id&#39;</span><span class="p">,</span> <span class="n">uuid</span><span class="p">()))</span>
+
+    <span class="n">combinations</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">itertools</span><span class="o">.</span><span class="n">product</span><span class="p">(</span>
+        <span class="n">ORIENT</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">break1_orientation</span><span class="p">]),</span> <span class="n">ORIENT</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">break2_orientation</span><span class="p">]),</span>
+        <span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">break1_strand</span><span class="p">],</span> <span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">break2_strand</span><span class="p">],</span>
+        <span class="n">TOOL_SVTYPE_MAPPING</span><span class="p">[</span><span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">event_type</span><span class="p">]]</span> <span class="k">if</span> <span class="n">COLUMNS</span><span class="o">.</span><span class="n">event_type</span> <span class="ow">in</span> <span class="n">std_row</span> <span class="k">else</span> <span class="p">[</span><span class="kc">None</span><span class="p">],</span>
+        <span class="p">[</span><span class="kc">True</span><span class="p">,</span> <span class="kc">False</span><span class="p">]</span> <span class="k">if</span> <span class="n">std_row</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">opposing_strands</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="p">[</span><span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">opposing_strands</span><span class="p">]]</span>
+    <span class="p">))</span>
+    <span class="c1"># add the product of all uncertainties as breakpoint pairs</span>
+    <span class="k">for</span> <span class="n">orient1</span><span class="p">,</span> <span class="n">orient2</span><span class="p">,</span> <span class="n">strand1</span><span class="p">,</span> <span class="n">strand2</span><span class="p">,</span> <span class="n">event_type</span><span class="p">,</span> <span class="n">oppose</span> <span class="ow">in</span> <span class="n">combinations</span><span class="p">:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">untemplated_seq</span> <span class="o">=</span> <span class="n">std_row</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">untemplated_seq</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">assume_no_untemplated</span> <span class="ow">and</span> <span class="n">event_type</span> <span class="o">!=</span> <span class="n">SVTYPE</span><span class="o">.</span><span class="n">INS</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">untemplated_seq</span><span class="p">:</span>
+                <span class="n">untemplated_seq</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+            <span class="n">break1</span> <span class="o">=</span> <span class="n">Breakpoint</span><span class="p">(</span>
+                <span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">break1_chromosome</span><span class="p">],</span>
+                <span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">break1_position_start</span><span class="p">],</span>
+                <span class="n">std_row</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">break1_position_end</span><span class="p">,</span> <span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">break1_position_start</span><span class="p">]),</span>
+                <span class="n">orient</span><span class="o">=</span><span class="n">orient1</span><span class="p">,</span> <span class="n">strand</span><span class="o">=</span><span class="n">strand1</span>
+            <span class="p">)</span>
+            <span class="n">break2</span> <span class="o">=</span> <span class="n">Breakpoint</span><span class="p">(</span>
+                <span class="n">std_row</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">break2_chromosome</span><span class="p">,</span> <span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">break1_chromosome</span><span class="p">]),</span>
+                <span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">break2_position_start</span><span class="p">],</span>
+                <span class="n">std_row</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">break2_position_end</span><span class="p">,</span> <span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">break2_position_start</span><span class="p">]),</span>
+                <span class="n">orient</span><span class="o">=</span><span class="n">orient2</span><span class="p">,</span> <span class="n">strand</span><span class="o">=</span><span class="n">strand2</span>
+            <span class="p">)</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">break1</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">break2</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">event_type</span> <span class="o">==</span> <span class="n">SVTYPE</span><span class="o">.</span><span class="n">DEL</span> <span class="ow">and</span> <span class="nb">abs</span><span class="p">(</span><span class="n">break1</span><span class="o">.</span><span class="n">start</span> <span class="o">-</span> <span class="n">break2</span><span class="o">.</span><span class="n">start</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
+                <span class="n">break1</span> <span class="o">=</span> <span class="n">Breakpoint</span><span class="p">(</span><span class="n">break1</span><span class="o">.</span><span class="n">chr</span><span class="p">,</span> <span class="n">break1</span><span class="o">.</span><span class="n">start</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">break1</span><span class="o">.</span><span class="n">end</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">orient</span><span class="o">=</span><span class="n">break1</span><span class="o">.</span><span class="n">orient</span><span class="p">,</span> <span class="n">strand</span><span class="o">=</span><span class="n">break1</span><span class="o">.</span><span class="n">strand</span><span class="p">)</span>
+                <span class="n">break2</span> <span class="o">=</span> <span class="n">Breakpoint</span><span class="p">(</span><span class="n">break2</span><span class="o">.</span><span class="n">chr</span><span class="p">,</span> <span class="n">break2</span><span class="o">.</span><span class="n">start</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">break2</span><span class="o">.</span><span class="n">end</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">orient</span><span class="o">=</span><span class="n">break2</span><span class="o">.</span><span class="n">orient</span><span class="p">,</span> <span class="n">strand</span><span class="o">=</span><span class="n">break2</span><span class="o">.</span><span class="n">strand</span><span class="p">)</span>
+            <span class="n">bpp</span> <span class="o">=</span> <span class="n">BreakpointPair</span><span class="p">(</span>
+                <span class="n">break1</span><span class="p">,</span> <span class="n">break2</span><span class="p">,</span>
+                <span class="n">opposing_strands</span><span class="o">=</span><span class="n">oppose</span><span class="p">,</span>
+                <span class="n">untemplated_seq</span><span class="o">=</span><span class="n">untemplated_seq</span><span class="p">,</span>
+                <span class="n">event_type</span><span class="o">=</span><span class="n">event_type</span><span class="p">,</span>
+                <span class="n">data</span><span class="o">=</span><span class="p">{</span>
+                    <span class="n">COLUMNS</span><span class="o">.</span><span class="n">tools</span><span class="p">:</span> <span class="n">file_type</span><span class="p">,</span>
+                    <span class="n">COLUMNS</span><span class="o">.</span><span class="n">tracking_id</span><span class="p">:</span> <span class="n">std_row</span><span class="p">[</span><span class="n">COLUMNS</span><span class="o">.</span><span class="n">tracking_id</span><span class="p">]</span>
+                <span class="p">},</span>
+                <span class="n">stranded</span><span class="o">=</span><span class="n">stranded</span>
+            <span class="p">)</span>
+
+            <span class="n">bpp</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="n">k</span><span class="p">:</span> <span class="n">std_row</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">std_row</span> <span class="k">if</span> <span class="n">k</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="n">file_type</span><span class="p">)})</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">event_type</span> <span class="ow">or</span> <span class="n">event_type</span> <span class="ow">in</span> <span class="n">BreakpointPair</span><span class="o">.</span><span class="n">classify</span><span class="p">(</span><span class="n">bpp</span><span class="p">):</span>
+                <span class="n">result</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">bpp</span><span class="p">)</span>
+
+        <span class="k">except</span> <span class="p">(</span><span class="n">InvalidRearrangement</span><span class="p">,</span> <span class="ne">AssertionError</span><span class="p">):</span>
+            <span class="k">pass</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">result</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">UserWarning</span><span class="p">(</span>
+            <span class="s1">&#39;row failed to create any breakpoint pairs. This generally indicates an input formatting error&#39;</span><span class="p">,</span>
+            <span class="n">row</span><span class="p">,</span> <span class="n">std_row</span><span class="p">,</span> <span class="n">combinations</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">result</span>
+
+
+<span class="k">def</span> <span class="nf">_convert_tool_output</span><span class="p">(</span><span class="n">input_file</span><span class="p">,</span> <span class="n">file_type</span><span class="o">=</span><span class="n">SUPPORTED_TOOL</span><span class="o">.</span><span class="n">MAVIS</span><span class="p">,</span> <span class="n">stranded</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">log</span><span class="o">=</span><span class="n">devnull</span><span class="p">,</span> <span class="n">assume_no_untemplated</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+    <span class="n">log</span><span class="p">(</span><span class="s1">&#39;reading:&#39;</span><span class="p">,</span> <span class="n">input_file</span><span class="p">)</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">rows</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="n">file_type</span> <span class="o">==</span> <span class="n">SUPPORTED_TOOL</span><span class="o">.</span><span class="n">MAVIS</span><span class="p">:</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="n">read_bpp_from_input_file</span><span class="p">(</span><span class="n">input_file</span><span class="p">,</span> <span class="n">expand_orient</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">expand_svtype</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">add_default</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;stranded&#39;</span><span class="p">:</span> <span class="n">stranded</span><span class="p">})</span>
+    <span class="k">elif</span> <span class="n">file_type</span> <span class="ow">in</span> <span class="p">[</span><span class="n">SUPPORTED_TOOL</span><span class="o">.</span><span class="n">DELLY</span><span class="p">,</span> <span class="n">SUPPORTED_TOOL</span><span class="o">.</span><span class="n">MANTA</span><span class="p">,</span> <span class="n">SUPPORTED_TOOL</span><span class="o">.</span><span class="n">PINDEL</span><span class="p">]:</span>
+        <span class="n">rows</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">vcf_record</span> <span class="ow">in</span> <span class="n">VariantFile</span><span class="p">(</span><span class="n">input_file</span><span class="p">)</span><span class="o">.</span><span class="n">fetch</span><span class="p">():</span>
+            <span class="n">rows</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">_parse_vcf_record</span><span class="p">(</span><span class="n">vcf_record</span><span class="p">))</span>
+    <span class="k">elif</span> <span class="n">file_type</span> <span class="o">==</span> <span class="n">SUPPORTED_TOOL</span><span class="o">.</span><span class="n">BREAKDANCER</span><span class="p">:</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">input_file</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fh</span><span class="p">:</span>
+            <span class="c1"># comments in breakdancer are marked with a single # so they need to be discarded before reading</span>
+            <span class="n">lines</span> <span class="o">=</span> <span class="n">fh</span><span class="o">.</span><span class="n">readlines</span><span class="p">()</span>
+            <span class="n">header</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">while</span> <span class="n">header</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span> <span class="ow">and</span> <span class="n">lines</span><span class="p">[</span><span class="n">header</span><span class="p">]</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;#&#39;</span><span class="p">):</span>
+                <span class="n">header</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="n">lines</span> <span class="o">=</span> <span class="n">lines</span><span class="p">[</span><span class="n">header</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:]</span>
+            <span class="n">input_file</span> <span class="o">=</span> <span class="n">Namespace</span><span class="p">(</span><span class="n">readlines</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">lines</span><span class="p">)</span>
+        <span class="n">_</span><span class="p">,</span> <span class="n">rows</span> <span class="o">=</span> <span class="n">tab</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span><span class="n">input_file</span><span class="p">,</span> <span class="n">allow_short</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">_</span><span class="p">,</span> <span class="n">rows</span> <span class="o">=</span> <span class="n">tab</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span><span class="n">input_file</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">rows</span><span class="p">:</span>
+        <span class="n">log</span><span class="p">(</span><span class="s1">&#39;found&#39;</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">rows</span><span class="p">),</span> <span class="s1">&#39;rows&#39;</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">rows</span><span class="p">:</span>
+            <span class="n">std_rows</span> <span class="o">=</span> <span class="n">_convert_tool_row</span><span class="p">(</span><span class="n">row</span><span class="p">,</span> <span class="n">file_type</span><span class="p">,</span> <span class="n">stranded</span><span class="p">,</span> <span class="n">assume_no_untemplated</span><span class="o">=</span><span class="n">assume_no_untemplated</span><span class="p">)</span>
+            <span class="n">result</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">std_rows</span><span class="p">)</span>
+    <span class="n">log</span><span class="p">(</span><span class="s1">&#39;generated&#39;</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">result</span><span class="p">),</span> <span class="s1">&#39;breakpoint pairs&#39;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">result</span>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2017, creisle.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../',
+            VERSION:'',
+            LANGUAGE:'None',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>
