@@ -1,0 +1,135 @@
+#!/usr/bin/env python3
+# -*- author: Dimitri Scheftelowitsch -*-
+# -*- coding:utf-8 -*-
+import os
+
+import collider
+from collider import *
+from importlib.machinery import SourceFileLoader
+import logging
+
+
+def check_config(config):
+    attributes = ['stages', 'values', 'experiment_name']
+    if not all([attribute in config.__dict__ for attribute in attributes]):
+        raise RuntimeError("Configuration file is incomplete! "
+                           "Please make sure that it contains the following attributes: "
+                           "stages, values, experiment_name")
+
+
+if __name__ == "__main__":
+    from argparse import ArgumentParser
+    parser = ArgumentParser(description="Run experiments in silico")
+    parser.add_argument('-c', '--config-file', action='store', type=str, dest='config_filename', default="config.py",
+                        help="specify config file")
+    parser.add_argument('-v', '--verbose', action='count')
+    parser.add_argument('--version', action='version', version='collider {}'.format(collider.__version__))
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('-r', '--rerun-from', action='store', type=str, dest='rerun_from',
+                       help="specify stage from which the experiment should be rerun")
+    group.add_argument('-a', '--rerun-all', action='store_true', dest='rerun_all',
+                       help="restart the whole experiment")
+    group.add_argument('-s', '--rerun-stage', action='append', type=str, dest='rerun_stage',
+                       help="specify an individual stage of the experiment that has to be rerun")
+    group.add_argument('-f', '--rerun-force', action='append', type=str, dest='rerun_force',
+                       help="specify an individual stage that has to be rerun. All other stages are then ignored.")
+    options = parser.parse_args()
+
+    log_level = logging.ERROR
+    if options.verbose is not None:
+        if options.verbose == 1:
+            log_level = logging.WARN
+        elif options.verbose == 2:
+            log_level = logging.INFO
+        elif options.verbose >= 3:
+            log_level = logging.DEBUG
+
+    printer = logging.getLogger("collider")
+    printer.setLevel(log_level)
+    LOG_FORMAT = "%(asctime)s %(levelname)s: [%(module)s:%(lineno)d:%(funcName)s] %(message)s"
+    logging.basicConfig(format=LOG_FORMAT)
+    
+    filename = options.config_filename
+
+    # okay, this is potentially unsafe
+    config = SourceFileLoader("config", filename).load_module()
+    # check consistency
+    check_config(config)
+
+    if "log_file" in config.__dict__:
+        logging.basicConfig(format=LOG_FORMAT, filename=config.log_file)
+
+    if "log_level" in config.__dict__:
+        printer.setLevel(config.log_level)
+
+    job_load = 1
+
+    if "job_load" in config.__dict__:
+        job_load = config.job_load
+
+    values = config.values
+    stages_dicts = config.stages
+    experiment_name = config.experiment_name
+
+    # create directory for intermediate results
+    directory = "{}_intermediate".format(experiment_name)
+    if not os.path.exists(directory):
+        os.mkdir(directory)
+
+    # initialize history
+    result_log = ResultLog(experiment_name, values)
+
+    stages = []
+    stage_order = {}
+
+    for i, stage_dict in enumerate(stages_dicts):
+        name = stage_dict["name"]
+        exe = stage_dict["exe"]
+        patterns = stage_dict["args"]
+        timeout = None
+        if "timeout" in stage_dict:
+            timeout = stage_dict["timeout"]
+        save_output = True
+        if "save_output" in stage_dict:
+            if type(stage_dict["save_output"]) is bool:
+                save_output = stage_dict["save_output"]
+        stage = ExecutableFileOutputStage(experiment_name, exe, sorted(values.keys()), patterns, timeout=timeout, save_output=save_output)
+        stage.name = name
+        stages.append(stage)
+        stage_order[name] = i
+
+    # handle a more extreme parallelization case
+    if "stage_groups" in config.__dict__:
+        stage_groups = config.stage_groups
+
+    if options.rerun_all:
+        predicate = AlwaysRerun()
+    elif options.rerun_from is not None:
+        if not (options.rerun_from in stage_order.keys()):
+            printer.critical("Cannot rerun from stage {} as it is not defined".format(options.rerun_from))
+            exit(-1)
+
+        predicate = RerunFromStage(result_log, stage_order, options.rerun_from)
+    elif options.rerun_stage is not None:
+        printer.info("Re-running stages {0}".format(options.rerun_force))
+        for s in options.rerun_stage:
+            if not (s in stage_order.keys()):
+                printer.critical("Cannot rerun stage {} as it is not defined".format(s))
+                exit(-1)
+        predicate = RerunOnly(result_log, options.rerun_stage)
+    elif options.rerun_force is not None:
+        printer.info("Force re-running stages {0}".format(options.rerun_force))
+        for s in options.rerun_force:
+            if not (s in stage_order.keys()):
+                printer.critical("Cannot rerun stage {} as it is not defined".format(s))
+                exit(-1)
+        predicate = RerunOnlyForce(options.rerun_force)
+    else:
+        predicate = RerunIfNeeded(result_log)
+
+    stage_groups = [[stage.name] for stage in stages]
+
+    run_experiments(values, stages, result_log, predicate, stage_groups, job_load=job_load)
+    result_log.load()
+    if 'postprocess' in config.__dict__:
+        config.postprocess(result_log.data, values)
