@@ -1,0 +1,107 @@
+
+
+{{% for scopeName, scope in data.supervisors.scopeByName.iteritems() %}}
+
+# ------------------------------------------------------------------------------ Handle supervisor stuff
+
+{{% if scope.supervisorsToManage is defined and scope.supervisorsToManage|length > 0  %}}
+- hosts: {{{ scopeName }}}
+  any_errors_fatal: {{{ src.exit_on_fail }}}
+  tasks:
+  - name: Install supervisor package
+    yum: name=supervisor  state=present  
+  # ----------------- Create supervisor_xxxx folders
+  - name: create Supervisor folders
+    file: state=directory path={{item.path}} owner={{item.user}} group={{item.group}} mode="0755"
+    with_items:
+{{% for s in scope.supervisorsToManage %}}
+    - { path: {{{s.logs_dir}}}, user: {{{s.user}}}, group: {{{s.group}}} }     
+    - { path: {{{s.pid_dir}}}, user: {{{s.user}}}, group: {{{s.group}}} }     
+    - { path: {{{s.socks_dir}}}, user: {{{s.user}}}, group: {{{s.group}}} }     
+    - { path: {{{s.include_dir}}}, user: {{{s.user}}}, group: {{{s.group}}} }     
+{{% endfor %}}
+    loop_control:
+      label: "{{item.path}} user:{{item.user}}"
+  
+  
+  # ----------------- Setup configuration file
+{{% for s in scope.supervisorsToManage %}}
+  - name: Get current state for supervisord_{{{ s.name }}}
+    command: systemctl is-active supervisord_{{{ s.name }}}.service
+    register: supervisor_{{{ s.name }}}
+    changed_when: false
+    failed_when: false
+
+  - name: Setup configuration file {{{s.conf_file_dst}}}
+    template: src={{{s.conf_file_src_j2}}} dest={{{s.conf_file_dst}}} owner={{{s.user}}} group={{{s.group}}} mode="0644"
+    notify: 
+    - reload_supervisord_{{{s.name}}}
+    
+  - name: Setup supervisord_{{{s.name}}}.service
+    template: src="{{{ s.service_unit_j2 }}}" dest="/usr/lib/systemd/system/supervisord_{{{s.name}}}.service" owner=root group=root mode="0644" 
+    notify: 
+    - "reload_supervisord_{{{s.name}}}"
+    - "reload_systemd"
+    
+  - name: Setup {{{s.supervisorctl}}}
+    template: src="{{{ s.supervisorctl_j2 }}}" dest="{{{s.supervisorctl}}}" owner=root group=root mode="0755"
+{{% endfor %}}
+
+
+# --------------------------------------------------- Supervisor state management
+  - meta: flush_handlers
+
+{{% for s in scope.supervisorsToManage %}}
+  - name: Adjust {{{s.name}}} service state
+    systemd:
+      name: supervisord_{{{s.name}}}.service
+      enabled: {{{ s.enabled }}}
+{{% if s.state == "started" or s.state == "stopped" %}}
+      state: {{{ s.state }}}
+{{% endif %}}      
+{{% endfor %}}
+
+
+  handlers:
+  - name: Reload systemd service file
+    command: "systemctl daemon-reload"
+    listen: "reload_systemd"
+
+{{% for s in scope.supervisorsToManage %}}
+  - name: Restart supervisord_{{{s.name}}} service
+    systemd: name=supervisord_{{{s.name}}}.service state=restarted
+    listen: reload_supervisord_{{{s.name}}}
+    when: supervisor_{{{ s.name }}}.rc == 0
+{{% endfor %}}
+  
+{{% endif %}}      
+
+# ---------------------------------------------------- Handle supervisor_programs
+
+{{% if scope.supervisors is defined and scope.supervisors|length > 0  %}}
+- hosts: {{{ scopeName }}}
+  any_errors_fatal: {{{ src.exit_on_fail }}}
+  tasks:
+
+{{% for sup in scope.supervisors %}}
+  - name: Install programs definition file(s)
+    template: src={{{sup.programs_j2}}} dest={{{sup.programs_dest}}} owner={{{sup.user}}} group={{{sup.group}}} mode="0755"
+    notify:
+    - update_programs_{{{sup.name}}}
+{{% endfor %}}         
+
+  - meta: flush_handlers
+  
+  handlers:
+  
+{{% for sup in scope.supervisors %}}
+  - name: Update supervisor_{{{sup.name}}} programs
+    shell: "supervisorctl -c {{{ sup.conf_file_dst }}} update"
+    listen: update_programs_{{{sup.name}}}
+{{% endfor %}}         
+  
+{{% endif %}}      
+
+# --------------
+
+{{% endfor %}}
