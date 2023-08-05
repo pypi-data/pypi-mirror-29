@@ -1,0 +1,111 @@
+spaceminator |Build Status|
+===========================
+
+**spaceminator** is a command line tool to help you get rid off those
+nasty spaces in your filenames!
+
+Table of Contents
+-----------------
+
+1. `Requirements <#requirements>`__
+2. `Installation <#installation>`__
+3. `Usage <#usage>`__
+4. `Contributing <#contributing>`__
+5. `Support <#support>`__
+6. `License <#license>`__
+
+1. Requirements
+---------------
+
+**spaceminator** works on both Python 2 and Python 3 (tested on
+``python2.7`` and ``python3.5+``) and is Linux and Windows compatible
+(tested on Linux Mint 18.3 and Windows 7).
+
+Dependencies:
+^^^^^^^^^^^^^
+
+**spaceminator** is written purely in Python. Tests depend on
+``pytest``, ``pytest-runner``, ``pytest-mock`` and ``mock``.
+
+2. Installation
+---------------
+
+**spaceminator** can be easily installed using ``pip``:
+
+::
+
+    pip install -U spaceminator
+
+3. Usage
+--------
+
+To run **spaceminator** just type ``spaceminator --help`` in your
+terminal and hit ``Enter`` to get list of available options.
+
+::
+
+    ~$ spaceminator --help
+
+    usage: spaceminator [-h] [-p PATH] [-l] [-q] [-c CHAR] [-r] [-d | -f | -ln]
+
+    spaceminator is a command line tool to help you get rid off those nasty spaces
+    in filenames!
+
+    optional arguments:
+      -h, --help            show this help message and exit
+      -p PATH, --path PATH  Absolute path to work on (defaults to current working
+                            directory)
+      -l, --list            List files and directories only
+      -q, --quiet           Disable verbose mode
+      -c CHAR, --char CHAR  Replace char (default: _)
+      -r, --recursive       Go inside directories
+      -d, --dirs-only       Rename directories only
+      -f, --files-only      Rename files only
+      -ln, --links-only     Rename symlinks only
+
+For example, to only list files and directories which include spaces in
+their names, type:
+
+::
+
+    ~$ spaceminator -l -r
+    File: '/home/user/long dir name/file inside dir'
+    Dir: '/home/user/long dir name'
+    File: '/home/user/long file name'
+
+To rename all files and directories in a current directory, type:
+
+::
+
+    ~$ spaceminator -r
+    Renamed File '/home/user/long dir name/file inside dir' -> 'file_inside_dir'
+    Renamed Dir '/home/user/long dir name' -> 'long_dir_name'
+    Renamed File '/home/user/long file name' -> 'long_file_name'
+
+4. Contributing
+---------------
+
+| Contributions are always welcome - just:
+| 1. Fork the project.
+| 2. Commit your changes on a feature/fix branch.
+| 3. Push.
+| 4. Submit a pull request.
+| 5. Have your changes merged :)
+
+5. Support
+----------
+
+If you need assistance, want to report a bug or request a feature,
+please raise an issue
+`here <https://github.com/kchomski/spaceminator-project/issues>`__.
+
+6. License
+----------
+
+**spaceminator** is released under the terms of the MIT License. Please
+refer to the ``LICENSE.txt`` file for more details.
+
+.. |Build Status| image:: https://travis-ci.org/kchomski/spaceminator-project.svg?branch=master
+   :target: https://travis-ci.org/kchomski/spaceminator-project
+
+
