@@ -1,0 +1,19 @@
+
+YandexWebmaster
+=============
+
+Get token on https://oauth.yandex.ru/authorize?response_type=token&client_id={client_id}
+
+# Usage Example
+
+from yandexwebmaster import YandexWebmaster
+
+token = 'M1bNXqEKl3rCp64XrPb8WW5GckFXnyNZdMAY16w'
+y = YandexWebmaster(client_token=token)
+print(y.get_hosts())
+host_id = y.host('site.com')
+#or host_id = 'http:site.com:80'
+
+print(y.get_host_summary(host_id))
+
+
