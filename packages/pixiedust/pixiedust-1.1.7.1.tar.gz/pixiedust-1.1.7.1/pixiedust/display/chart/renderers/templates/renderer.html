@@ -1,0 +1,123 @@
+{%import "executePythonDisplayMacro.js" as display with context%}
+{%include resModule + ":chartHeader.html"%}
+{% set optTypes={} %}
+<div class="row">
+    <div class="form-group col-sm-10">
+        <div class="pd_save" style="padding-right:10px;text-align: center;line-height:initial !important;font-size: xx-large;font-weight: 500;color: coral;">
+            {{this.options.get("title", "")}}
+        </div>
+    </div>
+</div>
+<div class="row">
+    <div class="form-group col-sm-10" style="padding-right:10px;">
+        <div id="chartFigure{{prefix}}" class="pd_save" style="overflow-x:auto">
+            {{chartFigure}}
+        </div>
+    </div>
+    <div class="form-group col-sm-2 rendererOpts">
+        {% if not show_options_dialog %}
+        {% if this.getChartOptions()|length > 0 %}<div><strong>{{optionsTitle}}</strong></div>{% endif %}
+        {%for option in this.getChartOptions() %}
+            {% if optTypes.update({option.metadata.type: True}) %} {% endif %}
+            {% if option.metadata.type == 'slider' %}
+                <div class="rendererOpt">
+                    <label class="field">{{option.description or option.name}}: <span id="slideval{{option.name}}{{prefix}}">{{this.options.get(option.name,None) or option.metadata.default}}</span></label>
+                    <div id="slider{{option.name}}{{prefix}}"
+                        name="{{option.name}}"
+                        data-min={{option.metadata.min}}
+                        data-max={{option.metadata.max}}
+                        data-default={{this.options.get(option.name,None) or option.metadata.default}}
+                        style="margin: 0 0.6em;"></div>
+                </div>
+            {%endif%}
+            {% if option.metadata.type == 'dropdown' %}
+                <div class="rendererOpt">
+                    <label class="field">{{option.description or option.name}}:</label>
+                    <select class="form-control" id="optionselect{{option.name}}{{prefix}}" name="{{option.name}}" r="{{'t' if option.refresh else 'f'}}" style="margin-left: 0px;">
+                        {% for value in option.metadata['values'] %}
+                            <option value="{{value}}" {{'selected' if value==this.options.get(option.name,None) or value==option.metadata.default else ''}}>{{value}}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            {%endif%}
+            {% if option.metadata.type == 'checkbox' %}
+                <div class="rendererOpt checkbox checkbox-primary">
+                    <input id="optionchecked{{option.name}}{{prefix}}" r="{{'t' if option.refresh else 'f'}}" type="checkbox" name="{{option.name}}"
+                                {{'checked' if this.options.get(option.name, option.metadata.default or "true")=="true" else ''}}>
+                    <label for="optionchecked{{option.name}}{{prefix}}">{{option.description or option.name}}</label>
+                </div>
+            {%endif%}
+        {%endfor%}
+        {%endif%}
+    </div>
+</div>
+
+<script>
+{%if optTypes.get("dropdown",False)%}
+$("[id^=optionselect][id$={{prefix}}]").change(function(){
+    var thisOption = $(this).attr('name');
+    var thisValue = $(this).val();
+    if (thisValue == "None"){
+        thisValue = null
+    }
+    var refresh = $(this).attr('r')
+    var $divId = "chartFigure{{prefix}}"
+    if (refresh == "t"){
+        $divId = null
+    }
+    {% call display.executeDisplay( useCellMetadata=True, divId="$divId" ) %}
+        var o = {};
+        o[thisOption] = thisValue;
+        if (refresh != "t"){
+            o["nostore_figureOnly"] = "true";
+        }
+        addOptions(o);
+    {% endcall %}    
+});
+{%endif%}
+{%if optTypes.get("checkbox",False)%}
+$("[id^=optionchecked][id$={{prefix}}]").change(function(){
+    var thisOption = $(this).attr('name');
+    var thisValue = $(this).prop('checked').toString();
+    var refresh = $(this).attr('r')
+    var $divId = "chartFigure{{prefix}}"
+    if (refresh == "t"){
+        $divId = null
+    } 
+    {% call display.executeDisplay( useCellMetadata=True, divId="$divId" ) %}
+        var o = {};
+        o[thisOption] = thisValue;
+        if (refresh != "t"){
+            o["nostore_figureOnly"] = "true";
+        }
+        addOptions(o);
+    {% endcall %}    
+});
+{%endif%}
+{%if optTypes.get("slider",False)%}
+$("[id^=slider][id$={{prefix}}]").each(function() {
+    var sliderElt = $(this)
+    var thisOption = sliderElt.attr('name')
+    var min = sliderElt.data("min")
+    var max = sliderElt.data("max")
+    var val = sliderElt.data("default")
+    sliderElt.slider({
+        min: isNaN(min) ? 0 : min,
+        max: isNaN(max) ? 100 : max,
+        value: isNaN(val) ? 50 : val,
+        change: function(evt, ui) {
+            $("[id=slideval" + thisOption + "{{prefix}}]").text(ui.value);
+            {% call display.executeDisplay( useCellMetadata=True, divId="chartFigure" + prefix ) %}
+                var o = {};
+                o[thisOption] = ui.value;
+                o["nostore_figureOnly"] = "true";
+                addOptions(o);
+            {% endcall %}    
+        },
+        slide: function(evt, ui) {
+            $("[id=slideval" + thisOption + "{{prefix}}]").text(ui.value)
+        }
+    });
+})
+{%endif%}
+</script>
