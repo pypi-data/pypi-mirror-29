@@ -1,0 +1,666 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>pychemia.population.relaxstructures &mdash; pychemia 0.1.2 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../search.html"/>
+    <link rel="top" title="pychemia 0.1.2 documentation" href="../../../index.html"/>
+        <link rel="up" title="pychemia" href="../../pychemia.html"/> 
+
+  
+  <script src="../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home"> pychemia
+          
+
+          
+          </a>
+
+          
+            
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../1.Introduction.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../2.Installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../3.First_steps.html">First Steps</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../4.Tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../5.PyChemiaAPI.html">API Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../6.Contributors.html">Contributors</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">pychemia</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+          <li><a href="../../pychemia.html">pychemia</a> &raquo;</li>
+        
+      <li>pychemia.population.relaxstructures</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for pychemia.population.relaxstructures</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">random</span>
+<span class="kn">import</span> <span class="nn">uuid</span>
+<span class="kn">from</span> <span class="nn">fractions</span> <span class="k">import</span> <span class="n">gcd</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">._population</span> <span class="k">import</span> <span class="n">Population</span>
+<span class="kn">from</span> <span class="nn">pychemia</span> <span class="k">import</span> <span class="n">Composition</span><span class="p">,</span> <span class="n">Structure</span><span class="p">,</span> <span class="n">pcm_log</span>
+<span class="kn">from</span> <span class="nn">pychemia.analysis</span> <span class="k">import</span> <span class="n">StructureAnalysis</span><span class="p">,</span> <span class="n">StructureChanger</span><span class="p">,</span> <span class="n">StructureMatch</span>
+<span class="kn">from</span> <span class="nn">pychemia.analysis.splitting</span> <span class="k">import</span> <span class="n">SplitMatch</span>
+<span class="kn">from</span> <span class="nn">pychemia.utils.mathematics</span> <span class="k">import</span> <span class="n">unit_vector</span>
+<span class="kn">from</span> <span class="nn">pychemia.utils.periodic</span> <span class="k">import</span> <span class="n">atomic_number</span><span class="p">,</span> <span class="n">covalent_radius</span>
+<span class="kn">from</span> <span class="nn">pymongo</span> <span class="k">import</span> <span class="n">ASCENDING</span>
+<span class="kn">from</span> <span class="nn">pychemia.db</span> <span class="k">import</span> <span class="n">get_database</span>
+<span class="kn">from</span> <span class="nn">pychemia.crystal</span> <span class="k">import</span> <span class="n">CrystalSymmetry</span>
+
+
+<div class="viewcode-block" id="RelaxStructures"><a class="viewcode-back" href="../../../pychemia.population.html#pychemia.population.relaxstructures.RelaxStructures">[docs]</a><span class="k">class</span> <span class="nc">RelaxStructures</span><span class="p">(</span><span class="n">Population</span><span class="p">):</span>
+
+<div class="viewcode-block" id="RelaxStructures.evaluate_entry"><a class="viewcode-back" href="../../../pychemia.population.html#pychemia.population.relaxstructures.RelaxStructures.evaluate_entry">[docs]</a>    <span class="k">def</span> <span class="nf">evaluate_entry</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entry_id</span><span class="p">):</span>
+        <span class="k">pass</span></div>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">composition</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">tag</span><span class="o">=</span><span class="s1">&#39;global&#39;</span><span class="p">,</span> <span class="n">target_forces</span><span class="o">=</span><span class="mf">1E-3</span><span class="p">,</span> <span class="n">value_tol</span><span class="o">=</span><span class="mf">1E-2</span><span class="p">,</span>
+                 <span class="n">distance_tolerance</span><span class="o">=</span><span class="mf">0.3</span><span class="p">,</span> <span class="n">min_comp_mult</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">max_comp_mult</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span> <span class="n">pcdb_source</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">pressure</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
+                 <span class="n">target_stress</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">target_diag_stress</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">target_nondiag_stress</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Defines a population of PyChemia Structures,</span>
+
+<span class="sd">        The &#39;name&#39; of the database is used to create the MongoDB database and the structures are</span>
+<span class="sd">        uniform in composition. A specific &#39;tag&#39; could be attached to differentiate</span>
+<span class="sd">        the other instances running concurrently. The &#39;delta&#39; argument is the scaling</span>
+<span class="sd">        factor for changers and mixers. In the case of populations supported on</span>
+<span class="sd">        PyChemia databases the &#39;new&#39; will erase the database</span>
+
+<span class="sd">        :param name: The name of the population. ie the name of the database</span>
+<span class="sd">        :param composition: The composition uniform for all the members</span>
+<span class="sd">        :param tag: A tag to differentiate different instances running concurrently</span>
+<span class="sd">        :return: A new StructurePopulation object</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">composition</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">composition</span> <span class="o">=</span> <span class="n">Composition</span><span class="p">(</span><span class="n">composition</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">composition</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tag</span> <span class="o">=</span> <span class="n">tag</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">target_forces</span> <span class="o">=</span> <span class="n">target_forces</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">value_tol</span> <span class="o">=</span> <span class="n">value_tol</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">min_comp_mult</span> <span class="o">=</span> <span class="n">min_comp_mult</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">max_comp_mult</span> <span class="o">=</span> <span class="n">max_comp_mult</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pcdb_source</span> <span class="o">=</span> <span class="n">pcdb_source</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pressure</span> <span class="o">=</span> <span class="n">pressure</span>
+        <span class="k">if</span> <span class="n">target_stress</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">target_stress</span> <span class="o">=</span> <span class="n">target_forces</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">target_stress</span> <span class="o">=</span> <span class="n">target_stress</span>
+        <span class="k">if</span> <span class="n">target_diag_stress</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">target_diag_stress</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">target_stress</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">target_diag_stress</span> <span class="o">=</span> <span class="n">target_diag_stress</span>
+        <span class="k">if</span> <span class="n">target_diag_stress</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">target_nondiag_stress</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">target_stress</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">target_nondiag_stress</span> <span class="o">=</span> <span class="n">target_nondiag_stress</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
+        <span class="n">Population</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">tag</span><span class="p">,</span> <span class="n">distance_tolerance</span><span class="o">=</span><span class="n">distance_tolerance</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">pcdb_source</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">sources</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">min_comp_mult</span><span class="p">,</span> <span class="n">max_comp_mult</span><span class="o">+</span><span class="mi">1</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">sources</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">pcdb_source</span><span class="o">.</span><span class="n">entries</span><span class="o">.</span><span class="n">find</span><span class="p">({</span><span class="s1">&#39;structure.natom&#39;</span><span class="p">:</span> <span class="n">i</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">composition</span><span class="o">.</span><span class="n">natom</span><span class="p">,</span>
+                                                            <span class="s1">&#39;structure.nspecies&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">composition</span><span class="o">.</span><span class="n">nspecies</span><span class="p">},</span>
+                                                           <span class="p">{</span><span class="s1">&#39;_id&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">}):</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">sources</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">entry</span><span class="p">[</span><span class="s1">&#39;_id&#39;</span><span class="p">])</span>
+
+<div class="viewcode-block" id="RelaxStructures.recover"><a class="viewcode-back" href="../../../pychemia.population.html#pychemia.population.relaxstructures.RelaxStructures.recover">[docs]</a>    <span class="k">def</span> <span class="nf">recover</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_population_info</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">data</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">distance_tolerance</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;distance_tol&#39;</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">value_tol</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;value_tol&#39;</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">target_forces</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;target_forces&#39;</span><span class="p">]</span></div>
+
+<div class="viewcode-block" id="RelaxStructures.get_structure"><a class="viewcode-back" href="../../../pychemia.population.html#pychemia.population.relaxstructures.RelaxStructures.get_structure">[docs]</a>    <span class="k">def</span> <span class="nf">get_structure</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entry_id</span><span class="p">):</span>
+        <span class="n">entry</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_entry</span><span class="p">(</span><span class="n">entry_id</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">Structure</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span><span class="n">entry</span><span class="p">[</span><span class="s1">&#39;structure&#39;</span><span class="p">])</span></div>
+
+<div class="viewcode-block" id="RelaxStructures.new_identifier"><a class="viewcode-back" href="../../../pychemia.population.html#pychemia.population.relaxstructures.RelaxStructures.new_identifier">[docs]</a>    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">new_identifier</span><span class="p">():</span>
+        <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">uuid</span><span class="o">.</span><span class="n">uuid4</span><span class="p">())[</span><span class="o">-</span><span class="mi">12</span><span class="p">:]</span></div>
+
+<div class="viewcode-block" id="RelaxStructures.new_entry"><a class="viewcode-back" href="../../../pychemia.population.html#pychemia.population.relaxstructures.RelaxStructures.new_entry">[docs]</a>    <span class="k">def</span> <span class="nf">new_entry</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">structure</span><span class="p">,</span> <span class="n">active</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="n">properties</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;forces&#39;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span> <span class="s1">&#39;stress&#39;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span> <span class="s1">&#39;energy&#39;</span><span class="p">:</span> <span class="kc">None</span><span class="p">}</span>
+        <span class="n">status</span> <span class="o">=</span> <span class="p">{</span><span class="bp">self</span><span class="o">.</span><span class="n">tag</span><span class="p">:</span> <span class="n">active</span><span class="p">}</span>
+        <span class="n">entry</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;structure&#39;</span><span class="p">:</span> <span class="n">structure</span><span class="o">.</span><span class="n">to_dict</span><span class="p">,</span> <span class="s1">&#39;properties&#39;</span><span class="p">:</span> <span class="n">properties</span><span class="p">,</span> <span class="s1">&#39;status&#39;</span><span class="p">:</span> <span class="n">status</span><span class="p">}</span>
+        <span class="n">entry_id</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">insert_entry</span><span class="p">(</span><span class="n">entry</span><span class="p">)</span>
+        <span class="n">pcm_log</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Added new entry: </span><span class="si">%s</span><span class="s1"> with tag=</span><span class="si">%s</span><span class="s1">: </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">entry_id</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">tag</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">active</span><span class="p">)))</span>
+        <span class="k">return</span> <span class="n">entry_id</span></div>
+
+<div class="viewcode-block" id="RelaxStructures.get_max_force_stress"><a class="viewcode-back" href="../../../pychemia.population.html#pychemia.population.relaxstructures.RelaxStructures.get_max_force_stress">[docs]</a>    <span class="k">def</span> <span class="nf">get_max_force_stress</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entry_id</span><span class="p">):</span>
+        <span class="n">entry</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_entry</span><span class="p">(</span><span class="n">entry_id</span><span class="p">,</span> <span class="n">projection</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;properties&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">})</span>
+        <span class="n">max_force</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">max_diag_stress</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">max_nondiag_stress</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">entry</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">entry</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">properties</span> <span class="o">=</span> <span class="n">entry</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">]</span>
+            <span class="k">if</span> <span class="s1">&#39;forces&#39;</span> <span class="ow">in</span> <span class="n">properties</span> <span class="ow">and</span> <span class="s1">&#39;stress&#39;</span> <span class="ow">in</span> <span class="n">properties</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">properties</span><span class="p">[</span><span class="s1">&#39;forces&#39;</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">properties</span><span class="p">[</span><span class="s1">&#39;stress&#39;</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">forces</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">entry</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">][</span><span class="s1">&#39;forces&#39;</span><span class="p">])</span>
+                    <span class="n">stress</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">entry</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">][</span><span class="s1">&#39;stress&#39;</span><span class="p">])</span>
+                    <span class="n">max_force</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">apply_along_axis</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">forces</span><span class="p">))</span>
+                    <span class="n">max_diag_stress</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">stress</span><span class="p">[:</span><span class="mi">3</span><span class="p">]))</span>
+                    <span class="n">max_nondiag_stress</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">stress</span><span class="p">[</span><span class="mi">4</span><span class="p">:]))</span>
+
+        <span class="k">return</span> <span class="n">max_force</span><span class="p">,</span> <span class="n">max_diag_stress</span><span class="p">,</span> <span class="n">max_nondiag_stress</span></div>
+
+<div class="viewcode-block" id="RelaxStructures.is_evaluated"><a class="viewcode-back" href="../../../pychemia.population.html#pychemia.population.relaxstructures.RelaxStructures.is_evaluated">[docs]</a>    <span class="k">def</span> <span class="nf">is_evaluated</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entry_id</span><span class="p">):</span>
+        <span class="n">max_force</span><span class="p">,</span> <span class="n">max_diag_stress</span><span class="p">,</span> <span class="n">max_nondiag_stress</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_max_force_stress</span><span class="p">(</span><span class="n">entry_id</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">max_force</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">max_diag_stress</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">max_nondiag_stress</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">elif</span> <span class="n">max_force</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">target_forces</span> <span class="ow">and</span> <span class="n">max_diag_stress</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">target_diag_stress</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">pressure</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">max_nondiag_stress</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">target_nondiag_stress</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">True</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span></div>
+
+<div class="viewcode-block" id="RelaxStructures.add_random"><a class="viewcode-back" href="../../../pychemia.population.html#pychemia.population.relaxstructures.RelaxStructures.add_random">[docs]</a>    <span class="k">def</span> <span class="nf">add_random</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">random_probability</span><span class="o">=</span><span class="mf">0.3</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Add one random structure to the population</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">entry_id</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">structure</span> <span class="o">=</span> <span class="n">Structure</span><span class="p">()</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">composition</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;No composition associated to this population&#39;</span><span class="p">)</span>
+        <span class="n">factor</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">min_comp_mult</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_comp_mult</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">comp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">composition</span><span class="o">.</span><span class="n">composition</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="c1"># print(&quot;Initial composition: %s&quot; % comp)</span>
+        <span class="c1"># print(Composition(comp))</span>
+        <span class="c1"># print(Composition(comp).symbols)</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">comp</span><span class="p">:</span>
+            <span class="n">comp</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*=</span> <span class="n">factor</span>
+        <span class="n">new_comp</span> <span class="o">=</span> <span class="n">Composition</span><span class="p">(</span><span class="n">comp</span><span class="p">)</span>
+
+        <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="n">rnd</span> <span class="o">=</span> <span class="n">random</span><span class="o">.</span><span class="n">random</span><span class="p">()</span>
+            <span class="n">condition</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;structure.nspecies&#39;</span><span class="p">:</span> <span class="n">new_comp</span><span class="o">.</span><span class="n">nspecies</span><span class="p">,</span>
+                         <span class="s1">&#39;structure.natom&#39;</span><span class="p">:</span> <span class="n">new_comp</span><span class="o">.</span><span class="n">natom</span><span class="p">}</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">pcdb_source</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">rnd</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sources</span><span class="p">[</span><span class="n">factor</span><span class="p">])</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">rnd</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">pcdb_source</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">rnd</span> <span class="o">&lt;</span> <span class="n">random_probability</span><span class="p">:</span>
+                <span class="n">pcm_log</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Random Structure&#39;</span><span class="p">)</span>
+                <span class="n">structure</span> <span class="o">=</span> <span class="n">Structure</span><span class="o">.</span><span class="n">random_cell</span><span class="p">(</span><span class="n">new_comp</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s1">&#39;stretching&#39;</span><span class="p">,</span> <span class="n">stabilization_number</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">nparal</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>
+                                                  <span class="n">periodic</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                <span class="k">break</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">pcm_log</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;From source&#39;</span><span class="p">)</span>
+                <span class="n">entry_id</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sources</span><span class="p">[</span><span class="n">factor</span><span class="p">][</span><span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sources</span><span class="p">[</span><span class="n">factor</span><span class="p">]))]</span>
+                <span class="n">structure</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pcdb_source</span><span class="o">.</span><span class="n">get_structure</span><span class="p">(</span><span class="n">entry_id</span><span class="p">)</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;chosen structure from database =&quot;</span><span class="p">,</span> <span class="n">structure</span><span class="p">)</span>
+                <span class="n">sym</span> <span class="o">=</span> <span class="n">CrystalSymmetry</span><span class="p">(</span><span class="n">structure</span><span class="p">)</span>
+
+                <span class="n">scale_factor</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">covalent_radius</span><span class="p">(</span><span class="n">new_comp</span><span class="o">.</span><span class="n">species</span><span class="p">))</span> <span class="o">/</span>
+                                     <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">covalent_radius</span><span class="p">(</span><span class="n">structure</span><span class="o">.</span><span class="n">species</span><span class="p">)))</span>
+                <span class="n">reduce_scale</span> <span class="o">=</span> <span class="n">scale_factor</span> <span class="o">**</span> <span class="p">(</span><span class="mf">1.</span> <span class="o">/</span> <span class="mi">3</span><span class="p">)</span>    <span class="c1"># WIH</span>
+                <span class="n">msg</span> <span class="o">=</span> <span class="s1">&#39;Mult: </span><span class="si">%d</span><span class="s1"> natom: </span><span class="si">%d</span><span class="s1"> From source: </span><span class="si">%s</span><span class="s1"> Spacegroup: </span><span class="si">%d</span><span class="s1"> Scaling: </span><span class="si">%7.3f</span><span class="s1">&#39;</span>
+                <span class="nb">print</span><span class="p">(</span><span class="n">msg</span> <span class="o">%</span> <span class="p">(</span><span class="n">factor</span><span class="p">,</span> <span class="n">structure</span><span class="o">.</span><span class="n">natom</span><span class="p">,</span> <span class="n">structure</span><span class="o">.</span><span class="n">formula</span><span class="p">,</span> <span class="n">sym</span><span class="o">.</span><span class="n">number</span><span class="p">(),</span> <span class="n">scale_factor</span><span class="p">))</span>
+                <span class="c1"># structure.set_cell(np.dot(scale_factor * np.eye(3), structure.cell)) # WIH</span>
+                <span class="n">structure</span><span class="o">.</span><span class="n">set_cell</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">reduce_scale</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="mi">3</span><span class="p">),</span> <span class="n">structure</span><span class="o">.</span><span class="n">cell</span><span class="p">))</span>  <span class="c1"># WIH</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;symbols before change = &quot;</span><span class="p">,</span> <span class="n">structure</span><span class="o">.</span><span class="n">symbols</span><span class="p">)</span>
+                <span class="n">structure</span><span class="o">.</span><span class="n">symbols</span> <span class="o">=</span> <span class="n">new_comp</span><span class="o">.</span><span class="n">symbols</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;symbols after change = &quot;</span><span class="p">,</span> <span class="n">structure</span><span class="o">.</span><span class="n">symbols</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">sources</span><span class="p">[</span><span class="n">factor</span><span class="p">]</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">entry_id</span><span class="p">)</span>
+                <span class="k">break</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">new_entry</span><span class="p">(</span><span class="n">structure</span><span class="p">),</span> <span class="n">entry_id</span></div>
+
+<div class="viewcode-block" id="RelaxStructures.check_duplicates"><a class="viewcode-back" href="../../../pychemia.population.html#pychemia.population.relaxstructures.RelaxStructures.check_duplicates">[docs]</a>    <span class="k">def</span> <span class="nf">check_duplicates</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ids</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Computes duplicate structures measuring its distance when their value is larger than value_tol.</span>
+<span class="sd">        If the distance is lower than &#39;distance_tol&#39; the structures will be cosidered as duplicates.</span>
+
+<span class="sd">        :param ids:</span>
+<span class="sd">        :return: (dict) Dictionary of duplicates, the keys are the ids of the duplicates and the value is the structure</span>
+<span class="sd">                        from which the structure is duplicated. In general the energy of the &#39;value&#39; is lower than the</span>
+<span class="sd">                        &#39;key&#39;</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">ret</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">selection</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ids_sorted</span><span class="p">(</span><span class="n">ids</span><span class="p">)</span>
+        <span class="n">values</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">value</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">selection</span><span class="p">])</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">values</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">ret</span>
+        <span class="n">diffs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ediff1d</span><span class="p">(</span><span class="n">values</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">diffs</span><span class="p">)):</span>
+            <span class="n">idiff</span> <span class="o">=</span> <span class="n">diffs</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">idiff</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">value_tol</span><span class="p">:</span>
+                <span class="n">ident1</span> <span class="o">=</span> <span class="n">selection</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+                <span class="n">ident2</span> <span class="o">=</span> <span class="n">selection</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span>
+                <span class="n">pcm_log</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Testing distances between </span><span class="si">%s</span><span class="s1"> and </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">ident1</span><span class="p">),</span> <span class="nb">str</span><span class="p">(</span><span class="n">ident2</span><span class="p">)))</span>
+                <span class="n">distance</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">distance</span><span class="p">(</span><span class="n">ident1</span><span class="p">,</span> <span class="n">ident2</span><span class="p">)</span>
+                <span class="c1"># print &#39;Distance = &#39;, distance</span>
+                <span class="k">if</span> <span class="n">distance</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">distance_tolerance</span><span class="p">:</span>
+                    <span class="n">pcm_log</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Distance </span><span class="si">%7.3f</span><span class="s1"> &lt; </span><span class="si">%7.3f</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">distance</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">distance_tolerance</span><span class="p">))</span>
+                    <span class="n">ret</span><span class="p">[</span><span class="n">ident2</span><span class="p">]</span> <span class="o">=</span> <span class="n">ident1</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">ret</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">pcm_log</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Number of duplicates </span><span class="si">%d</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="nb">len</span><span class="p">(</span><span class="n">ret</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">ret</span></div>
+
+<div class="viewcode-block" id="RelaxStructures.get_duplicates"><a class="viewcode-back" href="../../../pychemia.population.html#pychemia.population.relaxstructures.RelaxStructures.get_duplicates">[docs]</a>    <span class="k">def</span> <span class="nf">get_duplicates</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ids</span><span class="p">,</span> <span class="n">tolerance</span><span class="p">,</span> <span class="n">fast</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="n">dupes_dict</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">dupes_list</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">values</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">ids</span><span class="p">:</span>
+            <span class="n">values</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">value</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+        <span class="n">selection</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ids_sorted</span><span class="p">(</span><span class="n">ids</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Searching duplicates in </span><span class="si">%d</span><span class="s1"> structures&#39;</span> <span class="o">%</span> <span class="nb">len</span><span class="p">(</span><span class="n">selection</span><span class="p">))</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">selection</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="n">entry_id</span> <span class="o">=</span> <span class="n">selection</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="n">value_i</span> <span class="o">=</span> <span class="n">values</span><span class="p">[</span><span class="n">entry_id</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">selection</span><span class="p">)):</span>
+                <span class="n">entry_jd</span> <span class="o">=</span> <span class="n">selection</span><span class="p">[</span><span class="n">j</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">fast</span> <span class="ow">and</span> <span class="n">entry_jd</span> <span class="ow">in</span> <span class="n">dupes_list</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="n">value_j</span> <span class="o">=</span> <span class="n">values</span><span class="p">[</span><span class="n">entry_jd</span><span class="p">]</span>
+                <span class="k">if</span> <span class="nb">abs</span><span class="p">(</span><span class="n">value_i</span> <span class="o">-</span> <span class="n">value_j</span><span class="p">)</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">value_tol</span><span class="p">:</span>
+                    <span class="n">distance</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">distance</span><span class="p">(</span><span class="n">entry_id</span><span class="p">,</span> <span class="n">entry_jd</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">distance</span> <span class="o">&lt;</span> <span class="n">tolerance</span><span class="p">:</span>
+                        <span class="k">if</span> <span class="n">entry_id</span> <span class="ow">in</span> <span class="n">dupes_dict</span><span class="p">:</span>
+                            <span class="n">dupes_dict</span><span class="p">[</span><span class="n">entry_id</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">entry_jd</span><span class="p">)</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="n">dupes_dict</span><span class="p">[</span><span class="n">entry_id</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">entry_jd</span><span class="p">]</span>
+                        <span class="n">dupes_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">entry_jd</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">dupes_dict</span><span class="p">,</span> <span class="p">[</span><span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">selection</span> <span class="k">if</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">dupes_list</span><span class="p">]</span></div>
+
+<div class="viewcode-block" id="RelaxStructures.cleaned_from_duplicates"><a class="viewcode-back" href="../../../pychemia.population.html#pychemia.population.relaxstructures.RelaxStructures.cleaned_from_duplicates">[docs]</a>    <span class="k">def</span> <span class="nf">cleaned_from_duplicates</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ids</span><span class="p">):</span>
+        <span class="n">selection</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ids_sorted</span><span class="p">(</span><span class="n">ids</span><span class="p">)</span>
+        <span class="n">duplicates_dict</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">check_duplicates</span><span class="p">(</span><span class="n">selection</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">selection</span> <span class="k">if</span> <span class="n">x</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">duplicates_dict</span><span class="o">.</span><span class="n">keys</span><span class="p">()]</span></div>
+
+<div class="viewcode-block" id="RelaxStructures.diff_values_matrix"><a class="viewcode-back" href="../../../pychemia.population.html#pychemia.population.relaxstructures.RelaxStructures.diff_values_matrix">[docs]</a>    <span class="k">def</span> <span class="nf">diff_values_matrix</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+
+        <span class="n">members</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">members</span>
+        <span class="n">ret</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="nb">len</span><span class="p">(</span><span class="n">members</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">members</span><span class="p">)))</span>
+
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">members</span><span class="p">)):</span>
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">members</span><span class="p">)):</span>
+
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">value</span><span class="p">(</span><span class="n">members</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">value</span><span class="p">(</span><span class="n">members</span><span class="p">[</span><span class="n">j</span><span class="p">])</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">ret</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">value</span><span class="p">(</span><span class="n">members</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">value</span><span class="p">(</span><span class="n">members</span><span class="p">[</span><span class="n">j</span><span class="p">]))</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">ret</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="s1">&#39;nan&#39;</span><span class="p">)</span>
+                <span class="n">ret</span><span class="p">[</span><span class="n">j</span><span class="p">,</span> <span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">ret</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">ret</span></div>
+
+<div class="viewcode-block" id="RelaxStructures.distance"><a class="viewcode-back" href="../../../pychemia.population.html#pychemia.population.relaxstructures.RelaxStructures.distance">[docs]</a>    <span class="k">def</span> <span class="nf">distance</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entry_id</span><span class="p">,</span> <span class="n">entry_jd</span><span class="p">,</span> <span class="n">rcut</span><span class="o">=</span><span class="mi">50</span><span class="p">):</span>
+
+        <span class="n">ids_pair</span> <span class="o">=</span> <span class="p">[</span><span class="n">entry_id</span><span class="p">,</span> <span class="n">entry_jd</span><span class="p">]</span>
+        <span class="n">ids_pair</span><span class="o">.</span><span class="n">sort</span><span class="p">()</span>
+        <span class="n">distance_entry</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pcdb</span><span class="o">.</span><span class="n">db</span><span class="o">.</span><span class="n">distances</span><span class="o">.</span><span class="n">find_one</span><span class="p">({</span><span class="s1">&#39;pair&#39;</span><span class="p">:</span> <span class="n">ids_pair</span><span class="p">},</span> <span class="p">{</span><span class="s1">&#39;distance&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">})</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pcdb</span><span class="o">.</span><span class="n">db</span><span class="o">.</span><span class="n">distances</span><span class="o">.</span><span class="n">create_index</span><span class="p">([(</span><span class="s2">&quot;pair&quot;</span><span class="p">,</span> <span class="n">ASCENDING</span><span class="p">)])</span>
+
+        <span class="k">if</span> <span class="n">distance_entry</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Distance not in DB&#39;</span><span class="p">)</span>
+            <span class="n">fingerprints</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="k">for</span> <span class="n">entry_ijd</span> <span class="ow">in</span> <span class="p">[</span><span class="n">entry_id</span><span class="p">,</span> <span class="n">entry_jd</span><span class="p">]:</span>
+
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">pcdb</span><span class="o">.</span><span class="n">db</span><span class="o">.</span><span class="n">fingerprints</span><span class="o">.</span><span class="n">find_one</span><span class="p">({</span><span class="s1">&#39;_id&#39;</span><span class="p">:</span> <span class="n">entry_ijd</span><span class="p">})</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">structure</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_structure</span><span class="p">(</span><span class="n">entry_ijd</span><span class="p">)</span>
+                    <span class="n">analysis</span> <span class="o">=</span> <span class="n">StructureAnalysis</span><span class="p">(</span><span class="n">structure</span><span class="p">,</span> <span class="n">radius</span><span class="o">=</span><span class="n">rcut</span><span class="p">)</span>
+                    <span class="n">x</span><span class="p">,</span> <span class="n">ys</span> <span class="o">=</span> <span class="n">analysis</span><span class="o">.</span><span class="n">fp_oganov</span><span class="p">()</span>
+                    <span class="n">fingerprint</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;_id&#39;</span><span class="p">:</span> <span class="n">entry_ijd</span><span class="p">}</span>
+                    <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">ys</span><span class="p">:</span>
+                        <span class="n">atomic_number1</span> <span class="o">=</span> <span class="n">atomic_number</span><span class="p">(</span><span class="n">structure</span><span class="o">.</span><span class="n">species</span><span class="p">[</span><span class="n">k</span><span class="p">[</span><span class="mi">0</span><span class="p">]])</span>
+                        <span class="n">atomic_number2</span> <span class="o">=</span> <span class="n">atomic_number</span><span class="p">(</span><span class="n">structure</span><span class="o">.</span><span class="n">species</span><span class="p">[</span><span class="n">k</span><span class="p">[</span><span class="mi">1</span><span class="p">]])</span>
+                        <span class="n">pair</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">%06d</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="nb">min</span><span class="p">(</span><span class="n">atomic_number1</span> <span class="o">*</span> <span class="mi">1000</span> <span class="o">+</span> <span class="n">atomic_number2</span><span class="p">,</span>
+                                            <span class="n">atomic_number2</span> <span class="o">*</span> <span class="mi">1000</span> <span class="o">+</span> <span class="n">atomic_number1</span><span class="p">)</span>
+                        <span class="n">fingerprint</span><span class="p">[</span><span class="n">pair</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">ys</span><span class="p">[</span><span class="n">k</span><span class="p">])</span>
+
+                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">pcdb</span><span class="o">.</span><span class="n">db</span><span class="o">.</span><span class="n">fingerprints</span><span class="o">.</span><span class="n">find_one</span><span class="p">({</span><span class="s1">&#39;_id&#39;</span><span class="p">:</span> <span class="n">entry_ijd</span><span class="p">})</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">pcdb</span><span class="o">.</span><span class="n">db</span><span class="o">.</span><span class="n">fingerprints</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="n">fingerprint</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">pcdb</span><span class="o">.</span><span class="n">db</span><span class="o">.</span><span class="n">fingerprints</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s1">&#39;_id&#39;</span><span class="p">:</span> <span class="n">entry_ijd</span><span class="p">},</span> <span class="n">fingerprint</span><span class="p">)</span>
+                    <span class="n">fingerprints</span><span class="p">[</span><span class="n">entry_ijd</span><span class="p">]</span> <span class="o">=</span> <span class="n">fingerprint</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">fingerprints</span><span class="p">[</span><span class="n">entry_ijd</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pcdb</span><span class="o">.</span><span class="n">db</span><span class="o">.</span><span class="n">fingerprints</span><span class="o">.</span><span class="n">find_one</span><span class="p">({</span><span class="s1">&#39;_id&#39;</span><span class="p">:</span> <span class="n">entry_ijd</span><span class="p">})</span>
+
+            <span class="n">dij</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">pair</span> <span class="ow">in</span> <span class="n">fingerprints</span><span class="p">[</span><span class="n">entry_id</span><span class="p">]:</span>
+                <span class="k">if</span> <span class="n">pair</span> <span class="ow">in</span> <span class="n">fingerprints</span><span class="p">[</span><span class="n">entry_jd</span><span class="p">]</span> <span class="ow">and</span> <span class="n">pair</span> <span class="o">!=</span> <span class="s1">&#39;_id&#39;</span><span class="p">:</span>
+                    <span class="n">uvect1</span> <span class="o">=</span> <span class="n">unit_vector</span><span class="p">(</span><span class="n">fingerprints</span><span class="p">[</span><span class="n">entry_id</span><span class="p">][</span><span class="n">pair</span><span class="p">])</span>
+                    <span class="n">uvect2</span> <span class="o">=</span> <span class="n">unit_vector</span><span class="p">(</span><span class="n">fingerprints</span><span class="p">[</span><span class="n">entry_jd</span><span class="p">][</span><span class="n">pair</span><span class="p">])</span>
+                    <span class="n">dij</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">uvect1</span><span class="p">,</span> <span class="n">uvect2</span><span class="p">)))</span>
+            <span class="n">distance</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">dij</span><span class="p">))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">pcdb</span><span class="o">.</span><span class="n">db</span><span class="o">.</span><span class="n">distances</span><span class="o">.</span><span class="n">insert</span><span class="p">({</span><span class="s1">&#39;pair&#39;</span><span class="p">:</span> <span class="n">ids_pair</span><span class="p">,</span> <span class="s1">&#39;distance&#39;</span><span class="p">:</span> <span class="n">distance</span><span class="p">})</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">distance</span> <span class="o">=</span> <span class="n">distance_entry</span><span class="p">[</span><span class="s1">&#39;distance&#39;</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">distance</span></div>
+
+<div class="viewcode-block" id="RelaxStructures.add_from_db"><a class="viewcode-back" href="../../../pychemia.population.html#pychemia.population.relaxstructures.RelaxStructures.add_from_db">[docs]</a>    <span class="k">def</span> <span class="nf">add_from_db</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">db_settings</span><span class="p">,</span> <span class="n">sizemax</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">composition</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;No composition associated to this population&#39;</span><span class="p">)</span>
+        <span class="n">comp</span> <span class="o">=</span> <span class="n">Composition</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">composition</span><span class="p">)</span>
+        <span class="n">readdb</span> <span class="o">=</span> <span class="n">get_database</span><span class="p">(</span><span class="n">db_settings</span><span class="p">)</span>
+
+        <span class="n">index</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">readdb</span><span class="o">.</span><span class="n">entries</span><span class="o">.</span><span class="n">find</span><span class="p">({</span><span class="s1">&#39;structure.formula&#39;</span><span class="p">:</span> <span class="n">comp</span><span class="o">.</span><span class="n">formula</span><span class="p">,</span>
+                                          <span class="s1">&#39;structure.natom&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;$lte&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">min_comp_mult</span> <span class="o">*</span> <span class="n">comp</span><span class="o">.</span><span class="n">natom</span><span class="p">,</span>
+                                                              <span class="s1">&#39;$gte&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_comp_mult</span> <span class="o">*</span> <span class="n">comp</span><span class="o">.</span><span class="n">natom</span><span class="p">}}):</span>
+            <span class="k">if</span> <span class="n">index</span> <span class="o">&lt;</span> <span class="n">sizemax</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Adding entry &#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">entry</span><span class="p">[</span><span class="s1">&#39;_id&#39;</span><span class="p">])</span> <span class="o">+</span> <span class="s1">&#39; from &#39;</span> <span class="o">+</span> <span class="n">readdb</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">new_entry</span><span class="p">(</span><span class="n">readdb</span><span class="o">.</span><span class="n">get_structure</span><span class="p">(</span><span class="n">entry</span><span class="p">[</span><span class="s1">&#39;_id&#39;</span><span class="p">]))</span>
+                <span class="n">index</span> <span class="o">+=</span> <span class="mi">1</span></div>
+
+<div class="viewcode-block" id="RelaxStructures.move_random"><a class="viewcode-back" href="../../../pychemia.population.html#pychemia.population.relaxstructures.RelaxStructures.move_random">[docs]</a>    <span class="k">def</span> <span class="nf">move_random</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entry_id</span><span class="p">,</span> <span class="n">factor</span><span class="o">=</span><span class="mf">0.2</span><span class="p">,</span> <span class="n">in_place</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">kind</span><span class="o">=</span><span class="s1">&#39;move&#39;</span><span class="p">):</span>
+        <span class="n">structure</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_structure</span><span class="p">(</span><span class="n">entry_id</span><span class="p">)</span>
+        <span class="n">changer</span> <span class="o">=</span> <span class="n">StructureChanger</span><span class="p">(</span><span class="n">structure</span><span class="o">=</span><span class="n">structure</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">kind</span> <span class="o">==</span> <span class="s1">&#39;move&#39;</span><span class="p">:</span>
+            <span class="n">changer</span><span class="o">.</span><span class="n">random_move_many_atoms</span><span class="p">(</span><span class="n">epsilon</span><span class="o">=</span><span class="n">factor</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>  <span class="c1"># change</span>
+            <span class="n">changer</span><span class="o">.</span><span class="n">random_change</span><span class="p">(</span><span class="n">factor</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">in_place</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">set_structure</span><span class="p">(</span><span class="n">entry_id</span><span class="p">,</span> <span class="n">changer</span><span class="o">.</span><span class="n">new_structure</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">new_entry</span><span class="p">(</span><span class="n">changer</span><span class="o">.</span><span class="n">new_structure</span><span class="p">,</span> <span class="n">active</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="RelaxStructures.move"><a class="viewcode-back" href="../../../pychemia.population.html#pychemia.population.relaxstructures.RelaxStructures.move">[docs]</a>    <span class="k">def</span> <span class="nf">move</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entry_id</span><span class="p">,</span> <span class="n">entry_jd</span><span class="p">,</span> <span class="n">factor</span><span class="o">=</span><span class="mf">0.2</span><span class="p">,</span> <span class="n">in_place</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Moves entry_id in the direction of entry_jd</span>
+<span class="sd">        If in_place is True the movement occurs on the</span>
+<span class="sd">        same address as entry_id</span>
+
+<span class="sd">        :param factor:</span>
+<span class="sd">        :param entry_id:</span>
+<span class="sd">        :param entry_jd:</span>
+<span class="sd">        :param in_place:</span>
+<span class="sd">        :return:</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">structure_mobile</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_structure</span><span class="p">(</span><span class="n">entry_id</span><span class="p">)</span>
+        <span class="n">structure_target</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_structure</span><span class="p">(</span><span class="n">entry_jd</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">structure_mobile</span><span class="o">.</span><span class="n">natom</span> <span class="o">!=</span> <span class="n">structure_target</span><span class="o">.</span><span class="n">natom</span><span class="p">:</span>
+            <span class="c1"># Moving structures with different number of atoms is only implemented for smaller structures moving</span>
+            <span class="c1"># towards bigger ones by making a super-cell and only if their size is smaller that &#39;max_comp_mult&#39;</span>
+
+            <span class="n">mult1</span> <span class="o">=</span> <span class="n">structure_mobile</span><span class="o">.</span><span class="n">get_composition</span><span class="p">()</span><span class="o">.</span><span class="n">gcd</span>
+            <span class="n">mult2</span> <span class="o">=</span> <span class="n">structure_target</span><span class="o">.</span><span class="n">get_composition</span><span class="p">()</span><span class="o">.</span><span class="n">gcd</span>
+            <span class="n">lcd</span> <span class="o">=</span> <span class="n">mult1</span> <span class="o">*</span> <span class="n">mult2</span> <span class="o">/</span> <span class="n">gcd</span><span class="p">(</span><span class="n">mult1</span><span class="p">,</span> <span class="n">mult2</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">lcd</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_comp_mult</span><span class="p">:</span>
+                <span class="c1"># The resulting structure is bigger than the limit</span>
+                <span class="c1"># cannot move</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">in_place</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">new_entry</span><span class="p">(</span><span class="n">structure_mobile</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="n">entry_id</span>
+
+        <span class="c1"># We will move structure1 in the direction of structure2</span>
+        <span class="n">match</span> <span class="o">=</span> <span class="n">StructureMatch</span><span class="p">(</span><span class="n">structure_target</span><span class="p">,</span> <span class="n">structure_mobile</span><span class="p">)</span>
+        <span class="n">match</span><span class="o">.</span><span class="n">match_size</span><span class="p">()</span>
+        <span class="n">match</span><span class="o">.</span><span class="n">match_shape</span><span class="p">()</span>
+        <span class="n">match</span><span class="o">.</span><span class="n">match_atoms</span><span class="p">()</span>
+        <span class="n">displacements</span> <span class="o">=</span> <span class="n">match</span><span class="o">.</span><span class="n">reduced_displacement</span><span class="p">()</span>
+
+        <span class="n">new_reduced</span> <span class="o">=</span> <span class="n">match</span><span class="o">.</span><span class="n">structure2</span><span class="o">.</span><span class="n">reduced</span> <span class="o">+</span> <span class="n">factor</span> <span class="o">*</span> <span class="n">displacements</span>
+        <span class="n">new_cell</span> <span class="o">=</span> <span class="n">match</span><span class="o">.</span><span class="n">structure2</span><span class="o">.</span><span class="n">cell</span>
+        <span class="n">new_symbols</span> <span class="o">=</span> <span class="n">match</span><span class="o">.</span><span class="n">structure2</span><span class="o">.</span><span class="n">symbols</span>
+        <span class="n">new_structure</span> <span class="o">=</span> <span class="n">Structure</span><span class="p">(</span><span class="n">reduced</span><span class="o">=</span><span class="n">new_reduced</span><span class="p">,</span> <span class="n">symbols</span><span class="o">=</span><span class="n">new_symbols</span><span class="p">,</span> <span class="n">cell</span><span class="o">=</span><span class="n">new_cell</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">in_place</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">set_structure</span><span class="p">(</span><span class="n">entry_id</span><span class="p">,</span> <span class="n">new_structure</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">new_entry</span><span class="p">(</span><span class="n">new_structure</span><span class="p">,</span> <span class="n">active</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">ret</span> <span class="o">=</span> <span class="s1">&#39; Structure Population</span><span class="se">\n\n</span><span class="s1">&#39;</span>
+        <span class="n">ret</span> <span class="o">+=</span> <span class="s1">&#39; Name:               </span><span class="si">%s</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span>
+        <span class="n">ret</span> <span class="o">+=</span> <span class="s1">&#39; Tag:                </span><span class="si">%s</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">tag</span>
+        <span class="n">ret</span> <span class="o">+=</span> <span class="s1">&#39; Target-Forces:      </span><span class="si">%7.2E</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">target_forces</span>
+        <span class="n">ret</span> <span class="o">+=</span> <span class="s1">&#39; Value tolerance:    </span><span class="si">%7.2E</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">value_tol</span>
+        <span class="n">ret</span> <span class="o">+=</span> <span class="s1">&#39; Distance tolerance: </span><span class="si">%7.2E</span><span class="se">\n\n</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">distance_tolerance</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">composition</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">ret</span> <span class="o">+=</span> <span class="s1">&#39; Composition:                  </span><span class="si">%s</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">composition</span><span class="o">.</span><span class="n">formula</span>
+            <span class="n">ret</span> <span class="o">+=</span> <span class="s1">&#39; Minimal composition multiplier: </span><span class="si">%d</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">min_comp_mult</span>
+            <span class="n">ret</span> <span class="o">+=</span> <span class="s1">&#39; Maximal composition multiplier: </span><span class="si">%d</span><span class="se">\n\n</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_comp_mult</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">ret</span> <span class="o">+=</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span>
+        <span class="n">ret</span> <span class="o">+=</span> <span class="s1">&#39; Members:            </span><span class="si">%d</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">members</span><span class="p">)</span>
+        <span class="n">ret</span> <span class="o">+=</span> <span class="s1">&#39; Actives:            </span><span class="si">%d</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">actives</span><span class="p">)</span>
+        <span class="n">ret</span> <span class="o">+=</span> <span class="s1">&#39; Evaluated:          </span><span class="si">%d</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">evaluated</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">ret</span>
+
+<div class="viewcode-block" id="RelaxStructures.value"><a class="viewcode-back" href="../../../pychemia.population.html#pychemia.population.relaxstructures.RelaxStructures.value">[docs]</a>    <span class="k">def</span> <span class="nf">value</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entry_id</span><span class="p">):</span>
+        <span class="n">entry</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_entry</span><span class="p">(</span><span class="n">entry_id</span><span class="p">)</span>
+        <span class="n">structure</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_structure</span><span class="p">(</span><span class="n">entry_id</span><span class="p">)</span>
+        <span class="k">if</span> <span class="s1">&#39;properties&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">entry</span><span class="p">:</span>
+            <span class="n">pcm_log</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;This entry has no properties </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">entry</span><span class="p">[</span><span class="s1">&#39;_id&#39;</span><span class="p">]))</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="k">elif</span> <span class="n">entry</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="k">elif</span> <span class="s1">&#39;energy&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">entry</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">]:</span>
+            <span class="n">pcm_log</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;This entry has no energy in properties </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">entry</span><span class="p">[</span><span class="s1">&#39;_id&#39;</span><span class="p">]))</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">entry</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">][</span><span class="s1">&#39;energy&#39;</span><span class="p">]</span> <span class="o">/</span> <span class="n">structure</span><span class="o">.</span><span class="n">get_composition</span><span class="p">()</span><span class="o">.</span><span class="n">gcd</span></div>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">to_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">{</span><span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+                <span class="s1">&#39;tag&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">tag</span><span class="p">,</span>
+                <span class="s1">&#39;target_forces&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">target_forces</span><span class="p">,</span>
+                <span class="s1">&#39;value_tol&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">value_tol</span><span class="p">,</span>
+                <span class="s1">&#39;distance_tolerance&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">distance_tolerance</span><span class="p">}</span>
+
+<div class="viewcode-block" id="RelaxStructures.from_dict"><a class="viewcode-back" href="../../../pychemia.population.html#pychemia.population.relaxstructures.RelaxStructures.from_dict">[docs]</a>    <span class="k">def</span> <span class="nf">from_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">population_dict</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">RelaxStructures</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">population_dict</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">],</span>
+                               <span class="n">tag</span><span class="o">=</span><span class="n">population_dict</span><span class="p">[</span><span class="s1">&#39;tag&#39;</span><span class="p">],</span>
+                               <span class="n">target_forces</span><span class="o">=</span><span class="n">population_dict</span><span class="p">[</span><span class="s1">&#39;target_forces&#39;</span><span class="p">],</span>
+                               <span class="n">value_tol</span><span class="o">=</span><span class="n">population_dict</span><span class="p">[</span><span class="s1">&#39;value_tol&#39;</span><span class="p">],</span>
+                               <span class="n">distance_tolerance</span><span class="o">=</span><span class="n">population_dict</span><span class="p">[</span><span class="s1">&#39;distance_tolerance&#39;</span><span class="p">])</span></div>
+
+<div class="viewcode-block" id="RelaxStructures.cross"><a class="viewcode-back" href="../../../pychemia.population.html#pychemia.population.relaxstructures.RelaxStructures.cross">[docs]</a>    <span class="k">def</span> <span class="nf">cross</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ids</span><span class="p">):</span>
+
+        <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">ids</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span>
+
+        <span class="n">structure1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_structure</span><span class="p">(</span><span class="n">ids</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="n">structure2</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_structure</span><span class="p">(</span><span class="n">ids</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+
+        <span class="n">split_match</span> <span class="o">=</span> <span class="n">SplitMatch</span><span class="p">(</span><span class="n">structure1</span><span class="p">,</span> <span class="n">structure2</span><span class="p">)</span>
+        <span class="n">st1</span><span class="p">,</span> <span class="n">st2</span> <span class="o">=</span> <span class="n">split_match</span><span class="o">.</span><span class="n">get_simple_match</span><span class="p">()</span>
+
+        <span class="n">entry_id</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">new_entry</span><span class="p">(</span><span class="n">st1</span><span class="p">,</span> <span class="n">active</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">entry_jd</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">new_entry</span><span class="p">(</span><span class="n">st2</span><span class="p">,</span> <span class="n">active</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">entry_id</span><span class="p">,</span> <span class="n">entry_jd</span></div>
+
+<div class="viewcode-block" id="RelaxStructures.str_entry"><a class="viewcode-back" href="../../../pychemia.population.html#pychemia.population.relaxstructures.RelaxStructures.str_entry">[docs]</a>    <span class="k">def</span> <span class="nf">str_entry</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entry_id</span><span class="p">):</span>
+
+        <span class="n">struct</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_structure</span><span class="p">(</span><span class="n">entry_id</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">struct</span><span class="p">)</span></div></div>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Guillermo Avendano-Franco.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../',
+            VERSION:'0.1.2',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

@@ -1,0 +1,578 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>pychemia.population.noncollinearmagmoms &mdash; pychemia 0.1.2 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../search.html"/>
+    <link rel="top" title="pychemia 0.1.2 documentation" href="../../../index.html"/>
+        <link rel="up" title="pychemia" href="../../pychemia.html"/> 
+
+  
+  <script src="../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home"> pychemia
+          
+
+          
+          </a>
+
+          
+            
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../1.Introduction.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../2.Installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../3.First_steps.html">First Steps</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../4.Tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../5.PyChemiaAPI.html">API Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../6.Contributors.html">Contributors</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">pychemia</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+          <li><a href="../../pychemia.html">pychemia</a> &raquo;</li>
+        
+      <li>pychemia.population.noncollinearmagmoms</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for pychemia.population.noncollinearmagmoms</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">._population</span> <span class="k">import</span> <span class="n">Population</span>
+<span class="kn">from</span> <span class="nn">pychemia.utils.mathematics</span> <span class="k">import</span> <span class="n">spherical_to_cartesian</span><span class="p">,</span> <span class="n">cartesian_to_spherical</span><span class="p">,</span> <span class="n">rotate_towards_axis</span><span class="p">,</span> \
+    <span class="n">angle_between_vectors</span>
+<span class="kn">from</span> <span class="nn">pychemia.code.vasp</span> <span class="k">import</span> <span class="n">read_incar</span><span class="p">,</span> <span class="n">read_poscar</span><span class="p">,</span> <span class="n">VaspOutput</span>
+
+
+<div class="viewcode-block" id="NonCollinearMagMoms"><a class="viewcode-back" href="../../../pychemia.population.html#pychemia.population.noncollinearmagmoms.NonCollinearMagMoms">[docs]</a><span class="k">class</span> <span class="nc">NonCollinearMagMoms</span><span class="p">(</span><span class="n">Population</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">source_dir</span><span class="o">=</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="n">mag_atoms</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">magmom_magnitude</span><span class="o">=</span><span class="mf">2.0</span><span class="p">,</span> <span class="n">distance_tolerance</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
+                 <span class="n">incar_extra</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">debug</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        This class provides a population of Magnetic Moment vectors for the same structure and was created to be used</span>
+<span class="sd">        on VASP.</span>
+<span class="sd">        The magnetic moment is set in cartesian coordinates with 3 numbers for each atom in the unit cell.</span>
+<span class="sd">        This population provides methods to manipulate the magnetic moments between different candidates in order to</span>
+<span class="sd">        optimize the magnetic orientations using the global-search methods implemented on PyChemia.</span>
+
+<span class="sd">        :param name: The name of the database to be created or directly the PyChemiaDB database object.</span>
+<span class="sd">                     The name is used when the database can be created without username, password and no encryption.</span>
+<span class="sd">                     Otherwise the database must be created first and its object be &#39;name&#39; argument.</span>
+<span class="sd">        :param source_dir: Directory that contains the basic 4 files for VASP: &#39;POSCAR&#39;, &#39;POTCAR&#39;, &#39;KPOINTS&#39; and &#39;INCAR&#39;</span>
+<span class="sd">                            Except for &#39;INCAR&#39; the files are linked symbolically on each directory that will run VASP</span>
+<span class="sd">                            The input variables on &#39;INCAR&#39; changing only MAGMOM and I_CONSTRAINED_M.</span>
+<span class="sd">                            The &#39;INCAR&#39; file could contain generic variables and some other variables could be directly</span>
+<span class="sd">                            specified using the dictionary &#39;incar_extra&#39;.</span>
+<span class="sd">        :param mag_atoms: List of atoms for which the Magnetic Moments are changed. If the variable is None, the list</span>
+<span class="sd">                            is inferred from the original INCAR file. The numbering of atoms start with 0.</span>
+<span class="sd">        :param magmom_magnitude: Fix value for the magnitude of the magnetic moment imposed for all the atoms in</span>
+<span class="sd">                                &#39;mag_atoms&#39; list</span>
+<span class="sd">        :param distance_tolerance: Maximal distance in magnetic moments to consider two candidates as equivalent.</span>
+<span class="sd">        :param incar_extra: Extra variables for INCAR file that are added or replaced from the INCAR read with</span>
+<span class="sd">                            &#39;source_dir&#39;</span>
+<span class="sd">        :param debug: If True produce a verbose output during the different calls to the methods.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">Population</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="s1">&#39;global&#39;</span><span class="p">,</span> <span class="n">distance_tolerance</span><span class="o">=</span><span class="n">distance_tolerance</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">source_dir</span> <span class="o">+</span> <span class="n">os</span><span class="o">.</span><span class="n">sep</span> <span class="o">+</span> <span class="s1">&#39;INCAR&#39;</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;INCAR not found&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">source_dir</span> <span class="o">+</span> <span class="n">os</span><span class="o">.</span><span class="n">sep</span> <span class="o">+</span> <span class="s1">&#39;POSCAR&#39;</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;POSCAR not found&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">source_dir</span> <span class="o">+</span> <span class="n">os</span><span class="o">.</span><span class="n">sep</span> <span class="o">+</span> <span class="s1">&#39;POTCAR&#39;</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;POTCAR not found&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">source_dir</span> <span class="o">+</span> <span class="n">os</span><span class="o">.</span><span class="n">sep</span> <span class="o">+</span> <span class="s1">&#39;KPOINTS&#39;</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;KPOINTS not found&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">input</span> <span class="o">=</span> <span class="n">read_incar</span><span class="p">(</span><span class="n">source_dir</span> <span class="o">+</span> <span class="n">os</span><span class="o">.</span><span class="n">sep</span> <span class="o">+</span> <span class="s1">&#39;INCAR&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">source_dir</span> <span class="o">=</span> <span class="n">source_dir</span>
+
+        <span class="k">if</span> <span class="s1">&#39;MAGMOM&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">input</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;INCAR should define the MAGMOM variable&#39;</span><span class="p">)</span>
+        <span class="n">magmom</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">input</span><span class="o">.</span><span class="n">MAGMOM</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">structure</span> <span class="o">=</span> <span class="n">read_poscar</span><span class="p">(</span><span class="n">source_dir</span> <span class="o">+</span> <span class="n">os</span><span class="o">.</span><span class="n">sep</span> <span class="o">+</span> <span class="s1">&#39;POSCAR&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">mag_atoms</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">mag_atoms</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">apply_along_axis</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">magmom</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mf">0.0</span><span class="p">)[</span><span class="mi">0</span><span class="p">])</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">mag_atoms</span> <span class="o">=</span> <span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">mag_atoms</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">mag_atoms</span> <span class="o">=</span> <span class="n">mag_atoms</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">magmom_magnitude</span> <span class="o">=</span> <span class="n">magmom_magnitude</span>
+        <span class="k">if</span> <span class="n">incar_extra</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">incar_extra</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;IBRION&#39;</span><span class="p">:</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span>
+                                <span class="s1">&#39;LWAVE&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+                                <span class="s1">&#39;LAMBDA&#39;</span><span class="p">:</span> <span class="mi">10</span><span class="p">,</span>
+                                <span class="s1">&#39;NSW&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+                                <span class="s1">&#39;I_CONSTRAINED_M&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">}</span>
+
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">incar_extra</span> <span class="o">=</span> <span class="n">incar_extra</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">debug</span> <span class="o">=</span> <span class="n">debug</span>
+
+    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">ret</span> <span class="o">=</span> <span class="s1">&#39; Population NonColl</span><span class="se">\n\n</span><span class="s1">&#39;</span>
+        <span class="n">ret</span> <span class="o">+=</span> <span class="s1">&#39; Name:               </span><span class="si">%s</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span>
+        <span class="n">ret</span> <span class="o">+=</span> <span class="s1">&#39; Tag:                </span><span class="si">%s</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">tag</span>
+        <span class="n">ret</span> <span class="o">+=</span> <span class="s1">&#39; Formula:            </span><span class="si">%s</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">structure</span><span class="o">.</span><span class="n">formula</span>
+        <span class="n">ret</span> <span class="o">+=</span> <span class="s1">&#39; source_dir:         </span><span class="si">%s</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">source_dir</span>
+        <span class="n">ret</span> <span class="o">+=</span> <span class="s1">&#39; magmom_magnitude:   </span><span class="si">%s</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">magmom_magnitude</span>
+        <span class="n">ret</span> <span class="o">+=</span> <span class="s1">&#39; distance_tolerance: </span><span class="si">%s</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">distance_tolerance</span>
+        <span class="n">ret</span> <span class="o">+=</span> <span class="s1">&#39; incar_extra:        </span><span class="si">%s</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">incar_extra</span>
+
+        <span class="n">ret</span> <span class="o">+=</span> <span class="s1">&#39; Members:            </span><span class="si">%d</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">members</span><span class="p">)</span>
+        <span class="n">ret</span> <span class="o">+=</span> <span class="s1">&#39; Actives:            </span><span class="si">%d</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">actives</span><span class="p">)</span>
+        <span class="n">ret</span> <span class="o">+=</span> <span class="s1">&#39; Evaluated:          </span><span class="si">%d</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">evaluated</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">ret</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">to_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">{</span><span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+                <span class="s1">&#39;tag&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">tag</span><span class="p">,</span>
+                <span class="s1">&#39;mag_atoms&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">mag_atoms</span><span class="p">,</span>
+                <span class="s1">&#39;source_dir&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">source_dir</span><span class="p">,</span>
+                <span class="s1">&#39;incar_extra&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">incar_extra</span><span class="p">,</span>
+                <span class="s1">&#39;magmom_magnitude&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">magmom_magnitude</span><span class="p">,</span>
+                <span class="s1">&#39;distance_tolerance&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">distance_tolerance</span><span class="p">}</span>
+
+<div class="viewcode-block" id="NonCollinearMagMoms.from_dict"><a class="viewcode-back" href="../../../pychemia.population.html#pychemia.population.noncollinearmagmoms.NonCollinearMagMoms.from_dict">[docs]</a>    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">from_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">population_dict</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">NonCollinearMagMoms</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">population_dict</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">],</span>
+                                   <span class="n">source_dir</span><span class="o">=</span><span class="n">population_dict</span><span class="p">[</span><span class="s1">&#39;source_dir&#39;</span><span class="p">],</span>
+                                   <span class="n">mag_atoms</span><span class="o">=</span><span class="n">population_dict</span><span class="p">[</span><span class="s1">&#39;mag_atoms&#39;</span><span class="p">],</span>
+                                   <span class="n">incar_extra</span><span class="o">=</span><span class="n">population_dict</span><span class="p">[</span><span class="s1">&#39;incar_extra&#39;</span><span class="p">],</span>
+                                   <span class="n">magmom_magnitude</span><span class="o">=</span><span class="n">population_dict</span><span class="p">[</span><span class="s1">&#39;magmom_magnitude&#39;</span><span class="p">],</span>
+                                   <span class="n">distance_tolerance</span><span class="o">=</span><span class="n">population_dict</span><span class="p">[</span><span class="s1">&#39;distance_tolerance&#39;</span><span class="p">])</span></div>
+
+<div class="viewcode-block" id="NonCollinearMagMoms.debug_evaluation"><a class="viewcode-back" href="../../../pychemia.population.html#pychemia.population.noncollinearmagmoms.NonCollinearMagMoms.debug_evaluation">[docs]</a>    <span class="k">def</span> <span class="nf">debug_evaluation</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">magmom_sph</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        For debugging ONLY:</span>
+<span class="sd">        Fake evaluation of total energy using a magnetic configuration as the minimal</span>
+<span class="sd">        energy, the numerical distance with other candidates defines their energy.</span>
+
+<span class="sd">        :param magmom_sph:</span>
+<span class="sd">        :return:</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">debug</span><span class="p">:</span>
+            <span class="n">magmom_car</span> <span class="o">=</span> <span class="n">spherical_to_cartesian</span><span class="p">(</span><span class="n">magmom_sph</span><span class="p">)</span>
+            <span class="n">good_magmom</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">structure</span><span class="o">.</span><span class="n">natom</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">mag_atoms</span><span class="p">:</span>
+                <span class="n">good_magmom</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="o">**</span><span class="n">i</span><span class="p">)</span> <span class="o">*</span> <span class="mf">1.15470054</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
+            <span class="n">distance</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">angle_between_vectors</span><span class="p">(</span><span class="n">magmom_car</span><span class="p">,</span> <span class="n">good_magmom</span><span class="p">))</span>
+            <span class="n">distance</span> <span class="o">/=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">mag_atoms</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">distance</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span></div>
+
+<div class="viewcode-block" id="NonCollinearMagMoms.evaluate_entry"><a class="viewcode-back" href="../../../pychemia.population.html#pychemia.population.noncollinearmagmoms.NonCollinearMagMoms.evaluate_entry">[docs]</a>    <span class="k">def</span> <span class="nf">evaluate_entry</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entry_id</span><span class="p">):</span>
+        <span class="k">pass</span></div>
+
+<div class="viewcode-block" id="NonCollinearMagMoms.new_entry"><a class="viewcode-back" href="../../../pychemia.population.html#pychemia.population.noncollinearmagmoms.NonCollinearMagMoms.new_entry">[docs]</a>    <span class="k">def</span> <span class="nf">new_entry</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cartesian_magmoms</span><span class="p">,</span> <span class="n">active</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Creates a new entry on the database</span>
+
+<span class="sd">        :param cartesian_magmoms: Magnetic moments stored in spherical coordinates</span>
+<span class="sd">        :param active:</span>
+<span class="sd">        :return:</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">cartesian_magmoms</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">cartesian_magmoms</span><span class="p">)</span>
+        <span class="n">properties</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;magmom&#39;</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">cartesian_magmoms</span><span class="o">.</span><span class="n">flatten</span><span class="p">()),</span> <span class="s1">&#39;energy&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">debug_evaluation</span><span class="p">(</span><span class="n">cartesian_magmoms</span><span class="p">)}</span>
+        <span class="n">status</span> <span class="o">=</span> <span class="p">{</span><span class="bp">self</span><span class="o">.</span><span class="n">tag</span><span class="p">:</span> <span class="n">active</span><span class="p">}</span>
+        <span class="n">entry</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;structure&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">structure</span><span class="o">.</span><span class="n">to_dict</span><span class="p">,</span> <span class="s1">&#39;properties&#39;</span><span class="p">:</span> <span class="n">properties</span><span class="p">,</span> <span class="s1">&#39;status&#39;</span><span class="p">:</span> <span class="n">status</span><span class="p">}</span>
+        <span class="n">entry_id</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">insert_entry</span><span class="p">(</span><span class="n">entry</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">entry_id</span></div>
+
+<div class="viewcode-block" id="NonCollinearMagMoms.is_evaluated"><a class="viewcode-back" href="../../../pychemia.population.html#pychemia.population.noncollinearmagmoms.NonCollinearMagMoms.is_evaluated">[docs]</a>    <span class="k">def</span> <span class="nf">is_evaluated</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entry_id</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        One candidate is considered evaluated if it contains any finite value of energy on the properties.energy field</span>
+
+<span class="sd">        :param entry_id:</span>
+<span class="sd">        :return:</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">entry</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_entry</span><span class="p">(</span><span class="n">entry_id</span><span class="p">,</span> <span class="p">{</span><span class="s1">&#39;_id&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s1">&#39;properties&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">})</span>
+        <span class="k">if</span> <span class="s1">&#39;energy&#39;</span> <span class="ow">in</span> <span class="n">entry</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">]</span> <span class="ow">and</span> <span class="n">entry</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">][</span><span class="s1">&#39;energy&#39;</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">True</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span></div>
+
+<div class="viewcode-block" id="NonCollinearMagMoms.distance"><a class="viewcode-back" href="../../../pychemia.population.html#pychemia.population.noncollinearmagmoms.NonCollinearMagMoms.distance">[docs]</a>    <span class="k">def</span> <span class="nf">distance</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entry_id</span><span class="p">,</span> <span class="n">entry_jd</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Compute the distance between 2 candidates as the average angular movement</span>
+<span class="sd">        between the magnetic moments for all the atoms considered magnetic (&#39;mag_atoms&#39;)</span>
+
+<span class="sd">        :param entry_id:</span>
+<span class="sd">        :param entry_jd:</span>
+<span class="sd">        :return:</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">entry</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_entry</span><span class="p">(</span><span class="n">entry_id</span><span class="p">,</span> <span class="p">{</span><span class="s1">&#39;properties.magmom&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">})</span>
+        <span class="n">magmom_i</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">entry</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">][</span><span class="s1">&#39;magmom&#39;</span><span class="p">])</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
+        <span class="n">entry</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_entry</span><span class="p">(</span><span class="n">entry_jd</span><span class="p">,</span> <span class="p">{</span><span class="s1">&#39;properties.magmom&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">})</span>
+        <span class="n">magmom_j</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">entry</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">][</span><span class="s1">&#39;magmom&#39;</span><span class="p">])</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
+
+        <span class="n">magmom_ixyz</span> <span class="o">=</span> <span class="n">spherical_to_cartesian</span><span class="p">(</span><span class="n">magmom_i</span><span class="p">)</span>
+        <span class="n">magmom_jxyz</span> <span class="o">=</span> <span class="n">spherical_to_cartesian</span><span class="p">(</span><span class="n">magmom_j</span><span class="p">)</span>
+        <span class="n">distance</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">angle_between_vectors</span><span class="p">(</span><span class="n">magmom_ixyz</span><span class="p">,</span> <span class="n">magmom_jxyz</span><span class="p">))</span>
+        <span class="n">distance</span> <span class="o">/=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">mag_atoms</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">distance</span></div>
+
+<div class="viewcode-block" id="NonCollinearMagMoms.move_random"><a class="viewcode-back" href="../../../pychemia.population.html#pychemia.population.noncollinearmagmoms.NonCollinearMagMoms.move_random">[docs]</a>    <span class="k">def</span> <span class="nf">move_random</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entry_id</span><span class="p">,</span> <span class="n">factor</span><span class="o">=</span><span class="mf">0.2</span><span class="p">,</span> <span class="n">in_place</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">kind</span><span class="o">=</span><span class="s1">&#39;move&#39;</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Change the magnetic orientation randomly for all the atoms considered magnetic &#39;mag_atoms&#39;</span>
+<span class="sd">        The &#39;factor&#39; argument scales the intensite of the movement.</span>
+
+<span class="sd">        :param entry_id:</span>
+<span class="sd">        :param factor:</span>
+<span class="sd">        :param in_place:</span>
+<span class="sd">        :param kind:</span>
+<span class="sd">        :return:</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">entry</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_entry</span><span class="p">(</span><span class="n">entry_id</span><span class="p">,</span> <span class="p">{</span><span class="s1">&#39;properties.magmom&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">})</span>
+        <span class="c1"># Magnetic Momenta are stored in spherical coordinates</span>
+        <span class="n">magmom_xyz</span> <span class="o">=</span> <span class="n">spherical_to_cartesian</span><span class="p">(</span><span class="n">entry</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">][</span><span class="s1">&#39;magmom&#39;</span><span class="p">])</span>
+        <span class="c1"># Randomly disturbed using the factor</span>
+        <span class="n">magmom_xyz</span> <span class="o">+=</span> <span class="n">factor</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">random</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">structure</span><span class="o">.</span><span class="n">natom</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span> <span class="o">-</span> <span class="n">factor</span> <span class="o">/</span> <span class="mi">2</span>
+        <span class="c1"># Reconverting to spherical coordinates</span>
+        <span class="n">magmom_new</span> <span class="o">=</span> <span class="n">cartesian_to_spherical</span><span class="p">(</span><span class="n">magmom_xyz</span><span class="p">)</span>
+        <span class="c1"># Resetting magnitudes</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">magmom_xyz</span><span class="p">)):</span>
+            <span class="k">if</span> <span class="n">magmom_xyz</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mf">0.0</span><span class="p">:</span>
+                <span class="n">magmom_new</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">magmom_magnitude</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">magmom_new</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span>
+
+        <span class="n">properties</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;magmom&#39;</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">magmom_new</span><span class="o">.</span><span class="n">flatten</span><span class="p">()),</span> <span class="s1">&#39;energy&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">debug_evaluation</span><span class="p">(</span><span class="n">magmom_new</span><span class="p">)}</span>
+
+        <span class="k">if</span> <span class="n">in_place</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">update_properties</span><span class="p">(</span><span class="n">entry_id</span><span class="p">,</span> <span class="n">new_properties</span><span class="o">=</span><span class="n">properties</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">new_entry</span><span class="p">(</span><span class="n">magmom_new</span><span class="p">,</span> <span class="n">active</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="NonCollinearMagMoms.move"><a class="viewcode-back" href="../../../pychemia.population.html#pychemia.population.noncollinearmagmoms.NonCollinearMagMoms.move">[docs]</a>    <span class="k">def</span> <span class="nf">move</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entry_id</span><span class="p">,</span> <span class="n">entry_jd</span><span class="p">,</span> <span class="n">factor</span><span class="o">=</span><span class="mf">0.2</span><span class="p">,</span> <span class="n">in_place</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Move the magnetic moments from one candidate in the direction of another.</span>
+
+<span class="sd">        :param entry_id: Source candidate, this one will be moved</span>
+<span class="sd">        :param entry_jd: Destination candidate, this one is not moved.</span>
+<span class="sd">        :param factor: (float) a value in range [0,1] 0 being the source, 1 the destination</span>
+<span class="sd">        :param in_place: (bool) if true the new magnetic moments replace those in entry_id</span>
+<span class="sd">        :return:</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">magmom_new_xyz</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">structure</span><span class="o">.</span><span class="n">natom</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
+        <span class="n">entry</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_entry</span><span class="p">(</span><span class="n">entry_id</span><span class="p">,</span> <span class="p">{</span><span class="s1">&#39;properties.magmom&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">})</span>
+        <span class="n">magmom_i</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">entry</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">][</span><span class="s1">&#39;magmom&#39;</span><span class="p">])</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
+        <span class="n">magmom_ixyz</span> <span class="o">=</span> <span class="n">spherical_to_cartesian</span><span class="p">(</span><span class="n">magmom_i</span><span class="p">)</span>
+        <span class="n">entry</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_entry</span><span class="p">(</span><span class="n">entry_jd</span><span class="p">,</span> <span class="p">{</span><span class="s1">&#39;properties.magmom&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">})</span>
+        <span class="n">magmom_j</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">entry</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">][</span><span class="s1">&#39;magmom&#39;</span><span class="p">])</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
+        <span class="n">magmom_jxyz</span> <span class="o">=</span> <span class="n">spherical_to_cartesian</span><span class="p">(</span><span class="n">magmom_j</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">mag_atoms</span><span class="p">:</span>
+            <span class="c1"># print(&#39;Atom %d&#39; % i)</span>
+            <span class="k">if</span> <span class="n">magmom_i</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">magmom_j</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">magmom_new_xyz</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">rotate_towards_axis</span><span class="p">(</span><span class="n">magmom_ixyz</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">magmom_jxyz</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">fraction</span><span class="o">=</span><span class="n">factor</span><span class="p">)</span>
+                <span class="c1"># print(&#39;Final magmom Cartesian : %d     %s&#39; % (i,magmom_new_xyz[i]))</span>
+
+        <span class="n">magmom_new</span> <span class="o">=</span> <span class="n">cartesian_to_spherical</span><span class="p">(</span><span class="n">magmom_new_xyz</span><span class="p">)</span>
+
+        <span class="n">magmom_new</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">magmom_magnitude</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">structure</span><span class="o">.</span><span class="n">natom</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">i</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">mag_atoms</span><span class="p">:</span>
+                <span class="n">magmom_new</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="mf">0.0</span>
+
+        <span class="n">properties</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;magmom&#39;</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">magmom_new</span><span class="o">.</span><span class="n">flatten</span><span class="p">()),</span> <span class="s1">&#39;energy&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">debug_evaluation</span><span class="p">(</span><span class="n">magmom_new</span><span class="p">)}</span>
+
+        <span class="k">if</span> <span class="n">in_place</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">update_properties</span><span class="p">(</span><span class="n">entry_id</span><span class="p">,</span> <span class="n">new_properties</span><span class="o">=</span><span class="n">properties</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">entry_id</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">new_entry</span><span class="p">(</span><span class="n">magmom_new</span><span class="p">,</span> <span class="n">active</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="NonCollinearMagMoms.value"><a class="viewcode-back" href="../../../pychemia.population.html#pychemia.population.noncollinearmagmoms.NonCollinearMagMoms.value">[docs]</a>    <span class="k">def</span> <span class="nf">value</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entry_id</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return the energy value associated to the candidate with identifier &#39;entry_id&#39;</span>
+
+<span class="sd">        :param entry_id:</span>
+<span class="sd">        :return:</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">entry</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_entry</span><span class="p">(</span><span class="n">entry_id</span><span class="p">,</span> <span class="p">{</span><span class="s1">&#39;properties.energy&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">})</span>
+        <span class="k">if</span> <span class="s1">&#39;energy&#39;</span> <span class="ow">in</span> <span class="n">entry</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">]:</span>
+            <span class="k">return</span> <span class="n">entry</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">][</span><span class="s1">&#39;energy&#39;</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span></div>
+
+<div class="viewcode-block" id="NonCollinearMagMoms.str_entry"><a class="viewcode-back" href="../../../pychemia.population.html#pychemia.population.noncollinearmagmoms.NonCollinearMagMoms.str_entry">[docs]</a>    <span class="k">def</span> <span class="nf">str_entry</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entry_id</span><span class="p">):</span>
+        <span class="n">entry</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_entry</span><span class="p">(</span><span class="n">entry_id</span><span class="p">,</span> <span class="p">{</span><span class="s1">&#39;properties&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">})</span>
+        <span class="n">ret</span> <span class="o">=</span> <span class="s1">&#39;[&#39;</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">mag_atoms</span><span class="p">)):</span>
+            <span class="n">ret</span> <span class="o">+=</span> <span class="p">(</span><span class="s2">&quot;[</span><span class="si">%8.5f</span><span class="s2"> </span><span class="si">%8.5f</span><span class="s2"> </span><span class="si">%8.5f</span><span class="s2">] &quot;</span> <span class="o">%</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">entry</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">][</span><span class="s1">&#39;magmom&#39;</span><span class="p">])</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">))[</span><span class="n">i</span><span class="p">]))</span>
+        <span class="n">ret</span> <span class="o">+=</span> <span class="s1">&#39;] &#39;</span>
+        <span class="n">ret</span> <span class="o">+=</span> <span class="s1">&#39;Energy= </span><span class="si">%f</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">entry</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">][</span><span class="s1">&#39;energy&#39;</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">ret</span></div>
+
+<div class="viewcode-block" id="NonCollinearMagMoms.add_random"><a class="viewcode-back" href="../../../pychemia.population.html#pychemia.population.noncollinearmagmoms.NonCollinearMagMoms.add_random">[docs]</a>    <span class="k">def</span> <span class="nf">add_random</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Creates a new candidate with random orientations for the magnetic moments of all the atoms in &#39;mag_atoms&#39;</span>
+
+<span class="sd">        :return:</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">structure</span><span class="o">.</span><span class="n">natom</span>
+        <span class="n">a</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">magmom_magnitude</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>
+        <span class="n">b</span> <span class="o">=</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">random</span><span class="p">(</span><span class="n">n</span><span class="p">)</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span>
+        <span class="n">c</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">random</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>
+        <span class="n">magmom</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">((</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">c</span><span class="p">))</span><span class="o">.</span><span class="n">T</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">structure</span><span class="o">.</span><span class="n">natom</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">i</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">mag_atoms</span><span class="p">:</span>
+                <span class="n">magmom</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="mf">0.0</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">new_entry</span><span class="p">(</span><span class="n">magmom</span><span class="p">),</span> <span class="kc">None</span></div>
+
+<div class="viewcode-block" id="NonCollinearMagMoms.recover"><a class="viewcode-back" href="../../../pychemia.population.html#pychemia.population.noncollinearmagmoms.NonCollinearMagMoms.recover">[docs]</a>    <span class="k">def</span> <span class="nf">recover</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_population_info</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">data</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">mag_atoms</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;mag_atoms&#39;</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">distance_tolerance</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;distance_tolerance&#39;</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">magmom_magnitude</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;magmom_magnitude&#39;</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">source_dir</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;source_dir&#39;</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">incar_extra</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s1">&#39;incar_extra&#39;</span><span class="p">]</span></div>
+
+<div class="viewcode-block" id="NonCollinearMagMoms.cross"><a class="viewcode-back" href="../../../pychemia.population.html#pychemia.population.noncollinearmagmoms.NonCollinearMagMoms.cross">[docs]</a>    <span class="k">def</span> <span class="nf">cross</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ids</span><span class="p">):</span>
+        <span class="n">entry_id</span> <span class="o">=</span> <span class="n">ids</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">entry_jd</span> <span class="o">=</span> <span class="n">ids</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">entry</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_entry</span><span class="p">(</span><span class="n">entry_id</span><span class="p">,</span> <span class="p">{</span><span class="s1">&#39;properties.magmom&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">})</span>
+        <span class="n">magmom_i</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">entry</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">][</span><span class="s1">&#39;magmom&#39;</span><span class="p">])</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
+        <span class="n">entry</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_entry</span><span class="p">(</span><span class="n">entry_jd</span><span class="p">,</span> <span class="p">{</span><span class="s1">&#39;properties.magmom&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">})</span>
+        <span class="n">magmom_j</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">entry</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">][</span><span class="s1">&#39;magmom&#39;</span><span class="p">])</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
+        <span class="n">magmom_inew</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">structure</span><span class="o">.</span><span class="n">natom</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
+        <span class="n">magmom_jnew</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">structure</span><span class="o">.</span><span class="n">natom</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">structure</span><span class="o">.</span><span class="n">natom</span><span class="p">):</span>
+            <span class="n">rnd</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">random</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">rnd</span> <span class="o">&lt;</span> <span class="mf">0.5</span><span class="p">:</span>
+                <span class="n">magmom_inew</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">magmom_j</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+                <span class="n">magmom_jnew</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">magmom_i</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">magmom_inew</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">magmom_i</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+                <span class="n">magmom_jnew</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">magmom_j</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+
+        <span class="n">entry_id</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">new_entry</span><span class="p">(</span><span class="n">magmom_inew</span><span class="p">,</span> <span class="n">active</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">entry_jd</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">new_entry</span><span class="p">(</span><span class="n">magmom_jnew</span><span class="p">,</span> <span class="n">active</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">entry_id</span><span class="p">,</span> <span class="n">entry_jd</span></div>
+
+<div class="viewcode-block" id="NonCollinearMagMoms.prepare_folder"><a class="viewcode-back" href="../../../pychemia.population.html#pychemia.population.noncollinearmagmoms.NonCollinearMagMoms.prepare_folder">[docs]</a>    <span class="k">def</span> <span class="nf">prepare_folder</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entry_id</span><span class="p">,</span> <span class="n">workdir</span><span class="p">,</span> <span class="n">binary</span><span class="o">=</span><span class="s1">&#39;vasp&#39;</span><span class="p">,</span> <span class="n">source_dir</span><span class="o">=</span><span class="s1">&#39;.&#39;</span><span class="p">):</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">workdir</span><span class="p">):</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">workdir</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;KPOINTS&#39;</span><span class="p">,</span> <span class="s1">&#39;POSCAR&#39;</span><span class="p">,</span> <span class="s1">&#39;POTCAR&#39;</span><span class="p">]:</span>
+            <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">workdir</span><span class="o">+</span><span class="n">os</span><span class="o">.</span><span class="n">sep</span><span class="o">+</span><span class="n">i</span><span class="p">):</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">workdir</span><span class="o">+</span><span class="n">os</span><span class="o">.</span><span class="n">sep</span><span class="o">+</span><span class="n">i</span><span class="p">)</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">symlink</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">source_dir</span><span class="o">+</span><span class="n">os</span><span class="o">.</span><span class="n">sep</span><span class="o">+</span><span class="n">i</span><span class="p">),</span> <span class="n">workdir</span><span class="o">+</span><span class="n">os</span><span class="o">.</span><span class="n">sep</span><span class="o">+</span><span class="n">i</span><span class="p">)</span>
+
+        <span class="n">incar</span> <span class="o">=</span> <span class="n">read_incar</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">source_dir</span> <span class="o">+</span> <span class="n">os</span><span class="o">.</span><span class="n">sep</span> <span class="o">+</span> <span class="s1">&#39;INCAR&#39;</span><span class="p">)</span>
+        <span class="n">magmom_sph</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_entry</span><span class="p">(</span><span class="n">entry_id</span><span class="p">,</span> <span class="p">{</span><span class="s1">&#39;properties.magmom&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">})[</span><span class="s1">&#39;properties&#39;</span><span class="p">][</span><span class="s1">&#39;magmom&#39;</span><span class="p">]</span>
+        <span class="n">magmom_car</span> <span class="o">=</span> <span class="n">spherical_to_cartesian</span><span class="p">(</span><span class="n">magmom_sph</span><span class="p">)</span>
+        <span class="n">incar</span><span class="p">[</span><span class="s1">&#39;MAGMOM&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="nb">float</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">magmom_car</span><span class="o">.</span><span class="n">flatten</span><span class="p">()]</span>
+        <span class="n">incar</span><span class="p">[</span><span class="s1">&#39;M_CONSTR&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="nb">float</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">magmom_car</span><span class="o">.</span><span class="n">flatten</span><span class="p">()]</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">incar_extra</span><span class="p">:</span>
+            <span class="n">incar</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">incar_extra</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+        <span class="n">incar</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">workdir</span> <span class="o">+</span> <span class="n">os</span><span class="o">.</span><span class="n">sep</span> <span class="o">+</span> <span class="s1">&#39;INCAR&#39;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="NonCollinearMagMoms.collect_data"><a class="viewcode-back" href="../../../pychemia.population.html#pychemia.population.noncollinearmagmoms.NonCollinearMagMoms.collect_data">[docs]</a>    <span class="k">def</span> <span class="nf">collect_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entry_id</span><span class="p">,</span> <span class="n">workdir</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">workdir</span> <span class="o">+</span> <span class="s1">&#39;/OUTCAR&#39;</span><span class="p">):</span>
+            <span class="n">vo</span> <span class="o">=</span> <span class="n">VaspOutput</span><span class="p">(</span><span class="n">workdir</span> <span class="o">+</span> <span class="s1">&#39;/OUTCAR&#39;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="s1">&#39;energy&#39;</span> <span class="ow">in</span> <span class="n">vo</span><span class="o">.</span><span class="n">final_data</span><span class="p">:</span>
+                <span class="k">if</span> <span class="s1">&#39;free_energy&#39;</span> <span class="ow">in</span> <span class="n">vo</span><span class="o">.</span><span class="n">final_data</span><span class="p">[</span><span class="s1">&#39;energy&#39;</span><span class="p">]:</span>
+                    <span class="n">energy</span> <span class="o">=</span> <span class="n">vo</span><span class="o">.</span><span class="n">final_data</span><span class="p">[</span><span class="s1">&#39;energy&#39;</span><span class="p">][</span><span class="s1">&#39;free_energy&#39;</span><span class="p">]</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Uploading energy data for </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">entry_id</span><span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">set_in_properties</span><span class="p">(</span><span class="n">entry_id</span><span class="p">,</span> <span class="s1">&#39;energy&#39;</span><span class="p">,</span> <span class="n">energy</span><span class="p">)</span>
+                    <span class="k">return</span> <span class="kc">True</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="kc">False</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span></div></div>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Guillermo Avendano-Franco.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../',
+            VERSION:'0.1.2',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

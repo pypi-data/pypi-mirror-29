@@ -1,0 +1,627 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>pychemia.db.db &mdash; pychemia 0.1.2 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../search.html"/>
+    <link rel="top" title="pychemia 0.1.2 documentation" href="../../../index.html"/>
+        <link rel="up" title="pychemia" href="../../pychemia.html"/> 
+
+  
+  <script src="../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home"> pychemia
+          
+
+          
+          </a>
+
+          
+            
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../1.Introduction.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../2.Installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../3.First_steps.html">First Steps</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../4.Tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../5.PyChemiaAPI.html">API Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../6.Contributors.html">Contributors</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">pychemia</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+          <li><a href="../../pychemia.html">pychemia</a> &raquo;</li>
+        
+      <li>pychemia.db.db</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for pychemia.db.db</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">itertools</span>
+<span class="kn">import</span> <span class="nn">json</span>
+<span class="kn">import</span> <span class="nn">socket</span>
+<span class="kn">from</span> <span class="nn">multiprocessing</span> <span class="k">import</span> <span class="n">Pool</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">pymongo</span>
+<span class="kn">from</span> <span class="nn">pymongo.errors</span> <span class="k">import</span> <span class="n">ServerSelectionTimeoutError</span><span class="p">,</span> <span class="n">OperationFailure</span>
+<span class="kn">from</span> <span class="nn">bson.objectid</span> <span class="k">import</span> <span class="n">ObjectId</span>
+
+<span class="kn">from</span> <span class="nn">pychemia</span> <span class="k">import</span> <span class="n">Structure</span><span class="p">,</span> <span class="n">HAS_PYMONGO</span>
+<span class="kn">from</span> <span class="nn">pychemia.utils.periodic</span> <span class="k">import</span> <span class="n">atomic_symbols</span>
+
+
+<div class="viewcode-block" id="PyChemiaDB"><a class="viewcode-back" href="../../../pychemia.db.html#pychemia.db.db.PyChemiaDB">[docs]</a><span class="k">class</span> <span class="nc">PyChemiaDB</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;pychemiadb&#39;</span><span class="p">,</span> <span class="n">host</span><span class="o">=</span><span class="s1">&#39;localhost&#39;</span><span class="p">,</span> <span class="n">port</span><span class="o">=</span><span class="mi">27017</span><span class="p">,</span> <span class="n">user</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">passwd</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ssl</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                 <span class="n">replicaset</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Creates a MongoDB client to &#39;host&#39; with &#39;port&#39; and connect it to the database &#39;name&#39;.</span>
+<span class="sd">        Authentication can be used with &#39;user&#39; and &#39;password&#39;</span>
+
+<span class="sd">        :param name: (str) The name of the database</span>
+<span class="sd">        :param host: (str) The host as name or IP</span>
+<span class="sd">        :param port: (int) The number of port to connect with the server (Default is 27017)</span>
+<span class="sd">        :param user: (str) The user with read or write permissions to the database</span>
+<span class="sd">        :param passwd: (str,int) Password to authenticate the user into the server</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">db_settings</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="n">name</span><span class="p">,</span>
+                            <span class="s1">&#39;host&#39;</span><span class="p">:</span> <span class="n">host</span><span class="p">,</span>
+                            <span class="s1">&#39;port&#39;</span><span class="p">:</span> <span class="n">port</span><span class="p">,</span>
+                            <span class="s1">&#39;user&#39;</span><span class="p">:</span> <span class="n">user</span><span class="p">,</span>
+                            <span class="s1">&#39;passwd&#39;</span><span class="p">:</span> <span class="n">passwd</span><span class="p">,</span>
+                            <span class="s1">&#39;ssl&#39;</span><span class="p">:</span> <span class="n">ssl</span><span class="p">,</span>
+                            <span class="s1">&#39;replicaset&#39;</span><span class="p">:</span> <span class="n">replicaset</span><span class="p">}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
+        <span class="n">maxSevSelDelay</span> <span class="o">=</span> <span class="mi">2</span>
+        <span class="n">uri</span> <span class="o">=</span> <span class="s1">&#39;mongodb://&#39;</span>
+        <span class="k">if</span> <span class="n">user</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">uri</span> <span class="o">+=</span> <span class="n">user</span>
+            <span class="k">if</span> <span class="n">passwd</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">uri</span> <span class="o">+=</span> <span class="s1">&#39;:&#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">passwd</span><span class="p">)</span>
+            <span class="n">uri</span> <span class="o">+=</span> <span class="s1">&#39;@&#39;</span>
+        <span class="n">uri</span> <span class="o">+=</span> <span class="n">host</span> <span class="o">+</span> <span class="s1">&#39;:&#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">port</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">user</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">uri</span> <span class="o">+=</span> <span class="s1">&#39;/&#39;</span> <span class="o">+</span> <span class="n">name</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">pymongo</span><span class="o">.</span><span class="n">version_tuple</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_client</span> <span class="o">=</span> <span class="n">pymongo</span><span class="o">.</span><span class="n">MongoClient</span><span class="p">(</span><span class="n">uri</span><span class="p">,</span> <span class="n">ssl</span><span class="o">=</span><span class="n">ssl</span><span class="p">,</span> <span class="n">replicaSet</span><span class="o">=</span><span class="n">replicaset</span><span class="p">,</span>
+                                                   <span class="n">serverSelectionTimeoutMS</span><span class="o">=</span><span class="n">maxSevSelDelay</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">pymongo</span><span class="o">.</span><span class="n">version_tuple</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_client</span> <span class="o">=</span> <span class="n">pymongo</span><span class="o">.</span><span class="n">MongoClient</span><span class="p">(</span><span class="n">uri</span><span class="p">,</span> <span class="n">ssl</span><span class="o">=</span><span class="n">ssl</span><span class="p">,</span>
+                                                   <span class="n">ssl_cert_reqs</span><span class="o">=</span><span class="n">pymongo</span><span class="o">.</span><span class="n">ssl_support</span><span class="o">.</span><span class="n">ssl</span><span class="o">.</span><span class="n">CERT_NONE</span><span class="p">,</span>
+                                                   <span class="n">replicaSet</span><span class="o">=</span><span class="n">replicaset</span><span class="p">,</span> <span class="n">serverSelectionTimeoutMS</span><span class="o">=</span><span class="n">maxSevSelDelay</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Wrong version of pymongo&#39;</span><span class="p">)</span>
+
+            <span class="k">try</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_client</span><span class="o">.</span><span class="n">server_info</span><span class="p">()</span>
+            <span class="k">except</span> <span class="n">OperationFailure</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;ERROR: Database &#39;</span><span class="si">%s</span><span class="s2">&#39; on &#39;</span><span class="si">%s</span><span class="s2">&#39; cannot be accessed, either the database does not &quot;</span>
+                                   <span class="s2">&quot;exist or you need the right credentials to get access&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">host</span><span class="p">))</span>
+
+        <span class="k">except</span> <span class="n">ServerSelectionTimeoutError</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;ERROR: No connexion could be established to server: </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">uri</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">db</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_client</span><span class="p">[</span><span class="n">name</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">entries</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">db</span><span class="o">.</span><span class="n">pychemia_entries</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">set_minimal_schema</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">ret</span> <span class="o">=</span> <span class="s1">&#39; Database Name:       </span><span class="si">%s</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span>
+        <span class="n">ret</span> <span class="o">+=</span> <span class="s1">&#39; Host:                </span><span class="si">%s</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">db_settings</span><span class="p">[</span><span class="s1">&#39;host&#39;</span><span class="p">]</span>
+        <span class="n">ret</span> <span class="o">+=</span> <span class="s1">&#39; Port:                </span><span class="si">%s</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">db_settings</span><span class="p">[</span><span class="s1">&#39;port&#39;</span><span class="p">]</span>
+        <span class="n">ret</span> <span class="o">+=</span> <span class="s1">&#39; User:                </span><span class="si">%s</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">db_settings</span><span class="p">[</span><span class="s1">&#39;user&#39;</span><span class="p">]</span>
+        <span class="n">ret</span> <span class="o">+=</span> <span class="s1">&#39; SSL:                 </span><span class="si">%s</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">db_settings</span><span class="p">[</span><span class="s1">&#39;ssl&#39;</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">ret</span>
+
+<div class="viewcode-block" id="PyChemiaDB.save_json"><a class="viewcode-back" href="../../../pychemia.db.html#pychemia.db.db.PyChemiaDB.save_json">[docs]</a>    <span class="k">def</span> <span class="nf">save_json</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">filename</span><span class="o">=</span><span class="s1">&#39;db_settings.json&#39;</span><span class="p">):</span>
+        <span class="n">wf</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span>
+        <span class="n">json</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">db_settings</span><span class="p">,</span> <span class="n">wf</span><span class="p">,</span> <span class="n">sort_keys</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">indent</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">separators</span><span class="o">=</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="p">,</span> <span class="s1">&#39;: &#39;</span><span class="p">))</span>
+        <span class="n">wf</span><span class="o">.</span><span class="n">close</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="PyChemiaDB.insert"><a class="viewcode-back" href="../../../pychemia.db.html#pychemia.db.db.PyChemiaDB.insert">[docs]</a>    <span class="k">def</span> <span class="nf">insert</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">structure</span><span class="p">,</span> <span class="n">properties</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">status</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">entry_id</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Insert a pychemia structure instance and properties</span>
+<span class="sd">        into the database</span>
+<span class="sd">        :param entry_id: Mongo ID for the entry</span>
+<span class="sd">        :param structure: (pychemia.Structure) An instance of Pychemia&#39;s Structure</span>
+<span class="sd">        :param properties: (dict) Dictionary of properties</span>
+<span class="sd">        :param status: (dict) Dictionary of status</span>
+<span class="sd">        :return:</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">status</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">status</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">if</span> <span class="n">properties</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">properties</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">entry</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;structure&#39;</span><span class="p">:</span> <span class="n">structure</span><span class="o">.</span><span class="n">to_dict</span><span class="p">,</span> <span class="s1">&#39;properties&#39;</span><span class="p">:</span> <span class="n">properties</span><span class="p">,</span> <span class="s1">&#39;status&#39;</span><span class="p">:</span> <span class="n">status</span><span class="p">}</span>
+        <span class="k">if</span> <span class="n">entry_id</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">entry</span><span class="p">[</span><span class="s1">&#39;_id&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">entry_id</span>
+        <span class="n">entry_id</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">entries</span><span class="o">.</span><span class="n">insert_one</span><span class="p">(</span><span class="n">entry</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">entry_id</span></div>
+
+<div class="viewcode-block" id="PyChemiaDB.clean"><a class="viewcode-back" href="../../../pychemia.db.html#pychemia.db.db.PyChemiaDB.clean">[docs]</a>    <span class="k">def</span> <span class="nf">clean</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_client</span><span class="o">.</span><span class="n">drop_database</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">db</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_client</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">]</span></div>
+
+<div class="viewcode-block" id="PyChemiaDB.update"><a class="viewcode-back" href="../../../pychemia.db.html#pychemia.db.db.PyChemiaDB.update">[docs]</a>    <span class="k">def</span> <span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entry_id</span><span class="p">,</span> <span class="n">structure</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">properties</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">status</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Update the fields &#39;structure&#39;, &#39;properties&#39; or &#39;status&#39; for a given identifier &#39;entry_id&#39;</span>
+
+<span class="sd">        :param entry_id: (ObjectID, str)</span>
+<span class="sd">        :param structure: (pychemia.Structure) Structure to update</span>
+<span class="sd">        :param properties: (dict) Dictionary of properties to update</span>
+<span class="sd">        :param status: (dict) Status dictionary</span>
+
+<span class="sd">        :return: The identifier for the entry that was updated</span>
+
+<span class="sd">        :rtype : ObjectId</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">assert</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">entries</span><span class="o">.</span><span class="n">find_one</span><span class="p">({</span><span class="s1">&#39;_id&#39;</span><span class="p">:</span> <span class="n">entry_id</span><span class="p">})</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="n">entry</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">entries</span><span class="o">.</span><span class="n">find_one</span><span class="p">({</span><span class="s1">&#39;_id&#39;</span><span class="p">:</span> <span class="n">entry_id</span><span class="p">})</span>
+        <span class="k">if</span> <span class="n">structure</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">structure</span><span class="p">,</span> <span class="n">Structure</span><span class="p">):</span>
+                <span class="n">entry</span><span class="p">[</span><span class="s1">&#39;structure&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">structure</span><span class="o">.</span><span class="n">to_dict</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">structure</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+                <span class="n">entry</span><span class="p">[</span><span class="s1">&#39;structure&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">structure</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;ERROR: Could not process the structure&#39;</span><span class="p">)</span>
+                <span class="nb">print</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">structure</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">properties</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">entry</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">properties</span>
+        <span class="k">if</span> <span class="n">status</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">entry</span><span class="p">[</span><span class="s1">&#39;status&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">status</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">entries</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s1">&#39;_id&#39;</span><span class="p">:</span> <span class="n">entry_id</span><span class="p">},</span> <span class="n">entry</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">entry_id</span></div>
+
+<div class="viewcode-block" id="PyChemiaDB.find_AnBm"><a class="viewcode-back" href="../../../pychemia.db.html#pychemia.db.db.PyChemiaDB.find_AnBm">[docs]</a>    <span class="k">def</span> <span class="nf">find_AnBm</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">specie_a</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">specie_b</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">m</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Search for structures with a composition expressed as AnBm</span>
+<span class="sd">        where one and only one between A or B is fixed and the numbers</span>
+<span class="sd">        amounts n and m are both fixed</span>
+
+<span class="sd">        :param specie_a: (str) atom symbol for the first specie</span>
+<span class="sd">        :param specie_b: (str) atom symbol for the second specie</span>
+<span class="sd">        :param n: number of atoms for specie &#39;a&#39;</span>
+<span class="sd">        :param m: number of atoms for specie &#39;b&#39;</span>
+<span class="sd">        :return:</span>
+<span class="sd">        :return: (list) List of ids for all the structures that fulfill</span>
+<span class="sd">                 the conditions</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">specie_a</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">specie_b</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Enter a specie for A or B&quot;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">specie_a</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">specie_b</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Only enter A or B, not both&quot;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">specie_a</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">atom_fixed</span> <span class="o">=</span> <span class="n">specie_a</span>
+            <span class="n">number_fixed</span> <span class="o">=</span> <span class="n">n</span>
+            <span class="n">number_unfixed</span> <span class="o">=</span> <span class="n">m</span>
+            <span class="k">assert</span> <span class="p">(</span><span class="n">specie_a</span> <span class="ow">in</span> <span class="n">atomic_symbols</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">atom_fixed</span> <span class="o">=</span> <span class="n">specie_b</span>
+            <span class="n">number_fixed</span> <span class="o">=</span> <span class="n">m</span>
+            <span class="n">number_unfixed</span> <span class="o">=</span> <span class="n">n</span>
+            <span class="k">assert</span> <span class="p">(</span><span class="n">specie_b</span> <span class="ow">in</span> <span class="n">atomic_symbols</span><span class="p">)</span>
+
+        <span class="n">ret</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">entries</span><span class="o">.</span><span class="n">find</span><span class="p">({</span><span class="s1">&#39;structure.nspecies&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s1">&#39;structure.formula&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;$regex&#39;</span><span class="p">:</span> <span class="n">atom_fixed</span><span class="p">}}):</span>
+            <span class="n">comp</span> <span class="o">=</span> <span class="n">Structure</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span><span class="n">entry</span><span class="p">[</span><span class="s1">&#39;structure&#39;</span><span class="p">])</span><span class="o">.</span><span class="n">get_composition</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">atom_fixed</span> <span class="ow">in</span> <span class="n">comp</span><span class="o">.</span><span class="n">composition</span> <span class="ow">and</span> <span class="n">comp</span><span class="o">.</span><span class="n">composition</span><span class="p">[</span><span class="n">atom_fixed</span><span class="p">]</span> <span class="o">%</span> <span class="n">number_fixed</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">species</span> <span class="o">=</span> <span class="n">comp</span><span class="o">.</span><span class="n">species</span>
+                <span class="n">species</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">atom_fixed</span><span class="p">)</span>
+                <span class="n">other_specie</span> <span class="o">=</span> <span class="n">species</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="c1"># See if the fraction n/m is correct for A and B</span>
+                <span class="k">if</span> <span class="n">number_unfixed</span> <span class="o">*</span> <span class="nb">float</span><span class="p">(</span><span class="n">comp</span><span class="o">.</span><span class="n">composition</span><span class="p">[</span><span class="n">atom_fixed</span><span class="p">])</span> <span class="o">==</span> <span class="n">number_fixed</span> <span class="o">*</span> <span class="nb">float</span><span class="p">(</span>
+                        <span class="n">comp</span><span class="o">.</span><span class="n">composition</span><span class="p">[</span><span class="n">other_specie</span><span class="p">]):</span>
+                    <span class="n">ret</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">entry</span><span class="p">[</span><span class="s1">&#39;_id&#39;</span><span class="p">])</span>
+        <span class="k">return</span> <span class="n">ret</span></div>
+
+<div class="viewcode-block" id="PyChemiaDB.find_composition"><a class="viewcode-back" href="../../../pychemia.db.html#pychemia.db.db.PyChemiaDB.find_composition">[docs]</a>    <span class="k">def</span> <span class="nf">find_composition</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">composition</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Search for structures with a pseudo-composition expressed as dictionary</span>
+<span class="sd">        where symbols that are not atomic symbols such as A or X can be used to</span>
+<span class="sd">        represent arbitrary atoms</span>
+
+<span class="sd">        :return: (list) List of ids for all the structures that fulfill</span>
+<span class="sd">                 the conditions</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">ret</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">entries</span><span class="o">.</span><span class="n">find</span><span class="p">({</span><span class="s1">&#39;nspecies&#39;</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">composition</span><span class="p">)}):</span>
+            <span class="n">comp</span> <span class="o">=</span> <span class="n">Structure</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span><span class="n">entry</span><span class="p">[</span><span class="s1">&#39;structure&#39;</span><span class="p">])</span><span class="o">.</span><span class="n">get_composition</span><span class="p">()</span>
+            <span class="n">valid</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="k">if</span> <span class="nb">sum</span><span class="p">(</span><span class="n">comp</span><span class="o">.</span><span class="n">composition</span><span class="o">.</span><span class="n">values</span><span class="p">())</span> <span class="o">%</span> <span class="nb">sum</span><span class="p">(</span><span class="n">composition</span><span class="o">.</span><span class="n">values</span><span class="p">())</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">valid</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="n">vect1</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">comp</span><span class="o">.</span><span class="n">composition</span><span class="o">.</span><span class="n">values</span><span class="p">()))</span>
+            <span class="n">vect2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">composition</span><span class="o">.</span><span class="n">values</span><span class="p">()))</span>
+            <span class="n">v12</span> <span class="o">=</span> <span class="n">vect1</span> <span class="o">/</span> <span class="n">vect2</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">v12</span> <span class="o">==</span> <span class="n">v12</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
+                <span class="n">valid</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="k">for</span> <span class="n">ispecie</span> <span class="ow">in</span> <span class="n">composition</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">ispecie</span> <span class="ow">in</span> <span class="n">atomic_symbols</span> <span class="ow">and</span> <span class="n">ispecie</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">comp</span><span class="o">.</span><span class="n">species</span><span class="p">:</span>
+                    <span class="n">valid</span> <span class="o">=</span> <span class="kc">False</span>
+
+            <span class="k">if</span> <span class="n">valid</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="n">comp</span><span class="o">.</span><span class="n">composition</span><span class="p">)</span>
+                <span class="n">ret</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">entry</span><span class="p">[</span><span class="s1">&#39;_id&#39;</span><span class="p">])</span>
+        <span class="k">return</span> <span class="n">ret</span></div>
+
+<div class="viewcode-block" id="PyChemiaDB.get_structure"><a class="viewcode-back" href="../../../pychemia.db.html#pychemia.db.db.PyChemiaDB.get_structure">[docs]</a>    <span class="k">def</span> <span class="nf">get_structure</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entry_id</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return the structure in the entry with id &#39;entry_id&#39;</span>
+
+<span class="sd">        :rtype : Structure</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">entry</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">entries</span><span class="o">.</span><span class="n">find_one</span><span class="p">({</span><span class="s1">&#39;_id&#39;</span><span class="p">:</span> <span class="n">entry_id</span><span class="p">})</span>
+        <span class="k">return</span> <span class="n">Structure</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span><span class="n">entry</span><span class="p">[</span><span class="s1">&#39;structure&#39;</span><span class="p">])</span></div>
+
+<div class="viewcode-block" id="PyChemiaDB.get_dicts"><a class="viewcode-back" href="../../../pychemia.db.html#pychemia.db.db.PyChemiaDB.get_dicts">[docs]</a>    <span class="k">def</span> <span class="nf">get_dicts</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entry_id</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return a tuple with the fields in an entry</span>
+<span class="sd">        structure, properties and status</span>
+
+<span class="sd">        :rtype : tuple</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">entry</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">entries</span><span class="o">.</span><span class="n">find_one</span><span class="p">({</span><span class="s1">&#39;_id&#39;</span><span class="p">:</span> <span class="n">entry_id</span><span class="p">})</span>
+        <span class="n">structure_dict</span> <span class="o">=</span> <span class="n">entry</span><span class="p">[</span><span class="s1">&#39;structure&#39;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="s1">&#39;properties&#39;</span> <span class="ow">in</span> <span class="n">entry</span><span class="p">:</span>
+            <span class="n">properties</span> <span class="o">=</span> <span class="n">entry</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">properties</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="s1">&#39;status&#39;</span> <span class="ow">in</span> <span class="n">entry</span><span class="p">:</span>
+            <span class="n">status</span> <span class="o">=</span> <span class="n">entry</span><span class="p">[</span><span class="s1">&#39;status&#39;</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">status</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="k">return</span> <span class="n">structure_dict</span><span class="p">,</span> <span class="n">properties</span><span class="p">,</span> <span class="n">status</span></div>
+
+<div class="viewcode-block" id="PyChemiaDB.get_entry"><a class="viewcode-back" href="../../../pychemia.db.html#pychemia.db.db.PyChemiaDB.get_entry">[docs]</a>    <span class="k">def</span> <span class="nf">get_entry</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entry_id</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">entries</span><span class="o">.</span><span class="n">find_one</span><span class="p">({</span><span class="s1">&#39;_id&#39;</span><span class="p">:</span> <span class="n">entry_id</span><span class="p">})</span></div>
+
+<div class="viewcode-block" id="PyChemiaDB.is_locked"><a class="viewcode-back" href="../../../pychemia.db.html#pychemia.db.db.PyChemiaDB.is_locked">[docs]</a>    <span class="k">def</span> <span class="nf">is_locked</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entry_id</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return if a given entry is locked by someone</span>
+<span class="sd">        evaluating the structure contained</span>
+
+<span class="sd">        :rtype : bool</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">entry</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">entries</span><span class="o">.</span><span class="n">find_one</span><span class="p">({</span><span class="s1">&#39;_id&#39;</span><span class="p">:</span> <span class="n">entry_id</span><span class="p">})</span>
+
+        <span class="k">if</span> <span class="s1">&#39;status&#39;</span> <span class="ow">in</span> <span class="n">entry</span> <span class="ow">and</span> <span class="n">entry</span><span class="p">[</span><span class="s1">&#39;status&#39;</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="s1">&#39;lock&#39;</span> <span class="ow">in</span> <span class="n">entry</span><span class="p">[</span><span class="s1">&#39;status&#39;</span><span class="p">]:</span>
+            <span class="k">return</span> <span class="kc">True</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span></div>
+
+<div class="viewcode-block" id="PyChemiaDB.lock"><a class="viewcode-back" href="../../../pychemia.db.html#pychemia.db.db.PyChemiaDB.lock">[docs]</a>    <span class="k">def</span> <span class="nf">lock</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entry_id</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">name</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">name</span> <span class="o">=</span> <span class="n">socket</span><span class="o">.</span><span class="n">gethostname</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">entries</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s1">&#39;_id&#39;</span><span class="p">:</span> <span class="n">entry_id</span><span class="p">},</span> <span class="p">{</span><span class="s1">&#39;$set&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;status.lock&#39;</span><span class="p">:</span> <span class="n">name</span><span class="p">}})</span></div>
+
+<div class="viewcode-block" id="PyChemiaDB.unlock"><a class="viewcode-back" href="../../../pychemia.db.html#pychemia.db.db.PyChemiaDB.unlock">[docs]</a>    <span class="k">def</span> <span class="nf">unlock</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entry_id</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">name</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">entries</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s1">&#39;_id&#39;</span><span class="p">:</span> <span class="n">entry_id</span><span class="p">},</span> <span class="p">{</span><span class="s1">&#39;$unset&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;status.lock&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">}})</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">entries</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s1">&#39;_id&#39;</span><span class="p">:</span> <span class="n">entry_id</span><span class="p">,</span> <span class="s1">&#39;status.lock&#39;</span><span class="p">:</span> <span class="n">name</span><span class="p">},</span> <span class="p">{</span><span class="s1">&#39;$unset&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;status.lock&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">}})</span></div>
+
+<div class="viewcode-block" id="PyChemiaDB.set_minimal_schema"><a class="viewcode-back" href="../../../pychemia.db.html#pychemia.db.db.PyChemiaDB.set_minimal_schema">[docs]</a>    <span class="k">def</span> <span class="nf">set_minimal_schema</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">entry_id</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">entries</span><span class="o">.</span><span class="n">find</span><span class="p">({</span><span class="s1">&#39;status&#39;</span><span class="p">:</span> <span class="kc">None</span><span class="p">},</span> <span class="p">{</span><span class="s1">&#39;status&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">}):</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">entry_id</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">entries</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s1">&#39;_id&#39;</span><span class="p">:</span> <span class="n">entry_id</span><span class="p">[</span><span class="s1">&#39;_id&#39;</span><span class="p">]},</span> <span class="p">{</span><span class="s1">&#39;$set&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;status&#39;</span><span class="p">:</span> <span class="p">{}}})</span>
+        <span class="k">for</span> <span class="n">entry_id</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">entries</span><span class="o">.</span><span class="n">find</span><span class="p">({</span><span class="s1">&#39;properties&#39;</span><span class="p">:</span> <span class="kc">None</span><span class="p">}):</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">entry_id</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">entries</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s1">&#39;_id&#39;</span><span class="p">:</span> <span class="n">entry_id</span><span class="p">[</span><span class="s1">&#39;_id&#39;</span><span class="p">]},</span> <span class="p">{</span><span class="s1">&#39;$set&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;properties&#39;</span><span class="p">:</span> <span class="p">{}}})</span></div>
+
+<div class="viewcode-block" id="PyChemiaDB.create_static"><a class="viewcode-back" href="../../../pychemia.db.html#pychemia.db.db.PyChemiaDB.create_static">[docs]</a>    <span class="k">def</span> <span class="nf">create_static</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">field</span><span class="p">):</span>
+
+        <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">entries</span><span class="o">.</span><span class="n">find</span><span class="p">({}):</span>
+            <span class="n">entry</span><span class="p">[</span><span class="n">field</span> <span class="o">+</span> <span class="s1">&#39;_static&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">entry</span><span class="p">[</span><span class="n">field</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">db</span><span class="o">.</span><span class="n">pychemia_entries</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s1">&#39;_id&#39;</span><span class="p">:</span> <span class="n">entry</span><span class="p">[</span><span class="s1">&#39;_id&#39;</span><span class="p">]},</span> <span class="n">entry</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="PyChemiaDB.map_to_all"><a class="viewcode-back" href="../../../pychemia.db.html#pychemia.db.db.PyChemiaDB.map_to_all">[docs]</a>    <span class="k">def</span> <span class="nf">map_to_all</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">function</span><span class="p">,</span> <span class="n">nparal</span><span class="o">=</span><span class="mi">6</span><span class="p">):</span>
+
+        <span class="n">pool</span> <span class="o">=</span> <span class="n">Pool</span><span class="p">(</span><span class="n">processes</span><span class="o">=</span><span class="n">nparal</span><span class="p">)</span>
+        <span class="n">cursor</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">entries</span><span class="o">.</span><span class="n">find</span><span class="p">({},</span> <span class="n">no_cursor_timeout</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">cursor</span><span class="o">.</span><span class="n">count</span><span class="p">())</span>
+        <span class="n">entries</span> <span class="o">=</span> <span class="p">[</span><span class="n">entry</span><span class="p">[</span><span class="s1">&#39;_id&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">cursor</span><span class="p">]</span>
+        <span class="n">ret</span> <span class="o">=</span> <span class="n">pool</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">itertools</span><span class="o">.</span><span class="n">izip</span><span class="p">(</span><span class="n">itertools</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">db_settings</span><span class="p">),</span> <span class="n">entries</span><span class="p">))</span>
+        <span class="n">cursor</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">ret</span></div>
+
+<div class="viewcode-block" id="PyChemiaDB.replace_failed"><a class="viewcode-back" href="../../../pychemia.db.html#pychemia.db.db.PyChemiaDB.replace_failed">[docs]</a>    <span class="k">def</span> <span class="nf">replace_failed</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">entries</span><span class="o">.</span><span class="n">find</span><span class="p">({</span><span class="s1">&#39;status.relaxation&#39;</span><span class="p">:</span> <span class="s1">&#39;failed&#39;</span><span class="p">}):</span>
+            <span class="n">st</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_structure</span><span class="p">(</span><span class="n">entry</span><span class="p">[</span><span class="s1">&#39;_id&#39;</span><span class="p">])</span>
+            <span class="n">comp</span> <span class="o">=</span> <span class="n">st</span><span class="o">.</span><span class="n">composition</span>
+            <span class="n">new_structure</span> <span class="o">=</span> <span class="n">Structure</span><span class="o">.</span><span class="n">random_cell</span><span class="p">(</span><span class="n">comp</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">entries</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s1">&#39;_id&#39;</span><span class="p">:</span> <span class="n">entry</span><span class="p">[</span><span class="s1">&#39;_id&#39;</span><span class="p">]},</span> <span class="p">{</span><span class="s1">&#39;$unset&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;status.relaxation&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+                                                                   <span class="s1">&#39;status.target_forces&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+                                                                   <span class="s1">&#39;properties.energy&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+                                                                   <span class="s1">&#39;properties.forces&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+                                                                   <span class="s1">&#39;properties.stress&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">}})</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">entry</span><span class="p">[</span><span class="s1">&#39;_id&#39;</span><span class="p">],</span> <span class="n">structure</span><span class="o">=</span><span class="n">new_structure</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="PyChemiaDB.get_tags"><a class="viewcode-back" href="../../../pychemia.db.html#pychemia.db.db.PyChemiaDB.get_tags">[docs]</a>    <span class="k">def</span> <span class="nf">get_tags</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">entries</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="p">[</span><span class="s1">&#39;status&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">entries</span><span class="o">.</span><span class="n">find</span><span class="p">({},</span> <span class="p">{</span><span class="s1">&#39;status&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">})]</span>
+        <span class="n">ret</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">entries</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">i</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">j</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="sa">u</span><span class="s1">&#39;target_forces&#39;</span><span class="p">,</span> <span class="sa">u</span><span class="s1">&#39;relaxation&#39;</span><span class="p">,</span> <span class="sa">u</span><span class="s1">&#39;lock&#39;</span><span class="p">]</span> <span class="ow">and</span> <span class="n">j</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">ret</span><span class="p">:</span>
+                    <span class="n">ret</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">j</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">ret</span></div></div>
+
+
+<div class="viewcode-block" id="get_database"><a class="viewcode-back" href="../../../pychemia.db.html#pychemia.db.db.get_database">[docs]</a><span class="k">def</span> <span class="nf">get_database</span><span class="p">(</span><span class="n">db_settings</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Return a PyChemiaDB object either by recovering the database from its name on MongoDB or</span>
+<span class="sd">    by creating a new one. The argument is a single python dictionary that should contain</span>
+<span class="sd">    keys and values to create or get the database.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="s1">&#39;host&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">db_settings</span><span class="p">:</span>
+        <span class="n">db_settings</span><span class="p">[</span><span class="s1">&#39;host&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;localhost&#39;</span>
+    <span class="k">if</span> <span class="s1">&#39;port&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">db_settings</span><span class="p">:</span>
+        <span class="n">db_settings</span><span class="p">[</span><span class="s1">&#39;port&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">27017</span>
+    <span class="k">if</span> <span class="s1">&#39;ssl&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">db_settings</span><span class="p">:</span>
+        <span class="n">db_settings</span><span class="p">[</span><span class="s1">&#39;ssl&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="k">if</span> <span class="s1">&#39;replicaset&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">db_settings</span><span class="p">:</span>
+        <span class="n">db_settings</span><span class="p">[</span><span class="s1">&#39;replicaset&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="s1">&#39;user&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">db_settings</span><span class="p">:</span>
+        <span class="n">pcdb</span> <span class="o">=</span> <span class="n">PyChemiaDB</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">db_settings</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">],</span> <span class="n">host</span><span class="o">=</span><span class="n">db_settings</span><span class="p">[</span><span class="s1">&#39;host&#39;</span><span class="p">],</span> <span class="n">port</span><span class="o">=</span><span class="n">db_settings</span><span class="p">[</span><span class="s1">&#39;port&#39;</span><span class="p">],</span>
+                          <span class="n">ssl</span><span class="o">=</span><span class="n">db_settings</span><span class="p">[</span><span class="s1">&#39;ssl&#39;</span><span class="p">],</span> <span class="n">replicaset</span><span class="o">=</span><span class="n">db_settings</span><span class="p">[</span><span class="s1">&#39;replicaset&#39;</span><span class="p">])</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">if</span> <span class="s1">&#39;admin_name&#39;</span> <span class="ow">in</span> <span class="n">db_settings</span> <span class="ow">and</span> <span class="s1">&#39;admin_passwd&#39;</span> <span class="ow">in</span> <span class="n">db_settings</span><span class="p">:</span>
+            <span class="n">pcdb</span> <span class="o">=</span> <span class="n">create_database</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">db_settings</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">],</span> <span class="n">host</span><span class="o">=</span><span class="n">db_settings</span><span class="p">[</span><span class="s1">&#39;host&#39;</span><span class="p">],</span> 
+                                   <span class="n">port</span><span class="o">=</span><span class="n">db_settings</span><span class="p">[</span><span class="s1">&#39;port&#39;</span><span class="p">],</span> <span class="n">ssl</span><span class="o">=</span><span class="n">db_settings</span><span class="p">[</span><span class="s1">&#39;ssl&#39;</span><span class="p">],</span> 
+                                   <span class="n">user_name</span><span class="o">=</span><span class="n">db_settings</span><span class="p">[</span><span class="s1">&#39;user&#39;</span><span class="p">],</span> 
+                                   <span class="n">user_passwd</span><span class="o">=</span><span class="n">db_settings</span><span class="p">[</span><span class="s1">&#39;passwd&#39;</span><span class="p">],</span>
+                                   <span class="n">admin_name</span><span class="o">=</span><span class="n">db_settings</span><span class="p">[</span><span class="s1">&#39;admin_name&#39;</span><span class="p">],</span> 
+                                   <span class="n">admin_passwd</span><span class="o">=</span><span class="n">db_settings</span><span class="p">[</span><span class="s1">&#39;admin_passwd&#39;</span><span class="p">],</span>
+                                   <span class="n">replicaset</span><span class="o">=</span><span class="n">db_settings</span><span class="p">[</span><span class="s1">&#39;replicaset&#39;</span><span class="p">])</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">pcdb</span> <span class="o">=</span> <span class="n">PyChemiaDB</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">db_settings</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">],</span> <span class="n">host</span><span class="o">=</span><span class="n">db_settings</span><span class="p">[</span><span class="s1">&#39;host&#39;</span><span class="p">],</span> 
+                              <span class="n">port</span><span class="o">=</span><span class="n">db_settings</span><span class="p">[</span><span class="s1">&#39;port&#39;</span><span class="p">],</span> <span class="n">user</span><span class="o">=</span><span class="n">db_settings</span><span class="p">[</span><span class="s1">&#39;user&#39;</span><span class="p">],</span> 
+                              <span class="n">passwd</span><span class="o">=</span><span class="n">db_settings</span><span class="p">[</span><span class="s1">&#39;passwd&#39;</span><span class="p">],</span> <span class="n">ssl</span><span class="o">=</span><span class="n">db_settings</span><span class="p">[</span><span class="s1">&#39;ssl&#39;</span><span class="p">],</span>
+                              <span class="n">replicaset</span><span class="o">=</span><span class="n">db_settings</span><span class="p">[</span><span class="s1">&#39;replicaset&#39;</span><span class="p">])</span>
+    <span class="k">return</span> <span class="n">pcdb</span></div>
+
+
+<div class="viewcode-block" id="create_database"><a class="viewcode-back" href="../../../pychemia.db.html#pychemia.db.db.create_database">[docs]</a><span class="k">def</span> <span class="nf">create_database</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">admin_name</span><span class="p">,</span> <span class="n">admin_passwd</span><span class="p">,</span> <span class="n">user_name</span><span class="p">,</span> <span class="n">user_passwd</span><span class="p">,</span> 
+                    <span class="n">host</span><span class="o">=</span><span class="s1">&#39;localhost&#39;</span><span class="p">,</span> <span class="n">port</span><span class="o">=</span><span class="mi">27017</span><span class="p">,</span> <span class="n">ssl</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">replicaset</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Creates a new database for the database &#39;name&#39;</span>
+
+<span class="sd">    :param name: (str) The name of the database</span>
+<span class="sd">    :param admin_name: (str) The administrator name</span>
+<span class="sd">    :param admin_passwd: (str) Administrator password</span>
+<span class="sd">    :param user_name: (str) Username for the database</span>
+<span class="sd">    :param user_passwd: (str) Password for the user</span>
+<span class="sd">    :param host: (str) Name of the host for the MongoDB server (default: &#39;localhost&#39;)</span>
+<span class="sd">    :param port: (int) Port to connect to the MongoDB server (default: 27017)</span>
+<span class="sd">    :param ssl: (bool) If True enable ssl encryption for communications to host (default: False)</span>
+<span class="sd">    :param replicaset: (str, None) Identifier of a Replica Set</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">maxSevSelDelay</span> <span class="o">=</span> <span class="mi">2</span>
+    <span class="n">mc</span> <span class="o">=</span> <span class="n">pymongo</span><span class="o">.</span><span class="n">MongoClient</span><span class="p">(</span><span class="n">host</span><span class="o">=</span><span class="n">host</span><span class="p">,</span> <span class="n">port</span><span class="o">=</span><span class="n">port</span><span class="p">,</span> <span class="n">ssl</span><span class="o">=</span><span class="n">ssl</span><span class="p">,</span> 
+                             <span class="n">ssl_cert_reqs</span><span class="o">=</span><span class="n">pymongo</span><span class="o">.</span><span class="n">ssl_support</span><span class="o">.</span><span class="n">ssl</span><span class="o">.</span><span class="n">CERT_NONE</span><span class="p">,</span>
+                             <span class="n">replicaset</span><span class="o">=</span><span class="n">replicaset</span><span class="p">,</span> <span class="n">serverSelectionTimeoutMS</span><span class="o">=</span><span class="n">maxSevSelDelay</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">mc</span><span class="o">.</span><span class="n">admin</span><span class="o">.</span><span class="n">authenticate</span><span class="p">(</span><span class="n">admin_name</span><span class="p">,</span> <span class="n">admin_passwd</span><span class="p">)</span>
+    <span class="k">except</span> <span class="n">OperationFailure</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Could not authenticate with the provided credentials&quot;</span><span class="p">)</span>
+
+    <span class="n">mc</span><span class="p">[</span><span class="n">name</span><span class="p">]</span><span class="o">.</span><span class="n">add_user</span><span class="p">(</span><span class="n">user_name</span><span class="p">,</span> <span class="n">user_passwd</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">PyChemiaDB</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span> <span class="n">user</span><span class="o">=</span><span class="n">user_name</span><span class="p">,</span> <span class="n">passwd</span><span class="o">=</span><span class="n">user_passwd</span><span class="p">,</span> <span class="n">host</span><span class="o">=</span><span class="n">host</span><span class="p">,</span> <span class="n">port</span><span class="o">=</span><span class="n">port</span><span class="p">,</span> <span class="n">ssl</span><span class="o">=</span><span class="n">ssl</span><span class="p">,</span>
+                      <span class="n">replicaset</span><span class="o">=</span><span class="n">replicaset</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="object_id"><a class="viewcode-back" href="../../../pychemia.db.html#pychemia.db.db.object_id">[docs]</a><span class="k">def</span> <span class="nf">object_id</span><span class="p">(</span><span class="n">entry_id</span><span class="p">):</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">entry_id</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">ObjectId</span><span class="p">(</span><span class="n">entry_id</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">entry_id</span><span class="p">,</span> <span class="n">ObjectId</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">entry_id</span></div>
+
+
+<div class="viewcode-block" id="has_connection"><a class="viewcode-back" href="../../../pychemia.db.html#pychemia.db.db.has_connection">[docs]</a><span class="k">def</span> <span class="nf">has_connection</span><span class="p">(</span><span class="n">host</span><span class="o">=</span><span class="s1">&#39;localhost&#39;</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">HAS_PYMONGO</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="kn">import</span> <span class="nn">pymongo</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">maxSevSelDelay</span> <span class="o">=</span> <span class="mi">2</span>
+        <span class="n">client</span> <span class="o">=</span> <span class="n">pymongo</span><span class="o">.</span><span class="n">MongoClient</span><span class="p">(</span><span class="n">host</span><span class="p">,</span> <span class="n">serverSelectionTimeoutMS</span><span class="o">=</span><span class="n">maxSevSelDelay</span><span class="p">)</span>
+        <span class="n">client</span><span class="o">.</span><span class="n">server_info</span><span class="p">()</span>  <span class="c1"># force connection on a request as the</span>
+        <span class="c1"># connect=True parameter of MongoClient seems</span>
+        <span class="c1"># to be useless here</span>
+        <span class="k">return</span> <span class="kc">True</span>
+    <span class="k">except</span> <span class="n">pymongo</span><span class="o">.</span><span class="n">errors</span><span class="o">.</span><span class="n">ServerSelectionTimeoutError</span> <span class="k">as</span> <span class="n">err</span><span class="p">:</span>
+        <span class="c1"># do whatever you need</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">err</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">False</span></div>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Guillermo Avendano-Franco.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../',
+            VERSION:'0.1.2',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

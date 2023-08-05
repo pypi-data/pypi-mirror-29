@@ -1,0 +1,481 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>pychemia.code.octopus.analysis &mdash; pychemia 0.1.2 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../../search.html"/>
+    <link rel="top" title="pychemia 0.1.2 documentation" href="../../../../index.html"/>
+        <link rel="up" title="pychemia" href="../../../pychemia.html"/> 
+
+  
+  <script src="../../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../../index.html" class="icon icon-home"> pychemia
+          
+
+          
+          </a>
+
+          
+            
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../1.Introduction.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../2.Installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../3.First_steps.html">First Steps</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../4.Tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../5.PyChemiaAPI.html">API Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../6.Contributors.html">Contributors</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../index.html">pychemia</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../../index.html">Module code</a> &raquo;</li>
+        
+          <li><a href="../../../pychemia.html">pychemia</a> &raquo;</li>
+        
+      <li>pychemia.code.octopus.analysis</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for pychemia.code.octopus.analysis</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Useful routines to get physical data from octopus TD runs</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">from</span> <span class="nn">math</span> <span class="k">import</span> <span class="n">acos</span>
+<span class="kn">import</span> <span class="nn">scipy.io.netcdf</span>
+<span class="kn">from</span> <span class="nn">numpy</span> <span class="k">import</span> <span class="n">linalg</span><span class="p">,</span> <span class="n">zeros</span><span class="p">,</span> <span class="n">loadtxt</span><span class="p">,</span> <span class="n">apply_along_axis</span><span class="p">,</span> <span class="n">newaxis</span><span class="p">,</span> <span class="n">polyfit</span><span class="p">,</span> <span class="n">poly1d</span><span class="p">,</span> <span class="n">dot</span><span class="p">,</span> <span class="n">array</span>
+<span class="kn">import</span> <span class="nn">pychemia</span>
+
+
+<div class="viewcode-block" id="get_last_iteration"><a class="viewcode-back" href="../../../../pychemia.code.octopus.html#pychemia.code.octopus.analysis.get_last_iteration">[docs]</a><span class="k">def</span> <span class="nf">get_last_iteration</span><span class="p">(</span><span class="n">dirname</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Get the last &quot;td.xxxxxxx&quot; found in dirname</span>
+
+<span class="sd">    :param dirname: (str) Directory to take last information</span>
+<span class="sd">    :return:</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="nb">sorted</span><span class="p">([</span><span class="nb">int</span><span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="mi">3</span><span class="p">:])</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">listdir</span><span class="p">(</span><span class="n">dirname</span><span class="p">)</span> <span class="k">if</span> <span class="n">x</span><span class="p">[:</span><span class="mi">3</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;td.&#39;</span> <span class="ow">and</span> <span class="n">x</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">isdigit</span><span class="p">()])[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span></div>
+
+
+<div class="viewcode-block" id="hirshfeld"><a class="viewcode-back" href="../../../../pychemia.code.octopus.html#pychemia.code.octopus.analysis.hirshfeld">[docs]</a><span class="k">def</span> <span class="nf">hirshfeld</span><span class="p">(</span><span class="n">dirname</span><span class="p">,</span> <span class="n">iteration</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">spin</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Get the Hirshfeld charge analysis for all the atoms</span>
+<span class="sd">    comparing for a given iteration and spin.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        dirname:</span>
+<span class="sd">           The directory where the octopus data was produced</span>
+
+<span class="sd">        iteration:</span>
+<span class="sd">           Iteration to make the difference, if absent the last iteration</span>
+<span class="sd">           will be taken</span>
+<span class="sd">        spin:</span>
+<span class="sd">           Integer with the spin for which the data will be taken, if absent</span>
+<span class="sd">           the addition of both spins will be returned</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        A numpy array for the number of atoms with the Hirsfeld charges</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">iteration</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">iteration</span> <span class="o">=</span> <span class="n">get_last_iteration</span><span class="p">(</span><span class="n">dirname</span><span class="p">)</span>
+
+    <span class="n">inp</span> <span class="o">=</span> <span class="n">pychemia</span><span class="o">.</span><span class="n">code</span><span class="o">.</span><span class="n">octopus</span><span class="o">.</span><span class="n">OctopusInput</span><span class="p">(</span><span class="n">dirname</span> <span class="o">+</span> <span class="s1">&#39;/inp&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">inp</span><span class="o">.</span><span class="n">variables</span><span class="p">[</span><span class="s1">&#39;SpinComponents&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;spin_polarized&#39;</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">spin</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">it</span><span class="p">,</span> <span class="n">hirshfeld1</span> <span class="o">=</span> <span class="n">hirshfeld</span><span class="p">(</span><span class="n">dirname</span><span class="p">,</span> <span class="n">iteration</span><span class="p">,</span> <span class="n">spin</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+            <span class="n">it</span><span class="p">,</span> <span class="n">hirshfeld2</span> <span class="o">=</span> <span class="n">hirshfeld</span><span class="p">(</span><span class="n">dirname</span><span class="p">,</span> <span class="n">iteration</span><span class="p">,</span> <span class="n">spin</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">it</span><span class="p">,</span> <span class="n">hirshfeld1</span> <span class="o">+</span> <span class="n">hirshfeld2</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">sp</span> <span class="o">=</span> <span class="s1">&#39;-sp&#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">spin</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">sp</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+
+    <span class="n">filename</span> <span class="o">=</span> <span class="n">dirname</span> <span class="o">+</span> <span class="s1">&#39;/td.&#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">iteration</span><span class="p">)</span><span class="o">.</span><span class="n">zfill</span><span class="p">(</span><span class="mi">7</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;/density&#39;</span> <span class="o">+</span> <span class="n">sp</span> <span class="o">+</span> <span class="s1">&#39;-hirschfeld.dat&#39;</span>
+    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">filename</span><span class="p">):</span>
+        <span class="n">hirshfeld_value</span> <span class="o">=</span> <span class="n">loadtxt</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">filename</span> <span class="o">=</span> <span class="n">dirname</span> <span class="o">+</span> <span class="s1">&#39;/td.&#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">iteration</span><span class="p">)</span><span class="o">.</span><span class="n">zfill</span><span class="p">(</span><span class="mi">7</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;/density&#39;</span> <span class="o">+</span> <span class="n">sp</span> <span class="o">+</span> <span class="s1">&#39;-hirshfeld.dat&#39;</span>
+        <span class="n">hirshfeld_value</span> <span class="o">=</span> <span class="n">loadtxt</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">iteration</span><span class="p">,</span> <span class="n">hirshfeld_value</span></div>
+
+
+<div class="viewcode-block" id="deflection"><a class="viewcode-back" href="../../../../pychemia.code.octopus.html#pychemia.code.octopus.analysis.deflection">[docs]</a><span class="k">def</span> <span class="nf">deflection</span><span class="p">(</span><span class="n">dirname</span><span class="p">,</span> <span class="n">iteration</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Get the deflection angle respect to the initial velocity</span>
+<span class="sd">    for all the atoms and for a given iteration and spin.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        dirname:</span>
+<span class="sd">           The directory where the octopus data was produced</span>
+
+<span class="sd">        iteration:</span>
+<span class="sd">           Iteration to make the difference, if absent the last iteration</span>
+<span class="sd">           will be taken</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        A numpy array for the number of atoms with the Hirsfeld charges</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="n">iteration</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">iteration</span> <span class="o">=</span> <span class="n">get_last_iteration</span><span class="p">(</span><span class="n">dirname</span><span class="p">)</span>
+
+    <span class="n">natom</span><span class="p">,</span> <span class="n">iterations</span><span class="p">,</span> <span class="n">times</span><span class="p">,</span> <span class="n">positions</span><span class="p">,</span> <span class="n">velocities</span><span class="p">,</span> <span class="n">forces</span> <span class="o">=</span> <span class="n">pychemia</span><span class="o">.</span><span class="n">code</span><span class="o">.</span><span class="n">octopus</span><span class="o">.</span><span class="n">coordinates</span><span class="p">(</span><span class="n">dirname</span><span class="p">)</span>
+    <span class="n">angle</span> <span class="o">=</span> <span class="n">zeros</span><span class="p">(</span><span class="n">natom</span><span class="p">)</span>
+    <span class="n">univel</span> <span class="o">=</span> <span class="n">zeros</span><span class="p">((</span><span class="n">natom</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
+
+    <span class="k">if</span> <span class="n">iteration</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Error: To get the deflection some evolution is necessary (iteration!=0)&#39;</span><span class="p">)</span>
+
+    <span class="k">else</span><span class="p">:</span>
+
+        <span class="c1"># Vector of displacement from (0 -&gt; t)</span>
+        <span class="n">dis</span> <span class="o">=</span> <span class="n">positions</span><span class="p">[</span><span class="n">iteration</span><span class="p">]</span> <span class="o">-</span> <span class="n">positions</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="c1"># Magnitude of the displacement</span>
+        <span class="n">mag</span> <span class="o">=</span> <span class="n">apply_along_axis</span><span class="p">(</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">dis</span><span class="p">)</span>
+        <span class="c1"># Unitary vectors of displacement</span>
+        <span class="n">unidis</span> <span class="o">=</span> <span class="n">dis</span> <span class="o">/</span> <span class="n">mag</span><span class="p">[:,</span> <span class="n">newaxis</span><span class="p">]</span>
+
+        <span class="c1"># Unitary vector of velocity</span>
+        <span class="n">vel</span> <span class="o">=</span> <span class="n">array</span><span class="p">(</span><span class="n">velocities</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">natom</span><span class="p">):</span>
+            <span class="c1"># Magnitude of the velocities</span>
+            <span class="n">mag</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">vel</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+            <span class="c1"># Unitary vectors of velocity</span>
+            <span class="k">if</span> <span class="n">mag</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">univel</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">/</span> <span class="n">mag</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="o">*</span> <span class="n">vel</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+                <span class="n">angle</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">acos</span><span class="p">(</span><span class="n">dot</span><span class="p">(</span><span class="n">univel</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">unidis</span><span class="p">[</span><span class="n">i</span><span class="p">]))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">angle</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span>
+
+    <span class="k">return</span> <span class="n">angle</span></div>
+
+
+<div class="viewcode-block" id="magnitude_velocity"><a class="viewcode-back" href="../../../../pychemia.code.octopus.html#pychemia.code.octopus.analysis.magnitude_velocity">[docs]</a><span class="k">def</span> <span class="nf">magnitude_velocity</span><span class="p">(</span><span class="n">dirname</span><span class="p">,</span> <span class="n">iteration</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Magnitude of velocity for each atom</span>
+
+<span class="sd">    :param dirname: (str) Directory to analyse velocities</span>
+<span class="sd">    :param iteration: (int) Number of iteration to use</span>
+<span class="sd">    :return:</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="n">iteration</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">iteration</span> <span class="o">=</span> <span class="n">get_last_iteration</span><span class="p">(</span><span class="n">dirname</span><span class="p">)</span>
+
+    <span class="n">natom</span><span class="p">,</span> <span class="n">iterations</span><span class="p">,</span> <span class="n">times</span><span class="p">,</span> <span class="n">positions</span><span class="p">,</span> <span class="n">velocities</span><span class="p">,</span> <span class="n">forces</span> <span class="o">=</span> <span class="n">pychemia</span><span class="o">.</span><span class="n">code</span><span class="o">.</span><span class="n">octopus</span><span class="o">.</span><span class="n">coordinates</span><span class="p">(</span><span class="n">dirname</span><span class="p">)</span>
+
+    <span class="n">magvel</span> <span class="o">=</span> <span class="n">apply_along_axis</span><span class="p">(</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">velocities</span><span class="p">[</span><span class="n">iteration</span><span class="p">])</span>
+
+    <span class="k">return</span> <span class="n">magvel</span></div>
+
+
+<div class="viewcode-block" id="change_kinetic_energy"><a class="viewcode-back" href="../../../../pychemia.code.octopus.html#pychemia.code.octopus.analysis.change_kinetic_energy">[docs]</a><span class="k">def</span> <span class="nf">change_kinetic_energy</span><span class="p">(</span><span class="n">dirname</span><span class="p">,</span> <span class="n">iteration</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Change of Kinetic energy respect to initial value</span>
+
+<span class="sd">    :param dirname: (str) Directory to read</span>
+<span class="sd">    :param iteration: (int) Iteration number to read</span>
+<span class="sd">    :return:</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">iteration</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">iteration</span> <span class="o">=</span> <span class="n">get_last_iteration</span><span class="p">(</span><span class="n">dirname</span><span class="p">)</span>
+
+    <span class="n">iterations</span><span class="p">,</span> <span class="n">times</span><span class="p">,</span> <span class="n">energy_dict</span> <span class="o">=</span> <span class="n">pychemia</span><span class="o">.</span><span class="n">code</span><span class="o">.</span><span class="n">octopus</span><span class="o">.</span><span class="n">energy</span><span class="p">(</span><span class="n">dirname</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">energy_dict</span><span class="p">[</span><span class="s1">&#39;Kinetic&#39;</span><span class="p">][</span><span class="n">iteration</span><span class="p">]</span> <span class="o">-</span> <span class="n">energy_dict</span><span class="p">[</span><span class="s1">&#39;Kinetic&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span></div>
+
+
+<div class="viewcode-block" id="value_in_sphere"><a class="viewcode-back" href="../../../../pychemia.code.octopus.html#pychemia.code.octopus.analysis.value_in_sphere">[docs]</a><span class="k">def</span> <span class="nf">value_in_sphere</span><span class="p">(</span><span class="n">dirname</span><span class="p">,</span> <span class="n">keys</span><span class="p">,</span> <span class="n">iteration</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">radius</span><span class="o">=</span><span class="mf">4.5</span><span class="p">,</span> <span class="n">spin</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Compute the value of a certain scalar quantity inside a sphere of a</span>
+<span class="sd">    given radius</span>
+
+<span class="sd">    :param dirname: (str) Directory to read</span>
+<span class="sd">    :param keys: (list) Variables to read the scalar quantity</span>
+<span class="sd">    :param iteration: (int) Number of iteration to read</span>
+<span class="sd">    :param radius: (float) Radius of the sphere to integrate</span>
+<span class="sd">    :param spin: (int) Spin contribution to read</span>
+<span class="sd">    :return:</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">iteration</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">iteration</span> <span class="o">=</span> <span class="n">get_last_iteration</span><span class="p">(</span><span class="n">dirname</span><span class="p">)</span>
+
+    <span class="n">natom</span><span class="p">,</span> <span class="n">iterations</span><span class="p">,</span> <span class="n">times</span><span class="p">,</span> <span class="n">positions</span><span class="p">,</span> <span class="n">velocities</span><span class="p">,</span> <span class="n">forces</span> <span class="o">=</span> <span class="n">pychemia</span><span class="o">.</span><span class="n">code</span><span class="o">.</span><span class="n">octopus</span><span class="o">.</span><span class="n">coordinates</span><span class="p">(</span><span class="n">dirname</span><span class="p">)</span>
+
+    <span class="c1"># Is spin polarized?</span>
+    <span class="n">inp</span> <span class="o">=</span> <span class="n">pychemia</span><span class="o">.</span><span class="n">code</span><span class="o">.</span><span class="n">octopus</span><span class="o">.</span><span class="n">OctopusInput</span><span class="p">(</span><span class="n">dirname</span> <span class="o">+</span> <span class="s1">&#39;/inp&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">inp</span><span class="o">.</span><span class="n">variables</span><span class="p">[</span><span class="s1">&#39;SpinComponents&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;spin_polarized&#39;</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">spin</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">it</span><span class="p">,</span> <span class="n">cis1</span> <span class="o">=</span> <span class="n">value_in_sphere</span><span class="p">(</span><span class="n">dirname</span><span class="p">,</span> <span class="n">keys</span><span class="p">,</span> <span class="n">iteration</span><span class="p">,</span> <span class="n">radius</span><span class="p">,</span> <span class="n">spin</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+            <span class="n">it</span><span class="p">,</span> <span class="n">cis2</span> <span class="o">=</span> <span class="n">value_in_sphere</span><span class="p">(</span><span class="n">dirname</span><span class="p">,</span> <span class="n">keys</span><span class="p">,</span> <span class="n">iteration</span><span class="p">,</span> <span class="n">radius</span><span class="p">,</span> <span class="n">spin</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">it</span><span class="p">,</span> <span class="n">cis1</span> <span class="o">+</span> <span class="n">cis2</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">sp</span> <span class="o">=</span> <span class="s1">&#39;-sp&#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">spin</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">sp</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+
+    <span class="n">cis</span> <span class="o">=</span> <span class="n">zeros</span><span class="p">(</span><span class="n">natom</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">natom</span><span class="p">):</span>
+
+        <span class="n">filename</span> <span class="o">=</span> <span class="n">dirname</span> <span class="o">+</span> <span class="s1">&#39;/td.&#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">iteration</span><span class="p">)</span><span class="o">.</span><span class="n">zfill</span><span class="p">(</span><span class="mi">7</span><span class="p">)</span>
+        <span class="n">filename</span> <span class="o">+=</span> <span class="s1">&#39;/density&#39;</span> <span class="o">+</span> <span class="n">sp</span> <span class="o">+</span> <span class="s1">&#39;-analysis&#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">zfill</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;.nc&#39;</span>
+
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">filename</span><span class="p">):</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="n">scipy</span><span class="o">.</span><span class="n">io</span><span class="o">.</span><span class="n">netcdf</span><span class="o">.</span><span class="n">netcdf_file</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">mmap</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+            <span class="k">if</span> <span class="p">(</span><span class="ow">not</span> <span class="n">keys</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">variables</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="ow">not</span> <span class="n">keys</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">variables</span><span class="p">):</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;ERROR with &#39;</span><span class="p">,</span> <span class="n">keys</span><span class="p">)</span>
+            <span class="n">x</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">variables</span><span class="p">[</span><span class="n">keys</span><span class="p">[</span><span class="mi">0</span><span class="p">]][:]</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;ERROR File empty:&#39;</span><span class="p">,</span> <span class="n">filename</span><span class="p">)</span>
+            <span class="n">index</span> <span class="o">=</span> <span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="n">x</span> <span class="o">-</span> <span class="n">radius</span><span class="p">))</span><span class="o">.</span><span class="n">argmin</span><span class="p">()</span>
+            <span class="c1"># print &#39;dirname&#39;,dirname</span>
+            <span class="c1"># print &#39;index=&#39;,index</span>
+            <span class="c1"># print &#39;radius (min,max)&#39;,X[0],X[-1]</span>
+            <span class="c1"># Polynomial fit</span>
+            <span class="n">extra</span> <span class="o">=</span> <span class="mi">100</span>
+            <span class="k">if</span> <span class="n">index</span> <span class="o">+</span> <span class="n">extra</span> <span class="o">&gt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+                <span class="n">final</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">final</span> <span class="o">=</span> <span class="n">index</span> <span class="o">+</span> <span class="n">extra</span>
+            <span class="n">x</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">variables</span><span class="p">[</span><span class="n">keys</span><span class="p">[</span><span class="mi">0</span><span class="p">]][</span><span class="n">index</span> <span class="o">-</span> <span class="n">extra</span><span class="p">:</span><span class="n">final</span><span class="p">]</span>
+            <span class="n">y</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">variables</span><span class="p">[</span><span class="n">keys</span><span class="p">[</span><span class="mi">1</span><span class="p">]][</span><span class="n">index</span> <span class="o">-</span> <span class="n">extra</span><span class="p">:</span><span class="n">final</span><span class="p">]</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">z</span> <span class="o">=</span> <span class="n">polyfit</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+                <span class="n">p</span> <span class="o">=</span> <span class="n">poly1d</span><span class="p">(</span><span class="n">z</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Error fitting value for:&#39;</span><span class="p">,</span> <span class="n">filename</span><span class="p">)</span>
+
+            <span class="c1"># Get fit</span>
+            <span class="n">cis</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">p</span><span class="p">(</span><span class="n">radius</span><span class="p">)</span>
+            <span class="n">data</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;ERROR Missing file:&#39;</span><span class="p">,</span> <span class="n">filename</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">iteration</span><span class="p">,</span> <span class="n">cis</span></div>
+
+
+<div class="viewcode-block" id="charge_in_sphere"><a class="viewcode-back" href="../../../../pychemia.code.octopus.html#pychemia.code.octopus.analysis.charge_in_sphere">[docs]</a><span class="k">def</span> <span class="nf">charge_in_sphere</span><span class="p">(</span><span class="n">dirname</span><span class="p">,</span> <span class="n">iteration</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">radius</span><span class="o">=</span><span class="mf">4.5</span><span class="p">,</span> <span class="n">spin</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Get the value at a given index of the</span>
+<span class="sd">    data stored in the NetCDF file</span>
+
+<span class="sd">    :param dirname: (str) Directory to read</span>
+<span class="sd">    :param iteration: (int) Number of iteration to read</span>
+<span class="sd">    :param radius: (float) Radius of the sphere to integrate</span>
+<span class="sd">    :param spin: (int) Spin contribution to read</span>
+<span class="sd">    :return:</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">keys</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;radeff&#39;</span><span class="p">,</span> <span class="s1">&#39;densit&#39;</span><span class="p">]</span>
+
+    <span class="k">return</span> <span class="n">value_in_sphere</span><span class="p">(</span><span class="n">dirname</span><span class="p">,</span> <span class="n">keys</span><span class="p">,</span> <span class="n">iteration</span><span class="p">,</span> <span class="n">radius</span><span class="p">,</span> <span class="n">spin</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="dipolx_in_sphere"><a class="viewcode-back" href="../../../../pychemia.code.octopus.html#pychemia.code.octopus.analysis.dipolx_in_sphere">[docs]</a><span class="k">def</span> <span class="nf">dipolx_in_sphere</span><span class="p">(</span><span class="n">dirname</span><span class="p">,</span> <span class="n">iteration</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">radius</span><span class="o">=</span><span class="mf">4.5</span><span class="p">,</span> <span class="n">spin</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Get the value at a given index of the</span>
+<span class="sd">    data stored in the NetCDF file</span>
+
+<span class="sd">    :param dirname: (str) Directory to read</span>
+<span class="sd">    :param iteration: (int) Number of iteration to read</span>
+<span class="sd">    :param radius: (float) Radius of the sphere to integrate</span>
+<span class="sd">    :param spin: (int) Spin contribution to read</span>
+<span class="sd">    :return:</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">keys</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;radeff&#39;</span><span class="p">,</span> <span class="s1">&#39;dipolX&#39;</span><span class="p">]</span>
+
+    <span class="k">return</span> <span class="n">value_in_sphere</span><span class="p">(</span><span class="n">dirname</span><span class="p">,</span> <span class="n">keys</span><span class="p">,</span> <span class="n">iteration</span><span class="p">,</span> <span class="n">radius</span><span class="p">,</span> <span class="n">spin</span><span class="p">)</span></div>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Guillermo Avendano-Franco.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../../',
+            VERSION:'0.1.2',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>
