@@ -1,0 +1,38 @@
+Learn more: https://shop.pimoroni.com/products/drum-hat
+
+
+0.1.0
+-----
+
+* BugFix: Defer import side-effects
+
+0.0.5
+-----
+
+* pep8 style tweaks
+* Added docstrings
+* Added __version__ to module
+
+0.0.4
+-----
+
+* Initial commit to Raspbian apt repository
+
+0.0.3
+-----
+
+* Python 3 fix
+
+0.0.2
+-----
+
+* Fixed function calls, made library actually work
+
+
+0.0.1
+-----
+
+* Initial Release
+
+
+
