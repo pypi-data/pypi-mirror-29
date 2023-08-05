@@ -1,0 +1,82 @@
+{% macro Map(latitude, longitude) %}
+<div id="map" style="height: 100%; width: 100%;"></div>
+<script>
+var map = L.map('map',{
+		center: [{{latitude}}, {{longitude}}],
+    zoom: 12
+});
+
+var marker = L.marker([{{latitude}}, {{longitude}}]).addTo(map);
+
+L.tileLayer('http://{s}.tile.osm.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; <a href="http://osm.org/copyright">OpenStreetMap</a>'
+}).addTo(map);
+
+</script>
+{% endmacro %}
+
+{% macro MapGroup(nodes = None) %}
+<div id="map" style="height: 100%; width: 100%;"></div>
+<script>
+var initialized = false;
+var map = L.map('map',{
+	center: [57.691, 11.936],
+	zoom: 2
+});
+
+L.tileLayer('http://{s}.tile.osm.org/{z}/{x}/{y}.png', {
+		attribution: '&copy; <a href="http://osm.org/copyright">OpenStreetMap</a>'
+}).addTo(map);
+
+function addMarker(node) {
+	console.log(node);
+	var marker = L.marker([node.location.latitude, node.location.longitude]).addTo(map);
+	marker.bindPopup("<a href="+node.url+"><strong>"+node.name+'</strong></a><br><br>\
+	<div><div id="currentStatus'+node.name+'" style="display: inline;">-</div></div><br>\
+	<div><div id="currentHeat'+node.name+'" style="display: inline;">0</div><i class="fa fa-thermometer-full float-right" aria-hidden="true"></i></div><br>\
+	<div><div id="currentPower'+node.name+'" style="display: inline;">0</div><i class="fa fa-plug float-right" aria-hidden="true"></i></div>');
+	marker.on('click', function() {
+		dataSocket.emit("nodePowerCurrent", node.name);
+		dataSocket.emit("nodeHeatCurrent", node.name);
+		nodeSocket.emit("info", node.name);
+	})
+	if (initialized === false) {
+		map.setView(new L.LatLng(node.location.latitude, node.location.longitude), 10);
+		initialized = true;
+	}
+}
+dataSocket.on("nodePowerCurrent", function(data) {
+	if (data)
+		document.getElementById("currentPower"+data.name).innerHTML = parseFloat(data.power).toFixed(2);
+})
+dataSocket.on("nodeHeatCurrent", function(data) {
+	if (data)
+		document.getElementById("currentHeat"+data.name).innerHTML = parseFloat(data.heat).toFixed(2);
+})
+nodeSocket.on("info", function(node) {
+	if (node.icpe) {
+		if (node.icpe.online == "True") {
+			document.getElementById("currentStatus"+node.name).innerHTML = "Online";
+			document.getElementById("currentStatus"+node.name).className = 'online-text';
+		} else {
+			document.getElementById("currentStatus"+node.name).innerHTML = "Offline";
+			document.getElementById("currentStatus"+node.name).className = 'offline-text';
+		}
+	} else {
+		document.getElementById("currentStatus"+node.name).innerHTML = "No iCPE";
+	}
+})
+{% if nodes == None %}
+nodeSocket.on("list", function(nodes) {
+	for (var i = 0; i < nodes.length; i++) {
+		addMarker(nodes[i]);
+	}
+})
+{% else %}
+	{% for node in nodes %}
+	var marker = L.marker([{{node.location.latitude}}, {{node.location.longitude}}]).addTo(map);
+		marker.bindPopup("<strong>{{node.name}}</strong><p>Last Event:<br>Heat</p>");
+{% endfor %}
+{% endif %}
+</script>
+{% endmacro %}
