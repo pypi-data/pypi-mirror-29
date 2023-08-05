@@ -1,0 +1,646 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>piecash.core.session &mdash; Python interface to GnuCash documents 0.14.1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../search.html"/>
+    <link rel="top" title="Python interface to GnuCash documents 0.14.1 documentation" href="../../../index.html"/>
+        <link rel="up" title="Module code" href="../../index.html"/> 
+
+  
+  <script src="../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home"> Python interface to GnuCash documents
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.14.1
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../news.html">What’s new</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../doc/doc.html">Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../tutorial/index_existing.html">Tutorial : using existing objects</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../tutorial/index_new.html">Tutorial : creating new objects</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../tutorial/examples.html">Examples of programs written with piecash</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../doc/comparison.html">piecash and the official python bindings</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../api/piecash.html">piecash package</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../object_model.html">GnuCash SQL Object model and schema</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../doc/resources.html">Resources</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Python interface to GnuCash documents</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+      <li>piecash.core.session</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for piecash.core.session</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">datetime</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">shutil</span>
+<span class="kn">import</span> <span class="nn">socket</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">defaultdict</span>
+
+<span class="kn">from</span> <span class="nn">sqlalchemy</span> <span class="k">import</span> <span class="n">event</span><span class="p">,</span> <span class="n">Column</span><span class="p">,</span> <span class="n">VARCHAR</span><span class="p">,</span> <span class="n">INTEGER</span><span class="p">,</span> <span class="n">Table</span><span class="p">,</span> <span class="n">PrimaryKeyConstraint</span>
+<span class="kn">from</span> <span class="nn">sqlalchemy.sql.ddl</span> <span class="k">import</span> <span class="n">DropConstraint</span><span class="p">,</span> <span class="n">DropIndex</span>
+<span class="kn">from</span> <span class="nn">sqlalchemy_utils</span> <span class="k">import</span> <span class="n">database_exists</span>
+
+<span class="kn">from</span> <span class="nn">.book</span> <span class="k">import</span> <span class="n">Book</span>
+<span class="kn">from</span> <span class="nn">.._common</span> <span class="k">import</span> <span class="n">GnucashException</span>
+<span class="kn">from</span> <span class="nn">..sa_extra</span> <span class="k">import</span> <span class="n">create_piecash_engine</span><span class="p">,</span> <span class="n">DeclarativeBase</span><span class="p">,</span> <span class="n">Session</span>
+
+<span class="n">version_supported</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;2.6&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;Gnucash&#39;</span><span class="p">:</span> <span class="mi">2060400</span><span class="p">,</span>
+        <span class="s1">&#39;Gnucash-Resave&#39;</span><span class="p">:</span> <span class="mi">19920</span><span class="p">,</span>
+        <span class="s1">&#39;accounts&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+        <span class="s1">&#39;billterms&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
+        <span class="s1">&#39;books&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+        <span class="s1">&#39;budget_amounts&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+        <span class="s1">&#39;budgets&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+        <span class="s1">&#39;commodities&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+        <span class="s1">&#39;customers&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
+        <span class="s1">&#39;employees&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
+        <span class="s1">&#39;entries&#39;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span>
+        <span class="s1">&#39;invoices&#39;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span>
+        <span class="s1">&#39;jobs&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+        <span class="s1">&#39;lots&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
+        <span class="s1">&#39;orders&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+        <span class="s1">&#39;prices&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
+        <span class="s1">&#39;recurrences&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
+        <span class="s1">&#39;schedxactions&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+        <span class="s1">&#39;slots&#39;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span>
+        <span class="s1">&#39;splits&#39;</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span>
+        <span class="s1">&#39;taxtable_entries&#39;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span>
+        <span class="s1">&#39;taxtables&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
+        <span class="s1">&#39;transactions&#39;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span>
+        <span class="s1">&#39;vendors&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="s1">&#39;2.7&#39;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s1">&#39;Gnucash&#39;</span><span class="p">:</span> <span class="mi">2070200</span><span class="p">,</span>
+        <span class="s1">&#39;Gnucash-Resave&#39;</span><span class="p">:</span> <span class="mi">19920</span><span class="p">,</span>
+        <span class="s1">&#39;accounts&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+        <span class="s1">&#39;billterms&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
+        <span class="s1">&#39;books&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+        <span class="s1">&#39;budget_amounts&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+        <span class="s1">&#39;budgets&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+        <span class="s1">&#39;commodities&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+        <span class="s1">&#39;customers&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
+        <span class="s1">&#39;employees&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
+        <span class="s1">&#39;entries&#39;</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span>
+        <span class="s1">&#39;invoices&#39;</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span>
+        <span class="s1">&#39;jobs&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+        <span class="s1">&#39;lots&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
+        <span class="s1">&#39;orders&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+        <span class="s1">&#39;prices&#39;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span>
+        <span class="s1">&#39;recurrences&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
+        <span class="s1">&#39;schedxactions&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+        <span class="s1">&#39;slots&#39;</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span>
+        <span class="s1">&#39;splits&#39;</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span>
+        <span class="s1">&#39;taxtable_entries&#39;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span>
+        <span class="s1">&#39;taxtables&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
+        <span class="s1">&#39;transactions&#39;</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span>
+        <span class="s1">&#39;vendors&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+
+<span class="c1"># this is not a declarative as it is used before binding the session to an engine.</span>
+<span class="n">gnclock</span> <span class="o">=</span> <span class="n">Table</span><span class="p">(</span><span class="sa">u</span><span class="s1">&#39;gnclock&#39;</span><span class="p">,</span> <span class="n">DeclarativeBase</span><span class="o">.</span><span class="n">metadata</span><span class="p">,</span>
+                <span class="n">Column</span><span class="p">(</span><span class="s1">&#39;hostname&#39;</span><span class="p">,</span> <span class="n">VARCHAR</span><span class="p">(</span><span class="n">length</span><span class="o">=</span><span class="mi">255</span><span class="p">)),</span>
+                <span class="n">Column</span><span class="p">(</span><span class="s1">&#39;pid&#39;</span><span class="p">,</span> <span class="n">INTEGER</span><span class="p">()),</span>
+                <span class="p">)</span>
+
+
+<div class="viewcode-block" id="Version"><a class="viewcode-back" href="../../../api/piecash.core.session.html#piecash.core.session.Version">[docs]</a><span class="k">class</span> <span class="nc">Version</span><span class="p">(</span><span class="n">DeclarativeBase</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;The declarative class for the &#39;versions&#39; table.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">__tablename__</span> <span class="o">=</span> <span class="s1">&#39;versions&#39;</span>
+
+    <span class="n">__table_args__</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="c1"># column definitions</span>
+    <span class="c1"># : The name of the table</span>
+    <span class="n">table_name</span> <span class="o">=</span> <span class="n">Column</span><span class="p">(</span><span class="s1">&#39;table_name&#39;</span><span class="p">,</span> <span class="n">VARCHAR</span><span class="p">(</span><span class="n">length</span><span class="o">=</span><span class="mi">50</span><span class="p">),</span> <span class="n">primary_key</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">nullable</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="c1">#: The version for the table</span>
+    <span class="n">table_version</span> <span class="o">=</span> <span class="n">Column</span><span class="p">(</span><span class="s1">&#39;table_version&#39;</span><span class="p">,</span> <span class="n">INTEGER</span><span class="p">(),</span> <span class="n">nullable</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table_name</span><span class="p">,</span> <span class="n">table_version</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">table_name</span> <span class="o">=</span> <span class="n">table_name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">table_version</span> <span class="o">=</span> <span class="n">table_version</span>
+
+    <span class="k">def</span> <span class="nf">__unirepr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="sa">u</span><span class="s2">&quot;Version&lt;</span><span class="si">{}</span><span class="s2">=</span><span class="si">{}</span><span class="s2">&gt;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">table_name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">table_version</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="build_uri"><a class="viewcode-back" href="../../../api/piecash.core.session.html#piecash.core.session.build_uri">[docs]</a><span class="k">def</span> <span class="nf">build_uri</span><span class="p">(</span><span class="n">sqlite_file</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+              <span class="n">uri_conn</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+              <span class="n">db_type</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+              <span class="n">db_user</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+              <span class="n">db_password</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+              <span class="n">db_name</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+              <span class="n">db_host</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+              <span class="n">db_port</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+              <span class="n">check_same_thread</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+              <span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Create the connection string in function of some choices.</span>
+
+<span class="sd">    :param str sqlite_file: a path to an sqlite3 file (only used if uri_conn is None)</span>
+<span class="sd">    :param str uri_conn: a sqlalchemy connection string</span>
+<span class="sd">    :param str db_type: type of database in [&quot;postgres&quot;,&quot;mysql&quot;]</span>
+<span class="sd">    :param str db_user: username of database</span>
+<span class="sd">    :param str db_password: password for the use of database</span>
+<span class="sd">    :param str db_name: name of database</span>
+<span class="sd">    :param str db_host: host of database</span>
+<span class="sd">    :param str db_port: port of database</span>
+<span class="sd">    :param bool check_same_thread: sqlite flag that restricts connection use to the thread that created (see False for use in ipython/flask/... but read first https://docs.python.org/3/library/sqlite3.html)</span>
+
+<span class="sd">    :return: the connection string</span>
+<span class="sd">    :rtype: str</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">db_config</span> <span class="o">=</span> <span class="p">(</span><span class="n">db_type</span><span class="p">,</span> <span class="n">db_host</span><span class="p">,</span> <span class="n">db_port</span><span class="p">,</span> <span class="n">db_name</span><span class="p">,</span> <span class="n">db_user</span><span class="p">,</span> <span class="n">db_password</span><span class="p">)</span>
+    <span class="n">db_config_isdefined</span> <span class="o">=</span> <span class="nb">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">,</span> <span class="n">db_config</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+    <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">db_config_isdefined</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">all</span><span class="p">(</span><span class="n">db_config_isdefined</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;When using db_* arguments, all must be specified : </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">db_config</span><span class="p">))</span>
+
+        <span class="n">uri_conn</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;postgres&quot;</span><span class="p">:</span> <span class="s2">&quot;postgresql://</span><span class="si">{username}</span><span class="s2">:</span><span class="si">{password}</span><span class="s2">@</span><span class="si">{host}</span><span class="s2">:</span><span class="si">{port}</span><span class="s2">/</span><span class="si">{name}</span><span class="s2">&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;mysql&quot;</span><span class="p">:</span> <span class="s2">&quot;mysql+pymysql://</span><span class="si">{username}</span><span class="s2">:</span><span class="si">{password}</span><span class="s2">@</span><span class="si">{host}</span><span class="s2">:</span><span class="si">{port}</span><span class="s2">/</span><span class="si">{name}</span><span class="s2">?charset=utf8&quot;</span><span class="p">,</span>
+                    <span class="p">}[</span><span class="n">db_type</span><span class="p">]</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">username</span><span class="o">=</span><span class="n">db_user</span><span class="p">,</span> <span class="n">password</span><span class="o">=</span><span class="n">db_password</span><span class="p">,</span>
+                                      <span class="n">host</span><span class="o">=</span><span class="n">db_host</span><span class="p">,</span> <span class="n">port</span><span class="o">=</span><span class="n">db_port</span><span class="p">,</span>
+                                      <span class="n">name</span><span class="o">=</span><span class="n">db_name</span><span class="p">)</span>
+
+    <span class="c1"># db_postgres_uri = &quot;postgresql://postgres:{pwd}@localhost:5432/foo&quot;.format(pwd=pg_password)</span>
+    <span class="c1"># db_mysql_uri = &quot;mysql+pymysql://travis:@localhost/foo?charset=utf8&quot;</span>
+    <span class="c1"># db_sqlite_uri = &quot;sqlite:///{}&quot;.format(db_sqlite)</span>
+
+    <span class="k">if</span> <span class="n">sqlite_file</span> <span class="ow">and</span> <span class="n">uri_conn</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Only one of &#39;sqlite_file&#39; or &#39;uri_conn&#39; argument can be defined&quot;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">uri_conn</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="c1"># fallback on sqlite</span>
+        <span class="k">if</span> <span class="n">sqlite_file</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">sqlite_file</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;sqlite:///&quot;</span><span class="p">):</span>
+                <span class="c1"># already have the protocol specified.</span>
+                <span class="n">uri_conn</span> <span class="o">=</span> <span class="n">sqlite_file</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">uri_conn</span> <span class="o">=</span> <span class="s2">&quot;sqlite:///</span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">sqlite_file</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">uri_conn</span> <span class="o">=</span> <span class="s2">&quot;sqlite:///:memory:&quot;</span>
+        <span class="k">if</span> <span class="n">check_same_thread</span> <span class="ow">is</span> <span class="kc">False</span><span class="p">:</span>
+            <span class="n">uri_conn</span> <span class="o">=</span> <span class="n">uri_conn</span> <span class="o">+</span> <span class="s2">&quot;?check_same_thread=False&quot;</span>
+
+    <span class="k">return</span> <span class="n">uri_conn</span></div>
+
+
+<div class="viewcode-block" id="create_book"><a class="viewcode-back" href="../../../api/piecash.core.session.html#piecash.core.session.create_book">[docs]</a><span class="k">def</span> <span class="nf">create_book</span><span class="p">(</span><span class="n">sqlite_file</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                <span class="n">uri_conn</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                <span class="n">currency</span><span class="o">=</span><span class="s2">&quot;EUR&quot;</span><span class="p">,</span>
+                <span class="n">overwrite</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                <span class="n">keep_foreign_keys</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                <span class="n">db_type</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                <span class="n">db_user</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                <span class="n">db_password</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                <span class="n">db_name</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                <span class="n">db_host</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                <span class="n">db_port</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                <span class="n">check_same_thread</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                <span class="n">version_format</span><span class="o">=</span><span class="s2">&quot;2.6&quot;</span><span class="p">,</span>
+                <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Create a new empty GnuCash book. If both sqlite_file and uri_conn are None, then an &quot;in memory&quot; sqlite book is created.</span>
+
+<span class="sd">    :param str sqlite_file: a path to an sqlite3 file (only used if uri_conn is None)</span>
+<span class="sd">    :param str uri_conn: a sqlalchemy connection string</span>
+<span class="sd">    :param str currency: the ISO symbol of the default currency of the book</span>
+<span class="sd">    :param bool overwrite: True if book should be deleted and recreated if it exists already</span>
+<span class="sd">    :param bool keep_foreign_keys: True if the foreign keys should be kept (may not work at all with GnuCash)</span>
+<span class="sd">    :param str db_type: type of database in [&quot;postgres&quot;,&quot;mysql&quot;]</span>
+<span class="sd">    :param str db_user: username of database</span>
+<span class="sd">    :param str db_password: password for the use of database</span>
+<span class="sd">    :param str db_name: name of database</span>
+<span class="sd">    :param str db_host: host of database</span>
+<span class="sd">    :param str db_port: port of database</span>
+<span class="sd">    :param bool check_same_thread: sqlite flag that restricts connection use to the thread that created (see False for use in ipython/flask/... but read first https://docs.python.org/3/library/sqlite3.html)</span>
+<span class="sd">    :param str version_format: the format (2.6 or 2.7) for the schema tables to generate</span>
+
+<span class="sd">    :return: the document as a gnucash session</span>
+<span class="sd">    :rtype: :class:`GncSession`</span>
+
+<span class="sd">    :raises GnucashException: if document already exists and overwrite is False</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span> <span class="nn">sqlalchemy_utils.functions</span> <span class="k">import</span> <span class="n">database_exists</span><span class="p">,</span> <span class="n">create_database</span><span class="p">,</span> <span class="n">drop_database</span>
+
+    <span class="n">uri_conn</span> <span class="o">=</span> <span class="n">build_uri</span><span class="p">(</span><span class="n">sqlite_file</span><span class="p">,</span> <span class="n">uri_conn</span><span class="p">,</span>
+                         <span class="n">db_type</span><span class="p">,</span> <span class="n">db_user</span><span class="p">,</span> <span class="n">db_password</span><span class="p">,</span> <span class="n">db_name</span><span class="p">,</span> <span class="n">db_host</span><span class="p">,</span> <span class="n">db_port</span><span class="p">,</span>
+                         <span class="n">check_same_thread</span><span class="p">,</span>
+                         <span class="p">)</span>
+
+    <span class="c1"># create database (if DB is not a sqlite in memory)</span>
+    <span class="k">if</span> <span class="n">uri_conn</span> <span class="o">!=</span> <span class="s2">&quot;sqlite:///:memory:&quot;</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">database_exists</span><span class="p">(</span><span class="n">uri_conn</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">overwrite</span><span class="p">:</span>
+                <span class="n">drop_database</span><span class="p">(</span><span class="n">uri_conn</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">GnucashException</span><span class="p">(</span><span class="s2">&quot;&#39;</span><span class="si">{}</span><span class="s2">&#39; db already exists&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">uri_conn</span><span class="p">))</span>
+        <span class="n">create_database</span><span class="p">(</span><span class="n">uri_conn</span><span class="p">)</span>
+
+    <span class="n">engine</span> <span class="o">=</span> <span class="n">create_piecash_engine</span><span class="p">(</span><span class="n">uri_conn</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="c1"># drop constraints if we de not want to keep them (keep_foreign_keys=False), the default</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">keep_foreign_keys</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">n</span><span class="p">,</span> <span class="n">tbl</span> <span class="ow">in</span> <span class="n">DeclarativeBase</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">tables</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="c1"># drop index constraints</span>
+            <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="n">tbl</span><span class="o">.</span><span class="n">indexes</span><span class="p">:</span>
+                <span class="n">event</span><span class="o">.</span><span class="n">listen</span><span class="p">(</span><span class="n">tbl</span><span class="p">,</span>
+                             <span class="s2">&quot;after_create&quot;</span><span class="p">,</span>
+                             <span class="n">DropIndex</span><span class="p">(</span><span class="n">idx</span><span class="p">),</span>
+                             <span class="n">once</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="c1"># drop FK constraints</span>
+            <span class="k">for</span> <span class="n">cstr</span> <span class="ow">in</span> <span class="n">tbl</span><span class="o">.</span><span class="n">constraints</span><span class="p">:</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cstr</span><span class="p">,</span> <span class="n">PrimaryKeyConstraint</span><span class="p">):</span>
+                    <span class="k">continue</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">event</span><span class="o">.</span><span class="n">listen</span><span class="p">(</span><span class="n">tbl</span><span class="p">,</span>
+                                 <span class="s2">&quot;before_drop&quot;</span><span class="p">,</span>
+                                 <span class="n">DropConstraint</span><span class="p">(</span><span class="n">cstr</span><span class="p">),</span>
+                                 <span class="n">once</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="c1">#</span>
+    <span class="c1"># create all (tables, fk, ...)</span>
+    <span class="n">DeclarativeBase</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">create_all</span><span class="p">(</span><span class="n">engine</span><span class="p">)</span>
+
+    <span class="n">s</span> <span class="o">=</span> <span class="n">Session</span><span class="p">(</span><span class="n">bind</span><span class="o">=</span><span class="n">engine</span><span class="p">)</span>
+
+    <span class="c1"># create all rows in version table</span>
+    <span class="k">assert</span> <span class="n">version_format</span> <span class="ow">in</span> <span class="n">version_supported</span><span class="p">,</span> <span class="s2">&quot;The &#39;version_format&#39;=</span><span class="si">{}</span><span class="s2"> is not supported. &quot;</span> \
+                                                <span class="s2">&quot;Choose one of </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">version_format</span><span class="p">,</span>
+                                                                          <span class="nb">list</span><span class="p">(</span><span class="n">version_supported</span><span class="o">.</span><span class="n">keys</span><span class="p">()))</span>
+    <span class="k">for</span> <span class="n">table_name</span><span class="p">,</span> <span class="n">table_version</span> <span class="ow">in</span> <span class="n">version_supported</span><span class="p">[</span><span class="n">version_format</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">s</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">Version</span><span class="p">(</span><span class="n">table_name</span><span class="o">=</span><span class="n">table_name</span><span class="p">,</span> <span class="n">table_version</span><span class="o">=</span><span class="n">table_version</span><span class="p">))</span>
+
+    <span class="c1"># create book and merge with session</span>
+
+    <span class="n">b</span> <span class="o">=</span> <span class="n">Book</span><span class="p">()</span>
+    <span class="n">s</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">b</span><span class="p">)</span>
+    <span class="n">adapt_session</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">book</span><span class="o">=</span><span class="n">b</span><span class="p">,</span> <span class="n">readonly</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+    <span class="c1"># create commodities and initial accounts</span>
+    <span class="kn">from</span> <span class="nn">.account</span> <span class="k">import</span> <span class="n">Account</span>
+
+    <span class="n">b</span><span class="o">.</span><span class="n">root_account</span> <span class="o">=</span> <span class="n">Account</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;Root Account&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;ROOT&quot;</span><span class="p">,</span> <span class="n">commodity</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">book</span><span class="o">=</span><span class="n">b</span><span class="p">)</span>
+    <span class="n">b</span><span class="o">.</span><span class="n">root_template</span> <span class="o">=</span> <span class="n">Account</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;Template Root&quot;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;ROOT&quot;</span><span class="p">,</span> <span class="n">commodity</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">book</span><span class="o">=</span><span class="n">b</span><span class="p">)</span>
+    <span class="n">b</span><span class="p">[</span><span class="s2">&quot;default-currency&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">currencies</span><span class="p">(</span><span class="n">mnemonic</span><span class="o">=</span><span class="n">currency</span><span class="p">)</span>
+    <span class="n">b</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
+
+    <span class="k">return</span> <span class="n">b</span></div>
+
+
+<div class="viewcode-block" id="open_book"><a class="viewcode-back" href="../../../api/piecash.core.session.html#piecash.core.session.open_book">[docs]</a><span class="k">def</span> <span class="nf">open_book</span><span class="p">(</span><span class="n">sqlite_file</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+              <span class="n">uri_conn</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+              <span class="n">readonly</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+              <span class="n">open_if_lock</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+              <span class="n">do_backup</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+              <span class="n">db_type</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+              <span class="n">db_user</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+              <span class="n">db_password</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+              <span class="n">db_name</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+              <span class="n">db_host</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+              <span class="n">db_port</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+              <span class="n">check_same_thread</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+              <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Open an existing GnuCash book</span>
+
+<span class="sd">    :param str sqlite_file: a path to an sqlite3 file (only used if uri_conn is None)</span>
+<span class="sd">    :param str uri_conn: a sqlalchemy connection string</span>
+<span class="sd">    :param bool readonly: open the file as readonly (useful to play with and avoid any unwanted save)</span>
+<span class="sd">    :param bool open_if_lock: open the file even if it is locked by another user</span>
+<span class="sd">        (using open_if_lock=True with readonly=False is not recommended)</span>
+<span class="sd">    :param bool do_backup: do a backup if the file written in RW (i.e. readonly=False)</span>
+<span class="sd">        (this only works with the sqlite backend and copy the file with .{:%Y%m%d%H%M%S}.gnucash appended to it)</span>
+<span class="sd">    :param str db_type: type of database in [&quot;postgres&quot;,&quot;mysql&quot;]</span>
+<span class="sd">    :param str db_user: username of database</span>
+<span class="sd">    :param str db_password: password for the use of database</span>
+<span class="sd">    :param str db_name: name of database</span>
+<span class="sd">    :param str db_host: host of database</span>
+<span class="sd">    :param str db_port: port of database</span>
+<span class="sd">    :param bool check_same_thread: sqlite flag that restricts connection use to the thread that created (see False for use in ipython/flask/... but read first https://docs.python.org/3/library/sqlite3.html)</span>
+
+<span class="sd">    :return: the document as a gnucash session</span>
+<span class="sd">    :rtype: :class:`GncSession`</span>
+<span class="sd">    :raises GnucashException: if the document does not exist</span>
+<span class="sd">    :raises GnucashException: if there is a lock on the file and open_if_lock is False</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">uri_conn</span> <span class="o">=</span> <span class="n">build_uri</span><span class="p">(</span><span class="n">sqlite_file</span><span class="p">,</span> <span class="n">uri_conn</span><span class="p">,</span>
+                         <span class="n">db_type</span><span class="p">,</span> <span class="n">db_user</span><span class="p">,</span> <span class="n">db_password</span><span class="p">,</span> <span class="n">db_name</span><span class="p">,</span> <span class="n">db_host</span><span class="p">,</span> <span class="n">db_port</span><span class="p">,</span>
+                         <span class="n">check_same_thread</span><span class="p">,</span>
+                         <span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">uri_conn</span> <span class="o">==</span> <span class="s2">&quot;sqlite:///:memory:&quot;</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;An in memory sqlite gnucash databook cannot be opened, it should be created&quot;</span><span class="p">)</span>
+
+    <span class="c1"># create database (if not sqlite in memory)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">database_exists</span><span class="p">(</span><span class="n">uri_conn</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="n">GnucashException</span><span class="p">(</span><span class="s2">&quot;Database &#39;</span><span class="si">{}</span><span class="s2">&#39; does not exist (please use create_book to create &quot;</span> \
+                               <span class="s2">&quot;GnuCash books from scratch)&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">uri_conn</span><span class="p">))</span>
+
+    <span class="n">engine</span> <span class="o">=</span> <span class="n">create_piecash_engine</span><span class="p">(</span><span class="n">uri_conn</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="c1"># backup database if readonly=False and do_backup=True</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">readonly</span> <span class="ow">and</span> <span class="n">do_backup</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">engine</span><span class="o">.</span><span class="n">name</span> <span class="o">!=</span> <span class="s2">&quot;sqlite&quot;</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">GnucashException</span><span class="p">(</span>
+                <span class="s2">&quot;Cannot do a backup for engine &#39;</span><span class="si">{}</span><span class="s2">&#39;. Do yourself a backup and then specify do_backup=False&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                    <span class="n">engine</span><span class="o">.</span><span class="n">name</span><span class="p">))</span>
+
+        <span class="n">url</span> <span class="o">=</span> <span class="n">uri_conn</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="s2">&quot;sqlite:///&quot;</span><span class="p">):]</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;?check_same_thread=False&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+        <span class="n">url_backup</span> <span class="o">=</span> <span class="n">url</span> <span class="o">+</span> <span class="s2">&quot;.{:%Y%m</span><span class="si">%d</span><span class="s2">%H%M%S}.gnucash&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">())</span>
+
+        <span class="n">shutil</span><span class="o">.</span><span class="n">copyfile</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">url_backup</span><span class="p">)</span>
+
+    <span class="n">locks</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">engine</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">gnclock</span><span class="o">.</span><span class="n">select</span><span class="p">()))</span>
+
+    <span class="c1"># ensure the file is not locked by GnuCash itself</span>
+    <span class="k">if</span> <span class="n">locks</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">open_if_lock</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">GnucashException</span><span class="p">(</span><span class="s2">&quot;Lock on the file&quot;</span><span class="p">)</span>
+
+    <span class="n">s</span> <span class="o">=</span> <span class="n">Session</span><span class="p">(</span><span class="n">bind</span><span class="o">=</span><span class="n">engine</span><span class="p">)</span>
+
+    <span class="c1"># check the versions in the table versions is consistent with the API</span>
+    <span class="n">version_book</span> <span class="o">=</span> <span class="p">{</span><span class="n">v</span><span class="o">.</span><span class="n">table_name</span><span class="p">:</span> <span class="n">v</span><span class="o">.</span><span class="n">table_version</span>
+                    <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">s</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="n">Version</span><span class="p">)</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+                    <span class="k">if</span> <span class="s2">&quot;Gnucash&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">v</span><span class="o">.</span><span class="n">table_name</span><span class="p">}</span>
+    <span class="k">assert</span> <span class="nb">any</span><span class="p">(</span><span class="n">version_book</span> <span class="o">==</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span>
+                                <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">vt</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span>
+                                <span class="s2">&quot;Gnucash&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">k</span><span class="p">}</span>
+               <span class="k">for</span> <span class="n">version</span><span class="p">,</span> <span class="n">vt</span> <span class="ow">in</span> <span class="n">version_supported</span><span class="o">.</span><span class="n">items</span><span class="p">()),</span> <span class="s2">&quot;Unsupported table versions&quot;</span>
+
+    <span class="n">book</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="n">Book</span><span class="p">)</span><span class="o">.</span><span class="n">one</span><span class="p">()</span>
+    <span class="n">adapt_session</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">book</span><span class="o">=</span><span class="n">book</span><span class="p">,</span> <span class="n">readonly</span><span class="o">=</span><span class="n">readonly</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">book</span></div>
+
+
+<div class="viewcode-block" id="adapt_session"><a class="viewcode-back" href="../../../api/piecash.core.session.html#piecash.core.session.adapt_session">[docs]</a><span class="k">def</span> <span class="nf">adapt_session</span><span class="p">(</span><span class="n">session</span><span class="p">,</span> <span class="n">book</span><span class="p">,</span> <span class="n">readonly</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Change the SA session object to add some features.</span>
+
+<span class="sd">    :param session: the SA session object that will be modified in place</span>
+<span class="sd">    :param book: the gnucash singleton book linked to the SA session</span>
+<span class="sd">    :param readonly: True if the session should not allow commits.</span>
+<span class="sd">    :return:</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># link session and book together</span>
+    <span class="n">book</span><span class="o">.</span><span class="n">session</span> <span class="o">=</span> <span class="n">session</span>
+    <span class="n">session</span><span class="o">.</span><span class="n">book</span> <span class="o">=</span> <span class="n">book</span>
+    <span class="n">book</span><span class="o">.</span><span class="n">uri</span> <span class="o">=</span> <span class="n">session</span><span class="o">.</span><span class="n">bind</span><span class="o">.</span><span class="n">url</span>
+
+    <span class="c1"># def new_flush(*args, **kwargs):</span>
+    <span class="c1"># if session.dirty or session.new or session.deleted:</span>
+    <span class="c1"># session.rollback()</span>
+    <span class="c1"># raise GnucashException(&quot;You cannot change the DB, it is locked !&quot;)</span>
+
+    <span class="c1"># add logic to make session readonly</span>
+    <span class="k">def</span> <span class="nf">readonly_commit</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="c1"># session.rollback()</span>
+        <span class="k">raise</span> <span class="n">GnucashException</span><span class="p">(</span><span class="s2">&quot;You cannot change the DB, it was opened as readonly!&quot;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">readonly</span><span class="p">:</span>
+        <span class="n">session</span><span class="o">.</span><span class="n">commit</span> <span class="o">=</span> <span class="n">readonly_commit</span>
+
+    <span class="c1"># add logic to create/delete GnuCash locks</span>
+    <span class="k">def</span> <span class="nf">delete_lock</span><span class="p">():</span>
+        <span class="n">session</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">gnclock</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="n">whereclause</span><span class="o">=</span><span class="p">(</span><span class="n">gnclock</span><span class="o">.</span><span class="n">c</span><span class="o">.</span><span class="n">hostname</span> <span class="o">==</span> <span class="n">socket</span><span class="o">.</span><span class="n">gethostname</span><span class="p">())</span>
+                                                   <span class="ow">and</span> <span class="p">(</span><span class="n">gnclock</span><span class="o">.</span><span class="n">c</span><span class="o">.</span><span class="n">pid</span> <span class="o">==</span> <span class="n">os</span><span class="o">.</span><span class="n">getpid</span><span class="p">())))</span>
+        <span class="n">session</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+
+    <span class="n">session</span><span class="o">.</span><span class="n">delete_lock</span> <span class="o">=</span> <span class="n">delete_lock</span>
+
+    <span class="k">def</span> <span class="nf">create_lock</span><span class="p">():</span>
+        <span class="n">session</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">gnclock</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="n">values</span><span class="o">=</span><span class="nb">dict</span><span class="p">(</span><span class="n">hostname</span><span class="o">=</span><span class="n">socket</span><span class="o">.</span><span class="n">gethostname</span><span class="p">(),</span> <span class="n">pid</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">getpid</span><span class="p">())))</span>
+        <span class="n">session</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+
+    <span class="n">session</span><span class="o">.</span><span class="n">create_lock</span> <span class="o">=</span> <span class="n">create_lock</span>
+
+    <span class="c1"># add logic to track if a session has been modified or not</span>
+    <span class="n">session</span><span class="o">.</span><span class="n">_is_modified</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">session</span><span class="o">.</span><span class="n">_all_changes</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="nd">@event</span><span class="o">.</span><span class="n">listens_for</span><span class="p">(</span><span class="n">session</span><span class="p">,</span> <span class="s1">&#39;after_flush&#39;</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">receive_after_flush</span><span class="p">(</span><span class="n">session</span><span class="p">,</span> <span class="n">flush_context</span><span class="p">):</span>
+        <span class="n">session</span><span class="o">.</span><span class="n">_is_modified</span> <span class="o">=</span> <span class="ow">not</span> <span class="n">session</span><span class="o">.</span><span class="n">is_saved</span>
+
+    <span class="nd">@event</span><span class="o">.</span><span class="n">listens_for</span><span class="p">(</span><span class="n">session</span><span class="p">,</span> <span class="s1">&#39;after_commit&#39;</span><span class="p">)</span>
+    <span class="nd">@event</span><span class="o">.</span><span class="n">listens_for</span><span class="p">(</span><span class="n">session</span><span class="p">,</span> <span class="s1">&#39;after_rollback&#39;</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">init_session_status</span><span class="p">(</span><span class="n">session</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">session</span><span class="o">.</span><span class="n">_is_modified</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="n">session</span><span class="o">.</span><span class="n">_all_changes</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+
+    <span class="n">session</span><span class="o">.</span><span class="n">book</span><span class="o">.</span><span class="n">session_changes</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">list</span><span class="p">)</span>
+
+    <span class="n">session</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="n">is_saved</span> <span class="o">=</span> <span class="nb">property</span><span class="p">(</span>
+        <span class="n">fget</span><span class="o">=</span><span class="k">lambda</span> <span class="bp">self</span><span class="p">:</span> <span class="ow">not</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_is_modified</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">dirty</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">deleted</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">new</span><span class="p">),</span>
+        <span class="n">doc</span><span class="o">=</span><span class="s2">&quot;True if nothing has yet been changed (False otherwise)&quot;</span><span class="p">)</span></div>
+
+
+<span class="n">event</span><span class="o">.</span><span class="n">listen</span><span class="p">(</span><span class="n">Session</span><span class="p">,</span> <span class="s1">&#39;before_commit&#39;</span><span class="p">,</span> <span class="n">Book</span><span class="o">.</span><span class="n">validate_book</span><span class="p">)</span>
+<span class="n">event</span><span class="o">.</span><span class="n">listen</span><span class="p">(</span><span class="n">Session</span><span class="p">,</span> <span class="s1">&#39;before_flush&#39;</span><span class="p">,</span> <span class="n">Book</span><span class="o">.</span><span class="n">track_dirty</span><span class="p">)</span>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2014 sdementen.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../',
+            VERSION:'0.14.1',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../_static/doctools.js"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

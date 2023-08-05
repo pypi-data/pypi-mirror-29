@@ -1,0 +1,768 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>piecash.core.book &mdash; Python interface to GnuCash documents 0.14.1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../search.html"/>
+    <link rel="top" title="Python interface to GnuCash documents 0.14.1 documentation" href="../../../index.html"/>
+        <link rel="up" title="Module code" href="../../index.html"/> 
+
+  
+  <script src="../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home"> Python interface to GnuCash documents
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.14.1
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../news.html">What’s new</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../doc/doc.html">Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../tutorial/index_existing.html">Tutorial : using existing objects</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../tutorial/index_new.html">Tutorial : creating new objects</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../tutorial/examples.html">Examples of programs written with piecash</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../doc/comparison.html">piecash and the official python bindings</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../api/piecash.html">piecash package</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../object_model.html">GnuCash SQL Object model and schema</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../doc/resources.html">Resources</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Python interface to GnuCash documents</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+      <li>piecash.core.book</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for piecash.core.book</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">locale</span>
+<span class="kn">import</span> <span class="nn">warnings</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">defaultdict</span>
+<span class="kn">from</span> <span class="nn">operator</span> <span class="k">import</span> <span class="n">attrgetter</span>
+<span class="kn">from</span> <span class="nn">sqlalchemy</span> <span class="k">import</span> <span class="n">Column</span><span class="p">,</span> <span class="n">VARCHAR</span><span class="p">,</span> <span class="n">ForeignKey</span>
+<span class="kn">from</span> <span class="nn">sqlalchemy.orm</span> <span class="k">import</span> <span class="n">relation</span><span class="p">,</span> <span class="n">aliased</span><span class="p">,</span> <span class="n">joinedload</span>
+<span class="kn">from</span> <span class="nn">sqlalchemy.orm.base</span> <span class="k">import</span> <span class="n">instance_state</span>
+<span class="kn">from</span> <span class="nn">sqlalchemy.orm.exc</span> <span class="k">import</span> <span class="n">NoResultFound</span>
+<span class="kn">from</span> <span class="nn">.</span> <span class="k">import</span> <span class="n">factories</span>
+<span class="kn">from</span> <span class="nn">.account</span> <span class="k">import</span> <span class="n">Account</span>
+<span class="kn">from</span> <span class="nn">.commodity</span> <span class="k">import</span> <span class="n">Commodity</span><span class="p">,</span> <span class="n">Price</span>
+<span class="kn">from</span> <span class="nn">.transaction</span> <span class="k">import</span> <span class="n">Split</span><span class="p">,</span> <span class="n">Transaction</span>
+<span class="kn">from</span> <span class="nn">..business.invoice</span> <span class="k">import</span> <span class="n">Invoice</span>
+<span class="kn">from</span> <span class="nn">.._common</span> <span class="k">import</span> <span class="n">CallableList</span><span class="p">,</span> <span class="n">GnucashException</span>
+<span class="kn">from</span> <span class="nn">.._declbase</span> <span class="k">import</span> <span class="n">DeclarativeBaseGuid</span>
+<span class="kn">from</span> <span class="nn">..sa_extra</span> <span class="k">import</span> <span class="n">kvp_attribute</span>
+
+
+<div class="viewcode-block" id="Book"><a class="viewcode-back" href="../../../api/piecash.core.book.html#piecash.core.book.Book">[docs]</a><span class="k">class</span> <span class="nc">Book</span><span class="p">(</span><span class="n">DeclarativeBaseGuid</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A Book represents a GnuCash document. It is created through one of the two factory functions</span>
+<span class="sd">    :func:`create_book` and :func:`open_book`.</span>
+
+<span class="sd">    Canonical use is as a context manager like (the book is automatically closed at the end of the with block)::</span>
+
+<span class="sd">        with create_book() as book:</span>
+<span class="sd">            ...</span>
+
+<span class="sd">    .. note:: If you do not use the context manager, do not forget to close the session explicitly (``book.close()``)</span>
+<span class="sd">       to release any lock on the file/DB.</span>
+
+<span class="sd">    The book puts at disposal several attributes to access the main objects of the GnuCash document::</span>
+
+<span class="sd">        # to get the book and the root_account</span>
+<span class="sd">        ra = book.root_account</span>
+
+<span class="sd">        # to get the list of accounts, commodities or transactions</span>
+<span class="sd">        for acc in book.accounts:  # or book.commodities or book.transactions</span>
+<span class="sd">            # do something with acc</span>
+
+<span class="sd">        # to get a specific element of these lists</span>
+<span class="sd">        EUR = book.commodities(namespace=&quot;CURRENCY&quot;, mnemonic=&quot;EUR&quot;)</span>
+
+<span class="sd">        # to get a list of all objects of some class (even non core classes)</span>
+<span class="sd">        budgets = book.get(Budget)</span>
+<span class="sd">        # or a specific object</span>
+<span class="sd">        budget = book.get(Budget, name=&quot;my first budget&quot;)</span>
+
+<span class="sd">    You can check a session has changes (new, deleted, changed objects) by getting the ``book.is_saved`` property.</span>
+<span class="sd">    To save or cancel changes, use ``book.save()`` or ``book.cancel()``::</span>
+
+<span class="sd">        # save a session if it is no saved (saving a unchanged session is a no-op)</span>
+<span class="sd">        if not book.is_saved:</span>
+<span class="sd">            book.save()</span>
+
+<span class="sd">    Attributes:</span>
+<span class="sd">        root_account (:class:`piecash.core.account.Account`): the root account of the book</span>
+<span class="sd">        root_template (:class:`piecash.core.account.Account`): the root template of the book (usage not yet clear...)</span>
+<span class="sd">        uri (str): connection string of the book (set by the GncSession when accessing the book)</span>
+<span class="sd">        session (:class:`sqlalchemy.orm.session.Session`): the sqlalchemy session encapsulating the book</span>
+<span class="sd">        use_trading_accounts (bool): true if option &quot;Use trading accounts&quot; is enabled</span>
+<span class="sd">        use_split_action_field (bool): true if option &quot;Use Split Action Field for Number&quot; is enabled</span>
+<span class="sd">        RO_threshold_day (int): value of Day Threshold for Read-Only Transactions (red line)</span>
+<span class="sd">        control_mode (list(str)) : list of allowed non-standard operations like : &quot;allow-root-subaccounts&quot;</span>
+<span class="sd">        counter_customer (int) : counter for :class:`piecash.business.person.Customer` id (link to slot &quot;counters/gncCustomer&quot;)</span>
+<span class="sd">        counter_vendor (int) : counter for :class:`piecash.business.person.Vendor` id (link to slot &quot;counters/gncVendor&quot;)</span>
+<span class="sd">        counter_employee (int) : counter for :class:`piecash.business.person.Employee` id (link to slot &quot;counters/gncEmployee&quot;)</span>
+<span class="sd">        counter_invoice (int) : counter for :class:`piecash.business.invoice.Invoice` id (link to slot &quot;counters/gncInvoice&quot;)</span>
+<span class="sd">        counter_job (int) : counter for :class:`piecash.business.invoice.Job` id (link to slot &quot;counters/gncJob&quot;)</span>
+<span class="sd">        counter_bill (int) : counter for :class:`piecash.business.invoice.Bill` id (link to slot &quot;counters/gncBill&quot;)</span>
+<span class="sd">        counter_exp_voucher (int) : counter for :class:`piecash.business.invoice.Invoice` id (link to slot &quot;counters/gncExpVoucher&quot;)</span>
+<span class="sd">        counter_order (int) : counter for :class:`piecash.business.invoice.Order` id (link to slot &quot;counters/gncOrder&quot;)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">__tablename__</span> <span class="o">=</span> <span class="s1">&#39;books&#39;</span>
+
+    <span class="n">__table_args__</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="c1"># column definitions</span>
+    <span class="n">root_account_guid</span> <span class="o">=</span> <span class="n">Column</span><span class="p">(</span><span class="s1">&#39;root_account_guid&#39;</span><span class="p">,</span> <span class="n">VARCHAR</span><span class="p">(</span><span class="n">length</span><span class="o">=</span><span class="mi">32</span><span class="p">),</span>
+                               <span class="n">ForeignKey</span><span class="p">(</span><span class="s1">&#39;accounts.guid&#39;</span><span class="p">),</span> <span class="n">nullable</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="n">root_template_guid</span> <span class="o">=</span> <span class="n">Column</span><span class="p">(</span><span class="s1">&#39;root_template_guid&#39;</span><span class="p">,</span> <span class="n">VARCHAR</span><span class="p">(</span><span class="n">length</span><span class="o">=</span><span class="mi">32</span><span class="p">),</span>
+                                <span class="n">ForeignKey</span><span class="p">(</span><span class="s1">&#39;accounts.guid&#39;</span><span class="p">),</span> <span class="n">nullable</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+    <span class="c1"># relation definitions</span>
+    <span class="n">root_account</span> <span class="o">=</span> <span class="n">relation</span><span class="p">(</span><span class="s1">&#39;Account&#39;</span><span class="p">,</span>
+                            <span class="c1"># back_populates=&#39;root_book&#39;,</span>
+                            <span class="n">foreign_keys</span><span class="o">=</span><span class="p">[</span><span class="n">root_account_guid</span><span class="p">],</span>
+                            <span class="p">)</span>
+    <span class="n">root_template</span> <span class="o">=</span> <span class="n">relation</span><span class="p">(</span><span class="s1">&#39;Account&#39;</span><span class="p">,</span>
+                             <span class="n">foreign_keys</span><span class="o">=</span><span class="p">[</span><span class="n">root_template_guid</span><span class="p">])</span>
+
+    <span class="n">uri</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">session</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="c1"># link options to KVP</span>
+    <span class="n">use_trading_accounts</span> <span class="o">=</span> <span class="n">kvp_attribute</span><span class="p">(</span><span class="s2">&quot;options/Accounts/Use Trading Accounts&quot;</span><span class="p">,</span>
+                                         <span class="n">from_gnc</span><span class="o">=</span><span class="k">lambda</span> <span class="n">v</span><span class="p">:</span> <span class="n">v</span> <span class="o">==</span> <span class="s1">&#39;t&#39;</span><span class="p">,</span>
+                                         <span class="n">to_gnc</span><span class="o">=</span><span class="k">lambda</span> <span class="n">v</span><span class="p">:</span> <span class="s1">&#39;t&#39;</span><span class="p">,</span>
+                                         <span class="n">default</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+    <span class="n">use_split_action_field</span> <span class="o">=</span> <span class="n">kvp_attribute</span><span class="p">(</span><span class="s2">&quot;options/Accounts/Use Split Action Field for Number&quot;</span><span class="p">,</span>
+                                           <span class="n">from_gnc</span><span class="o">=</span><span class="k">lambda</span> <span class="n">v</span><span class="p">:</span> <span class="n">v</span> <span class="o">==</span> <span class="s1">&#39;t&#39;</span><span class="p">,</span>
+                                           <span class="n">to_gnc</span><span class="o">=</span><span class="k">lambda</span> <span class="n">v</span><span class="p">:</span> <span class="s1">&#39;t&#39;</span> <span class="k">if</span> <span class="n">v</span> <span class="k">else</span> <span class="s1">&#39;f&#39;</span><span class="p">,</span>
+                                           <span class="n">default</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+    <span class="n">RO_threshold_day</span> <span class="o">=</span> <span class="n">kvp_attribute</span><span class="p">(</span><span class="s2">&quot;options/Accounts/Day Threshold for Read-Only Transactions (red line)&quot;</span><span class="p">,</span>
+                                     <span class="n">from_gnc</span><span class="o">=</span><span class="k">lambda</span> <span class="n">v</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">v</span><span class="p">),</span>
+                                     <span class="n">to_gnc</span><span class="o">=</span><span class="k">lambda</span> <span class="n">v</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">v</span><span class="p">),</span>
+                                     <span class="n">default</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+    <span class="n">counter_customer</span> <span class="o">=</span> <span class="n">kvp_attribute</span><span class="p">(</span><span class="s2">&quot;counters/gncCustomer&quot;</span><span class="p">,</span> <span class="n">from_gnc</span><span class="o">=</span><span class="k">lambda</span> <span class="n">v</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">v</span><span class="p">),</span> <span class="n">to_gnc</span><span class="o">=</span><span class="k">lambda</span> <span class="n">v</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">v</span><span class="p">),</span> <span class="n">default</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">counter_vendor</span> <span class="o">=</span> <span class="n">kvp_attribute</span><span class="p">(</span><span class="s2">&quot;counters/gncVendor&quot;</span><span class="p">,</span> <span class="n">from_gnc</span><span class="o">=</span><span class="k">lambda</span> <span class="n">v</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">v</span><span class="p">),</span> <span class="n">to_gnc</span><span class="o">=</span><span class="k">lambda</span> <span class="n">v</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">v</span><span class="p">),</span> <span class="n">default</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">counter_employee</span> <span class="o">=</span> <span class="n">kvp_attribute</span><span class="p">(</span><span class="s2">&quot;counters/gncEmployee&quot;</span><span class="p">,</span> <span class="n">from_gnc</span><span class="o">=</span><span class="k">lambda</span> <span class="n">v</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">v</span><span class="p">),</span> <span class="n">to_gnc</span><span class="o">=</span><span class="k">lambda</span> <span class="n">v</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">v</span><span class="p">),</span> <span class="n">default</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">counter_invoice</span> <span class="o">=</span> <span class="n">kvp_attribute</span><span class="p">(</span><span class="s2">&quot;counters/gncInvoice&quot;</span><span class="p">,</span> <span class="n">from_gnc</span><span class="o">=</span><span class="k">lambda</span> <span class="n">v</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">v</span><span class="p">),</span> <span class="n">to_gnc</span><span class="o">=</span><span class="k">lambda</span> <span class="n">v</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">v</span><span class="p">),</span> <span class="n">default</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">counter_job</span> <span class="o">=</span> <span class="n">kvp_attribute</span><span class="p">(</span><span class="s2">&quot;counters/gncJob&quot;</span><span class="p">,</span> <span class="n">from_gnc</span><span class="o">=</span><span class="k">lambda</span> <span class="n">v</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">v</span><span class="p">),</span> <span class="n">to_gnc</span><span class="o">=</span><span class="k">lambda</span> <span class="n">v</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">v</span><span class="p">),</span> <span class="n">default</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">counter_bill</span> <span class="o">=</span> <span class="n">kvp_attribute</span><span class="p">(</span><span class="s2">&quot;counters/gncBill&quot;</span><span class="p">,</span> <span class="n">from_gnc</span><span class="o">=</span><span class="k">lambda</span> <span class="n">v</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">v</span><span class="p">),</span> <span class="n">to_gnc</span><span class="o">=</span><span class="k">lambda</span> <span class="n">v</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">v</span><span class="p">),</span> <span class="n">default</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">counter_exp_voucher</span> <span class="o">=</span> <span class="n">kvp_attribute</span><span class="p">(</span><span class="s2">&quot;counters/gncExpVoucher&quot;</span><span class="p">,</span> <span class="n">from_gnc</span><span class="o">=</span><span class="k">lambda</span> <span class="n">v</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">v</span><span class="p">),</span> <span class="n">to_gnc</span><span class="o">=</span><span class="k">lambda</span> <span class="n">v</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">v</span><span class="p">),</span> <span class="n">default</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">counter_order</span> <span class="o">=</span> <span class="n">kvp_attribute</span><span class="p">(</span><span class="s2">&quot;counters/gncOrder&quot;</span><span class="p">,</span> <span class="n">from_gnc</span><span class="o">=</span><span class="k">lambda</span> <span class="n">v</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">v</span><span class="p">),</span> <span class="n">to_gnc</span><span class="o">=</span><span class="k">lambda</span> <span class="n">v</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">v</span><span class="p">),</span> <span class="n">default</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root_account</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">root_template</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">root_account</span> <span class="o">=</span> <span class="n">root_account</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">root_template</span> <span class="o">=</span> <span class="n">root_template</span>
+
+    <span class="k">def</span> <span class="nf">__unirepr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="sa">u</span><span class="s2">&quot;Book&lt;</span><span class="si">{}</span><span class="s2">&gt;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">uri</span><span class="p">)</span>
+
+    <span class="n">_control_mode</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">control_mode</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_control_mode</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_control_mode</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_control_mode</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">default_currency</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="p">[</span><span class="s2">&quot;default-currency&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">value</span>
+        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">locale</span><span class="o">.</span><span class="n">getlocale</span><span class="p">()</span> <span class="o">==</span> <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">):</span>
+                <span class="n">locale</span><span class="o">.</span><span class="n">setlocale</span><span class="p">(</span><span class="n">locale</span><span class="o">.</span><span class="n">LC_ALL</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span>
+            <span class="n">mnemonic</span> <span class="o">=</span> <span class="n">locale</span><span class="o">.</span><span class="n">localeconv</span><span class="p">()[</span><span class="s1">&#39;int_curr_symbol&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="ow">or</span> <span class="s2">&quot;EUR&quot;</span>
+            <span class="n">def_curr</span> <span class="o">=</span> <span class="bp">self</span><span class="p">[</span><span class="s2">&quot;default-currency&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">currencies</span><span class="p">(</span><span class="n">mnemonic</span><span class="o">=</span><span class="n">mnemonic</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">def_curr</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">book</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s2">&quot;deprecated&quot;</span><span class="p">,</span> <span class="ne">DeprecationWarning</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span>
+
+    <span class="k">def</span> <span class="nf">validate</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">Book</span><span class="o">.</span><span class="n">validate_book</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="p">)</span>
+
+<div class="viewcode-block" id="Book.track_dirty"><a class="viewcode-back" href="../../../api/piecash.core.book.html#piecash.core.book.Book.track_dirty">[docs]</a>    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">track_dirty</span><span class="p">(</span><span class="n">session</span><span class="p">,</span> <span class="n">flush_context</span><span class="p">,</span> <span class="n">instances</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Record in session._all_changes the objects that have been modified before each flush</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">change</span><span class="p">,</span> <span class="n">l</span> <span class="ow">in</span> <span class="p">{</span><span class="s2">&quot;dirty&quot;</span><span class="p">:</span> <span class="n">session</span><span class="o">.</span><span class="n">dirty</span><span class="p">,</span>
+                          <span class="s2">&quot;new&quot;</span><span class="p">:</span> <span class="n">session</span><span class="o">.</span><span class="n">new</span><span class="p">,</span>
+                          <span class="s2">&quot;deleted&quot;</span><span class="p">:</span> <span class="n">session</span><span class="o">.</span><span class="n">deleted</span><span class="p">}</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">for</span> <span class="n">obj</span> <span class="ow">in</span> <span class="n">l</span><span class="p">:</span>
+                <span class="c1"># retrieve the dictionnary of changes for the given obj</span>
+                <span class="n">attrs</span> <span class="o">=</span> <span class="n">session</span><span class="o">.</span><span class="n">_all_changes</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="nb">id</span><span class="p">(</span><span class="n">obj</span><span class="p">),</span> <span class="p">{})</span>
+                <span class="c1"># add the change of state to the list of state changes</span>
+                <span class="n">attrs</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s2">&quot;STATE_CHANGES&quot;</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">change</span><span class="p">)</span>
+                <span class="n">attrs</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s2">&quot;OBJECT&quot;</span><span class="p">,</span> <span class="n">obj</span><span class="p">)</span>
+                <span class="c1"># save old value of attr if not already saved</span>
+                <span class="c1"># (if a value is changed multiple time, we keep only the first &quot;old value&quot;)</span>
+                <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">instance_state</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span><span class="o">.</span><span class="n">committed_state</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                    <span class="k">if</span> <span class="n">k</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">attrs</span><span class="p">:</span>
+                        <span class="n">attrs</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">v</span></div>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">validate_book</span><span class="p">(</span><span class="n">session</span><span class="p">):</span>
+        <span class="n">session</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+
+        <span class="c1"># identify object to validate</span>
+        <span class="n">txs</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+
+        <span class="c1"># iterate on all explicitly changes objects to see</span>
+        <span class="c1"># if we need to add other objects for check</span>
+        <span class="k">for</span> <span class="n">attrs</span> <span class="ow">in</span> <span class="n">session</span><span class="o">.</span><span class="n">_all_changes</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="n">obj</span> <span class="o">=</span> <span class="n">attrs</span><span class="p">[</span><span class="s2">&quot;OBJECT&quot;</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">o_to_validate</span> <span class="ow">in</span> <span class="n">obj</span><span class="o">.</span><span class="n">object_to_validate</span><span class="p">(</span><span class="n">attrs</span><span class="p">[</span><span class="s2">&quot;STATE_CHANGES&quot;</span><span class="p">]):</span>
+                <span class="n">txs</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">o_to_validate</span><span class="p">)</span>
+
+        <span class="k">assert</span> <span class="kc">None</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">txs</span><span class="p">,</span> <span class="s2">&quot;No object should return None to validate. fix the code&quot;</span>
+
+        <span class="c1"># sort object from local to global (ensure Split checked before Transaction)</span>
+        <span class="kn">from</span> <span class="nn">.</span> <span class="k">import</span> <span class="n">Account</span><span class="p">,</span> <span class="n">Transaction</span><span class="p">,</span> <span class="n">Split</span>
+        <span class="n">sort_order</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="mi">20</span><span class="p">,</span> <span class="p">{</span><span class="n">Account</span><span class="p">:</span> <span class="mi">10</span><span class="p">,</span> <span class="n">Transaction</span><span class="p">:</span> <span class="mi">5</span><span class="p">,</span> <span class="n">Split</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="p">})</span>
+        <span class="n">txs</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">txs</span><span class="p">)</span>
+        <span class="n">txs</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">sort_order</span><span class="p">[</span><span class="nb">type</span><span class="p">(</span><span class="n">x</span><span class="p">)])</span>
+
+        <span class="c1"># for each object, validate it</span>
+        <span class="k">for</span> <span class="n">tx</span> <span class="ow">in</span> <span class="n">txs</span><span class="p">:</span>
+            <span class="n">tx</span><span class="o">.</span><span class="n">validate</span><span class="p">()</span>
+
+    <span class="n">_trading_accounts</span> <span class="o">=</span> <span class="kc">None</span>
+
+<div class="viewcode-block" id="Book.trading_account"><a class="viewcode-back" href="../../../api/piecash.core.book.html#piecash.core.book.Book.trading_account">[docs]</a>    <span class="k">def</span> <span class="nf">trading_account</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cdty</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the trading account related to the commodity. If it does not exist and the option</span>
+<span class="sd">        &quot;Use Trading Accounts&quot; is enabled, create it on the fly&quot;&quot;&quot;</span>
+        <span class="n">key</span> <span class="o">=</span> <span class="n">namespace</span><span class="p">,</span> <span class="n">mnemonic</span> <span class="o">=</span> <span class="n">cdty</span><span class="o">.</span><span class="n">namespace</span><span class="p">,</span> <span class="n">cdty</span><span class="o">.</span><span class="n">mnemonic</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_trading_accounts</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_trading_accounts</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="n">tacc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_trading_accounts</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">tacc</span><span class="p">:</span> <span class="k">return</span> <span class="n">tacc</span>
+
+        <span class="kn">from</span> <span class="nn">.account</span> <span class="k">import</span> <span class="n">Account</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">trading</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">root_account</span><span class="o">.</span><span class="n">children</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;Trading&quot;</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+            <span class="n">trading</span> <span class="o">=</span> <span class="n">Account</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;Trading&quot;</span><span class="p">,</span>
+                              <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;TRADING&quot;</span><span class="p">,</span>
+                              <span class="n">placeholder</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+                              <span class="n">commodity</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">default_currency</span><span class="p">,</span>
+                              <span class="n">parent</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">root_account</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">nspc</span> <span class="o">=</span> <span class="n">trading</span><span class="o">.</span><span class="n">children</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">cdty</span><span class="o">.</span><span class="n">namespace</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+            <span class="n">nspc</span> <span class="o">=</span> <span class="n">Account</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">namespace</span><span class="p">,</span>
+                           <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;TRADING&quot;</span><span class="p">,</span>
+                           <span class="n">placeholder</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+                           <span class="n">commodity</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">default_currency</span><span class="p">,</span>
+                           <span class="n">parent</span><span class="o">=</span><span class="n">trading</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">tacc</span> <span class="o">=</span> <span class="n">nspc</span><span class="o">.</span><span class="n">children</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">cdty</span><span class="o">.</span><span class="n">mnemonic</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+            <span class="n">tacc</span> <span class="o">=</span> <span class="n">Account</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">mnemonic</span><span class="p">,</span>
+                           <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;TRADING&quot;</span><span class="p">,</span>
+                           <span class="n">placeholder</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+                           <span class="n">commodity</span><span class="o">=</span><span class="n">cdty</span><span class="p">,</span>
+                           <span class="n">parent</span><span class="o">=</span><span class="n">nspc</span><span class="p">)</span>
+        <span class="c1"># self.flush()</span>
+        <span class="k">return</span> <span class="n">tacc</span></div>
+
+    <span class="c1"># add session alike functions</span>
+<div class="viewcode-block" id="Book.add"><a class="viewcode-back" href="../../../api/piecash.core.book.html#piecash.core.book.Book.add">[docs]</a>    <span class="k">def</span> <span class="nf">add</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Add an object to the book (to be used if object not linked in any way to the book)&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Book.delete"><a class="viewcode-back" href="../../../api/piecash.core.book.html#piecash.core.book.Book.delete">[docs]</a>    <span class="k">def</span> <span class="nf">delete</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Delete an object from the book (to remove permanently an object)&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Book.save"><a class="viewcode-back" href="../../../api/piecash.core.book.html#piecash.core.book.Book.save">[docs]</a>    <span class="k">def</span> <span class="nf">save</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Save the changes to the file/DB (=commit transaction)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="Book.flush"><a class="viewcode-back" href="../../../api/piecash.core.book.html#piecash.core.book.Book.flush">[docs]</a>    <span class="k">def</span> <span class="nf">flush</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Flush the book&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="Book.cancel"><a class="viewcode-back" href="../../../api/piecash.core.book.html#piecash.core.book.Book.cancel">[docs]</a>    <span class="k">def</span> <span class="nf">cancel</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Cancel all the changes that have not been saved (=rollback transaction)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">rollback</span><span class="p">()</span></div>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_saved</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Save the changes to the file/DB (=commit transaction)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">is_saved</span>
+
+    <span class="c1"># add context manager that close the session when leaving</span>
+    <span class="k">def</span> <span class="nf">__enter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span>
+
+    <span class="k">def</span> <span class="nf">__exit__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exc_type</span><span class="p">,</span> <span class="n">exc_val</span><span class="p">,</span> <span class="n">exc_tb</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+<div class="viewcode-block" id="Book.close"><a class="viewcode-back" href="../../../api/piecash.core.book.html#piecash.core.book.Book.close">[docs]</a>    <span class="k">def</span> <span class="nf">close</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Close a session. Any changes not yet saved are rolled back. Any lock on the file/DB is released.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">session</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">session</span>
+        <span class="c1"># cancel pending changes</span>
+        <span class="n">session</span><span class="o">.</span><span class="n">rollback</span><span class="p">()</span>
+        <span class="c1"># if self._acquire_lock:</span>
+        <span class="c1"># # remove the lock</span>
+        <span class="c1"># session.delete_lock()</span>
+        <span class="n">session</span><span class="o">.</span><span class="n">close</span><span class="p">()</span></div>
+
+    <span class="c1"># add general getters for gnucash classes</span>
+<div class="viewcode-block" id="Book.get"><a class="viewcode-back" href="../../../api/piecash.core.book.html#piecash.core.book.Book.get">[docs]</a>    <span class="k">def</span> <span class="nf">get</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="bp">cls</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Generic getter for a GnuCash object in the `GncSession`. If no kwargs is given, it returns the list of all</span>
+<span class="sd">        objects of type cls (uses the sqlalchemy session.query(cls).all()).</span>
+<span class="sd">        Otherwise, it gets the unique object which attributes match the kwargs</span>
+<span class="sd">        (uses the sqlalchemy session.query(cls).filter_by(\*\*kwargs).one() underneath)::</span>
+
+<span class="sd">            # to get the first account with name=&quot;Income&quot;</span>
+<span class="sd">            inc_account = session.get(Account, name=&quot;Income&quot;)</span>
+
+<span class="sd">            # to get all accounts</span>
+<span class="sd">            accs = session.get(Account)</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            cls (class): the class of the object to retrieve (Account, Price, Budget,...)</span>
+<span class="sd">            kwargs (dict): the attributes to filter on</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            object: the unique object if it exists, raises exceptions otherwise</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">kwargs</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="bp">cls</span><span class="p">)</span><span class="o">.</span><span class="n">filter_by</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span><span class="o">.</span><span class="n">one</span><span class="p">()</span>
+            <span class="k">except</span> <span class="n">NoResultFound</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Could not find a </span><span class="si">{}</span><span class="s2">(</span><span class="si">{}</span><span class="s2">)&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">cls</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span>
+                                                                  <span class="n">kwargs</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="bp">cls</span><span class="p">)</span></div>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">transactions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        gives easy access to all transactions in the book through a :class:`piecash.model_common.CallableList`</span>
+<span class="sd">        of :class:`piecash.core.transaction.Transaction`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">.transaction</span> <span class="k">import</span> <span class="n">Transaction</span>
+
+        <span class="k">return</span> <span class="n">CallableList</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="n">Transaction</span><span class="p">))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">splits</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        gives easy access to all splits in the book through a :class:`piecash.model_common.CallableList`</span>
+<span class="sd">        of :class:`piecash.core.transaction.Split`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">.transaction</span> <span class="k">import</span> <span class="n">Split</span>
+
+        <span class="k">return</span> <span class="n">CallableList</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="n">Split</span><span class="p">))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">accounts</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        gives easy access to all accounts in the book through a :class:`piecash.model_common.CallableList`</span>
+<span class="sd">        of :class:`piecash.core.account.Account`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">.account</span> <span class="k">import</span> <span class="n">Account</span>
+
+        <span class="k">return</span> <span class="n">CallableList</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="n">Account</span><span class="p">)</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">Account</span><span class="o">.</span><span class="n">parent</span> <span class="o">!=</span> <span class="kc">None</span><span class="p">))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">commodities</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        gives easy access to all commodities in the book through a :class:`piecash.model_common.CallableList`</span>
+<span class="sd">        of :class:`piecash.core.commodity.Commodity`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">.commodity</span> <span class="k">import</span> <span class="n">Commodity</span>
+
+        <span class="k">return</span> <span class="n">CallableList</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="n">Commodity</span><span class="p">))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">invoices</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        gives easy access to all commodities in the book through a :class:`piecash.model_common.CallableList`</span>
+<span class="sd">        of :class:`piecash.core.commodity.Commodity`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">.commodity</span> <span class="k">import</span> <span class="n">Commodity</span>
+
+        <span class="k">return</span> <span class="n">CallableList</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="n">Invoice</span><span class="p">))</span>
+
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">currencies</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        gives easy access to all currencies in the book through a :class:`piecash.model_common.CallableList`</span>
+<span class="sd">        of :class:`piecash.core.commodity.Commodity`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">.commodity</span> <span class="k">import</span> <span class="n">Commodity</span>
+
+        <span class="k">def</span> <span class="nf">fallback</span><span class="p">(</span><span class="n">mnemonic</span><span class="p">):</span>
+            <span class="n">cur</span> <span class="o">=</span> <span class="n">factories</span><span class="o">.</span><span class="n">create_currency_from_ISO</span><span class="p">(</span><span class="n">isocode</span><span class="o">=</span><span class="n">mnemonic</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">cur</span><span class="p">)</span>
+            <span class="c1"># self.flush()</span>
+            <span class="k">return</span> <span class="n">cur</span>
+
+        <span class="n">cl</span> <span class="o">=</span> <span class="n">CallableList</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="n">Commodity</span><span class="p">)</span><span class="o">.</span><span class="n">filter_by</span><span class="p">(</span><span class="n">namespace</span><span class="o">=</span><span class="s2">&quot;CURRENCY&quot;</span><span class="p">))</span>
+        <span class="n">cl</span><span class="o">.</span><span class="n">fallback</span> <span class="o">=</span> <span class="n">fallback</span>
+        <span class="k">return</span> <span class="n">cl</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">prices</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        gives easy access to all prices in the book through a :class:`piecash.model_common.CallableList`</span>
+<span class="sd">        of :class:`piecash.core.commodity.Price`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">.commodity</span> <span class="k">import</span> <span class="n">Price</span>
+
+        <span class="k">return</span> <span class="n">CallableList</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="n">Price</span><span class="p">))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">customers</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        gives easy access to all commodities in the book through a :class:`piecash.model_common.CallableList`</span>
+<span class="sd">        of :class:`piecash.business.people.Customer`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">..business</span> <span class="k">import</span> <span class="n">Customer</span>
+
+        <span class="k">return</span> <span class="n">CallableList</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="n">Customer</span><span class="p">))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">vendors</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        gives easy access to all commodities in the book through a :class:`piecash.model_common.CallableList`</span>
+<span class="sd">        of :class:`piecash.business.people.Vendor`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">..business</span> <span class="k">import</span> <span class="n">Vendor</span>
+
+        <span class="k">return</span> <span class="n">CallableList</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="n">Vendor</span><span class="p">))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">employees</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        gives easy access to all commodities in the book through a :class:`piecash.model_common.CallableList`</span>
+<span class="sd">        of :class:`piecash.business.people.Employee`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">..business</span> <span class="k">import</span> <span class="n">Employee</span>
+
+        <span class="k">return</span> <span class="n">CallableList</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="n">Employee</span><span class="p">))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">taxtables</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        gives easy access to all commodities in the book through a :class:`piecash.model_common.CallableList`</span>
+<span class="sd">        of :class:`piecash.business.tax.Taxtable`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">..business</span> <span class="k">import</span> <span class="n">Taxtable</span>
+
+        <span class="k">return</span> <span class="n">CallableList</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="n">Taxtable</span><span class="p">))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">query</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        proxy for the query function of the underlying sqlalchemy session</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">query</span>
+
+    <span class="k">def</span> <span class="nf">preload</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># preload list of accounts</span>
+        <span class="n">accounts</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="n">Account</span><span class="p">)</span><span class="o">.</span><span class="n">options</span><span class="p">(</span><span class="n">joinedload</span><span class="p">(</span><span class="s2">&quot;splits&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">joinedload</span><span class="p">(</span><span class="s2">&quot;transaction&quot;</span><span class="p">),</span>
+                                                       <span class="n">joinedload</span><span class="p">(</span><span class="s2">&quot;children&quot;</span><span class="p">),</span>
+                                                       <span class="n">joinedload</span><span class="p">(</span><span class="s2">&quot;commodity&quot;</span><span class="p">),</span>
+                                                       <span class="p">)</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+
+        <span class="c1"># load all splits</span>
+        <span class="n">splits</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="n">Split</span><span class="p">)</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">Transaction</span><span class="p">)</span><span class="o">.</span><span class="n">options</span><span class="p">(</span>
+                                                   <span class="n">joinedload</span><span class="p">(</span><span class="s2">&quot;account&quot;</span><span class="p">),</span>
+                                                   <span class="n">joinedload</span><span class="p">(</span><span class="s2">&quot;lot&quot;</span><span class="p">))</span> \
+            <span class="o">.</span><span class="n">order_by</span><span class="p">(</span><span class="n">Transaction</span><span class="o">.</span><span class="n">post_date</span><span class="p">,</span> <span class="n">Split</span><span class="o">.</span><span class="n">value</span><span class="p">)</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="n">accounts</span><span class="p">,</span> <span class="n">splits</span>
+
+
+<div class="viewcode-block" id="Book.splits_df"><a class="viewcode-back" href="../../../api/piecash.core.book.html#piecash.core.book.Book.splits_df">[docs]</a>    <span class="k">def</span> <span class="nf">splits_df</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">additional_fields</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return a pandas DataFrame with all splits (:class:`piecash.core.commodity.Split`) from the book</span>
+<span class="sd">        </span>
+<span class="sd">        :parameters: :class:`list`</span>
+
+<span class="sd">        :return: :class:`pandas.DataFrame`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="kn">import</span> <span class="nn">pandas</span>
+        <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">GnucashException</span><span class="p">(</span><span class="s2">&quot;pandas is required to output dataframes&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Initialise default argument here</span>
+        <span class="n">additional_fields</span> <span class="o">=</span> <span class="n">additional_fields</span> <span class="k">if</span> <span class="n">additional_fields</span> <span class="k">else</span> <span class="p">[]</span>
+
+        <span class="c1"># preload list of accounts</span>
+        <span class="n">accounts</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="n">Account</span><span class="p">)</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+
+        <span class="c1"># preload list of commodities</span>
+        <span class="n">commodities</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="n">Commodity</span><span class="p">)</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">Commodity</span><span class="o">.</span><span class="n">namespace</span> <span class="o">!=</span> <span class="s2">&quot;template&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+
+        <span class="c1"># preload list of transactions</span>
+        <span class="n">transactions</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="n">Transaction</span><span class="p">)</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+
+        <span class="c1"># load all splits</span>
+        <span class="n">splits</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="n">Split</span><span class="p">)</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">Transaction</span><span class="p">)</span> \
+            <span class="o">.</span><span class="n">order_by</span><span class="p">(</span><span class="n">Transaction</span><span class="o">.</span><span class="n">post_date</span><span class="p">,</span> <span class="n">Split</span><span class="o">.</span><span class="n">value</span><span class="p">)</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+
+        <span class="c1"># build dataframe. Adds additional transaction.guid field.</span>
+        <span class="n">fields</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;guid&quot;</span><span class="p">,</span> <span class="s2">&quot;value&quot;</span><span class="p">,</span> <span class="s2">&quot;quantity&quot;</span><span class="p">,</span> <span class="s2">&quot;memo&quot;</span><span class="p">,</span> <span class="s2">&quot;transaction.guid&quot;</span><span class="p">,</span> <span class="s2">&quot;transaction.description&quot;</span><span class="p">,</span>
+                  <span class="s2">&quot;transaction.post_date&quot;</span><span class="p">,</span> <span class="s2">&quot;transaction.currency.guid&quot;</span><span class="p">,</span> <span class="s2">&quot;transaction.currency.mnemonic&quot;</span><span class="p">,</span>
+                  <span class="s2">&quot;account.fullname&quot;</span><span class="p">,</span> <span class="s2">&quot;account.commodity.guid&quot;</span><span class="p">,</span> <span class="s2">&quot;account.commodity.mnemonic&quot;</span><span class="p">,</span>
+                  <span class="p">]</span> <span class="o">+</span> <span class="n">additional_fields</span>
+        <span class="n">fields_getter</span> <span class="o">=</span> <span class="p">[</span><span class="n">attrgetter</span><span class="p">(</span><span class="n">fld</span><span class="p">)</span> <span class="k">for</span> <span class="n">fld</span> <span class="ow">in</span> <span class="n">fields</span><span class="p">]</span>
+        <span class="n">df_splits</span> <span class="o">=</span> <span class="n">pandas</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">([[</span><span class="n">fg</span><span class="p">(</span><span class="n">sp</span><span class="p">)</span> <span class="k">for</span> <span class="n">fg</span> <span class="ow">in</span> <span class="n">fields_getter</span><span class="p">]</span>
+                                      <span class="k">for</span> <span class="n">sp</span> <span class="ow">in</span> <span class="n">splits</span><span class="p">],</span> <span class="n">columns</span><span class="o">=</span><span class="n">fields</span><span class="p">)</span>
+        <span class="n">df_splits</span> <span class="o">=</span> <span class="n">df_splits</span><span class="p">[</span><span class="n">df_splits</span><span class="p">[</span><span class="s2">&quot;account.commodity.mnemonic&quot;</span><span class="p">]</span> <span class="o">!=</span> <span class="s2">&quot;template&quot;</span><span class="p">]</span>
+        <span class="n">df_splits</span> <span class="o">=</span> <span class="n">df_splits</span><span class="o">.</span><span class="n">set_index</span><span class="p">(</span><span class="s2">&quot;guid&quot;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">df_splits</span></div>
+
+<div class="viewcode-block" id="Book.prices_df"><a class="viewcode-back" href="../../../api/piecash.core.book.html#piecash.core.book.Book.prices_df">[docs]</a>    <span class="k">def</span> <span class="nf">prices_df</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return a pandas DataFrame with all prices (:class:`piecash.core.commodity.Price`) from the book</span>
+
+<span class="sd">        :return: :class:`pandas.DataFrame`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="kn">import</span> <span class="nn">pandas</span>
+        <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">GnucashException</span><span class="p">(</span><span class="s2">&quot;pandas is required to output dataframes&quot;</span><span class="p">)</span>
+
+        <span class="c1"># preload list of commodities</span>
+        <span class="n">commodities</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="n">Commodity</span><span class="p">)</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+
+        <span class="c1"># load all prices</span>
+        <span class="n">Currency</span> <span class="o">=</span> <span class="n">aliased</span><span class="p">(</span><span class="n">Commodity</span><span class="p">)</span>
+        <span class="n">prices</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="n">Price</span><span class="p">)</span> \
+            <span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">Commodity</span><span class="p">,</span> <span class="n">Price</span><span class="o">.</span><span class="n">commodity</span><span class="p">)</span> \
+            <span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">Currency</span><span class="p">,</span> <span class="n">Price</span><span class="o">.</span><span class="n">currency</span><span class="p">)</span> \
+            <span class="o">.</span><span class="n">order_by</span><span class="p">(</span><span class="n">Commodity</span><span class="o">.</span><span class="n">mnemonic</span><span class="p">,</span> <span class="n">Price</span><span class="o">.</span><span class="n">date</span><span class="p">,</span> <span class="n">Currency</span><span class="o">.</span><span class="n">mnemonic</span><span class="p">)</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+
+        <span class="n">fields</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;date&quot;</span><span class="p">,</span> <span class="s2">&quot;type&quot;</span><span class="p">,</span> <span class="s2">&quot;value&quot;</span><span class="p">,</span>
+                  <span class="s2">&quot;commodity.guid&quot;</span><span class="p">,</span> <span class="s2">&quot;commodity.mnemonic&quot;</span><span class="p">,</span>
+                  <span class="s2">&quot;currency.guid&quot;</span><span class="p">,</span> <span class="s2">&quot;currency.mnemonic&quot;</span><span class="p">,</span> <span class="p">]</span>
+        <span class="n">fields_getter</span> <span class="o">=</span> <span class="p">[</span><span class="n">attrgetter</span><span class="p">(</span><span class="n">fld</span><span class="p">)</span> <span class="k">for</span> <span class="n">fld</span> <span class="ow">in</span> <span class="n">fields</span><span class="p">]</span>
+        <span class="n">df_prices</span> <span class="o">=</span> <span class="n">pandas</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">([[</span><span class="n">fg</span><span class="p">(</span><span class="n">pr</span><span class="p">)</span> <span class="k">for</span> <span class="n">fg</span> <span class="ow">in</span> <span class="n">fields_getter</span><span class="p">]</span>
+                                      <span class="k">for</span> <span class="n">pr</span> <span class="ow">in</span> <span class="n">prices</span><span class="p">],</span> <span class="n">columns</span><span class="o">=</span><span class="n">fields</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">df_prices</span></div></div>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2014 sdementen.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../',
+            VERSION:'0.14.1',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../_static/doctools.js"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

@@ -1,0 +1,654 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>piecash.kvp &mdash; Python interface to GnuCash documents 0.14.1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../genindex.html"/>
+        <link rel="search" title="Search" href="../../search.html"/>
+    <link rel="top" title="Python interface to GnuCash documents 0.14.1 documentation" href="../../index.html"/>
+        <link rel="up" title="Module code" href="../index.html"/> 
+
+  
+  <script src="../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../index.html" class="icon icon-home"> Python interface to GnuCash documents
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.14.1
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../news.html">What’s new</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../doc/doc.html">Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorial/index_existing.html">Tutorial : using existing objects</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorial/index_new.html">Tutorial : creating new objects</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorial/examples.html">Examples of programs written with piecash</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../doc/comparison.html">piecash and the official python bindings</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../api/piecash.html">piecash package</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../object_model.html">GnuCash SQL Object model and schema</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../doc/resources.html">Resources</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Python interface to GnuCash documents</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../index.html">Module code</a> &raquo;</li>
+        
+      <li>piecash.kvp</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for piecash.kvp</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">datetime</span>
+<span class="kn">import</span> <span class="nn">decimal</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">import</span> <span class="nn">uuid</span>
+<span class="kn">from</span> <span class="nn">enum</span> <span class="k">import</span> <span class="n">Enum</span>
+<span class="kn">from</span> <span class="nn">importlib</span> <span class="k">import</span> <span class="n">import_module</span>
+
+<span class="kn">from</span> <span class="nn">sqlalchemy</span> <span class="k">import</span> <span class="n">Column</span><span class="p">,</span> <span class="n">VARCHAR</span><span class="p">,</span> <span class="n">INTEGER</span><span class="p">,</span> <span class="n">REAL</span><span class="p">,</span> <span class="n">BIGINT</span><span class="p">,</span> <span class="n">types</span><span class="p">,</span> <span class="n">event</span>
+<span class="kn">from</span> <span class="nn">sqlalchemy.orm</span> <span class="k">import</span> <span class="n">relation</span><span class="p">,</span> <span class="n">foreign</span><span class="p">,</span> <span class="n">object_session</span><span class="p">,</span> <span class="n">backref</span>
+
+<span class="kn">from</span> <span class="nn">._common</span> <span class="k">import</span> <span class="n">CallableList</span>
+<span class="kn">from</span> <span class="nn">._common</span> <span class="k">import</span> <span class="n">hybrid_property_gncnumeric</span>
+<span class="kn">from</span> <span class="nn">.sa_extra</span> <span class="k">import</span> <span class="n">_DateTime</span><span class="p">,</span> <span class="n">DeclarativeBase</span><span class="p">,</span> <span class="n">_Date</span>
+
+<span class="k">if</span> <span class="n">sys</span><span class="o">.</span><span class="n">version</span> <span class="o">&gt;</span> <span class="s1">&#39;3&#39;</span><span class="p">:</span>
+    <span class="n">str_unicode</span> <span class="o">=</span> <span class="nb">str</span>
+<span class="k">else</span><span class="p">:</span>
+    <span class="n">str_unicode</span> <span class="o">=</span> <span class="n">basestring</span>
+
+
+<div class="viewcode-block" id="KVP_Type"><a class="viewcode-back" href="../../api/piecash.kvp.html#piecash.kvp.KVP_Type">[docs]</a><span class="k">class</span> <span class="nc">KVP_Type</span><span class="p">(</span><span class="n">Enum</span><span class="p">):</span>
+    <span class="n">KVP_TYPE_INVALID</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
+    <span class="n">KVP_TYPE_GINT64</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">KVP_TYPE_DOUBLE</span> <span class="o">=</span> <span class="mi">2</span>
+    <span class="n">KVP_TYPE_NUMERIC</span> <span class="o">=</span> <span class="mi">3</span>
+    <span class="n">KVP_TYPE_STRING</span> <span class="o">=</span> <span class="mi">4</span>
+    <span class="n">KVP_TYPE_GUID</span> <span class="o">=</span> <span class="mi">5</span>
+    <span class="n">KVP_TYPE_TIMESPEC</span> <span class="o">=</span> <span class="mi">6</span>
+    <span class="n">KVP_TYPE_BINARY</span> <span class="o">=</span> <span class="mi">7</span>
+    <span class="n">KVP_TYPE_GLIST</span> <span class="o">=</span> <span class="mi">8</span>
+    <span class="n">KVP_TYPE_FRAME</span> <span class="o">=</span> <span class="mi">9</span>
+    <span class="n">KVP_TYPE_GDATE</span> <span class="o">=</span> <span class="mi">10</span></div>
+
+
+<span class="n">pytype_KVPtype</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="nb">int</span><span class="p">:</span> <span class="n">KVP_Type</span><span class="o">.</span><span class="n">KVP_TYPE_GINT64</span><span class="p">,</span>
+    <span class="nb">float</span><span class="p">:</span> <span class="n">KVP_Type</span><span class="o">.</span><span class="n">KVP_TYPE_DOUBLE</span><span class="p">,</span>
+    <span class="n">decimal</span><span class="o">.</span><span class="n">Decimal</span><span class="p">:</span> <span class="n">KVP_Type</span><span class="o">.</span><span class="n">KVP_TYPE_NUMERIC</span><span class="p">,</span>
+    <span class="nb">dict</span><span class="p">:</span> <span class="n">KVP_Type</span><span class="o">.</span><span class="n">KVP_TYPE_FRAME</span><span class="p">,</span>
+    <span class="nb">list</span><span class="p">:</span> <span class="n">KVP_Type</span><span class="o">.</span><span class="n">KVP_TYPE_GLIST</span><span class="p">,</span>
+    <span class="c1"># to fill</span>
+<span class="p">}</span>
+
+<span class="n">KVPtype_fields</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="n">KVP_Type</span><span class="o">.</span><span class="n">KVP_TYPE_GINT64</span><span class="p">:</span> <span class="s1">&#39;int64_val&#39;</span><span class="p">,</span>
+    <span class="n">KVP_Type</span><span class="o">.</span><span class="n">KVP_TYPE_DOUBLE</span><span class="p">:</span> <span class="s1">&#39;double_val&#39;</span><span class="p">,</span>
+    <span class="n">KVP_Type</span><span class="o">.</span><span class="n">KVP_TYPE_STRING</span><span class="p">:</span> <span class="s1">&#39;string_val&#39;</span><span class="p">,</span>
+    <span class="n">KVP_Type</span><span class="o">.</span><span class="n">KVP_TYPE_GUID</span><span class="p">:</span> <span class="s1">&#39;guid_val&#39;</span><span class="p">,</span>
+    <span class="n">KVP_Type</span><span class="o">.</span><span class="n">KVP_TYPE_TIMESPEC</span><span class="p">:</span> <span class="s1">&#39;timespec_val&#39;</span><span class="p">,</span>
+    <span class="n">KVP_Type</span><span class="o">.</span><span class="n">KVP_TYPE_GDATE</span><span class="p">:</span> <span class="s1">&#39;gdate_val&#39;</span><span class="p">,</span>
+    <span class="n">KVP_Type</span><span class="o">.</span><span class="n">KVP_TYPE_NUMERIC</span><span class="p">:</span> <span class="p">(</span><span class="s1">&#39;numeric_val_num&#39;</span><span class="p">,</span> <span class="s1">&#39;numeric_val_denom&#39;</span><span class="p">),</span>
+    <span class="n">KVP_Type</span><span class="o">.</span><span class="n">KVP_TYPE_FRAME</span><span class="p">:</span> <span class="s1">&#39;guid&#39;</span><span class="p">,</span>
+    <span class="n">KVP_Type</span><span class="o">.</span><span class="n">KVP_TYPE_GLIST</span><span class="p">:</span> <span class="s1">&#39;guid&#39;</span><span class="p">,</span>
+<span class="p">}</span>
+
+
+<div class="viewcode-block" id="SlotType"><a class="viewcode-back" href="../../api/piecash.kvp.html#piecash.kvp.SlotType">[docs]</a><span class="k">class</span> <span class="nc">SlotType</span><span class="p">(</span><span class="n">types</span><span class="o">.</span><span class="n">TypeDecorator</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Used to customise the DateTime type for sqlite (ie without the separators as in gnucash</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">impl</span> <span class="o">=</span> <span class="n">INTEGER</span>
+
+    <span class="k">def</span> <span class="nf">process_bind_param</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">dialect</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">value</span><span class="o">.</span><span class="n">value</span>
+
+    <span class="k">def</span> <span class="nf">process_result_value</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">dialect</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">KVP_Type</span><span class="p">(</span><span class="n">value</span><span class="p">)</span></div>
+
+
+<span class="k">class</span> <span class="nc">DictWrapper</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__contains__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">sl</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">slots</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">sl</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="n">key</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">True</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+
+    <span class="k">def</span> <span class="nf">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="nb">int</span><span class="p">),</span> \
+            <span class="s2">&quot;You are accessing slots with an integer (=</span><span class="si">{}</span><span class="s2">) while a string is expected&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+        <span class="n">keys</span> <span class="o">=</span> <span class="n">key</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">key</span> <span class="o">=</span> <span class="n">keys</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">sl</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">slots</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">sl</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="n">key</span><span class="p">:</span>
+                <span class="k">break</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span><span class="s2">&quot;No slot exists with name &#39;</span><span class="si">{}</span><span class="s2">&#39;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">key</span><span class="p">))</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">keys</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">sl</span><span class="p">[</span><span class="n">keys</span><span class="p">[</span><span class="mi">1</span><span class="p">]]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">sl</span>  <span class="c1"># .value</span>
+
+    <span class="k">def</span> <span class="nf">__setitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="n">keys</span> <span class="o">=</span> <span class="n">key</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">key</span> <span class="o">=</span> <span class="n">keys</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">sl</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">slots</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">sl</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="n">key</span><span class="p">:</span>
+                <span class="k">break</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># new key</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">keys</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">SlotFrame</span><span class="p">):</span>
+                    <span class="n">sf</span> <span class="o">=</span> <span class="n">SlotFrame</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_name</span> <span class="o">+</span> <span class="s2">&quot;/&quot;</span> <span class="o">+</span> <span class="n">key</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">sf</span> <span class="o">=</span> <span class="n">SlotFrame</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">key</span><span class="p">)</span>
+                <span class="n">sf</span><span class="p">[</span><span class="n">keys</span><span class="p">[</span><span class="mi">1</span><span class="p">]]</span> <span class="o">=</span> <span class="n">value</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">slots</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">sf</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">slots</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">slot</span><span class="p">(</span><span class="n">parent</span><span class="o">=</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="n">value</span><span class="p">))</span>
+
+            <span class="k">return</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">keys</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">sl</span><span class="p">[</span><span class="n">keys</span><span class="p">[</span><span class="mi">1</span><span class="p">]]</span> <span class="o">=</span> <span class="n">value</span>
+            <span class="k">return</span>
+        <span class="c1"># assign if type is correct</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">sl</span><span class="o">.</span><span class="n">_python_type</span><span class="p">):</span>
+            <span class="n">sl</span><span class="o">.</span><span class="n">value</span> <span class="o">=</span> <span class="n">value</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Type of &#39;</span><span class="si">{}</span><span class="s2">&#39; is not one of </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">sl</span><span class="o">.</span><span class="n">_python_type</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">__delitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="nb">slice</span><span class="p">):</span>
+            <span class="c1"># delete all</span>
+            <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">slots</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+            <span class="k">return</span>
+        <span class="n">keys</span> <span class="o">=</span> <span class="n">key</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">sl</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">slots</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">sl</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="n">keys</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
+                <span class="k">break</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span><span class="s2">&quot;No slot exists with name &#39;</span><span class="si">{}</span><span class="s2">&#39;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">key</span><span class="p">))</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">keys</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">del</span> <span class="n">sl</span><span class="p">[</span><span class="n">keys</span><span class="p">[</span><span class="mi">1</span><span class="p">]]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">slots</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">iteritems</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">sl</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">slots</span><span class="p">:</span>
+            <span class="k">yield</span> <span class="n">sl</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">sl</span>
+
+    <span class="k">def</span> <span class="nf">get</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="p">[</span><span class="n">key</span><span class="p">]</span><span class="o">.</span><span class="n">value</span>
+        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">default</span>
+
+
+<span class="k">class</span> <span class="nc">Slot</span><span class="p">(</span><span class="n">DeclarativeBase</span><span class="p">):</span>
+    <span class="n">__tablename__</span> <span class="o">=</span> <span class="s1">&#39;slots&#39;</span>
+
+    <span class="n">__table_args__</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;sqlite_autoincrement&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">}</span>
+
+    <span class="c1"># column definitions</span>
+    <span class="nb">id</span> <span class="o">=</span> <span class="n">Column</span><span class="p">(</span><span class="s1">&#39;id&#39;</span><span class="p">,</span> <span class="n">INTEGER</span><span class="p">(),</span> <span class="n">primary_key</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">nullable</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="n">obj_guid</span> <span class="o">=</span> <span class="n">Column</span><span class="p">(</span><span class="s1">&#39;obj_guid&#39;</span><span class="p">,</span> <span class="n">VARCHAR</span><span class="p">(</span><span class="n">length</span><span class="o">=</span><span class="mi">32</span><span class="p">),</span> <span class="n">nullable</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">_name</span> <span class="o">=</span> <span class="n">Column</span><span class="p">(</span><span class="s1">&#39;name&#39;</span><span class="p">,</span> <span class="n">VARCHAR</span><span class="p">(</span><span class="n">length</span><span class="o">=</span><span class="mi">4096</span><span class="p">),</span> <span class="n">nullable</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">name</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_name</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_name</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_name</span>
+
+    <span class="nd">@name</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">name</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_name</span> <span class="o">=</span> <span class="n">value</span>
+
+    <span class="n">slot_type</span> <span class="o">=</span> <span class="n">Column</span><span class="p">(</span><span class="s1">&#39;slot_type&#39;</span><span class="p">,</span> <span class="n">SlotType</span><span class="p">(),</span> <span class="n">nullable</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+    <span class="n">__mapper_args__</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">&#39;polymorphic_on&#39;</span><span class="p">:</span> <span class="n">slot_type</span><span class="p">,</span>
+    <span class="p">}</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
+        <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">value</span> <span class="o">=</span> <span class="n">value</span>
+
+    <span class="k">def</span> <span class="nf">__unirepr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="sa">u</span><span class="s2">&quot;&lt;</span><span class="si">{}</span><span class="s2"> </span><span class="si">{}</span><span class="s2">=</span><span class="si">{!r}</span><span class="s2">&gt;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">value</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">SlotSimple</span><span class="p">(</span><span class="n">Slot</span><span class="p">):</span>
+    <span class="n">__mapper_args__</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">&#39;polymorphic_identity&#39;</span><span class="p">:</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span>
+    <span class="p">}</span>
+
+    <span class="n">_python_type</span> <span class="o">=</span> <span class="p">()</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">value</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_field</span><span class="p">)</span>
+
+    <span class="nd">@value</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">value</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="nb">setattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_field</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__eq__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="p">)</span>
+                <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="n">other</span><span class="o">.</span><span class="n">name</span>
+                <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">value</span> <span class="o">==</span> <span class="n">other</span><span class="o">.</span><span class="n">value</span>
+                <span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">define_simpleslot</span><span class="p">(</span><span class="n">postfix</span><span class="p">,</span> <span class="n">pytype</span><span class="p">,</span> <span class="n">KVPtype</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="n">col_type</span><span class="p">,</span> <span class="n">col_default</span><span class="p">):</span>
+    <span class="bp">cls</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span>
+        <span class="s1">&#39;Slot</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">postfix</span><span class="p">),</span>
+        <span class="p">(</span><span class="n">SlotSimple</span><span class="p">,),</span>
+        <span class="p">{</span>
+            <span class="s2">&quot;__mapper_args__&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;polymorphic_identity&#39;</span><span class="p">:</span> <span class="n">KVPtype</span><span class="p">},</span>
+            <span class="n">field</span><span class="p">:</span> <span class="n">Column</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="n">col_type</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="n">col_default</span><span class="p">),</span>
+            <span class="s2">&quot;_field&quot;</span><span class="p">:</span> <span class="n">field</span><span class="p">,</span>
+            <span class="s2">&quot;_python_type&quot;</span><span class="p">:</span> <span class="n">pytype</span><span class="p">,</span>
+        <span class="p">}</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="bp">cls</span>
+
+
+<span class="n">SlotInt</span> <span class="o">=</span> <span class="n">define_simpleslot</span><span class="p">(</span><span class="n">postfix</span><span class="o">=</span><span class="s2">&quot;Int&quot;</span><span class="p">,</span>
+                            <span class="n">pytype</span><span class="o">=</span><span class="p">(</span><span class="nb">int</span><span class="p">,),</span>
+                            <span class="n">KVPtype</span><span class="o">=</span><span class="n">KVP_Type</span><span class="o">.</span><span class="n">KVP_TYPE_GINT64</span><span class="p">,</span>
+                            <span class="n">field</span><span class="o">=</span><span class="s2">&quot;int64_val&quot;</span><span class="p">,</span>
+                            <span class="n">col_type</span><span class="o">=</span><span class="n">BIGINT</span><span class="p">(),</span>
+                            <span class="n">col_default</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+                            <span class="p">)</span>
+<span class="n">SlotString</span> <span class="o">=</span> <span class="n">define_simpleslot</span><span class="p">(</span><span class="n">postfix</span><span class="o">=</span><span class="s2">&quot;String&quot;</span><span class="p">,</span>
+                               <span class="n">pytype</span><span class="o">=</span><span class="p">(</span><span class="n">str_unicode</span><span class="p">,),</span>
+                               <span class="n">KVPtype</span><span class="o">=</span><span class="n">KVP_Type</span><span class="o">.</span><span class="n">KVP_TYPE_STRING</span><span class="p">,</span>
+                               <span class="n">field</span><span class="o">=</span><span class="s2">&quot;string_val&quot;</span><span class="p">,</span>
+                               <span class="n">col_type</span><span class="o">=</span><span class="n">VARCHAR</span><span class="p">(</span><span class="n">length</span><span class="o">=</span><span class="mi">4096</span><span class="p">),</span>
+                               <span class="n">col_default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                               <span class="p">)</span>
+<span class="n">SlotDouble</span> <span class="o">=</span> <span class="n">define_simpleslot</span><span class="p">(</span><span class="n">postfix</span><span class="o">=</span><span class="s2">&quot;Double&quot;</span><span class="p">,</span>
+                               <span class="n">pytype</span><span class="o">=</span><span class="p">(</span><span class="nb">float</span><span class="p">,),</span>
+                               <span class="n">KVPtype</span><span class="o">=</span><span class="n">KVP_Type</span><span class="o">.</span><span class="n">KVP_TYPE_DOUBLE</span><span class="p">,</span>
+                               <span class="n">field</span><span class="o">=</span><span class="s2">&quot;double_val&quot;</span><span class="p">,</span>
+                               <span class="n">col_type</span><span class="o">=</span><span class="n">REAL</span><span class="p">(),</span>
+                               <span class="n">col_default</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+                               <span class="p">)</span>
+<span class="n">SlotTime</span> <span class="o">=</span> <span class="n">define_simpleslot</span><span class="p">(</span><span class="n">postfix</span><span class="o">=</span><span class="s2">&quot;Time&quot;</span><span class="p">,</span>
+                             <span class="n">pytype</span><span class="o">=</span><span class="p">(</span><span class="n">datetime</span><span class="o">.</span><span class="n">time</span><span class="p">,),</span>
+                             <span class="n">KVPtype</span><span class="o">=</span><span class="n">KVP_Type</span><span class="o">.</span><span class="n">KVP_TYPE_TIMESPEC</span><span class="p">,</span>
+                             <span class="n">field</span><span class="o">=</span><span class="s2">&quot;timespec_val&quot;</span><span class="p">,</span>
+                             <span class="n">col_type</span><span class="o">=</span><span class="n">_DateTime</span><span class="p">(),</span>
+                             <span class="n">col_default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                             <span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">SlotFrame</span><span class="p">(</span><span class="n">DictWrapper</span><span class="p">,</span> <span class="n">Slot</span><span class="p">):</span>
+    <span class="n">__mapper_args__</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">&#39;polymorphic_identity&#39;</span><span class="p">:</span> <span class="n">KVP_Type</span><span class="o">.</span><span class="n">KVP_TYPE_FRAME</span>
+    <span class="p">}</span>
+    <span class="n">_python_type</span> <span class="o">=</span> <span class="p">(</span><span class="nb">dict</span><span class="p">,)</span>
+
+    <span class="n">guid_val</span> <span class="o">=</span> <span class="n">Column</span><span class="p">(</span><span class="s1">&#39;guid_val&#39;</span><span class="p">,</span> <span class="n">VARCHAR</span><span class="p">(</span><span class="n">length</span><span class="o">=</span><span class="mi">32</span><span class="p">))</span>
+
+    <span class="n">slots</span> <span class="o">=</span> <span class="n">relation</span><span class="p">(</span><span class="s1">&#39;Slot&#39;</span><span class="p">,</span>
+                     <span class="n">primaryjoin</span><span class="o">=</span><span class="n">foreign</span><span class="p">(</span><span class="n">Slot</span><span class="o">.</span><span class="n">obj_guid</span><span class="p">)</span> <span class="o">==</span> <span class="n">guid_val</span><span class="p">,</span>
+                     <span class="n">cascade</span><span class="o">=</span><span class="s1">&#39;all, delete-orphan&#39;</span><span class="p">,</span>
+                     <span class="n">collection_class</span><span class="o">=</span><span class="n">CallableList</span><span class="p">,</span>
+                     <span class="n">single_parent</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                     <span class="n">backref</span><span class="o">=</span><span class="n">backref</span><span class="p">(</span><span class="s2">&quot;parent&quot;</span><span class="p">,</span> <span class="n">remote_side</span><span class="o">=</span><span class="n">guid_val</span><span class="p">),</span>
+                     <span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">value</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># convert to dict</span>
+        <span class="k">return</span> <span class="p">{</span><span class="n">sl</span><span class="o">.</span><span class="n">name</span><span class="p">:</span> <span class="n">sl</span><span class="o">.</span><span class="n">value</span> <span class="k">for</span> <span class="n">sl</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">slots</span><span class="p">}</span>
+
+    <span class="nd">@value</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">value</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">slots</span> <span class="o">=</span> <span class="p">[</span><span class="n">slot</span><span class="p">(</span><span class="n">parent</span><span class="o">=</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="n">k</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">value</span><span class="o">.</span><span class="n">items</span><span class="p">()]</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">guid_val</span> <span class="o">=</span> <span class="n">uuid</span><span class="o">.</span><span class="n">uuid4</span><span class="p">()</span><span class="o">.</span><span class="n">hex</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">SlotFrame</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">SlotList</span><span class="p">(</span><span class="n">SlotFrame</span><span class="p">):</span>
+    <span class="n">__mapper_args__</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">&#39;polymorphic_identity&#39;</span><span class="p">:</span> <span class="n">KVP_Type</span><span class="o">.</span><span class="n">KVP_TYPE_GLIST</span>
+    <span class="p">}</span>
+    <span class="n">_python_type</span> <span class="o">=</span> <span class="p">(</span><span class="nb">list</span><span class="p">,)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">value</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># convert to dict</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">sl</span><span class="o">.</span><span class="n">value</span> <span class="k">for</span> <span class="n">sl</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">slots</span><span class="p">]</span>
+
+    <span class="nd">@value</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">value</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">slots</span> <span class="o">=</span> <span class="p">[</span><span class="n">slot</span><span class="p">(</span><span class="n">parent</span><span class="o">=</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">),</span> <span class="n">value</span><span class="o">=</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">value</span><span class="p">)]</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">guid_val</span> <span class="o">=</span> <span class="n">uuid</span><span class="o">.</span><span class="n">uuid4</span><span class="p">()</span><span class="o">.</span><span class="n">hex</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">SlotFrame</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+
+<span class="nd">@event</span><span class="o">.</span><span class="n">listens_for</span><span class="p">(</span><span class="n">SlotFrame</span><span class="o">.</span><span class="n">slots</span><span class="p">,</span> <span class="s1">&#39;remove&#39;</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">remove_slot</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">initiator</span><span class="p">):</span>
+    <span class="n">s</span> <span class="o">=</span> <span class="n">object_session</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">s</span><span class="o">.</span><span class="n">new</span><span class="p">:</span>
+        <span class="n">s</span><span class="o">.</span><span class="n">expunge</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">s</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">SlotGUID</span><span class="p">(</span><span class="n">SlotFrame</span><span class="p">):</span>
+    <span class="n">__mapper_args__</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">&#39;polymorphic_identity&#39;</span><span class="p">:</span> <span class="n">KVP_Type</span><span class="o">.</span><span class="n">KVP_TYPE_GUID</span>
+    <span class="p">}</span>
+    <span class="n">_python_type</span> <span class="o">=</span> <span class="p">(</span><span class="n">DeclarativeBase</span><span class="p">,)</span>
+
+    <span class="c1"># add</span>
+    <span class="n">_mapping_name_class</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">&#39;from-sched-xaction&#39;</span><span class="p">:</span> <span class="s1">&#39;piecash.core.transaction.ScheduledTransaction&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;account&#39;</span><span class="p">:</span> <span class="s1">&#39;piecash.core.account.Account&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;invoice-guid&#39;</span><span class="p">:</span> <span class="s1">&#39;piecash.business.invoice.Invoice&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;peer_guid&#39;</span><span class="p">:</span> <span class="s1">&#39;piecash.core.transaction.Split&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;gains-split&#39;</span><span class="p">:</span> <span class="s1">&#39;piecash.core.transaction.Split&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;gains-source&#39;</span><span class="p">:</span> <span class="s1">&#39;piecash.core.transaction.Split&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;default-currency&#39;</span><span class="p">:</span> <span class="s1">&#39;piecash.core.commodity.Commodity&#39;</span><span class="p">,</span>
+    <span class="p">}</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">Class</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">name</span><span class="p">,</span> <span class="n">guid</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">guid_val</span>
+        <span class="k">if</span> <span class="n">name</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;CURRENCY::&#39;</span><span class="p">):</span>
+            <span class="c1"># handle capital gain account</span>
+            <span class="n">class_to_retrieve</span> <span class="o">=</span> <span class="s1">&#39;piecash.core.account.Account&#39;</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">class_to_retrieve</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_mapping_name_class</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">class_to_retrieve</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="s2">&quot;Smart retrieval of GUID slot with name &#39;</span><span class="si">{}</span><span class="s2">&#39; is not yet supported. &quot;</span>
+                    <span class="s2">&quot;Need to retrieve proper object type in kvp module &quot;</span>
+                    <span class="s2">&quot;(add in SlotGUID._mapping_name_class)&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="p">))</span>
+        <span class="n">class_module</span><span class="p">,</span> <span class="n">class_name</span> <span class="o">=</span> <span class="n">class_to_retrieve</span><span class="o">.</span><span class="n">rsplit</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">mod</span> <span class="o">=</span> <span class="n">import_module</span><span class="p">(</span><span class="n">class_module</span><span class="p">)</span>
+        <span class="n">Class</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">mod</span><span class="p">,</span> <span class="n">class_name</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">Class</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">value</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">object_session</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">Class</span><span class="p">)</span><span class="o">.</span><span class="n">filter_by</span><span class="p">(</span><span class="n">guid</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">guid_val</span><span class="p">)</span><span class="o">.</span><span class="n">one</span><span class="p">()</span>
+
+    <span class="nd">@value</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">value</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">Class</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">guid_val</span> <span class="o">=</span> <span class="n">value</span><span class="o">.</span><span class="n">guid</span>
+
+
+<span class="k">def</span> <span class="nf">get_all_subclasses</span><span class="p">(</span><span class="bp">cls</span><span class="p">):</span>
+    <span class="n">all_subclasses</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="n">direct_subclasses</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">__subclasses__</span><span class="p">()</span>
+
+    <span class="n">all_subclasses</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">direct_subclasses</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">subclass</span> <span class="ow">in</span> <span class="n">direct_subclasses</span><span class="p">:</span>
+        <span class="n">all_subclasses</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">get_all_subclasses</span><span class="p">(</span><span class="n">subclass</span><span class="p">))</span>
+
+    <span class="k">return</span> <span class="n">all_subclasses</span>
+
+
+<span class="k">def</span> <span class="nf">slot</span><span class="p">(</span><span class="n">parent</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">parent</span><span class="p">,</span> <span class="n">SlotFrame</span><span class="p">):</span>
+        <span class="n">name</span> <span class="o">=</span> <span class="n">parent</span><span class="o">.</span><span class="n">_name</span> <span class="o">+</span> <span class="s2">&quot;/&quot;</span> <span class="o">+</span> <span class="n">name</span>
+
+    <span class="c1"># handle datetime before others (as otherwise can be mixed with date)</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">SlotTime</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="n">value</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="bp">cls</span> <span class="ow">in</span> <span class="n">get_all_subclasses</span><span class="p">(</span><span class="n">Slot</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_python_type</span><span class="p">)</span> <span class="ow">and</span> <span class="bp">cls</span> <span class="o">!=</span> <span class="n">SlotFrame</span> <span class="ow">and</span> <span class="bp">cls</span> <span class="o">!=</span> <span class="n">SlotList</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="n">value</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+        <span class="c1"># transform a dict to Frame/Slots</span>
+        <span class="n">sf</span> <span class="o">=</span> <span class="n">SlotFrame</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">value</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">sl</span> <span class="o">=</span> <span class="n">slot</span><span class="p">(</span><span class="n">parent</span><span class="o">=</span><span class="n">sf</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="n">k</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="n">v</span><span class="p">)</span>
+            <span class="n">sl</span><span class="o">.</span><span class="n">parent</span> <span class="o">=</span> <span class="n">sf</span>
+        <span class="k">return</span> <span class="n">sf</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+        <span class="c1"># transform a list to List/Slots</span>
+        <span class="n">sf</span> <span class="o">=</span> <span class="n">SlotList</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+            <span class="n">sl</span> <span class="o">=</span> <span class="n">slot</span><span class="p">(</span><span class="n">parent</span><span class="o">=</span><span class="n">sf</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">),</span> <span class="n">value</span><span class="o">=</span><span class="n">v</span><span class="p">)</span>
+            <span class="n">sl</span><span class="o">.</span><span class="n">parent</span> <span class="o">=</span> <span class="n">sf</span>
+        <span class="k">return</span> <span class="n">sf</span>
+
+    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Cannot handle type of &#39;</span><span class="si">{}</span><span class="s2">&#39;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">value</span><span class="p">))</span>
+
+
+<span class="k">class</span> <span class="nc">SlotNumeric</span><span class="p">(</span><span class="n">Slot</span><span class="p">):</span>
+    <span class="n">__mapper_args__</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">&#39;polymorphic_identity&#39;</span><span class="p">:</span> <span class="n">KVP_Type</span><span class="o">.</span><span class="n">KVP_TYPE_NUMERIC</span>
+    <span class="p">}</span>
+    <span class="n">_python_type</span> <span class="o">=</span> <span class="p">(</span><span class="nb">tuple</span><span class="p">,</span> <span class="n">decimal</span><span class="o">.</span><span class="n">Decimal</span><span class="p">)</span>
+
+    <span class="n">_numeric_val_num</span> <span class="o">=</span> <span class="n">Column</span><span class="p">(</span><span class="s1">&#39;numeric_val_num&#39;</span><span class="p">,</span> <span class="n">BIGINT</span><span class="p">(),</span> <span class="n">nullable</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">_numeric_val_denom</span> <span class="o">=</span> <span class="n">Column</span><span class="p">(</span><span class="s1">&#39;numeric_val_denom&#39;</span><span class="p">,</span> <span class="n">BIGINT</span><span class="p">(),</span> <span class="n">nullable</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">value</span> <span class="o">=</span> <span class="n">hybrid_property_gncnumeric</span><span class="p">(</span><span class="n">_numeric_val_num</span><span class="p">,</span> <span class="n">_numeric_val_denom</span><span class="p">)</span>
+
+
+<span class="n">SlotDate</span> <span class="o">=</span> <span class="n">define_simpleslot</span><span class="p">(</span><span class="n">postfix</span><span class="o">=</span><span class="s2">&quot;Date&quot;</span><span class="p">,</span>
+                             <span class="n">pytype</span><span class="o">=</span><span class="p">(</span><span class="n">datetime</span><span class="o">.</span><span class="n">date</span><span class="p">,),</span>
+                             <span class="n">KVPtype</span><span class="o">=</span><span class="n">KVP_Type</span><span class="o">.</span><span class="n">KVP_TYPE_GDATE</span><span class="p">,</span>
+                             <span class="n">field</span><span class="o">=</span><span class="s2">&quot;gdate_val&quot;</span><span class="p">,</span>
+                             <span class="n">col_type</span><span class="o">=</span><span class="n">_Date</span><span class="p">(),</span>
+                             <span class="n">col_default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                             <span class="p">)</span>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2014 sdementen.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../',
+            VERSION:'0.14.1',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../_static/doctools.js"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>
