@@ -1,0 +1,251 @@
+<%
+
+# Note that this file is not a valid *.html file!
+# It is intended to be a bottlepy - style template
+# used for the scripting part of TheOnionBox!
+
+import os
+
+configs_used = []
+configs_all = []
+
+try:
+    # get all valid configuration names (only and drop attached information)
+    config_names = tor.get_info('config/names')
+    names_with_values = config_names.splitlines()
+    config_params = {}
+    for line in names_with_values:
+        # print(line)
+        config = line.split(' ')
+        config_params[config[0]] = config[1]
+        end
+except:
+    pass
+end
+
+enable_print = False
+if enable_print is True:
+    print(tor.get_info('config/defaults'))
+    print('-----')
+    print(tor.get_info('config/names'))
+    print('-----')
+    print(tor.get_info('config-text'))
+end
+
+%>
+
+{{!header_row('Tor', 'Configuration', 'config')}}
+
+<%
+    import psutil
+    cmd_line = []
+
+    if tor.is_localhost():
+        try:
+            pid = tor.get_pid()
+            p = psutil.Process(pid)
+            cmd_line = p.cmdline()  # This returns a list!
+        except:
+            pass
+        end
+    end
+
+    if len(cmd_line) > 0:
+%>
+        <div class = "row">
+            <div class="{{box_datum_grid}}">
+                <p class="option_hover truncate ">
+                    <a href="manpage.html#opt-h" target="manpage_window">#</a> Commandline
+                </p>
+            </div>
+            <div class="{{box_value_grid}}">
+                <p>
+                    <%
+                    out = ''
+                    for cmd in cmd_line:
+                        if len(out):
+                            out += ' '
+                        end
+                        out += cmd
+                    end
+                    %>
+                    {{out}}
+                </p>
+            </div>
+            <div class="col-xs-1"></div>
+        </div>
+%   end
+
+<div class = "row">
+    <div class="{{box_datum_grid}}">
+        <p class='truncate' style='color: lightgrey; '>Configuration Files</p>
+    </div>
+    <div class="{{box_value_grid}}">
+        <p class='config_group' style='color: lightgrey; '></p>
+    </div>
+    <div class="col-xs-1"></div>
+</div>
+
+<div class = "row">
+    <div class="{{box_datum_grid}}">
+        <p>torrc</p>
+    </div>
+    <div class="{{box_value_grid}}">
+        <p>{{!tor.get_info('config-file')}}</p>
+    </div>
+    <div class="col-xs-1"></div>
+</div>
+
+<div class = "row">
+    <div class="{{box_datum_grid}}">
+        <p>torrc.defaults</p>
+    </div>
+    <div class="{{box_value_grid}}">
+        <p>{{!tor.get_info('config-defaults-file')}}</p>
+    </div>
+    <div class="col-xs-1"></div>
+</div>
+<%
+
+    from tob.configcollector import ConfigCollector
+
+    cfgcoll = ConfigCollector(tor)
+    configs_used = cfgcoll.collect_configs_used()
+
+    manpg = get('manpage', None)
+
+    mp_groups = manpg.get_groups()
+    if mp_groups:
+        for group in mp_groups:
+            if group == 'HIDDEN SERVICE OPTIONS':
+                continue
+            end
+            headr = False
+            options = manpg.get_options(group)
+            if options:
+                for option in options:
+                    if option in configs_used:
+                        if headr is False:
+%>
+                            <div class = "row">
+                                <div class="{{box_datum_grid}}">
+                                    <p class='truncate' style='color: lightgrey; '>{{group.title()}}</p>
+                                </div>
+                                <div class="{{box_value_grid}}">
+                                    <p class='config_group' style='color: lightgrey; '></p>
+                                </div>
+                                <div class="col-xs-1"></div>
+                            </div>
+                            % headr = True
+                        % end
+
+                        <div class = "row">
+                            <div class="{{box_datum_grid}}">
+                                <p class="option_hover truncate ">
+                                    % if option[:2] != '__':
+                                        <a href="manpage.html#{{option}}" target="manpage_window">#</a> {{option}}
+                                    % else:
+                                        {{option}}
+                                    % end
+                                </p>
+                            </div>
+                            <div class="{{box_value_grid}}">
+                                <p>
+                                    <%
+                                        pt = config_params[option] # pt => parameter-type
+
+                                        #optngrp = {'ControlPort': 'CONTROL',
+                                        #           'DirPort': 'DIR',
+                                        #           'ORPort': 'OR',
+                                        #           'SocksPort': 'SOCKS'}
+
+                                        values = []
+
+                                        #if option in optngrp:
+                                        #    port_tuples = tor.get_listeners(optngrp[option], '')
+                                        #    values = [prt[0] + ':' + str(prt[1]) for prt in port_tuples]
+                                        #end
+
+                                        if len(values) == 0:
+                                            values = configs_used[option]
+                                        end
+                                    %>
+                                    % if pt == 'Boolean':
+                                        {{values[0] == '1'}}
+                                    <%
+                                      elif pt == 'DataSize':
+                                        out = pretty_number(int(values[0]), calc = 'iec')
+
+                                        # These are options that use the 'DataSize' type
+                                        # yet define data without time reference (/s)
+                                        # Therefore: Don't add a '/s' when indicating this value!
+                                        datasize_no_s = {'AccountingMax', 'ConstrainedSockSize', 'MaxMemInQueues'}
+
+                                        if option not in datasize_no_s:
+                                            out += '/s'
+                                        end
+                                    %>
+                                        {{out}}
+                                    <%
+                                      elif pt == 'LineList':
+                                        sep = '<br>'
+                                        if option == 'ExitPolicy':
+                                            sep = ' | '
+                                        end
+                                        out = ''
+                                        for value in values:
+                                            if option in ['HashedControlPassword', '__HashedControlSessionPassword']:
+                                                value = value[:43] + '...'  # no need to transmit this completely!
+                                                # value += '<br><span>Why is this value always truncated?</span>'
+                                            end
+                                            if len(out) > 0:
+                                                out += sep
+                                            end
+                                            out += value
+                                        end
+                                    %>
+                                        {{!out}}
+                                    % elif len(pt) > 0:
+                                    %   if values is not None and len(values) > 0:
+                                            {{values[0]}}
+                                    %   else:
+                                            <code>none</code>
+                                    %   end
+                                    % else:
+                                        <code>Error</code>
+                                    % end
+                                </p>
+
+                            </div>
+                            <div class="col-xs-1"></div>
+                        </div>
+    <%
+                    end
+                end
+            end
+
+        end
+    end
+%>
+
+<div class = "row">
+    <div class="{{box_datum_grid}}">
+    </div>
+    <div class="{{box_value_grid}}">
+        <p class='config_group' style='color: lightgrey; '></p>
+    </div>
+    <div class="col-xs-1"></div>
+</div>
+
+
+<div class = "row">
+   <div class="{{box_datum_grid}}">
+       <p style='color: lightgrey;'>Remark</p>
+    </div>
+   <div class="{{box_value_grid}}">
+       <p style='color: lightgrey;'>Any configuration option not displayed above is set to its default value.</p>
+   </div>
+</div>
+
+
+<hr>

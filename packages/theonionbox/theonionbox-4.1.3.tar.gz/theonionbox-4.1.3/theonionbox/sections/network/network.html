@@ -1,0 +1,284 @@
+%# Note that this file is not a valid *.html file!
+%# It is intended to be a bottlepy - style template
+%# used for the scripting part of TheOnionBox!
+
+<%
+tor = get('tor') if tor is None else tor
+oo_details = get('oo_details') if oo_details is None else oo_details
+oo_bw = get('oo_bw')
+oo_show = get('oo_show')
+fp = get('family_fp', None)
+
+
+%>
+
+{{!header_row('Tor', 'Network Status', 'network')}}
+
+% if fp is None or len(fp) < 1:
+    <div class="row">
+        <div class="{{box_datum_grid}}">
+        </div>
+        <div class="{{box_value_grid}} alert alert-info">
+            This node is a Tor client. No network status available.
+        </div>
+    </div>
+
+% elif oo_show is False:
+    <div class="row">
+        <div class="{{box_datum_grid}}">
+        </div>
+        <div class="{{box_value_grid}} alert alert-danger">
+            No Onionoo Network data to display. Reload page to update...
+        </div>
+    </div>
+% else:
+
+%   if oo_details.is_relay() and oo_details.is_bridge():
+        <div class="row">
+            <div class="{{box_datum_grid}}">
+            </div>
+            <div class="{{box_value_grid}} alert alert-danger">
+                According to Onionoo the node with fingerprint '{{oo_details('fingerprint')}}' is a Relay <b>and</b> a Bridge.
+                This shall not happen!
+            </div>
+        </div>
+<%
+    end
+
+    if oo_details.is_relay() :
+        publ = oo_details.published()
+        if publ is not None:
+%>
+            {{!standard_row('Status Time', publ)}}
+%       end
+
+        <div class="row">
+            <div class="{{box_datum_grid}}">
+                <p>Fingerprint</p>
+            </div>
+            <div class="{{box_value_grid}}">
+                % fp = oo_details('fingerprint')
+                %# <a href="https://atlas.torproject.org/#details/{{fp}}" target="_blank">
+                   {{fp}}
+                </a>
+            </div>
+        </div>
+
+        {{!standard_row('Type', 'Relay')}}
+        {{!standard_row('Nickname', oo_details('nickname'))}}
+        {{!standard_row('Platform', oo_details('platform'))}}
+        {{!standard_row('Contact Info', oo_details('contact'))}}
+        {{!standard_row('OR Addresses', ' | '.join(oo_details('or_addresses')))}}
+        {{!standard_row('First Seen', oo_details('first_seen'))}}
+        {{!standard_row('Last Seen', oo_details('last_seen'))}}
+        % if oo_details('last_restarted'):
+            {{!standard_row('Latest Restart', oo_details('last_restarted'))}}
+        % end
+        {{!standard_row('Latest Address Change', oo_details('last_changed_address_or_port'))}}
+        % if oo_details('exit_addresses'):
+            {{!standard_row('Exit Addresses', ' | '.join(oo_details('exit_addresses')))}}
+        % end
+        % if oo_details('dir_address'):
+            {{!standard_row('DIR Address', oo_details('dir_address'))}}
+        % end
+        {{!standard_row('Running', oo_details('running'))}}
+        % if oo_details('hibernating'):
+            {{!standard_row('Hibernating', oo_details('hibernating'))}}
+        % end
+        % if oo_details('flags'):
+            {{!standard_row('Flags', ' | '.join(oo_details('flags')))}}
+        % end
+
+<%
+        def location_row(datum='', value=''):
+
+            # If value holds unicode characters, standard processing generates an exception!
+            out = ""
+
+            # Python2
+            try:
+                out = unicode("""
+                    <div class='row'>
+                        <div class='truncate col-xs-6 box_datum'>{}</div>
+                        <div class='col-xs-6 box_value'><p>{}</p></div>
+                    </div>""").format(datum, value)
+            except:
+                # Python3
+                try:
+                    out = """
+                        <div class='row'>
+                            <div class='truncate col-xs-6 box_datum'>{}</div>
+                            <div class='col-xs-6 box_value'><p>{}</p></div>
+                        </div>""".format(datum, value)
+                except:
+                    pass
+                end
+            end
+
+            return out
+        end
+
+        geoip = get('geoip')
+        if len(oo_details('or_addresses')) > 0:
+            ip = oo_details('or_addresses')[0]
+%>
+
+        {{!group_row('Location')}}
+
+        <div class="row">
+            <div class='col-xs-6' id="location_data">
+                {{!location_row('Country', geoip.country(ip, oo_details('country')))}}
+                {{!location_row('Country Name', geoip.country_name(ip, oo_details('country_name')))}}
+                % if geoip.region_name(ip, oo_details('region_name')) is not None:
+                        {{!location_row('Region Name', geoip.region_name(ip, oo_details('region_name')))}}
+                % end
+                % if geoip.city_name(ip, oo_details('city_name')) is not None:
+                    {{!location_row('City Name', geoip.city_name(ip, oo_details('city_name')))}}
+                % end
+                % geoip_lat = geoip.latitude(ip, oo_details('latitude'))
+                % geoip_long = geoip.longitude(ip, oo_details('longitude'))
+                {{!location_row('Latitude', geoip_lat)}}
+                {{!location_row('Longitude', geoip_long)}}
+            </div>
+
+            <div class='col-xs-4 map' id="location_map">
+
+            % if geoip_lat and geoip_long:
+
+                <link rel="stylesheet" href="https://openlayers.org/en/v3.15.1/css/ol.css" type="text/css">
+                <script src="https://openlayers.org/en/v3.15.1/build/ol.js" type="text/javascript"></script>
+
+            % end
+
+            </div>
+            <div class='col-xs-2'></div>
+        </div>
+
+        % end
+
+<%
+        ep = oo_details('exit_policy')
+        eps = oo_details('exit_policy_summary')
+        ep6s = oo_details('exit_policy_v6_summary')
+
+        if ep or eps or ep6s:
+%>
+
+        {{!group_row('Exit Policies')}}
+
+            % if ep is not None:
+                <p>
+                    <div class="row">
+                        <div class="{{box_datum_grid}}">
+                            Policy Lines
+                        </div>
+                        <div class="{{box_value_grid}}">
+                            <div class="row">
+                                % for item in ep:
+                                    <div class="col-sm-4">
+                                        {{item}}
+                                    </div>
+                                % end
+                            </div>
+                        </div>
+                    </div>
+                </p>
+            % end
+
+            % if eps is not None:
+                % if 'accept' in eps:
+                    % ar = 'Accept'
+                    % epdata = eps['accept']
+                % else:
+                    % ar = 'Reject'
+                    % epdata = eps['reject']
+                % end
+                <p>
+                    <div class="row">
+                        <div class="{{box_datum_grid}}">
+                            {{'{} Summary IPv4'.format(ar)}}
+                        </div>
+                        <div class="{{box_value_grid}}">
+                            <div class="row">
+                                % for item in epdata:
+                                    <div class="col-sm-4">
+                                        {{item}}
+                                    </div>
+                                % end
+                            </div>
+                        </div>
+                    </div>
+                </p>
+            % end
+
+            % if ep6s is not None:
+                % if 'accept' in ep6s:
+                    % ar = 'Accept'
+                    % epdata = ep6s['accept']
+                % else:
+                    % ar = 'Reject'
+                    % epdata = ep6s['reject']
+                % end
+                <p>
+                    <div class="row">
+                        <div class="{{box_datum_grid}}">
+                            {{'{} Summary IPv6'.format(ar)}}
+                        </div>
+                        <div class="{{box_value_grid}}">
+                            <div class="row">
+                                % for item in epdata:
+                                    <div class="col-sm-4">
+                                        {{item}}
+                                    </div>
+                                % end
+                            </div>
+                        </div>
+                    </div>
+                </p>
+
+            % end
+        %end
+
+        {{!group_row('Autonomous System')}}
+        {{!standard_row('Host', oo_details('host_name'))}}
+        {{!standard_row('Name', oo_details('as_name'))}}
+        {{!standard_row('Number', oo_details('as_number'))}}
+
+<%
+        ef = oo_details('effective_family')
+        af = oo_details('alleged_family')
+        indf = oo_details('indirect_family')
+%>
+        % fmatrix = {}
+        % if ef or af or indf:
+            % # {{!group_row('Family Members')}}
+            % fmatrix = {'Effective': ef, 'Alleged': af, 'Indirect': indf}
+        % end
+        % for key, value in fmatrix.items():
+            % if value is not None:
+                {{!group_row('{} Family'.format(key))}}
+                <p>
+                    % for fp in value:
+                        % fam_det = oo_factory.details(fp)
+                        % fam_nick = '' # 'Unknown'
+                        % if fam_det is not None:
+                            % fam_nick = fam_det('nickname') or '' # 'Unknown'
+                        % end
+                        <div class="row">
+                            <div class="{{box_datum_grid}}">
+                                {{fam_nick}}
+                            </div>
+                            <div class="{{box_value_grid}}">
+                                {{fp}}
+                            </div>
+                            <div class="{{box_right_grid}}"></div>
+                        </div>
+                    % end
+                </p>
+
+            % end
+        % end
+    %end
+
+% # this end is to close 'if oo_show:'
+% end
