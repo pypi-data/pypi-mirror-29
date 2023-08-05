@@ -1,0 +1,222 @@
+==============
+Table Enforcer
+==============
+
+
+.. image:: https://img.shields.io/pypi/v/table_enforcer.svg
+        :target: https://pypi.python.org/pypi/table_enforcer
+
+.. image:: https://img.shields.io/travis/xguse/table_enforcer.svg
+        :target: https://travis-ci.org/xguse/table_enforcer
+
+.. image:: https://readthedocs.org/projects/table-enforcer/badge/?version=latest
+        :target: https://table-enforcer.readthedocs.io/en/latest/?badge=latest
+        :alt: Documentation Status
+
+..        .. image:: https://pyup.io/repos/github/xguse/table_enforcer/shield.svg
+        :target: https://pyup.io/repos/github/xguse/table_enforcer/
+        :alt: Updates
+
+Demo Usage
+----------
+
+Have a look at this `Demo Notebook <http://table-enforcer.readthedocs.io/en/latest/_static/Usage_Demo.html>`_
+
+Description
+-----------
+
+A python package to facilitate the iterative process of developing and using schema-like representations of table data to recode and validate instances of these data stored in pandas DataFrames.
+This is a `fairly young` attempt to solve a recurrent problem many people have.
+So far I have looked at multiple solutions, but none really did it for me.
+
+They either deal primarily with JSON encoded data or they only really solve the validation side of the problem and consider recoding to be a separate issue.
+They seem to assume that recoding and cleaning has already been done and all we care about is making sure the final product is sane.
+
+To me, this seems backwards.
+
+I need to load, recode, and validate tables all day, everyday.
+Sometimes its simple; I can ``pandas.read_table()`` and all is good.
+But sometimes I have a 700 column long RedCap data dump that is complicated af, and it `really` helps me to develop my recoding logic through an iterative process.
+For me it makes sense to couple the recoding process directly with the validation process:
+to write the "tests" for each column first, then add recoding logic in steps until the tests pass.
+
+So `Table Enforcer` is my attempt to apply a sort of "test driven development" workflow to data cleaning and validation.
+
+
+Basic Workflow
+--------------
+
+#. For each column that you care about in your source table:
+
+   #. Define a ``Column`` object that represents the ideal state of your data by passing a list of small, independent, reusable validator functions and some descriptive information.
+
+   #. Use this object to validate the column data from your source table.
+
+      * It will probably fail.
+
+   #. Add small, composable, reusable recoding functions to the column object and iterate until your validations pass.
+
+#. Define an ``Enforcer`` object by passing it a list of your column representation objects.
+
+#. This enforcer can be used to recode or validate recoded tables of the same kind as your source table wherever your applications use that type of data.
+
+
+
+Please take a look and offer thoughts/advice.
+
+* Free software: MIT license
+* Web site: https://github.com/xguse/table_enforcer
+* Documentation: https://table-enforcer.readthedocs.io.
+
+
+Features
+--------
+
+* ``Enforcer`` and ``Column`` classes to define what columns should look like in a table.
+* ``CompundColumn`` class that supports complex operations including "one-to-many" and "many-to-one" recoding logic as sometimes a column tries to do too much and should really be multiple columns as well as the reverse.
+* Growing cadre of built-in validator functions and decorators.
+* Decorators for use in defining parameterized validators like ``between_4_and_60()``.
+
+
+
+Credits
+---------
+
+This package was created with Cookiecutter_ and the `xguse/cookiecutter-pypackage`_ project template which is based on `audreyr/cookiecutter-pypackage`_.
+
+.. _Cookiecutter: https://github.com/audreyr/cookiecutter
+.. _`audreyr/cookiecutter-pypackage`: https://github.com/audreyr/cookiecutter-pypackage
+.. _`xguse/cookiecutter-pypackage`: https://github.com/xguse/cookiecutter-pypackage
+
+
+*******
+History
+*******
+
+v0.4.3 / 2018-02-15
+==================
+
+  * Fixed import errors
+  * ignore test_chamber
+
+v0.4.2 / 2018-02-15
+===================
+
+  * Address import errors when not installed editable
+  * update README link to Usage_Demo
+  * ship docs/_static/Usage_Demo.html
+  * Updated Usage_Demo
+  * added to doctrings in main_classes
+
+v0.4.1 / 2018-02-14
+===================
+
+  * added readthedocs.yml
+  * Updated Usage_Demo and README
+
+v0.4.0 / 2018-02-13
+===================
+
+  * Updated tests for CompoundColumn
+  * CompoundColumn absorbs MTO/OTM-subclasses
+  * updated tests/files/demo_table*.csv
+  * updated docs/demo_notebook
+  * OTMColumn.input_columns must be len == 1
+  * amended tests for new OTMColumn
+  * main_classes: rewrite OTMColumn and general reorg
+  * BaseColumn method defs now sets api for subclasses
+  * Enforcer.columns is now simple list
+  * setup.cfg: whitelist varname df
+  * main_classes: restruct base classes + ComplexColumn
+  * main_classes: col takes table
+  * test_column: col takes table
+  * add testing files for MTOColumn
+  * ignore LibreOffice lock files
+  * OTMColumn: improved __doc__
+  * update_dataframe: call sig now has `validate`
+
+v0.3.0 / 2018-02-07
+===================
+
+  * main_classes: OTMColumn is functional
+  * updated testing for OTMColumn
+  * main_classes: replace Munch w/ Box (probationary)
+  * add python-box to reqs (probationary)
+  * conftest: modularize paths
+  * add testing for OTMColumn
+  * test_column: fix typos and style
+  * import all from main_classes
+  * Bump version: 0.1.5 → 0.2.0
+  * changelog(v0.2.0)
+  * Updated Docs version Usage_Demo.ipynb
+
+v0.2.0 / 2018-02-02
+===================
+
+  * Enforcer.recode lets Column.recode do the validation now
+  * Enforcer.validate no longer recodes
+  * Enforcer: make_validations now private
+  * Column: added find_failed_rows()
+  * columns now take series not dataframe
+  * added system-lvl tests based on Usage_Demo.ipynb
+  * Enforcer.recode create new df rather than copy
+  * added RecoderError and focused ValidationError
+  * remove testing for 3.5
+  * dont lint tests
+  * ignore flake8:W292
+  * formatting
+
+v0.1.5 / 2018-02-01
+===================
+
+  * Added tests for imports and more Class behavior
+  * main_classes: calling recode with validate is now prefered
+
+v0.1.4 / 2018-01-26
+===================
+
+  * main_classes.py: removed faulty imports
+
+v0.1.3 / 2018-01-26
+===================
+
+  * corrected Usage_Demo.ipynb
+  * formatting and typing
+  * table_enforcer.py -> main_classes.py
+
+v0.1.2 / 2017-11-17
+===================
+
+  * flake8
+  * set up basic testing
+  * changed travis build settings
+  * updated usage demo and readme
+
+v0.1.1 / 2017-11-16
+===================
+
+  * Added usage notebook link to docs.
+  * reorganized import strategy of Enforcer/Column objs
+  * added more builtin validators/recoders/decorators
+  * updated reqs
+  * initialized travis integration
+  * updated docs
+  * Added usage demo notebook for docs
+  * updated ignore patterns
+  * validators.py: renamed
+
+v0.1.0 / 2017-11-15
+===================
+
+  * first minimally functional package
+  * Enforcer and Column classes defined and operational
+  * small cadre of built-in validator functions and decorators
+  * ignore jupyter stuff
+  * linter setups
+
+v0.0.1 / 2017-11-14
+===================
+
+* First commit
+
+
