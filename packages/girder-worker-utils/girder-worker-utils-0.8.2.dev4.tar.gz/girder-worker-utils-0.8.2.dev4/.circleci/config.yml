@@ -1,0 +1,113 @@
+version: 2
+
+initialize-venv: &initialize-venv
+  run:
+    name: Initialize Virtual Environment
+    command: |
+      python -m virtualenv ../venv || python -m venv ../venv
+      . ../venv/bin/activate
+
+install-deps: &install-deps
+  run:
+    name: Install CI dependencies
+    command: |
+      . ../venv/bin/activate
+      pip install tox
+
+jobs:
+  lint:
+    docker:
+      - image: circleci/python:2.7
+    steps :
+      - checkout
+      - *initialize-venv
+      - *install-deps
+      - run:
+          name: Run lint tests
+          command: |
+            . ../venv/bin/activate
+            tox -e flake8
+
+  py2_unit_tests:
+    docker:
+      - image: circleci/python:2.7
+    steps :
+      - checkout
+      - *initialize-venv
+      - *install-deps
+      - run:
+          name: Run unit tests
+          command: |
+            . ../venv/bin/activate
+            tox -e py27
+
+  py3_unit_tests:
+    docker:
+      - image: circleci/python:3.6
+    steps :
+      - checkout
+      - *initialize-venv
+      - *install-deps
+      - run:
+          name: Run unit tests
+          command: |
+            . ../venv/bin/activate
+            tox -e py36
+
+
+  release:
+    docker:
+      - image: circleci/python:2.7
+
+    steps:
+      - checkout
+      - *initialize-venv
+      - run:
+          name: Install Release Dependencies
+          command: |
+            . ../venv/bin/activate
+            pip install twine setuptools_scm
+
+      - run:
+          name: Build the Project
+          command: |
+            . ../venv/bin/activate
+            python setup.py sdist
+
+      - run:
+          name: Release to PyPI
+          command: |
+            . ../venv/bin/activate
+            twine upload dist/*
+
+
+workflows:
+  version: 2
+  ci:
+    jobs:
+      - lint:
+          filters:
+            tags:
+              only: /^v.*/
+      - py2_unit_tests:
+          filters:
+            tags:
+              only: /^v.*/
+
+      - py3_unit_tests:
+          filters:
+            tags:
+              only: /^v.*/
+
+      - release:
+          requires:
+            - lint
+            - py2_unit_tests
+            - py3_unit_tests
+
+          filters:
+            tags:
+              only: /^v.*/
+            branches:
+              only:
+                - master
