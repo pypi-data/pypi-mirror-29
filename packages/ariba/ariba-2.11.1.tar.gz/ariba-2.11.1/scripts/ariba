@@ -1,0 +1,300 @@
+#!/usr/bin/env python3
+
+import ariba
+import argparse
+
+
+parser = argparse.ArgumentParser(
+    prog='ariba',
+    usage='ariba <command> <options>',
+    description='ARIBA: Antibiotic Resistance Identification By Assembly',
+)
+subparsers = parser.add_subparsers(title='Available commands', help='', metavar='')
+
+#---------------------------- aln2meta ------------------------------------
+coding_choices = ['coding', 'noncoding']
+subparser_aln2meta = subparsers.add_parser(
+    'aln2meta',
+    help='Converts multi-aln fasta and SNPs to metadata',
+    usage='ariba aln2meta [options] <aln_fasta> <variants_tsv> <(non)coding> <outprefix>',
+    description='Make metadata input to prepareref, using multialignment and SNPs',
+)
+
+subparser_aln2meta.add_argument('--genetic_code', type=int, help='Number of genetic code to use. Currently supported 1,4,11 [%(default)s]', choices=[1,4,11], default=11, metavar='INT')
+subparser_aln2meta.add_argument('--variant_only', action='store_true', help='Use this to flag all sequences as variant only. By default they are considered to be presence/absence')
+subparser_aln2meta.add_argument('aln_fasta', help='Multi-fasta file of alignments')
+subparser_aln2meta.add_argument('variants_tsv', help='TSV file of variants information')
+subparser_aln2meta.add_argument('coding_or_non', help='Sequences are coding or noncoding. Must be one of: ' + ' '.join(coding_choices), choices=coding_choices, metavar='(non)coding')
+subparser_aln2meta.add_argument('outprefix', help='Prefix of output filenames')
+subparser_aln2meta.set_defaults(func=ariba.tasks.aln2meta.run)
+
+
+#---------------------------- expandflag ------------------------------
+subparser_expandflag = subparsers.add_parser(
+    'expandflag',
+    help='Expands flag column of report file',
+    usage='ariba expandflag <in.report.tsv> <out.tsv',
+    description='Expands the flag column in a report file from number to comma-separated list of flag bits',
+)
+
+subparser_expandflag.add_argument('infile', help='Name of input report TSV file')
+subparser_expandflag.add_argument('outfile', help='Name of output report TSV file')
+subparser_expandflag.set_defaults(func=ariba.tasks.expandflag.run)
+
+
+#---------------------------- flag ------------------------------------
+subparser_flag = subparsers.add_parser(
+    'flag',
+    help='Translate the meaning of a flag',
+    usage='ariba flag <flag>',
+    description='Translate the meaning of a flag output by ARIBA, found in the report tsv file',
+)
+subparser_flag.add_argument('flag_in', type=int, help='Flag to be translated (an integer)', metavar='flag')
+subparser_flag.set_defaults(func=ariba.tasks.flag.run)
+
+
+#---------------------------- getref ------------------------------------
+allowed_dbs = sorted(list(ariba.ref_genes_getter.allowed_ref_dbs))
+subparser_getref = subparsers.add_parser(
+    'getref',
+    help='Download reference data',
+    usage='ariba getref [options] <db> <outprefix>',
+    description='Download reference data from one of a few supported public resources',
+)
+subparser_getref.add_argument('--debug', action='store_true', help='Do not delete temporary downloaded files')
+subparser_getref.add_argument('--version', help='Version of reference data to download. If not used, gets the latest version. Only applies to card and megares')
+subparser_getref.add_argument('db', help='Database to download. Must be one of: ' + ' '.join(allowed_dbs), choices=allowed_dbs, metavar="DB name")
+subparser_getref.add_argument('outprefix', help='Prefix of output filenames')
+subparser_getref.set_defaults(func=ariba.tasks.getref.run)
+
+
+#----------------------------- micplot -------------------------------
+subparser_micplot = subparsers.add_parser(
+    'micplot',
+    help='Make violin/dot plots using MIC data',
+    usage='ariba prepareref [options] <prepareref_dir> <antibiotic> <MIC file> <summary file> <outprefix>',
+    description='Makes a violin and scatter plot of MIC per variant in the summary file',
+)
+subparser_micplot.add_argument('prepareref_dir', help='Name of output directory when "ariba prepareref" was run')
+subparser_micplot.add_argument('antibiotic', help='Antibiotic name. Must exactly match a column from the MIC file')
+subparser_micplot.add_argument('mic_file', help='File containing MIC data for each sample and one or more antibiotics')
+subparser_micplot.add_argument('summary_file', help='File made by running "ariba summary"')
+subparser_micplot.add_argument('outprefix', help='Prefix of output files')
+
+micplot_general_group = subparser_micplot.add_argument_group('General options')
+micplot_general_group.add_argument('--out_format', help='Output format of image file. Use anything that matplotlib can save to, eg pdf or png [%(default)s]', default='pdf')
+micplot_general_group.add_argument('--main_title', help='Main title of plot. Default is to use the antibiotic name', metavar='"title in quotes"')
+micplot_general_group.add_argument('--plot_height', help='Height of plot in inches [%(default)s]', default=7, type=float, metavar='FLOAT')
+micplot_general_group.add_argument('--plot_width', help='Width of plot in inches [%(default)s]', default=7, type=float, metavar='FLOAT')
+micplot_general_group.add_argument('--use_hets', choices=['yes', 'no', 'exclude'], help='How to deal with HET snps. Choose from yes,no,exclude. yes: count a het SNP as present. no: do not count a het SNP as present. exclude: completely remove any sample with any het SNP [%(default)s]', default='yes')
+micplot_general_group.add_argument('--interrupted', action='store_true', help='Include interrupted genes (as in the assembled column of the ariba summary files)')
+micplot_general_group.add_argument('--min_samples', type=int, help='Minimum number of samples in each column required to include in plot [%(default)s]', metavar='INT', default=1)
+micplot_general_group.add_argument('--no_combinations', action='store_true', help='Do not show combinations of variants. Instead separate out into one box/violin plot per variant.')
+micplot_general_group.add_argument('--panel_heights', help='Two integers that determine relative height of top and bottom plots. eg 5,1 means ratio of 5:1 between top and bottom panel heights [%(default)s]', default='9,2', metavar='height1,height2')
+micplot_general_group.add_argument('--panel_widths', help='Two integers that determine relative width of plots and space used by counts legend. eg 5,1 means ratio of 5:1 between top and bottom panel widths. Only applies when plotting points and --point_size 0 [%(default)s]', default='5,1', metavar='width1,width2')
+micplot_general_group.add_argument('--count_legend_x', type=float, help='Control x position of counts legend when plotting points and --point_size 0 [%(default)s]', default=-2, metavar='FLOAT')
+micplot_general_group.add_argument('--p_cutoff', type=float, help='p-value cutoff for Mann-Whitney tests [%(default)s]', default=0.05)
+micplot_general_group.add_argument('--xkcd', action='store_true', help='Best used with xkcd font installed ;)')
+
+micplot_colour_group = subparser_micplot.add_argument_group('Colour options')
+micplot_colour_group.add_argument('--colourmap', help='Colours to use. See http://matplotlib.org/users/colormaps.html [%(default)s]', default='Accent', metavar='colourmap name')
+micplot_colour_group.add_argument('--number_of_colours', type=int, help='Number of colours in plot. 0:same number as columns in the plot. 1:all black. >1: take the first N colours from the colourmap specified by --colourmap and cycle them [%(default)s]', default=0, metavar='INT')
+micplot_colour_group.add_argument('--colour_skip', help='If using a continuous colourmap, --colour_skip a,b (where 0 <= a < b <= 1) will skip the range between a and b. Useful for excluding near-white colours', metavar='FLOAT1,FLOAT2')
+
+micplot_upper_plot_group = subparser_micplot.add_argument_group('Upper plot options')
+micplot_upper_plot_group.add_argument('--plot_types', help='Types of plots to make, separated by commas. Choose from violin,point [%(default)s]', default='violin,point', metavar='type1,type2,...')
+micplot_upper_plot_group.add_argument('--hlines', help='Comma-separated list of positions at which to draw horizontal lines. Default is to draw no lines.', metavar='float1,float2,...', default='')
+micplot_upper_plot_group.add_argument('--jitter_width', help='Jitter width option when plotting points [%(default)s]', default=0.1, type=float, metavar='FLOAT')
+micplot_upper_plot_group.add_argument('--log_y', type=float, help='Base of log applied to y values. Set to zero to not log [%(default)s]', default=2, metavar='FLOAT')
+micplot_upper_plot_group.add_argument('--point_size', type=float, help='Size of points when --plot_types includes point. If zero, will group points and size them proportional to the group size [%(default)s]', default=4, metavar='FLOAT')
+micplot_upper_plot_group.add_argument('--point_scale', type=float, help='Scale point sizes when --point_size 0. All point sizes are multiplied by this number. Useful if you have large data set [%(default)s]', default=1, metavar='FLOAT')
+micplot_upper_plot_group.add_argument('--violin_width', type=float, help='Width of violins [%(default)s]', default=0.75)
+
+micplot_lower_plot_group = subparser_micplot.add_argument_group('Lower plot options')
+micplot_lower_plot_group.add_argument('--dot_size', type=float, help='Size of dots in lower part of plot [%(default)s]', default=100, metavar='FLOAT')
+micplot_lower_plot_group.add_argument('--dot_outline', action='store_true', help='Black outline around all dots (whether coloured or not) in lower part of plots')
+micplot_lower_plot_group.add_argument('--dot_y_text_size', type=int, help='Text size of labels [%(default)s]', default=7, metavar='INT')
+
+subparser_micplot.set_defaults(func=ariba.tasks.micplot.run)
+
+#----------------------------- prepareref -------------------------------
+subparser_prepareref = subparsers.add_parser(
+    'prepareref',
+    help='Prepare reference data for input to "run"',
+    usage='ariba prepareref [options] <outdir>',
+    description='Prepare reference data for running the pipeline with "ariba run"',
+    epilog='REQUIRED: -f/--fasta, and also either -m/--metadata or --all_coding must be used',
+)
+input_group = subparser_prepareref.add_argument_group('input files options')
+input_group.add_argument('-f', '--fasta', action='append', dest='fasta_files', required=True, help='REQUIRED. Name of fasta file. Can be used more than once if your sequences are spread over more than on file', metavar='FILENAME')
+meta_group = input_group.add_mutually_exclusive_group(required=True)
+meta_group.add_argument('-m', '--metadata', action='append', dest='tsv_files', help='Name of tsv file of metadata about the input sequences. Can be used more than once if your metadata is spread over more than one file. Incompatible with --all_coding', metavar='FILENAME')
+meta_group.add_argument('--all_coding', choices=['yes', 'no'], help='Use this if you only have a fasta of presence absence sequences as input, and no metadata. Use "yes" if all sequences are coding, or "no" if they are all non-coding. Incompatible with -m/--metadata')
+
+cdhit_group = subparser_prepareref.add_argument_group('cd-hit options')
+cdhit_group.add_argument('--no_cdhit', action='store_true', help='Do not run cd-hit. Each input sequence is put into its own "cluster". Incompatible with --cdhit_clusters.')
+cdhit_group.add_argument('--cdhit_clusters', help='File specifying how the sequences should be clustered. Will be used instead of running cdhit. Format is one cluster per line. Sequence names separated by whitespace. Incompatible with --no_cdhit', metavar='FILENAME')
+cdhit_group.add_argument('--cdhit_min_id', type=float, help='Sequence identity threshold (cd-hit option -c) [%(default)s]', default=0.9, metavar='FLOAT')
+cdhit_group.add_argument('--cdhit_min_length', type=float, help='length difference cutoff (cd-hit option -s) [%(default)s]', default=0.0, metavar='FLOAT')
+
+other_prep_group = subparser_prepareref.add_argument_group('other options')
+other_prep_group.add_argument('--min_gene_length', type=int, help='Minimum allowed length in nucleotides of reference genes [%(default)s]', metavar='INT', default=6)
+other_prep_group.add_argument('--max_gene_length', type=int, help='Maximum allowed length in nucleotides of reference genes [%(default)s]', metavar='INT', default=10000)
+other_prep_group.add_argument('--genetic_code', type=int, help='Number of genetic code to use. Currently supported 1,4,11 [%(default)s]', choices=[1,4,11], default=11, metavar='INT')
+other_prep_group.add_argument('--force', action='store_true', help='Overwrite output directory, if it already exists')
+other_prep_group.add_argument('--threads', type=int, help='Number of threads (currently only applies to cdhit) [%(default)s]', default=1, metavar='INT')
+other_prep_group.add_argument('--verbose', action='store_true', help='Be verbose')
+
+subparser_prepareref.add_argument('outdir', help='Output directory (must not already exist)')
+subparser_prepareref.set_defaults(func=ariba.tasks.prepareref.run)
+
+
+#----------------------------- pubmlstget -------------------------------
+subparser_pubmlstget = subparsers.add_parser(
+    'pubmlstget',
+    help='Download species from PubMLST and make db',
+    usage='ariba pubmlstget [options] <"species in quotes"> <output_directory>',
+    description='Download typing scheme for a given species from PubMLST, and make an ARIBA db',
+)
+subparser_pubmlstget.add_argument('--verbose', action='store_true', help='Be verbose')
+subparser_pubmlstget.add_argument('species', help='Species to download. Put it in quotes')
+subparser_pubmlstget.add_argument('outdir', help='Name of output directory to be made (must not already exist)')
+subparser_pubmlstget.set_defaults(func=ariba.tasks.pubmlstget.run)
+
+
+#----------------------------- pubmlstspecies -------------------------------
+subparser_pubmlstspecies = subparsers.add_parser(
+    'pubmlstspecies',
+    help='Get list of available species from PubMLST',
+    usage='ariba pubmlstspecies <outfile>',
+    description='Get a list of species available from PubMLST. Use this to show the possible species that can be used when running pubmlstget',
+)
+#subparser_pubmlstspecies.add_argument('outfile', help='Name of output file')
+subparser_pubmlstspecies.set_defaults(func=ariba.tasks.pubmlstspecies.run)
+
+
+#----------------------------- refquery -------------------------------
+subparser_refquery = subparsers.add_parser(
+    'refquery',
+    help='Get cluster or sequence info from prepareref output',
+    usage='ariba refquery <prepareref directory> <cluster|seq> <cluster name|sequence name>',
+    description='Get cluster or sequence info from the output directory made by prepareref',
+)
+subparser_refquery.add_argument('prepareref_dir', help='Name of directory output by prepareref')
+subparser_refquery.add_argument('query_type', choices=['cluster', 'seq'], help='Use "cluster" to get the sequences in a cluster, or "seq" to get information about a sequence')
+subparser_refquery.add_argument('search_name', help='Name of cluster or sequence to search for')
+subparser_refquery.set_defaults(func=ariba.tasks.refquery.run)
+
+
+#----------------------------- reportfilter -------------------------------
+#subparser_reportfilter = subparsers.add_parser(
+#    'reportfilter',
+#    help='Filters a report tsv file',
+#    description='Filters an ARIBA report tsv file made by "ariba run"',
+#    usage='ariba reportfilter [options] <infile> <outfile>'
+#)
+#subparser_reportfilter.add_argument('--exclude_flags', help='Comma-separated list of flags to exclude. [%(default)s]', default='assembly_fail,ref_seq_choose_fail')
+#subparser_reportfilter.add_argument('--min_pc_id', type=float, help='Minimum percent identity of nucmer match between contig and reference [%(default)s]', default=90.0, metavar='FLOAT')
+#subparser_reportfilter.add_argument('--min_ref_base_asm', type=int, help='Minimum number of reference bases matching assembly [%(default)s]', default=1, metavar='INT')
+#subparser_reportfilter.add_argument('--keep_syn', action='store_true', help='Keep synonymous variants (by default they are removed')
+#subparser_reportfilter.add_argument('--discard_without_known_var', action='store_true', help='Applies to variant only genes. Filter out where there is a known variant, but the assembly has the wild type. By default these rows are kept.')
+#subparser_reportfilter.add_argument('infile', help='Name of input tsv file')
+#subparser_reportfilter.add_argument('outfile', help='Name of output tsv file')
+#subparser_reportfilter.set_defaults(func=ariba.tasks.reportfilter.run)
+
+
+#----------------------------- run -------------------------------
+subparser_run = subparsers.add_parser(
+    'run',
+    help='Run the local assembly pipeline',
+    usage='ariba run [options] <prepareref_dir> <reads1.fq> <reads2.fq> <outdir>',
+    description='Runs the local assembly pipeline. Input is dir made by prepareref, and paired reads'
+)
+
+subparser_run.add_argument('prepareref_dir', help='Name of output directory when "ariba prepareref" was run')
+subparser_run.add_argument('reads_1', help='Name of fwd reads fastq file')
+subparser_run.add_argument('reads_2', help='Name of rev reads fastq file')
+subparser_run.add_argument('outdir', help='Output directory (must not already exist)')
+
+nucmer_group = subparser_run.add_argument_group('nucmer options')
+nucmer_group.add_argument('--nucmer_min_id', type=int, help='Minimum alignment identity (delta-filter -i) [%(default)s]', default=90, metavar='INT')
+nucmer_group.add_argument('--nucmer_min_len', type=int, help='Minimum alignment length (delta-filter -i) [%(default)s]', default=20, metavar='INT')
+nucmer_group.add_argument('--nucmer_breaklen', type=int, help='Value to use for -breaklen when running nucmer [%(default)s]', default=200, metavar='INT')
+
+assembly_group = subparser_run.add_argument_group('Assembly options')
+assembly_group.add_argument('--assembler', help='Assembler to use', choices=['fermilite','spades'], default='fermilite')
+assembly_group.add_argument('--assembly_cov', type=int, help='Target read coverage when sampling reads for assembly [%(default)s]', default=50, metavar='INT')
+assembly_group.add_argument('--min_scaff_depth', type=int, help='Minimum number of read pairs needed as evidence for scaffold link between two contigs [%(default)s]', default=10, metavar='INT')
+assembly_group.add_argument('--spades_mode', help='If using Spades assembler, either use default WGS mode, Single Cell mode (`spades.py --sc`) or RNA mode (`spades.py --rna`). '
+                                                  'Use SC or RNA mode if your input is from a viral sequencing with very uneven and deep coverage. '
+                                                  'Set `--assembly_cov` to some high value if using SC or RNA mode', choices=['wgs','sc','rna'], default='wgs')
+assembly_group.add_argument('--spades_options', help='Extra options to pass to Spades assembler. Sensible default options will be picked based on `--spades_mode` argument. '
+                                                     'Anything set here will replace the defaults completely')
+
+other_run_group = subparser_run.add_argument_group('Other options')
+other_run_group.add_argument('--threads', type=int, help='Experimental. Number of threads. Will run clusters in parallel, but not minimap (yet) [%(default)s]', default=1, metavar='INT')
+#other_run_group.add_argument('--threads', type=int, help=argparse.SUPPRESS, default=1, metavar='INT')
+other_run_group.add_argument('--assembled_threshold', type=float, help='If proportion of gene assembled (regardless of into how many contigs) is at least this value then the flag gene_assembled is set [%(default)s]', default=0.95, metavar='FLOAT (between 0 and 1)')
+other_run_group.add_argument('--gene_nt_extend', type=int, help='Max number of nucleotides to extend ends of gene matches to look for start/stop codons [%(default)s]', default=30, metavar='INT')
+other_run_group.add_argument('--unique_threshold', type=float, help='If proportion of bases in gene assembled more than once is <= this value, then the flag unique_contig is set [%(default)s]', default=0.03, metavar='FLOAT (between 0 and 1)')
+other_run_group.add_argument('--force', action='store_true', help='Overwrite output directory, if it already exists')
+other_run_group.add_argument('--noclean', action='store_true', help='Do not clean up intermediate files')
+other_run_group.add_argument('--tmp_dir', help='Existing directory in which to create a temporary directory used for local assemblies')
+other_run_group.add_argument('--verbose', action='store_true', help='Be verbose')
+subparser_run.set_defaults(func=ariba.tasks.run.run)
+
+
+#----------------------------- summary -------------------------------
+summary_presets = ['minimal', 'cluster_small', 'cluster_all', 'cluster_var_groups', 'all', 'all_no_filter']
+subparser_summary = subparsers.add_parser(
+    'summary',
+    help='Summarise multiple reports made by "run"',
+    usage='ariba summary [options] <outprefix> [report1.tsv report2.tsv ...]',
+    description='Make a summary of multiple ARIBA report files, and also make Phandango files',
+    epilog='Files must be listed after the output file and/or the option --fofn must be used. If both used, all files in the filename specified by --fofn AND the files listed after the output file will be used as input.'
+)
+
+subparser_summary.add_argument('-f', '--fofn', help='File of filenames of ariba reports to be summarised. Must be used if no input files listed after the outfile. The first column should be the filename. An optional second column can be used to specify a sample name for that file, which will be used instead of the filename in output files. Columns separated by whitespace.', metavar='FILENAME')
+subparser_summary.add_argument('--preset', choices=summary_presets, help='Shorthand for setting --cluster_cols,--col_filter,--row_filter,--v_groups,--variants. Using this overrides those options', metavar='|'.join(summary_presets))
+subparser_summary.add_argument('--cluster_cols', help='Comma separated list of cluster columns to include. Choose from: assembled, match, ref_seq, pct_id, ctg_cov, known_var, novel_var [%(default)s]', default='match', metavar='col1,col2,...')
+subparser_summary.add_argument('--col_filter', choices=['y', 'n'], default='y', help='Choose whether columns where all values are "no" or "NA" are removed [%(default)s]', metavar='y|n')
+subparser_summary.add_argument('--no_tree', action='store_true', help='Do not make phandango tree')
+subparser_summary.add_argument('--row_filter', choices=['y', 'n'], default='y', help='Choose whether rows where all values are "no" or "NA" are removed [%(default)s]', metavar='y|n')
+subparser_summary.add_argument('--min_id', type=float, help='Minimum percent identity cutoff to count as assembled [%(default)s]', default=90, metavar='FLOAT')
+subparser_summary.add_argument('--only_clusters', help='Only report data for the given comma-separated list of cluster names, eg: cluster1,cluster2,cluster42', metavar='Cluster_names')
+subparser_summary.add_argument('--v_groups', action='store_true', help='Show a group column for each group of variants')
+subparser_summary.add_argument('--known_variants', action='store_true', help='Report all known variants')
+subparser_summary.add_argument('--novel_variants', action='store_true', help='Report all novel variants')
+subparser_summary.add_argument('--verbose', action='store_true', help='Be verbose')
+subparser_summary.add_argument('outprefix', help='Prefix of output files')
+subparser_summary.add_argument('infiles', nargs='*', help='Files to be summarised')
+subparser_summary.set_defaults(func=ariba.tasks.summary.run)
+
+#----------------------------- test -------------------------------
+subparser_test = subparsers.add_parser(
+    'test',
+    help='Run small built-in test dataset',
+    usage='ariba test [options] <outdir>',
+    description='Run ARIBA on a small made up built-in test dataset'
+)
+
+#subparser_test.add_argument('--threads', type=int, help='Number of threads [%(default)s]', default=1, metavar='INT')
+subparser_test.add_argument('--threads', type=int, help=argparse.SUPPRESS, default=1, metavar='INT')
+subparser_test.add_argument('outdir', help='Name of output directory')
+subparser_test.set_defaults(func=ariba.tasks.test.run)
+
+#----------------------------- version -------------------------------
+subparser_version = subparsers.add_parser(
+    'version',
+    help='Get versions and exit',
+    usage='ariba version',
+    description='This reports the version of ARIBA, and also looks for all the dependencies (including python modules) and reports all their versions. Tells you if all looks OK or not'
+)
+subparser_version.set_defaults(func=ariba.tasks.version.run)
+
+args = parser.parse_args()
+
+if hasattr(args, 'func'):
+    args.func(args)
+else:
+    parser.print_help()
