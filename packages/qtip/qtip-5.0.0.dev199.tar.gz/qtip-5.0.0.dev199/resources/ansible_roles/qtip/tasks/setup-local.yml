@@ -1,0 +1,46 @@
+##############################################################################
+# Copyright (c) 2017 ZTE Corporation and others.
+#
+# All rights reserved. This program and the accompanying materials
+# are made available under the terms of the Apache License, Version 2.0
+# which accompanies this distribution, and is available at
+# http://www.apache.org/licenses/LICENSE-2.0
+##############################################################################
+
+---
+
+- name: checking status of ssh_auth_sock
+  shell: echo $SSH_AUTH_SOCK
+  register: sock_status
+  ignore_errors: yes
+
+- name: checking status of ssh_agent_pid
+  shell: pidof ssh-agent
+  register: pid_status
+  ignore_errors: yes
+
+- fail:
+    msg: "ssh-agent is required to execute QTIP. Use 'eval $(ssh-agent)' to start it"
+  when: sock_status.stdout == '' or pid_status.stdout == ''
+
+- name: formatting directory name for current run
+  set_fact:
+    pod_results: "{{ pod_name }}-{{ lookup('pipe', 'date +%Y%m%d-%H%M') }}"
+
+- name: creating directory for current run
+  file:
+    state: directory
+    path: "{{ qtip_results }}/{{ pod_results }}"
+
+- name: creating symbolic link to current test
+  file:
+    state: link
+    src: "{{ pod_results }}"
+    dest: "{{ qtip_results }}/current"
+
+- name: create cache directory
+  file:
+    path: "{{ item }}"
+    state: directory
+  with_items:
+    - "{{ qtip_cache }}"
