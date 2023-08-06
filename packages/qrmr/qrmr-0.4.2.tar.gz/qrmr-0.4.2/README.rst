@@ -1,0 +1,79 @@
+QRMR, AWS terminal login tool
+=============================================
+
+    Work secure using MFA according to best practices, and efficiently
+    with AWS terminal tools like ``aws`` cli, ``aws-shell``,
+    ``terraform``, etc.
+
+Highly opinionated Amazon Web Services (AWS) terminal login toolkit, focused on
+enforcing and simplifying AWS Multi-Factor Authentication (MFA).
+
+Written in Python 3, backwards compatible with Python 2, thanks to ``futures``!
+
+Currently being heavily tested in production against AWS multi-account setup (Well-Architected Framework) on macOS High Sierra.
+
+Feels most at home using `virtualenv`, of course.
+
+**How it works:**
+
+* Stores your AWS IAM credential profile in ``~/.qrmr/credentials.ini``;
+* Prompts for MFA OTP code;
+* Uses AWS STS to retrieve and store fresh SessionToken and temporary Access Key ID and Secret Access Key using your credential profile.
+
+**Near future:**
+
+* Manage ``~/.aws/credentials`` and ``~/.aws/config`` files
+* Unit Tests :)
+
+Because you probably just want to start using it:
+
+**Installation of QRMR:**
+
+``pip install qrmr``
+
+**Setup of AWS Credentials:**
+
+``qrmr setup``
+
+**Refreshing your SessionToken and temporary keys:**
+
+``qrmr refresh``
+
+**Be cool:**
+
+``aws s3 ls``
+
+
+**REMEMBER:** set environment variable AWS_PROFILE in your shell or virtualenv to
+make life easier:
+
+``export AWS_PROFILE=iam_user_name``
+
+Find out more features by running:
+
+``qrmr --help``
+
+Find us on: https://gitlab.com/qrmr/qrmr
+
+Resources:
+----------
+
+- https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-getting-started.html
+
+
+License / Copyright / Disclaimer:
+---------------------------------
+
+(c)Copyright 2017 - 2018, all rights reserved by QRMR / ALDG / Alexander L. de Goeij.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS “AS
+IS” AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
+TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
