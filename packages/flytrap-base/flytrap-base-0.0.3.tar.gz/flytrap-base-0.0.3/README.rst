@@ -1,0 +1,2 @@
+Django base package
+==============
