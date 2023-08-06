@@ -1,0 +1,71 @@
+#!python
+#coding: utf-8
+import struct
+import json
+import zlib
+import argparse
+from six import b
+
+class Dump():
+    def __init__(self, filename):
+        self._fp = 0
+        self._op_data = ""
+        self._external_data = ""
+
+        self._open_npu_file(filename)
+        self._seperate_data()
+
+    def _open_npu_file(self, filename):
+        self._fp = open(filename, "rb")
+
+    def _seperate_data(self):
+        mask_bytes = self._fp.read(4)
+        json_length_bytes = self._fp.read(4)
+        json_length = struct.unpack(">I", json_length_bytes)[0]
+        json_data_bytes = self._fp.read(json_length)
+        json_data = json.loads(json_data_bytes.decode("utf-8"))
+        content_len = json_data["npu_content_len"] + json_data["cpu_prepared_len"] + json_data["ops_content_len"]
+        content_crc_bytes = self._fp.read(content_len + 5) #crc4个字节, 一个字节的'\0'
+        self._op_data = mask_bytes + json_length_bytes + json_data_bytes + content_crc_bytes
+        self._external_data = self._fp.read()
+        self._fp.close()
+
+    def print_external_data(self):
+        if self._external_data:
+            info = zlib.decompress(self._external_data)
+            print(info)
+        else:
+            print("[GXNPUDUMP] npu file has no external info")
+
+    def dump_op_data(self, new_filename):
+        if self._external_data:
+            new_fp = open(new_filename, "wb+")
+            new_fp.write(self._op_data)
+            new_fp.close()
+            print("[GXNPUDUMP] %s has been created" % new_filename)
+        else:
+            print("[GXNPUDUMP] npu file has no external info, so it don't need to strip")
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description="npu debug tool: 1 or 2 arguments about filename, the second argument is the output filename and the default output name is strip_out.npu ")
+    parser.add_argument("file", type=str, default=[], help="input file", nargs="+")
+    parser.add_argument("-P", "--print_info", action="store_true", help="print debug info")
+    parser.add_argument("-S", "--strip", action="store_true", help="strip debug info")
+    args = parser.parse_args()
+
+    dumpfile = Dump(args.file[0])
+
+    if args.print_info:
+        dumpfile.print_external_data()
+
+    if args.strip:
+        args_length = len(args.file)
+        if args_length > 2:
+            print("[GXNPUDUMP] input arguments is too much, only need 2 or 1 arguments")
+        elif args_length == 2:
+            dumpfile.dump_op_data(args.file[1])
+        else:
+            dumpfile.dump_op_data("strip_out.npu")
+
+    if not (args.print_info or args.strip):
+        dumpfile.print_external_data()
