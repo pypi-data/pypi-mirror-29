@@ -1,0 +1,69 @@
+import { Component, ViewChild, ElementRef, AfterViewInit } from '@angular/core';
+
+import { Widget } from "@phosphor/widgets";
+
+import { ServiceManager, ContentsManager } from "@jupyterlab/services";
+import { ScriptedFormsWidget } from "../../app/widget";
+
+
+const aTemplate = `
+# Live documentation
+
+There isn't any docs here yet.
+
+Watch this space.
+
+## Available example forms
+
+<section-start always>
+
+~~~python
+import urllib.parse
+from glob import glob
+from IPython.display import display, Markdown
+~~~
+
+</section-start>
+
+<section-filechange paths="['.']">
+
+~~~python
+filepaths = glob('*.md') + glob('*/*.md') + glob('*/*/*.md')
+for filepath in filepaths:
+    escaped_filepath = urllib.parse.quote(filepath)
+    display(Markdown('[{}](../use/{})'.format(filepath, escaped_filepath)))
+~~~
+
+</section-filechange>
+`
+
+
+@Component({
+  selector: 'app-landing-page',
+  templateUrl: './landing-page.component.html'
+})
+export class LandingPageComponent implements AfterViewInit {
+  @ViewChild('formWrapper') formWrapper: ElementRef;
+
+
+  constructor(
+
+  ) {}
+
+  ngAfterViewInit() {
+    let serviceManager = new ServiceManager();
+    let contentsManager = new ContentsManager();
+  
+    let formWidget = new ScriptedFormsWidget({
+      serviceManager,
+      contentsManager
+    });
+  
+    formWidget.form.initiliseScriptedForms()
+
+    window.onresize = () => { formWidget.update(); };
+    Widget.attach(formWidget, this.formWrapper.nativeElement);
+
+    formWidget.form.setTemplateToString('a_dummy_path', aTemplate)
+  }
+}
