@@ -1,0 +1,136 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""
+Monitor the torque or slurm queues, block until jobs complete and return stats.
+
+Last modified: 2016-10-27 13:28
+
+Provide a list of jobs and/or a partition, plus an optional user, and this
+script will block until all jobs are complete.
+
+Usage:
+    monitor_jobs -p <partition> -u <user> -j <job1,job2,...>
+    Arguments are cumulative except user. For example::
+        auto_resubmit -p bob -j 172436 172437
+    user can be 'self'
+    This command will monitor all jobs in the bob partition as well as the two
+    jobs specified directly.
+    However::
+        monitor_jobs -p bob -u fred
+    This command will only monitor fred's jobs in bob (the union).
+"""
+from __future__ import print_function
+import sys
+import argparse
+
+import fyrd
+
+
+def make_job_list(user=None, partition=None, jobs=None):
+    """Return a list of jobs for user or in partition.
+
+    Will return a job list that is the union of all jobs by user and all jobs
+    in partition. If only user or parition is provided, all jobs that match
+    are returned. If not, then all jobs by user(s) in partition(s) are
+    returned. Any jobs in 'jobs' are simply added to the list.
+
+    :user:    A username, can be a list of usernames.
+    :partion: The partition/queue, can be a list of partitions.
+    :jobs:    A list of jobs to start with (list).
+    :returns: A sorted list of jobs (list of ints).
+
+    """
+    if jobs:
+        if isinstance(jobs, (str, int)):
+            job_list = [jobs]
+        elif isinstance(jobs, (list, tuple)):
+            job_list = list(jobs)
+        else:
+            raise TypeError('Invalid type for jobs: {}'.format(type(jobs)))
+    else:
+        job_list = []
+
+    queue = fyrd.Queue()
+
+    partition_list = []
+    if partition:
+        if isinstance(partition, str):
+            partition = [partition]
+            fyrd.logme.log('Partition list: {}'.format(partition), 'debug')
+        for i in partition:
+            partition_list += [k for k, v in queue.jobs.items()
+                               if v.queue == i]
+    fyrd.logme.log("Partitions' jobs: {}".format(partition_list), 'debug')
+
+    user_list = []
+    if user:
+        if isinstance(user, str):
+            user = [user]
+        fyrd.logme.log('User list: {}'.format(user), 'debug')
+        for i in user:
+            user_list += [k for k, v in queue.jobs.items()
+                          if v.owner == i]
+    fyrd.logme.log("Users' jobs: {}".format(user_list), 'debug')
+
+    # Take the union of the user and partion lists
+    if user_list and partition_list:
+        job_list += list(set(user_list) & set(partition_list))
+    elif user_list:
+        job_list += user_list
+    elif partition_list:
+        job_list += partition_list
+
+    # Make sure all job numbers are ints and the final list is sorted
+    job_list = sorted([int(i) for i in job_list])
+
+    fyrd.logme.log('Monitoring {} jobs'.format(len(job_list)))
+    fyrd.logme.log('List:\n{}'.format(job_list), 'debug')
+    return job_list
+
+
+def main(argv=None):
+    """Run as a script."""
+    if not argv:
+        argv = sys.argv[1:]
+
+    parser  = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter)
+
+    # Optional Arguments
+    parser.add_argument('-v', '--verbose', action="store_true",
+                        help="Verbose output")
+    parser.add_argument('-q', '--quiet', action="store_true",
+                        help="Warnings only")
+
+    # Jobs
+    jobs = parser.add_argument_group('Job List')
+    jobs.add_argument('-p', '--partition', nargs='+',
+                      help="All jobs in this partition.")
+    jobs.add_argument('-u', '--user', nargs='+',
+                      help="All jobs by this user.")
+    jobs.add_argument('-j', '--jobs', nargs='+',
+                      help="A list of additional jobs.")
+
+    args = parser.parse_args(argv)
+    if args.verbose:
+        fyrd.logme.MIN_LEVEL = 'debug'
+    elif args.quiet:
+        fyrd.logme.MIN_LEVEL = 'warn'
+
+    # Check that at least one option specified
+    if not args.partition and not args.user and not args.jobs:
+        parser.print_help()
+        return 0
+
+    job_list = make_job_list(jobs=args.jobs, user=args.user,
+                             partition=args.partition)
+
+    queue = fyrd.Queue()
+    if queue.wait(job_list):
+        return 0
+    else:
+        return 1
+
+if __name__ == '__main__' and '__file__' in globals():
+    sys.exit(main())
