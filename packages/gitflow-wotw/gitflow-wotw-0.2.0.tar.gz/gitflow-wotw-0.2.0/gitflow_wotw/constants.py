@@ -1,0 +1,1 @@
+HIERARCHY = ['command', 'subcommand', 'action']
