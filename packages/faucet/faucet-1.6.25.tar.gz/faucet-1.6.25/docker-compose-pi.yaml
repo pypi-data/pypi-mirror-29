@@ -1,0 +1,74 @@
+version: '2'
+services:
+    influxdb:
+        restart: always
+        image: 'hypriot/rpi-influxdb:latest'
+        ports:
+            - '8086'
+            - '8083'
+        volumes:
+            - '${FAUCET_PREFIX}/opt/influxdb/shared/data/db:/var/lib/influxdb'
+        environment:
+            PRE_CREATE_DB: 'faucet'
+            ADMIN_USER: 'faucet'
+            INFLUXDB_INIT_PWD: 'faucet'
+
+    prometheus:
+        restart: always
+        build:
+            context: docker/prometheus
+            dockerfile: Dockerfile
+        image: 'faucet/prometheus-pi:2.0.0'
+        ports:
+            - '9090:9090'
+        volumes:
+            - '${FAUCET_PREFIX}/opt/prometheus/:/prometheus'
+            - './etc/prometheus/prometheus-docker-compose.yml:/etc/prometheus/prometheus.yml'
+            - './etc/prometheus/faucet.rules.yml:/etc/prometheus/faucet.rules.yml'
+        links:
+            - faucet
+            - gauge
+
+    grafana:
+        restart: always
+        image: 'fg2it/grafana-armhf:v4.5.2'
+        ports:
+            - '3000:3000'
+        volumes:
+            - '${FAUCET_PREFIX}/opt/grafana:/var/lib/grafana'
+        links:
+            - influxdb
+            - prometheus
+
+    gauge:
+        restart: always
+        build:
+            context: .
+            dockerfile: Dockerfile.pi-gauge
+        image: 'faucet/gauge-pi:latest'
+        environment:
+            GAUGE_CONFIG: '/etc/ryu/faucet/gauge.yaml'
+        volumes:
+            - '${FAUCET_PREFIX}/var/log/ryu/faucet:/var/log/ryu/faucet'
+            - '${FAUCET_PREFIX}/etc/ryu/faucet:/etc/ryu/faucet'
+        ports:
+            - '6654:6653'
+            - '9303'
+        links:
+            - influxdb
+
+    faucet:
+        restart: always
+        build:
+            context: .
+            dockerfile: Dockerfile.pi
+        image: 'faucet/faucet-pi:latest'
+        volumes:
+            - '${FAUCET_PREFIX}/var/log/ryu/faucet:/var/log/ryu/faucet'
+            - '${FAUCET_PREFIX}/etc/ryu/faucet:/etc/ryu/faucet'
+        ports:
+            - '6653:6653'
+            - '9302'
+        environment:
+            FAUCET_CONFIG_STAT_RELOAD: '${FAUCET_CONFIG_STAT_RELOAD}'
+            FAUCET_EVENT_SOCK: '${FAUCET_EVENT_SOCK}'
