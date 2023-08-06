@@ -1,0 +1,136 @@
+<!-- Search -->
+{% load materialize_nav %}
+<li>
+    <div class="input-field" style="padding-left: 1rem;">
+        <div id="search_filt_id" class="prefix grey-text dropdown-trigger" data-target="search_filter_drop" style="cursor: pointer;">
+            <i  class="material-icons" style="float: left;">search</i>
+            <i class="material-icons" style="font-size:1rem; float:right;">arrow_drop_down</i>
+        </div>
+        <input id="sidebar_search" class="autocomplete" placeholder="{% if SearchName %}{{ SearchName}}{% else %}Search{% endif %}">
+
+        <!-- Search Filter Models Dropdown -->
+        <ul id="search_filter_drop" class="dropdown-content">
+            <li onclick="select_all_search_filters()" style="padding: 0 1rem 0 1rem;"> Select All Filters</li>
+            <li onclick="clear_all_search_filters()" style="padding: 0 1rem 0 1rem;"> Clear All Filters</li>
+            <li class="divider"></li>
+            {% for filt in SearchFilters %}
+                <li class="search_filter_item" style="padding: 0 1rem 0 1rem;" ><label class="input-field"><input type="checkbox" name="search_filter" checked><span>{{ filt }}</span></label></li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    <script>
+        // Search filter items
+        function clear_all_search_filters(){
+            var checkboxes = document.querySelectorAll('input[name=search_filter]');
+            checkboxes.forEach(function(checkbox){
+                checkbox.checked = false;
+            });
+        }
+        function select_all_search_filters(){
+            var checkboxes = document.querySelectorAll('input[name=search_filter]');
+            checkboxes.forEach(function(checkbox){
+                checkbox.checked = true;
+            });
+
+        }
+        function get_search_filters(){
+            var checkboxes = document.querySelectorAll('input[name=search_filter]:checked');
+            var text = checkboxes[0].parentElement.textContent;
+            for(var i=1; i < checkboxes.length; i++){
+                text += ", " + checkboxes[i].parentElement.textContent;
+            }
+            return text;
+        }
+
+        $(document).ready(function() {
+            // Init search filter dropdown
+            var search_filt_elem = document.querySelector('#search_filt_id');
+            var search_filt_inst = M.Dropdown.init(search_filt_elem, {
+                coverTrigger: false, constrainWidth: false, closeOnClick: false
+            });
+
+            // Search input items
+            var search_request = null;
+            var search_results = {};
+            var search_elem = document.querySelector('#sidebar_search');
+            var instance = M.Autocomplete.init(search_elem, {
+                onAutocomplete: function(val){
+                    var url = search_results[val];
+                    if(url){
+                        window.location.href = url;
+                    } else {
+                        M.toast({html: "System Error: View Page not available for this item!"})
+                    }
+                }
+            });
+
+
+            $("#sidebar_search").on('input', function(e) {
+                e.preventDefault();
+
+                if (search_request != null){
+                    search_request.abort();
+                }
+
+                // Get the search text
+                var search_text = $("#sidebar_search")[0].value;
+                var search_filt_text = get_search_filters();
+                // if(search_text.length < 2) {
+                //     return;
+                // }
+
+                // Post the new list id to the task
+                search_request = $.ajax({
+                    type: "GET",
+                    url: "{{ SearchURL }}",
+                    dataType: 'json',
+                    data: {"search": search_text, "filters": search_filt_text},
+
+                    success: function (json) {
+                        for (var key in json){
+                            if (json.hasOwnProperty(key)){
+                                var search = json[key];
+                                var data_li = {};
+                                search_results = {};
+
+                                for (var i = 0; i < search.length; i++) {
+                                    var item = search[i];
+                                    var name = item[0];
+                                    var url = item[1];
+                                    data_li[name] = null;
+                                    search_results[name] = url;
+                                }
+
+                                instance.updateData(data_li);
+                            }
+                        }
+                    },  // function(json) {}
+                    error: function (xhr, status, errorThrown) {
+                        console.log(xhr, status, errorThrown);
+                        M.toast({html: "Could not search at this time!"})
+                    }
+                });
+            });
+
+            $("#sidebar_search").on('keyup', function(e) {
+                // When enter is pressed
+                if (e.keyCode == 13){
+                    e.preventDefault();
+
+                    var search = $("#sidebar_search")[0].value;
+                    if(search in search_results){
+                        var url = search_results[search];
+                        if(url) {
+                            window.location.href = url;
+                        } else {
+                            window.location.href = "{{ SearchURL }}" + "?search=" + search;
+                        }
+                    } else {
+                        window.location.href = "{{ SearchURL }}" + "?search=" + search;
+                    }
+                }
+            });
+        });
+    </script>
+</li>
