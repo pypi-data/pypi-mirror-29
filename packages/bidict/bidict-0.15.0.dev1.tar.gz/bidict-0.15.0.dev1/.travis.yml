@@ -1,0 +1,150 @@
+language: python
+
+# Version used for jobs that don't override it (e.g. the one-off jobs):
+python: "3.6"
+
+sudo: false
+
+env:
+  global:
+    - VENV_ROOT="$HOME/venv"
+
+
+before_install:
+  - |
+      echo "TRAVIS_PULL_REQUEST_SHA: $TRAVIS_PULL_REQUEST_SHA"
+      echo "TRAVIS_COMMIT: $TRAVIS_COMMIT"
+      git --no-pager log -n2
+      echo
+      # Work around this error, seen only with Python 3.7-dev on Travis:
+      #   pkg_resources.DistributionNotFound: The 'setuptools_scm>=1.15.0' distribution was not found and is required by the application
+      travis_retry pip install --no-binary=all setuptools_scm
+      # Travis does a shallow (--depth=50) clone by default.
+      # Clone the full history as desired by setuptools_scm.
+      git fetch --unshallow
+
+
+install:  # Install our test dependencies.
+  - if [[ -n $COVERAGE ]]; then EXTRAS="test,coverage"; else EXTRAS="test"; fi
+  - travis_retry pip install .[$EXTRAS]
+
+
+script:  # Run our test suite.
+  - if [[ -n $COVERAGE ]]; then export PYTEST_ADDOPTS="--cov=bidict --cov-config=.coveragerc"; fi
+  - python setup.py test
+
+
+after_script:
+  - |
+      if [[ -n $COVERAGE ]]; then
+        echo "Installing codecov..."
+        travis_retry pip install codecov || exit 1
+        echo
+        echo "Uploading coverage report..."
+        codecov || exit 1
+      fi
+
+
+matrix:
+  allow_failures:
+    - env: ALLOW_FAIL=1
+
+  include:
+    # Each job performs a single task, and sets a "TASK" var so it's evident in the build matrix.
+
+    # Run the test suite with various Python versions.
+    # Only run these tests for commits to master to save time waiting for Travis.
+    # Also don't bother testing Python 3.4; if we work on 3.5+, we should work on 3.4 too.
+
+    ## Linux
+    ### Enable coverage for the latest stable CPython 2 and 3 releases and PyPy on Linux.
+    #### Latest stable CPython 2. Enable coverage.
+    - python: "2.7"
+      env: TASK=test COVERAGE=1
+      if: branch = master
+    #### Latest stable CPython 3. Enable coverage.
+    - python: "3.6"
+      env: TASK=test COVERAGE=1
+      if: branch = master
+    #### Test other CPython versions. No need for coverage.
+    ##### Previous stable CPython 3 version.
+    - python: "3.5"
+      env: TASK=test
+      if: branch = master
+    #### Next (in-development) CPython 3 version.
+    - python: 3.7-dev
+      env: TASK=test ALLOW_FAIL=1
+      if: branch = master
+    #### Test latest stable PyPy 3. Enable coverage.
+    - python: pypy3
+      env: TASK=test COVERAGE=1
+      if: branch = master
+    #### Test latest stable PyPy 2. No need for coverage.
+    - python: pypy
+      env: TASK=test
+      if: branch = master
+
+
+    ## macOS
+    ### Commented out pending https://github.com/travis-ci/travis-ci/issues/2312
+    ####- python: "2.7"
+    ####  env: TASK=test
+    ####  if: branch = master
+    ####  os: osx
+    ####  osx_image: xcode9.2
+
+    # One-off jobs. Override "install", "before_install", and "script" to do each of these instead.
+    - env: TASK=pydocstyle
+      before_install: echo "(no before_install needed)"
+      install: travis_retry pip install pydocstyle
+      script: pydocstyle bidict
+    - env: TASK=build-docs
+      before_install: echo "(no before_install needed)"
+      install: travis_retry pip install Sphinx
+      script: travis_retry ./build-docs.sh linkcheck
+    - env: TASK=flake8
+      before_install: echo "(no before_install needed)"
+      install: travis_retry pip install flake8
+      script: flake8 bidict tests/*.py
+    - env: TASK=pylint
+      before_install: travis_retry pip install .[test]
+      install: travis_retry pip install pylint
+      script: pylint bidict tests setup.py
+    - env: TASK=test-with-optimization-flag  # make sure there are no relied-on side effects in assert statements
+      before_install: echo "(no before_install needed)"
+      install: echo "(no install needed)"
+      script: python -O -m doctest -o IGNORE_EXCEPTION_DETAIL -o ELLIPSIS tests/*.txt
+
+
+before_cache:
+  - rm -rf $HOME/.cache/pip/log
+
+
+cache:
+  directories:
+    - $HOME/.cache/pip
+    - $HOME/.hypothesis
+
+
+notifications:
+  webhooks:
+    urls:
+      - https://webhooks.gitter.im/e/bf64fb45a633c0935b9b
+  email:
+    recipients: jab@math.brown.edu
+
+
+deploy:
+  - provider: pypi
+    user: jab
+    password:
+      secure: B9LLgXkTbtjeC/IbH4wh9PEBzvKEAuYo3EBNW5f1xuLqVqtsysIyxJa5ar/FQ4qwUCBwZPFAXFurN3lLzRhb2Tc04YQ0GYVv6f8lkzwrjoWau4iB9Qt/nnvdRa7KryEJvtenHCAnwoEUaADCjkZjwo6fIA0hEOLB6/AYfhfgXYA=
+    on:
+      tags: true
+
+  # https://docs.travis-ci.com/user/deployment/releases/
+  - provider: releases
+    api_key:
+      secure: 02GCTV4ja1dWQqzIznOdvVdJfEcIIougCv2OsQapDr6KjtgzpcBvDC4Z57eDsZX2JwharKdz3CmYJaRLCIDkVCYiyBxovO6v8o4Kww21v/4KMkpBmoGQmn9WiR1NYiK+dxlQb59+9t/DTYT39Wq6ZD+3sCETRdRZgraMNZWr8sA=
+    on:
+      tags: true
