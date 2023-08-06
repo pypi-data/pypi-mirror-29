@@ -1,0 +1,8 @@
+__title__ = 'vcspull'
+__package_name__ = 'vcspull'
+__description__ = 'synchronize your repos'
+__version__ = '1.1.0'
+__author__ = 'Tony Narlock'
+__email__ = 'tony@git-pull.com'
+__license__ = 'MIT'
+__copyright__ = 'Copyright 2013-2018 Tony Narlock'
