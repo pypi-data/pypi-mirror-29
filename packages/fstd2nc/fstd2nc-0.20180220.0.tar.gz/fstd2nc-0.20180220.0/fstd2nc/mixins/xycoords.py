@@ -1,0 +1,543 @@
+###############################################################################
+# Copyright 2017 - Climate Research Division
+#                  Environment and Climate Change Canada
+#
+# This file is part of the "fstd2nc" package.
+#
+# "fstd2nc" is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# "fstd2nc" is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with "fstd2nc".  If not, see <http://www.gnu.org/licenses/>.
+###############################################################################
+
+from fstd2nc.stdout import _, info, warn, error
+from fstd2nc.mixins import BufferBase
+
+
+# Modify gdll to handle supergrids.
+# Simply loops over each subgrid, then re-stacks them together.
+def gdll (gdid):
+  from rpnpy.librmn.interp import ezgprm, ezget_subgridids, gdll
+  import numpy as np
+  grtyp = ezgprm(gdid)['grtyp']
+  if grtyp != 'U':
+    return gdll(gdid)
+  lat = []
+  lon = []
+  for subgrid in ezget_subgridids(gdid):
+    subll = gdll(subgrid)
+    lat.append(subll['lat'])
+    lon.append(subll['lon'])
+  # Stack them together again, to match the shape of the variable.
+  lat = np.concatenate(lat, axis=1)
+  lon = np.concatenate(lon, axis=1)
+  return {'lat':lat, 'lon':lon}
+
+# Modify gdgaxes to handle supergrids.
+# Simply loops over each subgrid, then re-stacks them together.
+def gdgaxes (gdid):
+  from rpnpy.librmn.interp import ezgprm, ezget_subgridids, gdgaxes
+  import numpy as np
+  grtyp = ezgprm(gdid)['grtyp']
+  if grtyp != 'U':
+    return gdgaxes(gdid)
+  ax = []
+  ay = []
+  for subgrid in ezget_subgridids(gdid):
+    subll = gdgaxes(subgrid)
+    ax.append(subll['ax'])
+    ay.append(subll['ay'])
+  # Stack them together again, to match the shape of the variable.
+  ax = np.concatenate(ax, axis=1)
+  ay = np.concatenate(ay, axis=1)
+  return {'ax':ax, 'ay':ay}
+
+# Base class for grid mapping classes
+class GridMap(object):
+  # Mean radius of the Earth used in OGC CRS (coord. ref. system) descriptions
+  # Note that Earth's mean radius = 6371000. m in librmn!
+  _earth_radius = 6371229. 
+  def __init__(self, grd):
+#   grd is a dictionary returned by readGrid containing grid parameters 
+    from collections import OrderedDict
+    self._grd = grd
+    self._name = ''
+    self._atts = OrderedDict()
+    self._xaxisatts = OrderedDict()
+    self._yaxisatts = OrderedDict()
+# Factory method that creates various types of grid mapping objects
+  @classmethod
+  def gen_gmap(cls, grd):
+    import numpy as np
+    grref = grd['grref'].upper() 
+    if grref == 'E' :
+      # Special case: 'E' grid is not actually rotated.
+      if np.allclose(grd['lat0'],grd['rlat0']) and np.allclose(grd['lon0'],grd['rlon0']):
+        return LatLon(grd)
+      # Usual case: 'E' grid is rotated.
+      return RotLatLon(grd)
+    elif grref == 'L' :
+      return LatLon(grd)
+    elif grref in ['N','S'] :
+      return PolarStereo(grd)
+    else:
+      raise ValueError('Grid mapping variable cannot be created for grids based on grid type %s!' \
+                       % (grref))
+
+class LatLon(GridMap):
+  def __init__(self, *args, **kwargs):
+    super(LatLon,self).__init__(*args,**kwargs)
+    # Grid mapping variable name
+    self._name = 'crs_latlon'
+  def gen_gmapvar(self):
+    from fstd2nc.mixins import _var_type
+    import numpy as np
+    self._atts['grid_mapping_name'] = 'latitude_longitude'
+    self._atts['earth_radius'] = self._earth_radius
+    # Grid mapping variable
+    self.gmap = _var_type(self._name,self._atts,{},np.array(""))
+    return self.gmap     
+  # Generate true latitudes and longitudes
+  def gen_ll(self):    
+    from collections import OrderedDict
+    from rpnpy.librmn.all import gdll 
+    from fstd2nc.mixins import _var_type
+    ll = gdll(self._grd['id'])
+    self._lonarray = ll['lon'][:,0]
+    self._lonatts = OrderedDict()
+    self._lonatts['long_name'] = 'longitude'
+    self._lonatts['standard_name'] = 'longitude'
+    self._lonatts['units'] = 'degrees_east'
+    self._latarray = ll['lat'][0,:]
+    self._latatts = OrderedDict()
+    self._latatts['long_name'] = 'latitude'
+    self._latatts['standard_name'] = 'latitude'
+    self._latatts['units'] = 'degrees_north'
+    self.lon = _var_type('lon',self._lonatts,{'lon':tuple(self._lonarray)},self._lonarray)
+    self.lat = _var_type('lat',self._latatts,{'lat':tuple(self._latarray)},self._latarray)
+    self.gridaxes = [('lat',tuple(self._latarray)),('lon',tuple(self._lonarray))]
+    return (self.gridaxes, self.lon, self.lat)
+  # Generic gen_xyll function.
+  def gen_xyll(self):
+    gridaxes, lon, lat = self.gen_ll()
+    return (None, None, gridaxes, lon, lat)
+
+class RotLatLon(GridMap):
+  def __init__(self, *args, **kwargs):
+    from rpnpy.librmn.all import egrid_rll2ll, egrid_ll2rll
+    super(RotLatLon,self).__init__(*args,**kwargs)
+    # Grid mapping variable name
+    self._name = 'rotated_pole'
+    # Calculate geographical latitude and longitude of rotated grid's North Pole
+    (__rlat_RNP, __rlon_RNP) = (90., 0.)
+    (self._grid_north_pole_latitude,self._grid_north_pole_longitude) = \
+       egrid_rll2ll(self._grd['xlat1'], self._grd['xlon1'], 
+       self._grd['xlat2'], self._grd['xlon2'], __rlat_RNP, __rlon_RNP)
+    # Calculate rotated-grid latitude and longitude of the geographical North Pole
+    (__lat_NP, __lon_NP) = (90., 0.)
+    (self._north_pole_grid_latitude,self._north_pole_grid_longitude) = \
+       egrid_ll2rll(self._grd['xlat1'], self._grd['xlon1'], 
+       self._grd['xlat2'], self._grd['xlon2'], __lat_NP, __lon_NP)
+    self._ax = self._grd['ax'][:,0] 
+    # Offset applied to bring rotated longitude in range [-180,180]
+    # Done to avoid crossing the dateline and representation problems 
+    # in some software (e.g. IDV, Panoply, Iris)
+    if self._ax.max() > 180. :
+      self._ax = self._ax - self._north_pole_grid_longitude 
+    self._ay = self._grd['ay'][0,:]
+  def gen_gmapvar(self):
+    from fstd2nc.mixins import _var_type
+    import numpy as np
+    self._atts['grid_mapping_name'] = 'rotated_latitude_longitude'
+    self._atts['earth_radius'] = self._earth_radius
+    self._atts['grid_north_pole_latitude'] = self._grid_north_pole_latitude
+    self._atts['grid_north_pole_longitude'] = self._grid_north_pole_longitude
+#    self._atts['north_pole_grid_longitude'] = self._north_pole_grid_longitude 
+#   Set the optional grid mapping parameter 'north_pole_grid_longitude' to 0 to avoid 
+#   some problems, such as the conversion from netcdf to grib performed by some tools
+#    self._atts['north_pole_grid_longitude'] = 0.
+#    self._atts['longitude_of_prime_meridian'] = 0.
+    # Grid mapping variable
+    self.gmap = _var_type(self._name,self._atts,{},np.array(""))
+    return self.gmap
+  # Generate latitudes and longitudes in rotated pole grid 
+  # and true latitudes and longitudes
+  def gen_xyll(self):
+    from collections import OrderedDict
+    from rpnpy.librmn.all import gdll
+    from fstd2nc.mixins import _var_type
+    self._xaxisatts['long_name'] = 'longitude in rotated pole grid'
+    self._xaxisatts['standard_name'] = 'grid_longitude'
+    self._xaxisatts['units'] = 'degrees'
+    self._xaxisatts['axis'] = 'X'
+    self._yaxisatts['long_name'] = 'latitude in rotated pole grid'
+    self._yaxisatts['standard_name'] = 'grid_latitude'
+    self._yaxisatts['units'] = 'degrees'
+    self._yaxisatts['axis'] = 'Y'
+    self.xaxis = _var_type('rlon',self._xaxisatts,{'rlon':tuple(self._ax)},self._ax)
+    self.yaxis = _var_type('rlat',self._yaxisatts,{'rlat':tuple(self._ay)},self._ay) 
+    self.gridaxes = [('rlat',tuple(self.yaxis.array)),('rlon',tuple(self.xaxis.array))]
+    ll = gdll(self._grd['id'])
+    self._lonarray = ll['lon'].transpose() # Switch from Fortran to C order.
+    self._lonatts = OrderedDict()
+    self._lonatts['long_name'] = 'longitude'
+    self._lonatts['standard_name'] = 'longitude'
+    self._lonatts['units'] = 'degrees_east'
+    self._latarray = ll['lat'].transpose() # Switch from Fortran to C order.
+    self._latatts = OrderedDict()
+    self._latatts['long_name'] = 'latitude'
+    self._latatts['standard_name'] = 'latitude'
+    self._latatts['units'] = 'degrees_north'
+    self.lon = _var_type('lon',self._lonatts,OrderedDict(self.gridaxes),self._lonarray)
+    self.lat = _var_type('lat',self._latatts,OrderedDict(self.gridaxes),self._latarray)
+    return (self.xaxis, self.yaxis, self.gridaxes, self.lon, self.lat)
+
+
+class PolarStereo(GridMap):
+  # The standard parallel is fixed at 60 N as this is
+  # the only standard parallel used in the RPN routines
+  def __init__(self, *args, **kwargs):
+    super(PolarStereo,self).__init__(*args,**kwargs)
+    # Grid mapping variable name
+    self._std_parallel = 60.
+    self._name = 'polar_stereo'
+    # Grid resolution (spacing) in projection plane (at standard parallel)
+    self._res = self._grd['d60']    # metres
+    self.xaxis = None
+    self.yaxis = None
+  @staticmethod
+  def map_scale_factor(std_parallel_deg):
+    # Calculate map scale factor from latitude of standard parallel
+    # with formula found at:
+    # https://www.unidata.ucar.edu/software/thredds/current/netcdf-java/reference/StandardCoordinateTransforms.html
+    from math import fabs, sin, radians
+    abs_sin = fabs(sin(radians(std_parallel_deg)))
+    # value returned for standard parallel at 60 deg: 0.933012701892
+    # value retrieved using mscale function (rmnlib): 0.9330124
+    return (1. + abs_sin)/2. 
+  def gen_gmapvar(self):
+    import numpy as np
+    from fstd2nc.mixins import _var_type
+    self._atts['grid_mapping_name'] = 'polar_stereographic'
+    self._atts['earth_radius'] = self._earth_radius
+    if self._grd['north']:
+      self._atts['latitude_of_projection_origin'] = 90.
+    else:
+      self._atts['latitude_of_projection_origin'] = -90.
+    # Set central meridian so that easting and northing directions match those returned by RPN routines
+    self._atts['straight_vertical_longitude_from_pole'] = -(self._grd['dgrw'] + 90.)
+    # Set either 'standard_parallel' or 'scale_factor_at_projection_origin', not both!
+#    self._atts['standard_parallel'] = 60.
+    self._atts['scale_factor_at_projection_origin']= self.map_scale_factor(self._std_parallel)
+    self._atts['resolution_at_standard_parallel'] = self._res
+    self._gen_xyll()
+    self._atts['false_easting'] = self._false_easting
+    self._atts['false_northing'] = self._false_northing
+    # Grid mapping variable
+    self.gmap = _var_type(self._name,self._atts,{},np.array(""))
+    return self.gmap
+  # Generate projection coordinates
+  def _gen_xyll(self):  
+    from collections import OrderedDict 
+    import numpy as np
+    from rpnpy.librmn.all import gdll, gdxyfll
+    from fstd2nc.mixins import _var_type
+    ll = gdll(self._grd['id'])
+    self._lonarray = ll['lon'].transpose() # Switch from Fortran to C order.
+    self._lonatts = OrderedDict()
+    self._lonatts['long_name'] = 'longitude'
+    self._lonatts['standard_name'] = 'longitude'
+    self._lonatts['units'] = 'degrees_east'
+    self._latarray = ll['lat'].transpose() # Switch from Fortran to C order.
+    self._latatts = OrderedDict()
+    self._latatts['long_name'] = 'latitude'
+    self._latatts['standard_name'] = 'latitude'
+    self._latatts['units'] = 'degrees_north'
+    xy = gdxyfll(self._grd['id'],ll['lat'],ll['lon'])
+    # Scale grid coordinates back to actual coordinates in projection plane   
+    self._ax = ( np.rint(xy['x'][:,0]) - 1) * self._res   # metres
+    self._ay = ( np.rint(xy['y'][0,:]) - 1) * self._res
+    # Determine the false easting and northing from 
+    # the coordinates of the pole and of grid point (1,1)
+    _pole_pi = self._grd['pi']
+    _pole_pj = self._grd['pj']
+    self._false_easting =  self._ax[int(round(_pole_pi)) - 1] - self._ax[0]
+    self._false_northing = self._ay[int(round(_pole_pj)) - 1] - self._ay[0]
+    self._xaxisatts['long_name'] = 'x-coordinate of polar-stereographic projection'
+    self._xaxisatts['standard_name'] = 'projection_x_coordinate'
+    self._xaxisatts['units'] = 'm'
+    self._xaxisatts['axis'] = 'X'
+    self._yaxisatts['long_name'] = 'y-coordinate of polar-stereographic projection'
+    self._yaxisatts['standard_name'] = 'projection_y_coordinate'
+    self._yaxisatts['units'] = 'm'
+    self._yaxisatts['axis'] = 'Y'
+    self.xaxis = _var_type('xc',self._xaxisatts,{'xc':tuple(self._ax)},self._ax)
+    self.yaxis = _var_type('yc',self._yaxisatts,{'yc':tuple(self._ay)},self._ay) 
+    self.gridaxes = [('yc',tuple(self.yaxis.array)),('xc',tuple(self.xaxis.array))]
+    self.lon = _var_type('lon',self._lonatts,OrderedDict(self.gridaxes),self._lonarray)
+    self.lat = _var_type('lat',self._latatts,OrderedDict(self.gridaxes),self._latarray)
+    return (self._false_easting, self._false_northing, self.xaxis, self.yaxis, \
+            self.gridaxes, self.lon, self.lat)
+  def gen_xyll(self):
+    if self.xaxis == None:
+      self._gen_xyll()
+    return (self.xaxis, self.yaxis, self.gridaxes, self.lon, self.lat)
+      
+
+#################################################
+# Mixin for handling lat/lon coordinates.
+
+class XYCoords (BufferBase):
+  # Special records that contain coordinate info.
+  # We don't want to output these directly as variables, need to decode first.
+  _xycoord_nomvars = ('^^','>>','^>')
+  # Grids that can be read directly from '^^','>>' records, instead of going
+  # through ezqkdef (in fact, may crash ezqkdef if you try decoding them).
+  _direct_grids = ('X','Y','T','+')
+
+  @classmethod
+  def _cmdline_args (cls, parser):
+    super(XYCoords,cls)._cmdline_args(parser)
+    parser.add_argument('--subgrid-axis', action='store_true', help=_('For data on supergrids, split the subgrids along a "subgrid" axis.  The default is to leave the subgrids stacked together as they are in the RPN file.'))
+
+  def __init__ (self, *args, **kwargs):
+    self._subgrid_axis = kwargs.pop('subgrid_axis',False)
+    # Tell the decoder not to process horizontal records as variables.
+    self._meta_records = self._meta_records + self._xycoord_nomvars
+    super(XYCoords,self).__init__(*args,**kwargs)
+    # Variables must have an internally consistent horizontal grid.
+    self._var_id = self._var_id + ('grtyp',)
+    self._human_var_id = self._human_var_id + ('%(grtyp)s',)
+    # Also, must have consistent igX records for a variable.
+    if 'ig1' not in self._var_id:
+      self._var_id = self._var_id + ('ig1','ig2','ig3','ig4')
+      self._human_var_id = self._human_var_id + ('grid_%(ig1)s_%(ig2)s_%(ig3)s_%(ig4)s',)
+
+  # Helper method - look up a coordinate record for the given variable.
+  # Need this for manual lookup of 'X' grids, since ezqkdef doesn't support
+  # them?
+  def _find_coord (self, var, coordname):
+    from fstd2nc.mixins import dtype_fst2numpy
+    from rpnpy.librmn.fstd98 import fstlir
+    header = fstlir (self._meta_funit, nomvar=coordname, ip1=var.atts['ig1'],
+                           ip2=var.atts['ig2'], ip3=var.atts['ig3'], rank=3)
+    if header is not None:
+      # Override output dtype
+      dtype = dtype_fst2numpy(header['datyp'],header['nbits'])
+      header['d'] = header['d'].view(dtype)
+      return header
+    raise KeyError("Unable to find matching '%s' for '%s'"%(coordname,var.name))
+
+
+  # Add horizontal coordinate info to the data stream.
+  def _iter (self):
+    from fstd2nc.mixins import _iter_type, _var_type, _modify_axes
+    from collections import OrderedDict
+    from rpnpy.librmn.interp import ezqkdef, EzscintError, ezget_nsubgrids
+    from rpnpy.librmn.all import readGrid
+    import numpy as np
+
+    # Scan through the data, and look for any use of horizontal coordinates.
+    grids = OrderedDict()
+    gridmaps = OrderedDict()
+    # Grid mappings will be defined for grids based on the grid types listed in 'grrefs' 
+    grrefs = ['E','L','N','S']
+    # Only output 1 copy of 1D coords (e.g. could have repetitions with
+    # horizontal staggering.
+    coords = set()
+    for var in super(XYCoords,self)._iter():
+      # Don't touch derived variables.
+      if not isinstance(var,_iter_type):
+        yield var
+        continue
+      # Get grid parameters.
+      ni = int(var.atts['ni'])
+      nj = int(var.atts['nj'])
+      grtyp = var.atts['grtyp']
+      ig1 = int(var.atts['ig1'])
+      ig2 = int(var.atts['ig2'])
+      ig3 = int(var.atts['ig3'])
+      ig4 = int(var.atts['ig4'])
+      # Uniquely identify the grid for this variable.
+      #
+      # Use a looser identifier for timeseries data (ni/nj have different
+      # meanings here (not grid-related), and could have multiple grtyp
+      # values ('+','Y') that should share the same lat/lon info.
+      if var.atts['typvar'].strip() == 'T':
+        key = ('T',ig1,ig2)
+      else:
+        key = (grtyp,ni,nj,ig1,ig2,ig3,ig4)
+      if grtyp in ('Y','+'): key = key[1:]
+      # Check if we already defined this grid.
+      if key not in grids:
+
+        try:
+          # Get basic information about this grid.
+          # First, handle non-ezqkdef grids.
+          if grtyp in self._direct_grids:
+            lat = self._find_coord(var,'^^')['d'].squeeze(axis=2)
+            lon = self._find_coord(var,'>>')['d'].squeeze(axis=2)
+            ll = {'lat':lat, 'lon':lon}
+            grd = {}
+          # Everything else should be handled by ezqkdef.
+          else:
+            grd = readGrid(self._meta_funit, var.atts.copy())
+            if grd['grref'].upper() not in grrefs :
+              gdid = ezqkdef (ni, nj, grtyp, ig1, ig2, ig3, ig4, self._meta_funit)
+              ll = gdll(gdid)
+        except (TypeError,EzscintError,KeyError):
+          warn(_("Unable to get grid info for '%s'")%var.name)
+          yield var
+          continue
+
+
+        # Find projection's X/Y coordinates (if applicable).
+        try:
+          # Can't do this for direct grids (don't have a gdid defined).
+          if grtyp in self._direct_grids: raise TypeError
+
+          # Base grid for current grid is recognized
+          if grd['grref'].upper() in grrefs : 
+            gmap = GridMap.gen_gmap(grd)
+            gmapvar = gmap.gen_gmapvar()
+            gridmaps[key] = gmapvar.name
+            yield gmapvar
+            (xaxis,yaxis,gridaxes,lon,lat) = gmap.gen_xyll()
+            if yaxis is not None and tuple(yaxis.axes.items()) not in coords:
+              yield yaxis
+              coords.add(tuple(yaxis.axes.items()))
+            if xaxis is not None and tuple(xaxis.axes.items()) not in coords:
+              yield xaxis
+              coords.add(tuple(xaxis.axes.items()))
+
+          else:
+            xycoords = gdgaxes(gdid)
+            ax = xycoords['ax'].transpose()
+            ay = xycoords['ay'].transpose()
+            # Convert from degenerate 2D arrays to 1D arrays.
+            ax = ax[0,:]
+            ay = ay[:,0]
+            xaxis = _var_type('x',{'axis':'X'},{'x':tuple(ax)},ax)
+            yaxis = _var_type('y',{'axis':'Y'},{'y':tuple(ay)},ay)
+        except (TypeError,EzscintError):
+          # Can't get X/Y coords for this grid?
+          xaxis = yaxis = None
+
+        # Construct lat/lon fields.
+        if not grd or ('grref' in grd and grd['grref'].upper() not in grrefs) : 
+          latarray = ll['lat'].transpose() # Switch from Fortran to C order.
+          latatts = OrderedDict()
+          latatts['long_name'] = 'latitude'
+          latatts['standard_name'] = 'latitude'
+          latatts['units'] = 'degrees_north'
+          lonarray = ll['lon'].transpose() # Switch from Fortran to C order.
+          lonatts = OrderedDict()
+          lonatts['long_name'] = 'longitude'
+          lonatts['standard_name'] = 'longitude'
+          lonatts['units'] = 'degrees_east'
+
+          # Case 1: lat/lon can be resolved into 1D Cartesian coordinates.
+          # Calculate the mean lat/lon arrays in double precision.
+          meanlat = np.mean(np.array(latarray,dtype=float),axis=1,keepdims=True)
+          meanlon = np.mean(np.array(lonarray,dtype=float),axis=0,keepdims=True)
+          if latarray.shape[1] > 1 and lonarray.shape[1] > 1 and np.allclose(latarray,meanlat) and np.allclose(lonarray,meanlon):
+            # Reduce back to single precision for writing out.
+            meanlat = np.array(meanlat,dtype=latarray.dtype).squeeze()
+            meanlon = np.array(meanlon,dtype=lonarray.dtype).squeeze()
+            # Ensure monotonicity of longitude field.
+            # (gdll may sometimes wrap last longitude to zero).
+            # Taken from old fstd_core.c code.
+            if meanlon[-2] > meanlon[-3] and meanlon[-1] < meanlon[-2]:
+              meanlon[-1] += 360.
+            latarray = meanlat
+            lonarray = meanlon
+            lat = _var_type('lat',latatts,{'lat':tuple(latarray)},latarray)
+            lon = _var_type('lon',lonatts,{'lon':tuple(lonarray)},lonarray)
+            gridaxes = [('lat',tuple(latarray)),('lon',tuple(lonarray))]
+
+          # Case 2: lat/lon are series of points.
+          elif latarray.shape[0] == 1 and lonarray.shape[0] == 1 and ('i' in var.axes or 'station_id' in var.axes):
+            latarray = latarray[0,:]
+            lonarray = lonarray[0,:]
+            # Special case for station data
+            if 'station_id' in var.axes:
+              gridaxes = [('station_id',var.axes['station_id'])]
+            else:
+              gridaxes = [('i',var.axes['i'])]
+            lat = _var_type('lat',latatts,OrderedDict(gridaxes),latarray)
+            lon = _var_type('lon',lonatts,OrderedDict(gridaxes),lonarray)
+
+          # Case 3: General 2D lat/lon fields on X/Y coordinate system.
+          elif xaxis is not None and yaxis is not None:
+            gridaxes = [('y',tuple(yaxis.array)),('x',tuple(xaxis.array))]
+            # Special case: have supergrid data, and the user wants to split it?
+            if grtyp == 'U' and self._subgrid_axis:
+              ngrids = ezget_nsubgrids(gdid)
+              ny = len(yaxis.array)//ngrids
+              yaxis.array = yaxis.array[:ny]
+              yaxis.axes['y'] = tuple(yaxis.array)
+              gridaxes = [('subgrid',tuple(range(ngrids))), ('y',tuple(yaxis.array)), ('x',tuple(xaxis.array))]
+              latarray = latarray.reshape(ngrids,ny,-1)
+              lonarray = lonarray.reshape(ngrids,ny,-1)
+            if tuple(yaxis.axes.items()) not in coords:
+              yield yaxis
+              coords.add(tuple(yaxis.axes.items()))
+            if tuple(xaxis.axes.items()) not in coords:
+              yield xaxis
+              coords.add(tuple(xaxis.axes.items()))
+            lat = _var_type('lat',latatts,OrderedDict(gridaxes),latarray)
+            lon = _var_type('lon',lonatts,OrderedDict(gridaxes),lonarray)
+
+          # Case 4: General 2D lat/lon fields with no coordinate system.
+          elif 'i' in var.axes and 'j' in var.axes:
+            gridaxes = [('j',var.axes['j']),('i',var.axes['i'])]
+            lat = _var_type('lat',latatts,OrderedDict(gridaxes),latarray)
+            lon = _var_type('lon',lonatts,OrderedDict(gridaxes),lonarray)
+
+          else:
+            warn(_("Unhandled lat/lon coords for '%s'")%var.name)
+            yield var
+            continue
+
+        # Sanity check on lat/lon - make sure we have something of the right size.
+        if lat.array.shape == tuple(map(len,lat.axes.values())) and lon.array.shape == tuple(map(len,lon.axes.values())):
+          yield lat
+          yield lon
+          grids[key] = gridaxes
+        else:
+          warn(_("Wrong shape of lat/lon for '%s'")%var.name)
+          yield var
+          continue
+      
+      gridaxes = grids[key]
+
+      # Update the var's horizontal coordinates.
+      if len(gridaxes) == 1:
+        var.axes = _modify_axes(var.axes, i=gridaxes[0])
+      elif len(gridaxes) == 2:
+        var.axes = _modify_axes(var.axes, j=gridaxes[0], i=gridaxes[1])
+      elif len(gridaxes) == 3:
+        var.axes = _modify_axes(var.axes, k=gridaxes[0], j=gridaxes[1], i=gridaxes[2])
+      else:
+        warn(_("Unusual grid axes for '%s' - ignoring.")%var.name)
+
+      # For 2D lat/lon, need to reference them as coordinates in order for
+      # netCDF viewers to display the field properly.
+      if 'lat' not in var.axes or 'lon' not in var.axes:
+        coordinates = var.atts.get('coordinates','').split()
+        coordinates.extend(['lon','lat'])
+        var.atts['coordinates'] = ' '.join(coordinates)
+
+      if key in gridmaps:
+        var.atts['grid_mapping'] = gridmaps[key]
+
+      yield var
+
