@@ -1,0 +1,491 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>rv.modules.multictl &mdash; Radiant Voices 0.4.0 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../search.html"/>
+    <link rel="top" title="Radiant Voices 0.4.0 documentation" href="../../../index.html"/>
+        <link rel="up" title="Module code" href="../../index.html"/> 
+
+  
+  <script src="../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home"> Radiant Voices
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.4
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../readme.html">Overview of Radiant Voices</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../api-reference/index.html">API Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../sunvox-file-format.html">SunVox File Format</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../contributing.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../maintenance.html">Maintenance</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../changelog.html">Changelog</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../authors.html">Authors</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../license.html">Radiant Voices license</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Radiant Voices</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+      <li>rv.modules.multictl</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for rv.modules.multictl</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">enum</span> <span class="k">import</span> <span class="n">Enum</span>
+<span class="kn">from</span> <span class="nn">itertools</span> <span class="k">import</span> <span class="n">chain</span>
+
+<span class="kn">from</span> <span class="nn">rv.chunks</span> <span class="k">import</span> <span class="n">ArrayChunk</span>
+<span class="kn">from</span> <span class="nn">rv.controller</span> <span class="k">import</span> <span class="n">Controller</span><span class="p">,</span> <span class="n">Range</span><span class="p">,</span> <span class="n">CompactRange</span>
+<span class="kn">from</span> <span class="nn">rv.errors</span> <span class="k">import</span> <span class="n">MappingError</span>
+<span class="kn">from</span> <span class="nn">rv.modules</span> <span class="k">import</span> <span class="n">Behavior</span> <span class="k">as</span> <span class="n">B</span><span class="p">,</span> <span class="n">Module</span>
+
+
+<span class="k">def</span> <span class="nf">convert_value</span><span class="p">(</span><span class="n">gain</span><span class="p">,</span> <span class="n">qsteps</span><span class="p">,</span> <span class="n">smin</span><span class="p">,</span> <span class="n">smax</span><span class="p">,</span> <span class="n">dmin</span><span class="p">,</span> <span class="n">dmax</span><span class="p">,</span> <span class="n">vmax</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+    <span class="c1"># TODO: map using multictl curve</span>
+    <span class="n">value</span> <span class="o">=</span> <span class="p">(</span><span class="n">value</span> <span class="o">*</span> <span class="n">gain</span><span class="p">)</span> <span class="o">/</span> <span class="mi">256</span>
+    <span class="n">value</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="mi">32768</span><span class="p">)</span>
+    <span class="n">srange</span> <span class="o">=</span> <span class="n">smax</span> <span class="o">-</span> <span class="n">smin</span>
+    <span class="k">if</span> <span class="n">qsteps</span> <span class="o">&lt;</span> <span class="mi">32768</span><span class="p">:</span>
+        <span class="n">quant</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">qsteps</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">step</span> <span class="o">=</span> <span class="mi">32768</span> <span class="o">/</span> <span class="n">quant</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">value</span> <span class="o">/</span> <span class="n">step</span><span class="p">)</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="p">(</span><span class="n">value</span> <span class="o">*</span> <span class="n">step</span><span class="p">)</span> <span class="o">/</span> <span class="mi">32768</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="n">smin</span> <span class="o">+</span> <span class="nb">int</span><span class="p">(</span><span class="n">srange</span> <span class="o">*</span> <span class="n">value</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="n">smin</span> <span class="o">+</span> <span class="p">(</span><span class="n">srange</span> <span class="o">*</span> <span class="n">value</span><span class="p">)</span> <span class="o">//</span> <span class="mi">32768</span>
+    <span class="c1"># TODO: out_offset</span>
+    <span class="n">drange</span> <span class="o">=</span> <span class="n">dmax</span> <span class="o">-</span> <span class="n">dmin</span>
+    <span class="k">if</span> <span class="n">vmax</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">value</span> <span class="o">/=</span> <span class="mi">32768</span> <span class="o">/</span> <span class="n">vmax</span>
+    <span class="k">if</span> <span class="n">drange</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">value</span> <span class="o">+=</span> <span class="n">dmin</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="n">dmin</span> <span class="o">-</span> <span class="n">value</span>
+    <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">invert_value</span><span class="p">(</span><span class="n">gain</span><span class="p">,</span> <span class="n">smin</span><span class="p">,</span> <span class="n">smax</span><span class="p">,</span> <span class="n">dmin</span><span class="p">,</span> <span class="n">dmax</span><span class="p">,</span> <span class="n">vmax</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+    <span class="n">drange</span> <span class="o">=</span> <span class="n">dmax</span> <span class="o">-</span> <span class="n">dmin</span>
+    <span class="k">if</span> <span class="n">drange</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">value</span> <span class="o">-=</span> <span class="n">dmin</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="n">dmin</span> <span class="o">+</span> <span class="n">value</span>
+    <span class="n">value</span> <span class="o">*=</span> <span class="n">drange</span>
+    <span class="c1"># TODO: out_offset</span>
+    <span class="c1"># TODO: map using multictl curve</span>
+    <span class="k">if</span> <span class="n">gain</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mi">0</span>
+    <span class="n">srange</span> <span class="o">=</span> <span class="n">smax</span> <span class="o">-</span> <span class="n">smin</span> <span class="k">if</span> <span class="n">smax</span> <span class="o">&gt;</span> <span class="n">smin</span> <span class="k">else</span> <span class="n">smin</span> <span class="o">-</span> <span class="n">smax</span>
+    <span class="k">if</span> <span class="n">srange</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mi">0</span>
+    <span class="n">value</span> <span class="o">*=</span> <span class="mi">32768</span> <span class="o">/</span> <span class="n">vmax</span>
+    <span class="n">value</span> <span class="o">-=</span> <span class="n">smin</span>
+    <span class="n">value</span> <span class="o">/=</span> <span class="n">srange</span>
+    <span class="n">value</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="mi">32768</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+    <span class="n">value</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+    <span class="n">value</span> <span class="o">*=</span> <span class="mi">256</span>
+    <span class="n">value</span> <span class="o">/=</span> <span class="n">gain</span>
+    <span class="k">if</span> <span class="n">smin</span> <span class="o">&gt;=</span> <span class="n">smax</span><span class="p">:</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="mi">32768</span> <span class="o">-</span> <span class="n">value</span>
+    <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="MultiCtl"><a class="viewcode-back" href="../../../api-reference/modules/multictl.html#rv.modules.multictl.MultiCtl">[docs]</a><span class="k">class</span> <span class="nc">MultiCtl</span><span class="p">(</span><span class="n">Module</span><span class="p">):</span>
+
+    <span class="n">name</span> <span class="o">=</span> <span class="n">mtype</span> <span class="o">=</span> <span class="s1">&#39;MultiCtl&#39;</span>
+    <span class="n">mgroup</span> <span class="o">=</span> <span class="s1">&#39;Misc&#39;</span>
+    <span class="n">chnk</span> <span class="o">=</span> <span class="mh">0x10</span>
+    <span class="n">flags</span> <span class="o">=</span> <span class="mh">0x020051</span>
+
+    <span class="n">behaviors</span> <span class="o">=</span> <span class="p">{</span><span class="n">B</span><span class="o">.</span><span class="n">sends_controls</span><span class="p">}</span>
+
+    <span class="k">class</span> <span class="nc">Mapping</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+        <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">min</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">max</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">controller</span> <span class="o">=</span> <span class="n">value</span><span class="p">[:</span><span class="mi">3</span><span class="p">]</span>
+
+    <span class="k">class</span> <span class="nc">MappingArray</span><span class="p">(</span><span class="n">ArrayChunk</span><span class="p">):</span>
+        <span class="n">chnm</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">length</span> <span class="o">=</span> <span class="mi">16</span>
+        <span class="nb">type</span> <span class="o">=</span> <span class="s1">&#39;IIIIIIII&#39;</span>
+        <span class="n">element_size</span> <span class="o">=</span> <span class="mi">4</span> <span class="o">*</span> <span class="mi">8</span>
+
+        <span class="k">def</span> <span class="nf">default</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">_</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">MultiCtl</span><span class="o">.</span><span class="n">Mapping</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mh">0x8000</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span>
+
+        <span class="nd">@property</span>
+        <span class="k">def</span> <span class="nf">encoded_values</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+            <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="n">chain</span><span class="o">.</span><span class="n">from_iterable</span><span class="p">(</span>
+                <span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">min</span><span class="p">,</span> <span class="n">x</span><span class="o">.</span><span class="n">max</span><span class="p">,</span> <span class="n">x</span><span class="o">.</span><span class="n">controller</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">values</span><span class="p">))</span>
+
+        <span class="nd">@property</span>
+        <span class="k">def</span> <span class="nf">python_type</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">MultiCtl</span><span class="o">.</span><span class="n">Mapping</span>
+
+    <span class="k">class</span> <span class="nc">Curve</span><span class="p">(</span><span class="n">ArrayChunk</span><span class="p">):</span>
+        <span class="n">chnm</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="n">length</span> <span class="o">=</span> <span class="mi">257</span>
+        <span class="nb">type</span> <span class="o">=</span> <span class="s1">&#39;H&#39;</span>
+        <span class="n">element_size</span> <span class="o">=</span> <span class="mi">2</span>
+        <span class="n">min_value</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">max_value</span> <span class="o">=</span> <span class="mh">0x8000</span>
+
+        <span class="k">def</span> <span class="nf">default</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">x</span> <span class="o">*</span> <span class="mh">0x80</span>
+
+    <span class="n">value</span> <span class="o">=</span> <span class="n">Controller</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">32768</span><span class="p">),</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="n">gain</span> <span class="o">=</span> <span class="n">Controller</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1024</span><span class="p">),</span> <span class="mi">256</span><span class="p">)</span>
+    <span class="n">quantization</span> <span class="o">=</span> <span class="n">Controller</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">32768</span><span class="p">),</span> <span class="mi">32768</span><span class="p">)</span>
+    <span class="n">out_offset</span> <span class="o">=</span> <span class="n">Controller</span><span class="p">((</span><span class="o">-</span><span class="mi">16384</span><span class="p">,</span> <span class="mi">16384</span><span class="p">),</span> <span class="mi">0</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">curve</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;curve&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="n">mappings</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;mappings&#39;</span><span class="p">,</span> <span class="p">[])</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">MultiCtl</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">curve</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">Curve</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">curve</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">curve</span><span class="o">.</span><span class="n">values</span> <span class="o">=</span> <span class="n">curve</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mappings</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">MappingArray</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">mapping</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">mappings</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">mappings</span><span class="o">.</span><span class="n">values</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">Mapping</span><span class="p">(</span><span class="n">mapping</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">on_value_changed</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">down</span><span class="p">,</span> <span class="n">up</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">down</span><span class="p">:</span>
+            <span class="n">downstream_mods</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">to_mod</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">256</span><span class="p">):</span>
+                <span class="n">from_mods</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">module_connections</span><span class="p">[</span><span class="n">to_mod</span><span class="p">]</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">index</span> <span class="ow">in</span> <span class="n">from_mods</span><span class="p">:</span>
+                    <span class="n">downstream_mods</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">to_mod</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">to_mod</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">downstream_mods</span><span class="p">):</span>
+                <span class="n">mapping</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mappings</span><span class="o">.</span><span class="n">values</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+                <span class="n">mod</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">modules</span><span class="p">[</span><span class="n">to_mod</span><span class="p">]</span>
+                <span class="n">ctl</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">mod</span><span class="o">.</span><span class="n">controllers</span><span class="o">.</span><span class="n">values</span><span class="p">())[</span><span class="n">mapping</span><span class="o">.</span><span class="n">controller</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span>
+                <span class="n">vt</span> <span class="o">=</span> <span class="n">ctl</span><span class="o">.</span><span class="n">value_type</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">vt</span><span class="p">,</span> <span class="n">Range</span><span class="p">):</span>
+                    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">vt</span><span class="p">,</span> <span class="n">CompactRange</span><span class="p">):</span>
+                        <span class="n">vmax</span> <span class="o">=</span> <span class="kc">None</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">vmax</span> <span class="o">=</span> <span class="n">vt</span><span class="o">.</span><span class="n">max</span> <span class="o">-</span> <span class="n">vt</span><span class="o">.</span><span class="n">min</span>
+                    <span class="n">smin</span><span class="p">,</span> <span class="n">smax</span> <span class="o">=</span> <span class="n">mapping</span><span class="o">.</span><span class="n">min</span><span class="p">,</span> <span class="n">mapping</span><span class="o">.</span><span class="n">max</span>
+                    <span class="n">dmin</span><span class="p">,</span> <span class="n">dmax</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">vt</span><span class="o">.</span><span class="n">max</span> <span class="o">-</span> <span class="n">vt</span><span class="o">.</span><span class="n">min</span>
+                    <span class="k">if</span> <span class="n">smin</span> <span class="o">&gt;</span> <span class="n">smax</span><span class="p">:</span>
+                        <span class="n">smin</span><span class="p">,</span> <span class="n">smax</span> <span class="o">=</span> <span class="n">smax</span><span class="p">,</span> <span class="n">smin</span>
+                        <span class="n">dmin</span><span class="p">,</span> <span class="n">dmax</span> <span class="o">=</span> <span class="n">dmax</span><span class="p">,</span> <span class="n">dmin</span>
+                    <span class="n">converted</span> <span class="o">=</span> <span class="n">convert_value</span><span class="p">(</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">gain</span><span class="p">,</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">quantization</span><span class="p">,</span>
+                        <span class="n">smin</span><span class="p">,</span> <span class="n">smax</span><span class="p">,</span>
+                        <span class="n">dmin</span><span class="p">,</span> <span class="n">dmax</span><span class="p">,</span>
+                        <span class="n">vmax</span><span class="p">,</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">value</span><span class="p">,</span>
+                    <span class="p">)</span>
+                    <span class="n">final_value</span> <span class="o">=</span> <span class="n">converted</span> <span class="o">+</span> <span class="n">vt</span><span class="o">.</span><span class="n">min</span>
+                    <span class="nb">setattr</span><span class="p">(</span><span class="n">mod</span><span class="p">,</span> <span class="n">ctl</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">final_value</span><span class="p">)</span>
+                <span class="c1"># TODO: apply out_offset</span>
+                <span class="c1"># TODO: what should we do if it&#39;s not a range?</span>
+
+    <span class="k">def</span> <span class="nf">reflect</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">propagate</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Reflect the value of the controller mapped at the given index; inverse of setting value&quot;&quot;&quot;</span>
+        <span class="n">downstream_mods</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">to_mod</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">256</span><span class="p">):</span>
+            <span class="n">from_mods</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">module_connections</span><span class="p">[</span><span class="n">to_mod</span><span class="p">]</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">index</span> <span class="ow">in</span> <span class="n">from_mods</span><span class="p">:</span>
+                <span class="n">downstream_mods</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">to_mod</span><span class="p">)</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">downstream_mods</span><span class="p">)</span> <span class="o">==</span> <span class="n">index</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="k">break</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">IndexError</span><span class="p">(</span><span class="s1">&#39;No destination module mapped at index </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">index</span><span class="p">))</span>
+        <span class="n">mapping</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mappings</span><span class="o">.</span><span class="n">values</span><span class="p">[</span><span class="n">index</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">mapping</span><span class="o">.</span><span class="n">controller</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">IndexError</span><span class="p">(</span><span class="s1">&#39;No destination controller mapped at index </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">index</span><span class="p">))</span>
+        <span class="n">reflect_mod</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">modules</span><span class="p">[</span><span class="n">downstream_mods</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]]</span>
+        <span class="n">reflect_ctl_name</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">reflect_mod</span><span class="o">.</span><span class="n">controllers</span><span class="p">)[</span><span class="n">mapping</span><span class="o">.</span><span class="n">controller</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span>
+        <span class="n">reflect_ctl</span> <span class="o">=</span> <span class="n">reflect_mod</span><span class="o">.</span><span class="n">controllers</span><span class="p">[</span><span class="n">reflect_ctl_name</span><span class="p">]</span>
+        <span class="n">reflect_value</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">reflect_mod</span><span class="p">,</span> <span class="n">reflect_ctl_name</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">reflect_value</span><span class="p">,</span> <span class="s1">&#39;value&#39;</span><span class="p">):</span>
+            <span class="n">reflect_value</span> <span class="o">=</span> <span class="n">reflect_value</span><span class="o">.</span><span class="n">value</span>
+        <span class="n">t</span> <span class="o">=</span> <span class="n">reflect_ctl</span><span class="o">.</span><span class="n">value_type</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">Range</span><span class="p">):</span>
+            <span class="n">dmin</span> <span class="o">=</span> <span class="n">t</span><span class="o">.</span><span class="n">min</span>
+            <span class="n">dmax</span> <span class="o">=</span> <span class="n">t</span><span class="o">.</span><span class="n">max</span>
+        <span class="k">elif</span> <span class="n">t</span> <span class="ow">is</span> <span class="nb">bool</span><span class="p">:</span>
+            <span class="n">dmin</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="n">dmax</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="nb">type</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">issubclass</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">Enum</span><span class="p">):</span>
+            <span class="n">dmin</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="n">dmax</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">dmin</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="n">dmax</span> <span class="o">=</span> <span class="mi">32768</span>
+        <span class="n">inverted</span> <span class="o">=</span> <span class="n">invert_value</span><span class="p">(</span>
+            <span class="n">gain</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">gain</span><span class="p">,</span>
+            <span class="n">smin</span><span class="o">=</span><span class="n">mapping</span><span class="o">.</span><span class="n">min</span><span class="p">,</span>
+            <span class="n">smax</span><span class="o">=</span><span class="n">mapping</span><span class="o">.</span><span class="n">max</span><span class="p">,</span>
+            <span class="n">dmin</span><span class="o">=</span><span class="n">dmin</span><span class="p">,</span>
+            <span class="n">dmax</span><span class="o">=</span><span class="n">dmax</span><span class="p">,</span>
+            <span class="n">vmax</span><span class="o">=</span><span class="n">dmax</span> <span class="o">-</span> <span class="n">dmin</span> <span class="k">if</span> <span class="n">dmax</span> <span class="o">&gt;</span> <span class="n">dmin</span> <span class="k">else</span> <span class="n">dmin</span> <span class="o">-</span> <span class="n">dmax</span><span class="p">,</span>
+            <span class="n">value</span><span class="o">=</span><span class="n">reflect_value</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">propagate</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">value</span> <span class="o">=</span> <span class="n">inverted</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">controller_values</span><span class="p">[</span><span class="s1">&#39;value&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">inverted</span>
+
+    <span class="k">def</span> <span class="nf">specialized_iff_chunks</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">chunk</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">mappings</span><span class="o">.</span><span class="n">chunks</span><span class="p">():</span>
+            <span class="k">yield</span> <span class="n">chunk</span>
+        <span class="k">for</span> <span class="n">chunk</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">curve</span><span class="o">.</span><span class="n">chunks</span><span class="p">():</span>
+            <span class="k">yield</span> <span class="n">chunk</span>
+        <span class="k">for</span> <span class="n">chunk</span> <span class="ow">in</span> <span class="nb">super</span><span class="p">(</span><span class="n">MultiCtl</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">specialized_iff_chunks</span><span class="p">():</span>
+            <span class="k">yield</span> <span class="n">chunk</span>
+
+    <span class="k">def</span> <span class="nf">load_chunk</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">chunk</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">chunk</span><span class="o">.</span><span class="n">chnm</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">mappings</span><span class="o">.</span><span class="n">bytes</span> <span class="o">=</span> <span class="n">chunk</span><span class="o">.</span><span class="n">chdt</span>
+        <span class="k">if</span> <span class="n">chunk</span><span class="o">.</span><span class="n">chnm</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">curve</span><span class="o">.</span><span class="n">bytes</span> <span class="o">=</span> <span class="n">chunk</span><span class="o">.</span><span class="n">chdt</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">macro</span><span class="p">(</span><span class="n">project</span><span class="p">,</span> <span class="o">*</span><span class="n">mod_ctl_pairs</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">layer</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">x</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">initial</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">mod_ctl_pairs</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">16</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">MappingError</span><span class="p">(</span><span class="s1">&#39;MultiCtl supports max of 16 destinations&#39;</span><span class="p">)</span>
+        <span class="n">mappings</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">mods</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">gains</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">mod</span><span class="p">,</span> <span class="n">ctl</span> <span class="ow">in</span> <span class="n">mod_ctl_pairs</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">ctl</span><span class="p">,</span> <span class="n">Controller</span><span class="p">):</span>
+                <span class="n">ctl</span> <span class="o">=</span> <span class="n">mod</span><span class="o">.</span><span class="n">controllers</span><span class="p">[</span><span class="n">ctl</span><span class="p">]</span>
+            <span class="n">t</span> <span class="o">=</span> <span class="n">ctl</span><span class="o">.</span><span class="n">value_type</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="nb">type</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">issubclass</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">Enum</span><span class="p">):</span>
+                <span class="n">mapmin</span><span class="p">,</span> <span class="n">mapmax</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>
+                <span class="n">gains</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="mi">256</span> <span class="o">+</span> <span class="nb">int</span><span class="p">(</span><span class="mi">256</span> <span class="o">/</span> <span class="n">mapmax</span><span class="p">))</span>
+            <span class="k">elif</span> <span class="n">t</span> <span class="ow">is</span> <span class="nb">bool</span><span class="p">:</span>
+                <span class="n">mapmin</span><span class="p">,</span> <span class="n">mapmax</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span>
+                <span class="n">gains</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="mi">512</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">t</span><span class="o">.</span><span class="n">min</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">mapmin</span><span class="p">,</span> <span class="n">mapmax</span> <span class="o">=</span> <span class="n">t</span><span class="o">.</span><span class="n">min</span><span class="p">,</span> <span class="n">t</span><span class="o">.</span><span class="n">max</span>
+                <span class="n">gains</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="mi">256</span> <span class="o">+</span> <span class="nb">int</span><span class="p">(</span><span class="mi">256</span> <span class="o">/</span> <span class="n">mapmax</span><span class="p">))</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">CompactRange</span><span class="p">):</span>
+                <span class="n">mapmin</span><span class="p">,</span> <span class="n">mapmax</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">max</span> <span class="o">-</span> <span class="n">t</span><span class="o">.</span><span class="n">min</span><span class="p">)</span>
+                <span class="n">gains</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="mi">256</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">mapmin</span><span class="p">,</span> <span class="n">mapmax</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="mh">0x8000</span>
+                <span class="n">gains</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="mi">256</span><span class="p">)</span>
+            <span class="n">mappings</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">mapmin</span><span class="p">,</span> <span class="n">mapmax</span><span class="p">,</span> <span class="n">ctl</span><span class="o">.</span><span class="n">number</span><span class="p">))</span>
+            <span class="n">mods</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">project</span><span class="o">.</span><span class="n">modules</span><span class="p">[</span><span class="n">mod</span><span class="o">.</span><span class="n">index</span><span class="p">])</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">mods</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">mods</span><span class="p">)):</span>
+            <span class="k">raise</span> <span class="n">MappingError</span><span class="p">(</span><span class="s1">&#39;Only one MultiCtl mapping per destination module allowed&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">gains</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">gains</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">gain</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">gains</span><span class="p">)</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">gain</span> <span class="o">=</span> <span class="mi">256</span>
+        <span class="n">bundle</span> <span class="o">=</span> <span class="n">project</span><span class="o">.</span><span class="n">new_module</span><span class="p">(</span>
+            <span class="n">MultiCtl</span><span class="p">,</span>
+            <span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span>
+            <span class="n">layer</span><span class="o">=</span><span class="n">layer</span><span class="p">,</span>
+            <span class="n">x</span><span class="o">=</span><span class="n">x</span><span class="p">,</span>
+            <span class="n">y</span><span class="o">=</span><span class="n">y</span><span class="p">,</span>
+            <span class="n">gain</span><span class="o">=</span><span class="n">gain</span><span class="p">,</span>
+            <span class="n">mappings</span><span class="o">=</span><span class="n">mappings</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">bundle</span> <span class="o">&gt;&gt;</span> <span class="n">mods</span>
+        <span class="k">if</span> <span class="n">initial</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">bundle</span><span class="o">.</span><span class="n">value</span> <span class="o">=</span> <span class="n">initial</span>
+        <span class="k">return</span> <span class="n">bundle</span></div>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Matthew Scott.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../',
+            VERSION:'0.4.0',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../_static/doctools.js"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>
