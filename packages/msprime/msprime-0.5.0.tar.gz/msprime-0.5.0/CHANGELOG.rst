@@ -1,0 +1,449 @@
+********************
+[0.5.0] - 2018-02-26
+********************
+
+This is a major update to the underlying data structures in msprime to
+generalise the information that can be modelled, and allow
+for data from external sources to be efficiently processed. The
+new Tables API enables efficient interchange of tree sequence data using
+numpy arrays. Many updates have also been made to the tree sequence
+API to make it more Pythonic and general. Most changes are backwards
+compatible, however.
+
+**Breaking changes**:
+
+- The ``SparseTree.mutations()`` and ``TreeSequence.mutations()`` iterators no
+  longer support tuple-like access to values. For example, code like
+
+    for x, u, j in ts.mutations():
+        print("mutation at position", x, "node = ", u)
+
+  will no longer work. Code using the old ``Mutation.position`` and
+  ``Mutation.index`` will still work through deprecated aliases,
+  but new code should access these values through ``Site.position``
+  and ``Site.id``, respectively.
+
+- The ``TreeSequence.diffs()`` method no longer works. Please use
+  the ``TreeSequence.edge_diffs()`` method instead.
+
+- ``TreeSequence.get_num_records()`` no longer works. Any code using
+  this or the ``records()`` iterator should be rewritten to work with
+  the ``edges()`` iterator and num_edges instead.
+
+- Files stored in the HDF5 format will need to upgraded using the
+  ``msp upgrade`` command.
+
+**New features**:
+
+- The API has been made more Pythonic by replacing (e.g.)
+  ``tree.get_parent(u)`` with ``tree.parent(u)``, and
+  ``tree.get_total_branch_length()`` with ``tree.total_branch_length``.
+  The old forms have been maintained as deprecated aliases. (#64)
+
+- Efficient interchange of tree sequence data using the new Tables
+  API. This consists of classes representing the various
+  tables (e.g. ``NodeTable``) and some utility functions (such
+  as ``load_tables``, ``sort_tables``, etc).
+
+- Support for a much more general class of tree sequence topologies.
+  For example, trees with multiple roots are fully supported.
+
+- Substantially generalised mutation model. Mutations now occur at
+  specific sites, which can be associated with zero to many mutations.
+  Each site has an ancestral state (any character string) and
+  each mutation a derived state (any character string).
+
+- Substantially updated documentation to rigorously define the
+  underlying data model and requirements for imported data.
+
+- The ``variants()`` method now returns a list of alleles for each
+  site, and genotypes are indexes into this array. This is both
+  consistent with existing usage and works with the newly generalised
+  mutation model, which allows arbitrary strings of characters as
+  mutational states.
+
+- Add the formal concept of a sample, and distinguished from 'leaves'.
+  Change ``tracked_leaves``, etc. to ``tracked_samples`` (#225).
+  Also rename ``sample_size`` to ``num_samples`` for consistency (#227).
+
+- The simplify() method returns subsets of a large tree sequence.
+
+- TreeSequence.first() returns the first tree in sequence.
+
+- Windows support. Msprime is now routinely tested on Windows as
+  part of the suite of continuous integration tests.
+
+- Newick output is not supported for more general trees. (#117)
+
+- The ``genotype_matrix`` method allows efficient access to the
+  full genotype matrix. (#306)
+
+- The variants iterator no longer uses a single buffer for
+  genotype data, removing a common source of error (#253).
+
+- Unicode and ASCII output formats for ``SparseTree.draw()``.
+
+- ``SparseTree.draw()`` renders tree in the more conventional 'square
+  shoulders' format.
+
+- ``SparseTree.draw()`` by default returns an SVG string, so it can
+  be easily displayed in a Jupyter notebook. (#204)
+
+- Preliminary support for a broad class of site-based statistics,
+  including Patterson's f-statistics, has been added, through
+  the `SiteStatCalculator`, and its branch length analog,
+  `BranchLengthStatCalculator`.  The interface is still in development,
+  and is expected may change.
+
+**Bug fixes**:
+
+- Duplicate site no longer possible (#159)
+
+- Fix for incorrect population sizes in DemographyDebugger (#66).
+
+**Deprecated**:
+
+- The ``records`` iterator has been deprecated, and the underlying data
+  model has moved away from the concept of coalescence records. The
+  structure of a tree sequence is now defined in terms of a set of nodes
+  and edges, essentially a normlised version of coalescence records.
+
+- Changed ``population_id`` to ``population`` in various DemographicEvent
+  classes for consistency. The old ``population_id`` argument is kept as a
+  deprecated alias.
+
+- Changed ``destination`` to ``dest`` in MassMigrationEvent. The old
+  ``destination`` argument is retained as a deprecated alias.
+
+- Changed ``sample_size`` to ``num_samples`` in TreeSequence and
+  SparseTree. The older versions are retained as deprecated aliases.
+
+- Change ``get_num_leaves`` to ``num_samples`` in SparseTree. The
+  ``get_num_leaves`` method (and other related methods) that have
+  been retained for backwards compatability are semantically incorrect,
+  in that they now return the number of **samples**. This should have
+  no effect on existing code, since samples and leaves were synonymous.
+  New code should use the documented ``num_samples`` form.
+
+- Accessing the ``position`` attribute on a ``Mutation`` or
+  ``Variant`` object is now deprecated, as this is a property of a ``Site``.
+
+- Accessing the ``index`` attribute on a ``Mutation`` or ``Variant`` object
+  is now deprecated. Please use ``variant.site.id`` instead. In general,
+  objects with IDs (i.e., derived from tables) now have an ``id`` field.
+
+- Various ``get_`` methods in TreeSequence and SparseTree have been
+  replaced by more Pythonic alternatives.
+
+********************
+[0.4.0] - 2016-10-16
+********************
+
+Major release providing new functionality and laying groundwork for
+upcoming functionality.
+
+**Breaking changes**:
+
+- The HDF5 file format has been changed to allow for non-binary trees
+  and to improve performance. It is now both smaller and faster to
+  load. However, msprime cannot directly load tree sequence files
+  written by older versions. The ``msp upgrade`` utility has been
+  developed to provide an upgrade path for existing users, so that
+  files written by older versions of msprime can be converted to the
+  newer format and read by version 0.4.x of msprime.
+
+- The tuples returned by the ``mutations`` method contains an element.
+  This will break code doing things like
+
+      for pos, node in ts.mutations():
+          print(pos, node)
+
+  For better forward compatibility, code should use named attributes
+  rather than positional access:
+
+      for mutation in ts.mutations():
+          print(mutation.position, mutation.node)
+
+- Similarly, the undocumented ``variants`` method has some major changes:
+
+  1. The returned tuple has two new values, ``node`` and ``index``
+    in the middle of the tuple (but see the point above about using
+    named attributes).
+
+  2. The returned genotypes are by default numpy arrays. To revert
+    to the old behaviour of returning Python bytes objects, use the
+    ``as_bytes`` argument to the ``variants()`` method.
+
+**New features**:
+
+- Historical samples. Using the ``samples`` argument to ``simulate``
+  users can specify the location and time of all samples explicitly.
+
+- HDF5 file upgrade utility ``msp upgrade``
+
+- Support for non-binary trees in the tree sequence, and relaxation
+  of the requirements on input tree sequences using the read_txt()
+  function.
+
+- Integration with numpy, with zero-copy access to the low-level C API.
+
+- Documented the variants() method that provides access to the sample
+  genotypes as either numpy arrays or Python bytes objects.
+
+- New LdCalculator class that allows very fast calculation of r^2 values.
+
+- Initial support for threading.
+
+- The values returned mutations() method now also contain an ``index``
+  attribute. This makes many operations simpler.
+
+- New TreeSequence.get_time() method that returns the time a sample
+  was sampled at.
+
+**Performance improvements**:
+
+- File load times substantially reduced by pre-computing and storing
+  traversal indexes.
+
+- O(1) implementation of TreeSequence.get_num_trees()
+
+- Improved control of enabled tree features in TreeSequence.trees()
+  method using the ``leaf_lists`` and ``leaf_counts`` arguments.
+
+**Bug fixes**:
+
+- Fixed a precision problem with DemographyDebugger. #37
+
+- Segfault on large haplotypes. #29
+
+********************
+[0.3.2] - 2016-07-21
+********************
+
+Feature release adding new import and export features to the API
+and CLI.
+
+- New ``TreeSequence.write_records`` and ``TreeSequence.write_mutations``
+  methods to serialise a tree sequence in a human readable text format.
+
+- New ``msprime.load_txt()`` method that parses the above formats, and
+  allows msprime to read in data from external sources.
+
+- New ``TreeSequence.write_vcf`` method to write mutation information
+  in VCF format.
+
+- Miscellaneous documentation fixes.
+
+
+********************
+[0.3.1] - 2016-06-24
+********************
+
+Feature release adding population related methods to the API.
+
+- New ``TreeSequence.get_population(sample_id)`` method.
+
+- New ``TreeSequence.get_samples(population_id)`` method.
+
+- Added the optional ``samples`` argument to the
+  ``TreeSequence.get_pairwise_diversity`` method.
+
+- Fixed a potential low-level buffer overrun problem.
+
+
+********************
+[0.3.0] - 2016-05-31
+********************
+
+Bugfix release affecting all users of the Python API. Version 0.2.0 contained a
+confusing and inconsistent mix of times and rates being expressed in both
+coalescent units and generations. This release changes _all_ times and rates
+used when describing demographic models to generations, and also changes
+all population sizes to be absolute. In the interest of consistency, the
+units of the trees output by msprime are also changed to generations. This
+is a major breaking change, and will require updates to all scripts using the
+API.
+
+This release also include some performance improvements and additional
+functionality.
+
+Mspms users are not affected, other than benefiting from performance
+improvements.
+
+Breaking changes:
+
+- Time values are now rescaled into generations when a TreeSequence is
+  created, and so all times associated with tree nodes are measured in
+  generations. The time values in any existing HDF5 file will now be
+  interpreted as being in generations, so stored simulations must be
+  rerun. To minimise the chance of this happening silently, we have
+  incremented the file format major version number, so that attempts
+  to read older versions will fail.
+
+- Growth rate values for the PopulationConfiguration class are now
+  per generation, and population sizes are absolute. These were in
+  coalescent units and relative to Ne previously.
+
+- GrowthRateChangeEvents and SizeChangeEvents have been replaced with
+  a single class, PopulationParametersChange. This new class takes
+  an initial_size as the absolute population size, and growth_rate
+  per generation. Since the change in units was a breaking one,
+  potentially leading to subtle and confusing bugs, we decided that
+  the name refactoring would at least ensure that users would need
+  to be aware that the change had been made. This API should now
+  be stable, and will not be changed again without an excellent
+  reason.
+
+- MigrationRateChangeEvent has been renamed to MigrationRateChange
+  and the migration rates are now per-generation.
+
+- MassMigrationEvent has been renamed to MassMigration, and the
+  values of source and destination swapped, fixing the bug in
+  issue #14.
+
+- The TreeSequence.records() method now returns an extra value,
+  potentially breaking client code.
+
+Improvements:
+
+- Added tutorial for demographic events.
+
+- Added DemographyDebugger class to help view the changes in populations
+  over time.
+
+- Added population tracking for coalescent events. We can now determine
+  the population associated with every tree node. The relevant information
+  has been added to the HDF5 file format.
+
+- Improved performance for replication by reusing the same low-level
+  simulator instance. This leads to significant improvements for large
+  numbers of replicates of small simulations. Issue #8.
+
+- Changed the TreeSequence.records() method to return named tuples.
+
+- Added get_total_branch_length method. Issue #12.
+
+- Fixed bug in reading Hapmap files. Issue #13.
+
+********************
+[0.2.0] - 2016-05-05
+********************
+
+Major update release, adding significant new functionality to the Python
+API and several breaking changes. All code written for the 0.1.x API
+will be affected, unfortunately.
+
+Breaking changes:
+
+- Sample IDs are now zero indexed. In previous versions of msprime, the
+  samples were numbered from 1 to n inclusive, which is not Pythonic.
+  This change has been made to make the API more usable, but will
+  cause issues for existing code.
+
+- There is now an Ne parameter to simulate(), and recombination,
+  mutation and migration rates are now all per-generation. The
+  keyword arguments have been changed to recombination_rate
+  and mutation_rate, which should mean that silent errors will
+  be avoided. All rates in existing code will need to be
+  divided by 4 as a result of this. This change was made to make
+  working with recombination maps and per generation recombination
+  rates easier.
+
+- Msprime now uses continuous values to represent coordinates, and
+  the num_loci parameter has been replaced with a new length parameter
+  to simulate(). Internally, a discrete recombination model is still
+  used, but by default the potential number of discrete sites is
+  very large and effectively continuous. True discrete recombination
+  models can still be specified by using the recombination_map
+  argument to simulate.
+
+- The population_models argument to simulate() has been removed, and
+  replaced with the population_configuration and demographic_events
+  parameters. This was necessary to provide the full demographic
+  model.
+
+- The HDF5 file format has been updated to accommodate the continuous
+  coordinates, along with other minor changes. As a consequence,
+  simulation results will be somewhat larger. Stored simulations will
+  need to be re-run and saved.
+
+- Removed the random_seed key from the provenance JSON strings.
+
+- Removed the simulate_tree() function, as it seemed to offer little
+  extra value.
+
+
+New features:
+
+- Simulation of variable recombination rates via arbitrary recombination
+  maps.
+
+- Full support for population structure and demographic events.
+
+- API support for replication via the num_replicates argument to simulate().
+
+- Fully reworked random generation mechanisms, so that in the nominal
+  case a single instance of gsl_rng is used throughout the entire
+  simulation session.
+
+- Addition of several miscellaneous methods to the TreeSequence API.
+
+- Added NULL_NODE constant to make tree traversals more readable.
+
+*********************
+[0.1.10] - 2016-04-21
+*********************
+
+Bugfix release. Fixes serious issue affecting simulations with small
+sample sizes.
+
+https://github.com/jeromekelleher/msprime/issues/7
+
+All users of mspms should update immediately and any analyses using
+a small sample size (< 10) with mutations should be repeated.
+
+Many thanks to Konrad Lohse for identifying the issue.
+
+********************
+[0.1.9] - 2016-04-01
+********************
+
+Bugfix release. Fixes serious issue affecting random seeds in mspms.
+
+https://github.com/jeromekelleher/msprime/issues/6
+
+All users of mspms should update immediately and any analyses using
+the ``-seeds`` option in mspms should be repeated.
+
+Many thanks to Derek Setter for identifying the issue.
+
+********************
+[0.1.8] - 2016-02-17
+********************
+
+Transitional release providing population structure support for the
+ms-compatible command line interface. A considerable amount of low-level
+plumbing was required to provide the required flexibility. This is currently
+not visible from the high-level API, but will shortly be made available in the
+forthcoming 0.2.x series.
+
+The current implementation of migration should work well for small numbers of
+populations (e.g. < 10), but will not scale well for large numbers of
+populations.
+
++++++++
+Changes
++++++++
+
+- Added the -I, -m, -ma, -em, -eM, -ema, -eG, -eg, -eN, -en,
+  -ej and -es options to mspms. These should provide full ms
+  compatability, except for the -es option which is currently
+  limited in scope.
+
+- Added some extra keys to the low-level configuration JSON in
+  the HDF5 file format to describe the population structure.
+  This will be documented in a future release.
+
+- Added a `get_pairwise_diversity` method to the TreeSequence
+  class to efficiently calculate the population genetics
+  statistic pi.
