@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ game_title }}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="jquery.min.js"></script>
+    <link rel="stylesheet" href="bootstrap.min.css">
+    <link rel="stylesheet" href="dark.css">
+    <link rel="stylesheet" href="main.css">
+    <link rel="icon" href="icon.png">
+    <script src="bootstrap.min.js"></script>
+	  <script src="draw_functions.js"></script>
+    <script src="gui.js"></script>
+    <script src="player.js"></script>
+    <script type="text/javascript">
+        $SCRIPT_ROOT = "";
+        window.seed = "";
+        window.onload = function() {
+            // window.cur_frame = 0;
+            // window.real_cur_frame = 0;
+            // window.cur_speed = 1;
+            // window.fps = 30;
+            // window.playback_timeout = 1000/window.fps;
+            // window.is_really_playing = false;
+            // window.replay_vars = [];
+            // window.replay_frames = [];
+            window.canceled = false;
+            // localStorage.user_token = null;
+//             disable_btn_bar();
+            window.charSetLayout = "col";
+            var charSetName = document.getElementById("chars").src;
+            if (charSetName.indexOf("_ro.") != -1) {
+                window.charSetLayout = "row";
+            } else if (charSetName.indexOf("_tc.") != -1) {
+                window.charSetLayout = "tc";
+            }
+            document.getElementById("scoreSelector").onclick = function () {
+                updateScoreboard();
+            };
+            document.getElementById("compSelector").onclick = function () {
+                updateComp();
+            };
+            document.getElementById("logout").onclick = function() {
+                logout();
+            };
+            document.getElementById("login").onclick = function() {
+                login_prompt();
+            };
+            let player_height = {{ screen_height * char_height }};
+            let player_width = {{ screen_width * char_width }};
+            window.main_player = new Player(document.getElementById("left_col"),player_height, player_width,
+                                            draw,
+                                            true, true);
+            if (localStorage.user_token != null) {
+              login();
+            }
+        };
+        function hasKey(obj, key) {
+            return obj.hasOwnProperty(key);
+        }
+        function logout() {
+            delete localStorage.user_token;
+            document.getElementById("scoreSelector").style.display = "None";
+            document.getElementById("compSelector").style.display = "None";
+            document.getElementById("logout").style.display = "None";
+            document.getElementById("submitCode").style.display = "None";
+            document.getElementById("loadCode").style.display = "None";
+            document.getElementById("login").style.display = "";
+        }
+        function login_prompt() {
+            localStorage.user_token = prompt("Enter your token:", "");
+            if (localStorage.user_token == null) {
+                return false;
+            }
+            login();
+            return false;
+        }
+        function login() {
+            //check_token
+            $.ajax({
+                type: "POST",
+                url: $SCRIPT_ROOT + 'check_token',
+                data: JSON.stringify({token: localStorage.user_token}),
+                contentType: "application/json; charset=utf-8",
+                dataType: "json",
+                success: function(data) {
+                    if (window.canceled) {
+                        return;
+                    }
+                    hideLoading();
+                    if (data["error"]) {
+                        alert(data["error"]);
+                    } else {
+                        document.getElementById("scoreSelector").style.display = "";
+                        document.getElementById("logout").style.display = "";
+                        document.getElementById("submitCode").style.display = "";
+                        document.getElementById("loadCode").style.display = "";
+                        document.getElementById("login").style.display = "None";
+                        loadCode();
+                        checkComps();
+                    }
+                },
+                failure: function(errMsg) {
+                    if (window.canceled) {
+                        return;
+                    }
+                    hideLoading();
+                    alert(errMsg);
+                }
+            });
+            showLoading();
+        }
+        function checkComps() {
+            $.ajax({
+                type: "POST",
+                url: $SCRIPT_ROOT + 'comp_scoreboards',
+                data: JSON.stringify({token: localStorage.user_token}),
+                contentType: "application/json; charset=utf-8",
+                dataType: "json",
+                success: function(data) {
+                    console.log(data);
+                    data = data["comps"];
+                    // Sort the data
+                    if (data.length <= 0) {
+                        return;
+                    }
+                    document.getElementById("compSelector").style.display = "";
+                },
+                failure: function(errMsg) {
+                    alert(errMsg);
+                }
+            });
+        }
+        function testCode(opponents) {
+            $("#debugTable").html("");
+            $.ajax({
+                type: "POST",
+                url: $SCRIPT_ROOT + 'sim',
+                data: JSON.stringify({code: editor.getValue(), seed: window.seed, opponents: opponents}),
+                contentType: "application/json; charset=utf-8",
+                dataType: "json",
+                success: function(data) {
+                    if (window.canceled) {
+                        return;
+                    }
+                    if (data["error"]) {
+                        if (data["error"] == "Invalid Seed") {
+                            window.seed = "";
+                        }
+                        hideLoading();
+                        alert(data["error"]);
+                    } else {
+                      window.main_player.load_from_tokens(data["gtoken"], "00000000", hideLoading);
+                        // get_and_play_game(data["gtoken"]);
+                    }
+                },
+                failure: function(errMsg) {
+                    if (window.canceled) {
+                        return;
+                    }
+                    hideLoading();
+                    alert(errMsg);
+                }
+            });
+            showLoading();
+            return false;
+        }
+        function submitCode() {
+            if (!localStorage.user_token) {
+                login_prompt();
+            }
+            $.ajax({
+                type: "POST",
+                url: $SCRIPT_ROOT + 'sim_avg',
+                data: JSON.stringify({code: editor.getValue(), token: localStorage.user_token}),
+                contentType: "application/json; charset=utf-8",
+                dataType: "json",
+                success: function(data) {
+                    if (data.hasOwnProperty("error")) {
+                        if (data["error"] == "Invalid Token") {
+                            logout();
+//                            localStorage.user_token = "";
+//                            document.getElementById("scoreSelector").style.display = "None";
+                        } else {
+                            alert(data["error"]);
+                        }
+                    } else {
+                        document.getElementById("scoreSelector").style.display = "";
+                        alert("You average score is " + data["score"]);
+                    }
+                    hideLoading();
+                },
+                failure: function(errMsg) {
+                    if (window.canceled) {
+                        return;
+                    }
+                    hideLoading();
+                    alert(errMsg);
+                }
+            });
+            showLoading();
+            return false;
+        }
+        function loadCodeWithCon() {
+            var curCode = editor.getValue();
+            if (curCode == "{{ example_bot|replace("\n", "\\n") }}") {
+                loadCode();
+                return
+            }
+            var ans = confirm("Do you want to load the code you submitted last?\nThis will overwrite your current program in the editor.");
+            if (ans) {
+                loadCode();
+            }
+        }
+        function loadCode() {
+            if (!localStorage.user_token) {
+                login_prompt();
+            }
+            $.ajax({
+                type: "POST",
+                url: $SCRIPT_ROOT + 'load_code',
+                data: JSON.stringify({token: localStorage.user_token}),
+                contentType: "application/json; charset=utf-8",
+                dataType: "json",
+                success: function(data) {
+                    if (data.hasOwnProperty("error")) {
+                        if (data["error"] == "Invalid Token") {
+                            logout();
+                        }
+                    } else if (data["code"] != null) {
+                        editor.setValue(data["code"], 1);
+                    }
+                    hideLoading();
+                },
+                failure: function(errMsg) {
+                    if (window.canceled) {
+                        return;
+                    }
+                    hideLoading();
+                    alert(errMsg);
+                }
+            });
+            showLoading();
+            return false;
+        }
+        function updateScoreboard() {
+            $("#scoreTable").html("");
+            $("#games").html("");
+            $.ajax({
+                type: "POST",
+                url: $SCRIPT_ROOT + 'scoreboard',
+                data: JSON.stringify({token: localStorage.user_token}),
+                contentType: "application/json; charset=utf-8",
+                dataType: "json",
+                success: function(data) {
+                    console.log(data);
+                    // Sort the data
+                    function compare(a,b) {
+                      if (a.score < b.score)
+                        return 1;
+                      if (a.score > b.score)
+                        return -1;
+                      return 0;
+                    }
+                    var scores = data["scores"];
+                    scores.sort(compare);
+
+                    var row = $("<tr>").append($("<th>").html("Name")).append($("<th>").html("Average Score"));
+                    $("#scoreTable").html("").append(row);
+                    scores.forEach(function myFunction(item, index) {
+                        var row = $("<tr>").append($("<td>").text(item["name"])).append($("<td>").text(item["score"]));
+                        $("#scoreTable").append(row);
+                    });
+
+                    if ("games" in data) {
+                      // TODO: create list of games.
+                      $("#games").html("");
+                      data["games"].forEach(function myFunction(item, index) {
+                        var row = $("<li>").append($("<a>").attr("href", "player#"+item["token"]+"_"+localStorage.user_token)
+                          .attr("target", "_blank").text(item["text"]));
+                          // var row = $("<tr>").append($("<td>").text(item["name"])).append($("<td>").text(item["score"]));
+                        $("#games").append(row);
+                      });
+                    }
+
+                    document.getElementById("scoreSchool").innerHTML = data["school"];
+                },
+                failure: function(errMsg) {
+                    alert(errMsg);
+                }
+            });
+        }
+        function updateComp() {
+            $("#compTable").html("");
+            $.ajax({
+                type: "POST",
+                url: $SCRIPT_ROOT + 'comp_scoreboards',
+                data: JSON.stringify({token: localStorage.user_token}),
+                contentType: "application/json; charset=utf-8",
+                dataType: "json",
+                success: function(data) {
+                    console.log(data);
+                    data = data["comps"];
+                    // Sort the data
+                    if (data.length <= 0) {
+                        return;
+                    }
+                    comp = data[0];
+                    function compare(a,b) {
+                      if (a.score < b.score)
+                        return 1;
+                      if (a.score > b.score)
+                        return -1;
+                      return 0;
+                    }
+                    var scores = comp["scores"];
+                    scores.sort(compare);
+
+                    var row = $("<tr>").append($("<th>").html("Name")).append($("<th>").html("Average Score"));
+                    $("#compTable").html("").append(row);
+                    scores.forEach(function myFunction(item, index) {
+                        var row = $("<tr>").append($("<td>").html(item["name"])).append($("<td>").html(item["score"]));
+                        $("#compTable").append(row);
+                    });
+//                    document.getElementById("scoreSchool").innerHTML = data["school"];
+                },
+                failure: function(errMsg) {
+                    alert(errMsg);
+                }
+            });
+        }
+
+        function draw(canvas, frame) {
+            var c=canvas;
+            var ctx=c.getContext("2d");
+            var img=document.getElementById("chars");
+            var char_height = {{ char_height }};
+            var char_width = {{ char_width }};
+
+            for (var i = 0; i < frame.length; i++) {
+                for (var j = 0; j < frame[i].length; j++) {
+                    draw_functions["char"](c,ctx,[frame[i][j],j,i,char_height,char_width]);
+                }
+            }
+        }
+        function cancelSubmit() {
+            // window.canceled = true;
+            hideLoading();
+        }
+        function disable_btn_bar() {
+            $("#btn-bar :button").attr("disabled", true);
+        }
+        function enable_btn_bar() {
+            $("#btn-bar :button").attr("disabled", false);
+        }
+        function set_seed() {
+            window.seed = prompt("Enter map seed.\nIf you want a random seed leave blank.", "");
+            console.log(window.seed);
+        }
+    </script>
+</head>
+<body>
+{#<div class="container" style="width: 100%">#}
+{#    <h3>{{ game_title }}</h3>#}
+{#    <ul class="nav nav-pills nav-justified">#}
+{#        <li class="active"><a href="#Intro">Intro</a></li>#}
+{#        <li><a href="#Game">Game</a></li>#}
+{#        <li><a href="#Bot">Bot</a></li>#}
+{#    </ul>#}
+{#</div>#}
+<div class="container" style="width: 100%;padding: 10px;">
+    <h1>{{ game_title }}</h1>
+    <ul class="nav nav-tabs">
+      <li class="active"><a data-toggle="tab" href="#Intro">Intro</a></li>
+{#      <li><a data-toggle="tab" href="#Game">Game</a></li>#}
+      <li><a data-toggle="tab" href="#Bot">Bot</a></li>
+      <li><a id="scoreSelector" data-toggle="tab" href="#Score" style="display: none;">School Scoreboard</a></li>
+      <li><a id="compSelector" data-toggle="tab" href="#Comp" style="display: none;">Competition Rankings</a></li>
+      <li style="float: right;"><a id="logout" style="display: none;"><span id="token"></span>Log out</a></li>
+      <li style="float: right;"><a id="login" style="">Log in</a></li>
+    </ul>
+</div>
+
+<div class="tab-content">
+  <div id="Intro" class="tab-pane fade in active">
+      <p>{{ intro_text|markdown }}</p>
+  </div>
+  <div id="Game" class="tab-pane fade">
+      <h3>Play the Game</h3>
+      <p>This is where the user can play the game to test out different ideas.</p>
+      <div style="margin-left: 1em;margin-right: 1em;">
+        <canvas id="displayPlayer" height="{{ screen_height * char_height }}px" width="{{ screen_width * char_width }}px"></canvas>
+      </div>
+  </div>
+  <div id="Bot" class="tab-pane fade">
+      <div id="loadingOverlay" style="display: none;">
+          <div style="top: 50%; left: 50%; position: absolute;transform: translate3d(-50%,-50%, 0);text-align: center;">
+              <button class="btn btn-lg btn-warning"><span class="glyphicon glyphicon-refresh glyphicon-refresh-animate"></span> Loading...</button>
+              <br><br>
+              <span id="overlayCancel" onclick="cancelSubmit();">Cancel</span>
+          </div>
+      </div>
+      <img id="chars" src="{{ 'fonts/'+char_set }}" style="display: none;">
+      <div id="wrap">
+        <div id="left_col">
+            <!--<img id="chars" src="{{ 'fonts/'+char_set }}" style="display: none;">-->
+            <!--<canvas id="display" height="{{ screen_height * char_height }}px" width="{{ screen_width * char_width }}px"></canvas>-->
+            <!--<div>-->
+                <!--<div class="progress">-->
+                    <!--<div id="playbackProgress" class="progress-bar fast" role="progressbar" aria-valuemin="0" aria-valuemax="100" style="width: 100%;">-->
+                    <!--</div>-->
+                <!--</div>-->
+                <!--<span id="playbackProgressText">Frame 0 of 0</span>-->
+                <!--<span id="mapNumberText" style="float: right;"></span>-->
+            <!--</div>-->
+            <!--<br>-->
+            <!--<div id="btn-bar">-->
+                <!--<button onclick="stop();">Stop</button>-->
+                <!--<button onclick="slower();">&lt;&lt;</button>-->
+                <!--<button onclick="prevFrame();">&lt;</button>-->
+                <!--<button onclick="toggle_play();">Play/Pause</button>-->
+                <!--<button onclick="nextFrame();">&gt;</button>-->
+                <!--<button onclick="faster();">&gt;&gt;</button>-->
+                <!--<div style="float: right;">-->
+                    <!--<button id="btnSetSeed" onclick="set_seed();">Set Map Seed</button>-->
+                    <!--<button id="btnToggleDebug" onclick="toggle_debug_table();">Show Debug Table</button>-->
+                <!--</div>-->
+                <!--<br>-->
+            <!--</div>-->
+            <!--<div>-->
+                <!--<br>-->
+                <!--<center>-->
+                    <!--<table id="debugTable" style="display: none;">-->
+                    <!--</table>-->
+                <!--</center>-->
+            <!--</div>-->
+        </div>
+        <div id="right_col">
+            <pre id="editor">{{ example_bot }}</pre>
+            <script src="ace/ace.js" type="text/javascript" charset="utf-8"></script>
+            <script>
+                var editor = ace.edit("editor");
+                editor.setTheme("ace/theme/twilight");
+                editor.session.setMode("ace/mode/lp");
+            </script>
+            <br>
+            <button id="testCode" onclick="testCode(null);">Play{% if multiplayer %} Computer{% endif %}</button>
+            {% if multiplayer %}
+              <button id="testCode2" onclick="testCode(['00000000', '00000000', '00000000']);">Play Self</button>
+            {% endif %}
+            <button id="loadCode" onclick="loadCodeWithCon();" style="display: none;">Load Last Submitted Code</button>
+            <button id="submitCode" onclick="submitCode();" style="display: none;">Submit</button>
+        </div>
+    </div>
+  </div>
+  <div id="Score" class="tab-pane fade">
+      <h3>Scoreboard for <span id="scoreSchool"></span></h3>
+      <table id="scoreTable">
+          <tr>
+              <th>Name</th>
+              <th>Average Score</th>
+          </tr>
+      </table>
+      <br/><br/>
+      <h3>Games your bot played in:</h3>
+      <ul id="games">
+      </ul>
+  </div>
+  <div id="Comp" class="tab-pane fade">
+      <!--<h3>Scoreboard for <span id="scoreSchool"></span></h3>-->
+      <h3>Rankings</h3>
+      <table id="compTable">
+          <tr>
+              <th>Name</th>
+              <th>Average Score</th>
+          </tr>
+      </table>
+  </div>
+</div>
+</body>
+</html>
