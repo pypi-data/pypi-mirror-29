@@ -1,0 +1,404 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>Extending the Library &mdash; MIDIUtil 1.1.1 documentation</title>
+  
+
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+    <link rel="top" title="MIDIUtil 1.1.1 documentation" href="index.html"/>
+        <link rel="next" title="Class Reference" href="class.html"/>
+        <link rel="prev" title="Tuning and Microtonalities" href="tuning.html"/> 
+
+  
+  <script src="_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="index.html" class="icon icon-home"> MIDIUtil
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                1.1
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+                <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="creating.html">Creating the MIDIFile Object</a></li>
+<li class="toctree-l1"><a class="reference internal" href="common.html">Common Events and Function</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tuning.html">Tuning and Microtonalities</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Extending the Library</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#create-a-new-event-type">Create a New Event Type</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#create-an-accessor-function">Create an Accessor Function</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#modify-processeventlist">Modify processEventList()</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#write-the-event-data-to-the-midi-stream">Write the Event Data to the MIDI Stream</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#write-some-tests">Write Some Tests</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="class.html">Class Reference</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+        <a href="index.html">MIDIUtil</a>
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+ 
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="index.html">Docs</a> &raquo;</li>
+      
+    <li>Extending the Library</li>
+      <li class="wy-breadcrumbs-aside">
+        
+          
+            <a href="_sources/extending.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="extending-the-library">
+<h1>Extending the Library<a class="headerlink" href="#extending-the-library" title="Permalink to this headline">¶</a></h1>
+<p>The choice of MIDI event types included in the library is somewhat
+idiosyncratic; I included the events I needed for another software
+project I was wrote. You may find that you need additional events in
+your work. For this reason I am including some instructions on extending
+the library.  The process isn&#8217;t too hard (provided you have a working
+knowledge of Python and the MIDI standard), so the task shouldn&#8217;t present
+a competent coder too much difficulty. Alternately (if, for example,
+you <em>don&#8217;t</em> have a working knowledge of MIDI and don&#8217;t desire to gain it),
+you can submit new feature requests to me, and I will include them into
+the development branch of the code, subject to the constraints of time.</p>
+<p>To illustrate the process I show below how the MIDI tempo event is
+incorporated into the code. This is a relatively simple event, so while
+it may not illustrate some of the subtleties of MIDI programing, it
+provides a good, illustrative case.</p>
+<div class="section" id="create-a-new-event-type">
+<h2>Create a New Event Type<a class="headerlink" href="#create-a-new-event-type" title="Permalink to this headline">¶</a></h2>
+<p>The first order of business is to create a new subclass of the GnericEvent
+object of the MIDIFile module. This subclass initializes any specific
+instance data that is needed for the MIDI event to be written. In
+the case of the tempo event, it is the actual tempo (which is defined
+in the MIDI standard to be 60000000 divided by the tempo in beats per
+minute). This class should also call the superclass&#8217; initializer with
+the event time, ordinal, and insertion order,  and set the event type
+(a unique string used internally by the software).
+In the case of the tempo event:</p>
+<div class="code python highlight-default"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">Tempo</span><span class="p">(</span><span class="n">GenericEvent</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;A class that encapsulates a tempo meta-event</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">time</span><span class="p">,</span><span class="n">tempo</span><span class="p">,</span> <span class="n">ordinal</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">insertion_order</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tempo</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="mi">60000000</span> <span class="o">/</span> <span class="n">tempo</span><span class="p">)</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">Tempo</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="s1">&#39;tempo&#39;</span><span class="p">,</span> <span class="n">time</span><span class="p">,</span> <span class="n">ordinal</span><span class="p">,</span> <span class="n">insertion_order</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Any class that you define should include a type, time, ordinal (see below),
+and an insertion order.</p>
+<p><code class="docutils literal"><span class="pre">self.ord</span></code> and <code class="docutils literal"><span class="pre">self.insertion_order</span></code> are used to order the events
+in the MIDI stream. Events are first ordered in time. Events at the
+same time are then ordered by <code class="docutils literal"><span class="pre">self.ord</span></code>, with lower numbers appearing
+in the stream first. The extant classes in the code all allow the user
+to specify an ordinal for the object, but they include default values
+that are meant to be reasonable.</p>
+<p>Lastly events are sorted on the <code class="docutils literal"><span class="pre">self.insertion_order</span></code> member. This
+makes it possible to, say, create a Registered Parameter Number call
+from a collection of Control Change events. Since all the CC events will
+have the same time and class (and therefore default ordinal), you can control
+the order of the events by the order in which you add them to the MIDIFile.</p>
+<p>Next, if you want the code to be able to de-duplicate events which may
+lay over top of one another, the parent class, <code class="docutils literal"><span class="pre">GenericEvent</span></code>, has a
+member function called <code class="docutils literal"><span class="pre">__eq__()</span></code>. If two events do not coincide in
+time or type they are not equal, but it they do the <code class="docutils literal"><span class="pre">__eq__</span></code> function
+must be modified to show equality. In the case of the <code class="docutils literal"><span class="pre">Tempo</span></code> class,
+two tempo events are considered equivalent if they are the same tempo.
+In other words, if there are two tempo events at the same time and
+the same tempo, one will be removed in the de-duplication process
+(which is the default behavious for <code class="docutils literal"><span class="pre">MIDIFile</span></code>, but it can be
+turned off). From <code class="docutils literal"><span class="pre">GenericEvent.__eq__()</span></code>:</p>
+<div class="code python highlight-default"><div class="highlight"><pre><span></span><span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">type</span> <span class="o">==</span> <span class="s1">&#39;tempo&#39;</span><span class="p">:</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">tempo</span> <span class="o">!=</span> <span class="n">other</span><span class="o">.</span><span class="n">tempo</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">False</span>
+</pre></div>
+</div>
+<p>If events are not equivalent, the code should return <code class="docutils literal"><span class="pre">False</span></code>. If they are, the
+code can be allowed to fall through to its default return of <code class="docutils literal"><span class="pre">True</span></code>.</p>
+</div>
+<div class="section" id="create-an-accessor-function">
+<h2>Create an Accessor Function<a class="headerlink" href="#create-an-accessor-function" title="Permalink to this headline">¶</a></h2>
+<p>Next, an accessor function should be added to MIDITrack to create an
+event of this type. Continuing the example of the tempo event:</p>
+<div class="code python highlight-default"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">addTempo</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">time</span><span class="p">,</span><span class="n">tempo</span><span class="p">,</span> <span class="n">insertion_order</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Add a tempo change (or set) event.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">eventList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Tempo</span><span class="p">(</span><span class="n">time</span><span class="p">,</span><span class="n">tempo</span><span class="p">,</span> <span class="n">insertion_order</span> <span class="o">=</span> <span class="n">insertion_order</span><span class="p">))</span>
+</pre></div>
+</div>
+<p>(Most/many MIDI events require a channel specification, but the tempo event
+does not.)</p>
+<p>The public accessor function is via the MIDIFile object, and must include
+the track number to which the event is written. So in <code class="docutils literal"><span class="pre">MIDIFile</span></code>:</p>
+<div class="code python highlight-default"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">addTempo</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">track</span><span class="p">,</span> <span class="n">time</span><span class="p">,</span><span class="n">tempo</span><span class="p">):</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">numeric_format</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">track</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">tracks</span><span class="p">[</span><span class="n">track</span><span class="p">]</span><span class="o">.</span><span class="n">addTempo</span><span class="p">(</span><span class="n">time</span><span class="p">,</span><span class="n">tempo</span><span class="p">,</span> <span class="n">insertion_order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">event_counter</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">event_counter</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">event_counter</span> <span class="o">+</span> <span class="mi">1</span>
+</pre></div>
+</div>
+<p>Note that a track has been added (which is zero-origined and needs to be
+constrained by the number of tracks that the <code class="docutils literal"><span class="pre">MIDIFile</span></code> was created with),
+and <code class="docutils literal"><span class="pre">insertion_order</span></code> is taken from the class <code class="docutils literal"><span class="pre">event_counter</span></code>
+data member. This should be followed in each function you add. Also note that
+the tempo event is handled differently in format 1 files and format 2 files.
+This function ensures that the tempo event is written to the first track
+(track 0) for a format 1 file, otherwise it writes it to the track specified.
+In most of the public functions a check it done on format, and the track is
+incremented by one for format 1 files so that the event is not written to the
+tempo track (but preserving the zero-origined convention for all tracks in
+both formats.)</p>
+<p>This is the function you will use in your code to create an event of
+the desired type.</p>
+</div>
+<div class="section" id="modify-processeventlist">
+<h2>Modify processEventList()<a class="headerlink" href="#modify-processeventlist" title="Permalink to this headline">¶</a></h2>
+<p>Next, the logic pertaining to the new event type should be added to
+<code class="docutils literal"><span class="pre">processEventList()</span></code> function of the <code class="docutils literal"><span class="pre">MIDITrack</span></code> class. In general this code
+will create a MIDIEvent object and set its type, time, ordinality, and
+any specific information that is needed for the event type. This object
+is then added to the MIDIEventList.</p>
+<p>The relevant section for the tempo event is:</p>
+<div class="code python highlight-default"><div class="highlight"><pre><span></span><span class="k">elif</span> <span class="n">thing</span><span class="o">.</span><span class="n">type</span> <span class="o">==</span> <span class="s1">&#39;tempo&#39;</span><span class="p">:</span>
+    <span class="n">event</span> <span class="o">=</span> <span class="n">MIDIEvent</span><span class="p">(</span><span class="s2">&quot;Tempo&quot;</span><span class="p">,</span> <span class="n">thing</span><span class="o">.</span><span class="n">time</span> <span class="o">*</span> <span class="n">TICKSPERBEAT</span><span class="p">,</span> <span class="n">thing</span><span class="o">.</span><span class="n">ord</span><span class="p">,</span> <span class="n">thing</span><span class="o">.</span><span class="n">insertion_order</span><span class="p">)</span>
+    <span class="n">event</span><span class="o">.</span><span class="n">tempo</span> <span class="o">=</span> <span class="n">thing</span><span class="o">.</span><span class="n">tempo</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">MIDIEventList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">event</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>THe <code class="docutils literal"><span class="pre">MIDIEvent</span></code> class is expected to have a <code class="docutils literal"><span class="pre">type</span></code>, <code class="docutils literal"><span class="pre">time</span></code>
+(which should be converted from beats to ticks as above), ordinal, and an
+insertion order, which are similar to the values in the <code class="docutils literal"><span class="pre">GenericEvent</span></code> class.
+You are free, of course, to add any other data items that need to be specified.
+In the case of <code class="docutils literal"><span class="pre">Tempo</span></code> this is the tempo to be written.</p>
+</div>
+<div class="section" id="write-the-event-data-to-the-midi-stream">
+<h2>Write the Event Data to the MIDI Stream<a class="headerlink" href="#write-the-event-data-to-the-midi-stream" title="Permalink to this headline">¶</a></h2>
+<p>The last step is to modify the <code class="docutils literal"><span class="pre">MIDIFile.writeEventsToStream()</span></code> function;
+here is where some understanding of the MIDI standard is necessary. The
+following code shows the creation of a MIDI tempo event:</p>
+<div class="code python highlight-default"><div class="highlight"><pre><span></span><span class="k">elif</span> <span class="n">event</span><span class="o">.</span><span class="n">type</span> <span class="o">==</span> <span class="s2">&quot;Tempo&quot;</span><span class="p">:</span>
+    <span class="n">code</span> <span class="o">=</span> <span class="mh">0xFF</span>
+    <span class="n">subcode</span> <span class="o">=</span> <span class="mh">0x51</span>
+    <span class="n">fourbite</span> <span class="o">=</span> <span class="n">struct</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span><span class="s1">&#39;&gt;L&#39;</span><span class="p">,</span> <span class="n">event</span><span class="o">.</span><span class="n">tempo</span><span class="p">)</span>
+    <span class="n">threebite</span> <span class="o">=</span> <span class="n">fourbite</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="mi">4</span><span class="p">]</span>       <span class="c1"># Just discard the MSB</span>
+    <span class="n">varTime</span> <span class="o">=</span> <span class="n">writeVarLength</span><span class="p">(</span><span class="n">event</span><span class="o">.</span><span class="n">time</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">timeByte</span> <span class="ow">in</span> <span class="n">varTime</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">MIDIdata</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">MIDIdata</span> <span class="o">+</span> <span class="n">struct</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span><span class="s1">&#39;&gt;B&#39;</span><span class="p">,</span><span class="n">timeByte</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">MIDIdata</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">MIDIdata</span> <span class="o">+</span> <span class="n">struct</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span><span class="s1">&#39;&gt;B&#39;</span><span class="p">,</span><span class="n">code</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">MIDIdata</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">MIDIdata</span> <span class="o">+</span> <span class="n">struct</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span><span class="s1">&#39;&gt;B&#39;</span><span class="p">,</span><span class="n">subcode</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">MIDIdata</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">MIDIdata</span> <span class="o">+</span> <span class="n">struct</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span><span class="s1">&#39;&gt;B&#39;</span><span class="p">,</span> <span class="mh">0x03</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">MIDIdata</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">MIDIdata</span> <span class="o">+</span> <span class="n">threebite</span>
+</pre></div>
+</div>
+<p>The event.type string (&#8220;Tempo&#8221;) was the one chosen in the processEventList
+logic.</p>
+<p>The code and sub-code are binary values that come from the MIDI
+specification.</p>
+<p>Next the data is packed into a three byte structure (or a four byte
+structure, discarding the most significant byte). Again, the MIDI
+specification determines the number of bytes used in the data payload.</p>
+<p>All MIDI events begin with a time, which is stored in a slightly bizarre
+variable-length format. This time should be converted to MIDI variable-length
+data with the <code class="docutils literal"><span class="pre">writeVarLength()</span></code> function before writing to the stream.
+In the MIDI standard&#8217;s variable length data only seven bits of a word are
+used to store data; the eighth bit signifies if more bytes encoding the
+value follow. The total length may be 1 to 3 bytes, depending upon the size of
+the value encoded. The <code class="docutils literal"><span class="pre">writeVarLength()</span></code> function takes care of this
+converssion for you.</p>
+<p>Now the data is written to the binary object <code class="docutils literal"><span class="pre">self.MIDIdata</span></code>, which is
+the actual MIDI-encoded data stream. As per the MIDI standard, first we
+write our variable-length time value. Next we add the event type code and
+sub-code. Then we write the length of the data payload, which in the case
+of the tempo event is three bytes. Lastly, we write the actual payload,
+which has been packed into the variable <code class="docutils literal"><span class="pre">threebite</span></code>.</p>
+<p>The reason that there are separate classes for <code class="docutils literal"><span class="pre">GenericEvent</span></code> and <code class="docutils literal"><span class="pre">MIDIEvent</span></code>
+is that there need not be a one-to-one correspondance. For example, the
+code defines a <code class="docutils literal"><span class="pre">Note</span></code> object, but when this is processed in
+<code class="docutils literal"><span class="pre">processEventList()</span></code> two <code class="docutils literal"><span class="pre">MIDIEvent</span></code> objects are created, one for
+the <code class="docutils literal"><span class="pre">note</span> <span class="pre">on</span></code> event, one for the <code class="docutils literal"><span class="pre">note</span> <span class="pre">off</span></code> event.</p>
+<div class="code python highlight-default"><div class="highlight"><pre><span></span><span class="k">if</span> <span class="n">thing</span><span class="o">.</span><span class="n">type</span> <span class="o">==</span> <span class="s1">&#39;note&#39;</span><span class="p">:</span>
+    <span class="n">event</span>         <span class="o">=</span> <span class="n">MIDIEvent</span><span class="p">(</span><span class="s2">&quot;NoteOn&quot;</span><span class="p">,</span> <span class="n">thing</span><span class="o">.</span><span class="n">time</span> <span class="o">*</span> <span class="n">TICKSPERBEAT</span><span class="p">,</span>
+                                <span class="n">thing</span><span class="o">.</span><span class="n">ord</span><span class="p">,</span> <span class="n">thing</span><span class="o">.</span><span class="n">insertion_order</span><span class="p">)</span>
+    <span class="n">event</span><span class="o">.</span><span class="n">pitch</span>   <span class="o">=</span> <span class="n">thing</span><span class="o">.</span><span class="n">pitch</span>
+    <span class="n">event</span><span class="o">.</span><span class="n">volume</span>  <span class="o">=</span> <span class="n">thing</span><span class="o">.</span><span class="n">volume</span>
+    <span class="n">event</span><span class="o">.</span><span class="n">channel</span> <span class="o">=</span> <span class="n">thing</span><span class="o">.</span><span class="n">channel</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">MIDIEventList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">event</span><span class="p">)</span>
+
+    <span class="n">event</span> <span class="o">=</span> <span class="n">MIDIEvent</span><span class="p">(</span><span class="s2">&quot;NoteOff&quot;</span><span class="p">,</span> <span class="p">(</span><span class="n">thing</span><span class="o">.</span><span class="n">time</span><span class="o">+</span> <span class="n">thing</span><span class="o">.</span><span class="n">duration</span><span class="p">)</span> <span class="o">*</span> <span class="n">TICKSPERBEAT</span><span class="p">,</span>
+                                <span class="n">thing</span><span class="o">.</span><span class="n">ord</span> <span class="o">-</span><span class="mf">0.1</span><span class="p">,</span>
+                                <span class="n">thing</span><span class="o">.</span><span class="n">insertion_order</span><span class="p">)</span>
+    <span class="n">event</span><span class="o">.</span><span class="n">pitch</span>   <span class="o">=</span> <span class="n">thing</span><span class="o">.</span><span class="n">pitch</span>
+    <span class="n">event</span><span class="o">.</span><span class="n">volume</span>  <span class="o">=</span> <span class="n">thing</span><span class="o">.</span><span class="n">volume</span>
+    <span class="n">event</span><span class="o">.</span><span class="n">channel</span> <span class="o">=</span> <span class="n">thing</span><span class="o">.</span><span class="n">channel</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">MIDIEventList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">event</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Note that the <code class="docutils literal"><span class="pre">NoteOff</span></code> event is created with a slightly lower ordinality
+than the <code class="docutils literal"><span class="pre">NoteOn</span></code> event. This is so that at any given time the note off
+events will be processed before the note on events.</p>
+</div>
+<div class="section" id="write-some-tests">
+<h2>Write Some Tests<a class="headerlink" href="#write-some-tests" title="Permalink to this headline">¶</a></h2>
+<p>Yea, it&#8217;s a hassle, but you know it&#8217;s the right thing to do!</p>
+</div>
+</div>
+
+
+           </div>
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="class.html" class="btn btn-neutral float-right" title="Class Reference" accesskey="n">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="tuning.html" class="btn btn-neutral" title="Tuning and Microtonalities" accesskey="p"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Mark Conway Wirt.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'./',
+            VERSION:'1.1.1',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true
+        };
+    </script>
+      <script type="text/javascript" src="_static/jquery.js"></script>
+      <script type="text/javascript" src="_static/underscore.js"></script>
+      <script type="text/javascript" src="_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>
