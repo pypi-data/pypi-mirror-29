@@ -1,0 +1,21 @@
+# In case this script crashed or was interrupted earlier, flush, unlink and
+# delete the temp chain.
+iptables -w -t nat -F BOOTSTACK_MASQ_NEW || true
+iptables -w -t nat -D POSTROUTING -j BOOTSTACK_MASQ_NEW || true
+iptables -w -t nat -X BOOTSTACK_MASQ_NEW || true
+iptables -w -t nat -N BOOTSTACK_MASQ_NEW
+# Build the chain we want.
+{{#masquerade_networks}}
+NETWORK={{.}}
+iptables -w -t nat -A BOOTSTACK_MASQ_NEW -s $NETWORK ! -d $NETWORK -j MASQUERADE
+{{/masquerade_networks}}
+# Link it in.
+iptables -w -t nat -I POSTROUTING -j BOOTSTACK_MASQ_NEW
+# Delete the old chain if present.
+iptables -w -t nat -F BOOTSTACK_MASQ || true
+iptables -w -t nat -D POSTROUTING -j BOOTSTACK_MASQ || true
+iptables -w -t nat -X BOOTSTACK_MASQ || true
+# Rename the new chain into permanence.
+iptables -w -t nat -E BOOTSTACK_MASQ_NEW BOOTSTACK_MASQ
+# remove forwarding rule (fixes bug 1183099)
+iptables -w -D FORWARD -j REJECT --reject-with icmp-host-prohibited || true
