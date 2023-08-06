@@ -1,0 +1,142 @@
+#!/usr/bin/python3
+
+import sys
+import h5py
+import numpy
+from os import unlink
+from os.path import isfile, join, dirname
+from optparse import OptionGroup
+
+from megdata import BTIPDF, BTIConfigFile, BTIHSFile, bti_to_meghdf_data
+
+from optparse import OptionParser, OptionGroup
+
+usage_str = """%prog [options] INPUTFILE OUTPUTFILE
+Convert BTI dataset to MEG HDF format
+
+INPUTFILE      input BTI filename
+OUTPUTFILE     output HDF5 filename
+"""
+
+def create_option_parser():
+    parser = OptionParser(usage=usage_str)
+
+    group = OptionGroup(parser, "Import options")
+
+    group.add_option("-s","--single-file", dest="singlefile",
+                     default=False, action="store_true",
+                     help="Only import named file.  Default is to also import the COH runs.")
+
+    group.add_option("-n","--no-headshape", dest="noheadshape",
+                     default=False, action="store_true",
+                     help="Skip importing the headshape information.")
+
+    group.add_option("-i","--subject-id", dest="subjectid",
+                     default="",
+                     help="Subject identifier to put in file - defaults to empty string")
+
+    group.add_option("--apply-upb", dest="applyupb",
+                     default=False, action="store_true",
+                     help="Apply UPB and convert to float")
+
+    group.add_option("--compress", dest="compress",
+                     default=False, action="store_true",
+                     help="Compress datasets")
+
+    parser.add_option_group(group)
+
+    return parser
+
+
+# Main script
+parser = create_option_parser()
+
+op, args = parser.parse_args()
+
+if len(args) != 2:
+    parser.print_help()
+    sys.exit(1)
+
+inputfile = args[0]
+outputfile = args[1]
+
+if not isfile(inputfile):
+    print("E: %s does not exist" % inputfile)
+    sys.exit(1)
+
+if isfile(outputfile):
+    print("E: %s already exists" % outputfile)
+    sys.exit(1)
+
+# Regardless of anything, we need the config file in the same directory
+configfile = join(dirname(inputfile), 'config')
+if not isfile(configfile):
+    print("E: %s does not exist" % configfile)
+    sys.exit(1)
+
+config = BTIConfigFile.from_file(configfile)
+print("Config file: %s" % configfile)
+
+# List of PDF objects
+inputs = []
+# List of filenames
+input_filenames = []
+# List of run types as strings
+input_types = []
+
+# Work out which runs to import
+if op.singlefile:
+    inputs.append(BTIPDF.from_file(inputfile))
+    input_filenames.append(inputfile)
+    input_types.append('ACQ')
+    default_idx = 0
+else:
+    # Try and find the COH run files
+
+    ## Pre-acq
+    e1 = join(dirname(inputfile), 'e,rfhp1.0Hz,COH')
+    if isfile(e1):
+        inputs.append(BTIPDF.from_file(e1))
+        input_filenames.append(e1)
+        input_types.append('COH')
+
+    # Add the main run
+    inputs.append(BTIPDF.from_file(inputfile))
+    input_filenames.append(inputfile)
+    input_types.append('ACQ')
+    default_idx = len(inputs) - 1
+
+    ## Post-acq
+    e2 = join(dirname(inputfile), 'e,rfhp1.0Hz,COH1')
+    if isfile(e2):
+        # Add the pre-run file
+        inputs.append(BTIPDF.from_file(e2))
+        input_filenames.append(e2)
+        input_types.append('COH')
+
+print("Run list:")
+for r in range(len(inputs)):
+    print(" * %s (type %s)" % (input_filenames[r], input_types[r]))
+
+print("Default run index: %d" % default_idx)
+
+if op.noheadshape:
+    print("Skipping headshape file")
+    bti_hs = None
+else:
+    hsfile = join(dirname(inputfile), 'hs_file')
+    if not isfile(hsfile):
+        print("E: %s does not exist" % hsfile)
+        sys.exit(1)
+    print("Headshape file: %s" % hsfile)
+
+    bti_hs = BTIHSFile.from_file(hsfile)
+
+h5 = bti_to_meghdf_data(config, inputs, input_types, default_idx, bti_hs, op.subjectid, op.applyupb)
+
+hfile = h5py.File(outputfile, 'w')
+h5.to_hdf5(hfile, op.compress)
+hfile.close()
+
+sys.exit(0)
+
