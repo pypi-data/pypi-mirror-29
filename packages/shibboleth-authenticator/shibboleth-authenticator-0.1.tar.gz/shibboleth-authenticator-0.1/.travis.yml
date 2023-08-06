@@ -1,0 +1,115 @@
+# -*- coding: utf-8 -*-
+#
+# This file is part of the shibboleth-authenticator module for Invenio.
+# Copyright (C) 2017  Helmholtz-Zentrum Dresden-Rossendorf
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+addons:
+  postgresql: "9.4"
+  apt:
+    packages:
+      - libxml2-dev
+      - libxmlsec1-dev
+
+notifications:
+  email: false
+
+dist: trusty
+
+sudo: false
+
+services:
+  - mysql
+  - postgresql
+  - redis
+
+language: python
+
+python:
+  - "2.7"
+  - "3.5"
+
+cache:
+  - pip
+
+env:
+  - REQUIREMENTS=lowest EXTRAS=all,sqlite SQLALCHEMY_DATABASE_URI="sqlite:///test.db"
+  - REQUIREMENTS=lowest EXTRAS=all,mysql SQLALCHEMY_DATABASE_URI="mysql+pymysql://travis@localhost:3306/invenio"
+  - REQUIREMENTS=lowest EXTRAS=all,postgresql SQLALCHEMY_DATABASE_URI="postgresql+psycopg2://postgres@localhost:5432/invenio"
+  - REQUIREMENTS=release EXTRAS=all,sqlite SQLALCHEMY_DATABASE_URI="sqlite:///test.db"
+  - REQUIREMENTS=release EXTRAS=all,mysql SQLALCHEMY_DATABASE_URI="mysql+pymysql://travis@localhost:3306/invenio"
+  - REQUIREMENTS=release EXTRAS=all,postgresql SQLALCHEMY_DATABASE_URI="postgresql+psycopg2://postgres@localhost:5432/invenio"
+
+stages:
+  - test
+  - name: deploy-pypi
+    if: tag =~ ^v
+  - name: deploy-docs
+    if: tag =~ ^v
+
+before_install:
+  - "travis_retry pip install --upgrade pip setuptools py"
+  - "travis_retry pip install coveralls requirements-builder"
+  - "requirements-builder -e $EXTRAS --level=min setup.py > .travis-lowest-requirements.txt"
+  - "requirements-builder -e $EXTRAS --level=pypi setup.py > .travis-release-requirements.txt"
+  - "mysql -e 'CREATE DATABASE IF NOT EXISTS invenio;' -uroot"
+  - "mysql -e 'Grant ALL ON invenio.* TO 'travis'@'localhost';'"
+  - "psql -c 'CREATE DATABASE invenio;' -U postgres"
+
+install:
+  - "travis_retry pip install -r .travis-${REQUIREMENTS}-requirements.txt"
+  - "travis_retry pip install -e .[${EXTRAS}]"
+
+script:
+  - "sh run-tests.sh"
+
+jobs:
+  include:
+    - stage: test
+      script:
+        - "sh run-tests.sh"
+      after_success:
+        - coveralls
+    - stage: deploy-pypi
+      python: "3.5"
+      env: REQUIREMENTS=release EXTRAS=all,sqlite SQLALCHEMY_DATABASE_URI="sqlite:///test.db"
+      before_install: echo "Skipping before_install step..."
+      install: echo "Skipping install step..."
+      script: echo "Deploying to PyPI"
+      deploy:
+        - provider: pypi
+          user: "frust"
+          password:
+            secure: "OxdYuguDK4ZoVtuts1vTaFsWTwlMDMpdvmonOhxmI4OJDWyLv5KRWjO6nS8SRrGCZeaPBx1LWXO48BeRt0yeaRUnaRLVjkY8ex2sd326m3qL+O934yclLo4GkqYO2X0HBxa2O5JpCrvNgeqCIJ0cD1WVdsqg/qoevbXC7S56AkAK+5SZZcYn75aC3diSKvl5u/B3qpp2ytvvcPfVXjfcGLp1evGCzr549P8K+BEAesgL1o+9F/1pIHNUu6kKDpwFbat9P//vcBUqZvGuWi6L1/IkZtseAmr4uZcVAA5lgzJ4xmPHy0bIE05o2wk7d7dngUi9YDwa7StiqouB3u+puJnvQQuDPjwNIUEYlaMnOyZ8y2JppXioUihsksteGw96IRKuLjA1NtpuNx7mw7kyGde9sBHtHrud1tiBFkxS7dIT2BTs8Il20XIYUPrN2JeHUDtGegSNxQmOCO+x1KLrl9yGrVPsDU7cBpIhKJWnTEB3+YkoSq7dWAD80yunVmuBLJbFIXKAJmvlxzKNvzym/SjPSXObmVptK1kNCwQEg9pAq+xDF/oIAtJq+kW4rcSKf5TXLi71qTowTWvLNuUX+1vNPdwQgzQ5ffRLfMX6Rs/p1GvFz02ijbfiBH6P6pYiZJH4YMtufkirsSDosecCmRRj686w78Idgc9coUok49w="
+          distributions: "sdist bdist_wheel"
+          on:
+            tags: true
+            if: tag =~ ^v
+    - stage: deploy-docs
+      python: "3.5"
+      env: REQUIREMENTS=release EXTRAS=all,sqlite SQLALCHEMY_DATABASE_URI="sqlite:///test.db"
+      script: sphinx-build -qnNW docs/source docs/build/html
+      before_deploy:
+        - "touch docs/build/html/.nojekyll"
+      deploy:
+          provider: pages
+          skip_cleanup: true
+          github_token: $GITHUB_TOKEN
+          # only deploy one build out of the test matrix to gh-pages
+          on:
+            tags: true
+            if: tag =~ ^v
+          local_dir: "docs/build/html"
+          target_branch: gh-pages
