@@ -3,36 +3,10 @@
 This repo contains 40000 packages uploaded to PyPI between 
 2018-02-09 22:20 and 2018-03-15 14:57.
 
-The repo is 54% (21996/40000) complete.
+The repo is 59% (23996/40000) complete.
 
-## Packages:
+Package contents can be found [in the code branch](https://github.com/pypi-data/pypi-mirror-29/tree/code/packages).
 
-| Name  | Count |
-| ----- | ----- |
-| ufload | 166 |
-| frida | 144 |
-| aiohttp | 141 |
-| uforge-python-sdk | 105 |
-| gecosistema_lite | 100 |
-| uforgecli | 96 |
-| conan_sword_and_sorcery | 90 |
-| ServeIt | 82 |
-| PyGLM | 80 |
-| duckietown-swarm | 78 |
-| pch2csd | 76 |
-| grpcio-tools | 73 |
-| parallel-ssh | 72 |
-| pyramid-oereb | 68 |
-| c2cgeoform | 68 |
-| tb-nightly | 66 |
-| scopus.wp | 64 |
-| requests-html | 64 |
-| elib | 60 |
-| olm | 57 |
-| vaisdemo | 54 |
-| amplpy | 54 |
-| autoweb | 53 |
-| asn1tools | 52 |
-| ez | 51 |
+A browsable package list for all repositories [all packages here](https://pypi-data.github.io/website/repositories/pypi-mirror-29).
 
 
