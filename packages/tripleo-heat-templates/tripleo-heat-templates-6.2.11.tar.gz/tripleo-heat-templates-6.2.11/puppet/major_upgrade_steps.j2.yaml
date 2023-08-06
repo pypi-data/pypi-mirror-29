@@ -1,0 +1,234 @@
+{% set enabled_roles = roles|rejectattr('disable_upgrade_deployment')|list -%}
+{% set batch_upgrade_steps_max = 3 -%}
+{% set upgrade_steps_max = 6 -%}
+{% set deliver_script = {'deliver': False} -%}
+heat_template_version: ocata
+description: 'Upgrade steps for all roles'
+
+parameters:
+  servers:
+    type: json
+
+  role_data:
+    type: json
+    description: Mapping of Role name e.g Controller to the per-role data
+
+  UpdateIdentifier:
+    type: string
+    description: >
+      Setting to a previously unused value during stack-update will trigger
+      the Upgrade resources to re-run on all roles.
+  EndpointMap:
+    default: {}
+    description: Mapping of service endpoint -> protocol. Typically set
+                 via parameter_defaults in the resource registry.
+    type: json
+  KeystoneRegion:
+    type: string
+    default: 'regionOne'
+    description: Keystone region for endpoint
+  NovaPassword:
+    description: The password for the nova service and db account, used by nova-api.
+    type: string
+    hidden: true
+
+
+resources:
+
+{% for role in roles if role.disable_upgrade_deployment|default(false) %}
+  {{role.name}}DeliverUpgradeScriptConfig:
+    type: OS::Heat::SoftwareConfig
+    properties:
+      group: script
+      config:
+        list_join:
+        - ''
+        - - "#!/bin/bash\n\n"
+          - "set -eu\n\n"
+          - "if hiera -c /etc/puppet/hiera.yaml service_names | grep nova_compute ; then\n\n"
+          - "  crudini --set /etc/nova/nova.conf placement auth_type password\n\n"
+          - "  crudini --set /etc/nova/nova.conf placement username placement\n\n"
+          - "  crudini --set /etc/nova/nova.conf placement project_domain_name Default\n\n"
+          - "  crudini --set /etc/nova/nova.conf placement user_domain_name Default\n\n"
+          - "  crudini --set /etc/nova/nova.conf placement project_name service\n\n"
+          - "  crudini --set /etc/nova/nova.conf placement os_interface internal\n\n"
+          - str_replace:
+              template: |
+                crudini --set /etc/nova/nova.conf placement password 'SERVICE_PASSWORD'
+                crudini --set /etc/nova/nova.conf placement os_region_name 'REGION_NAME'
+                crudini --set /etc/nova/nova.conf placement auth_url 'AUTH_URL'
+              params:
+                SERVICE_PASSWORD: { get_param: NovaPassword }
+                REGION_NAME: { get_param: KeystoneRegion }
+                AUTH_URL: { get_param: [EndpointMap, KeystoneAdmin, uri_no_suffix]}
+          - "  systemctl restart openstack-nova-compute\n\n"
+          - "fi\n\n"
+          - str_replace:
+              template: |
+                ROLE='ROLE_NAME'
+              params:
+                ROLE_NAME: {{role.name}}
+          - get_file: ../extraconfig/tasks/pacemaker_common_functions.sh
+          - get_file: ../extraconfig/tasks/run_puppet.sh
+          - get_file: ../extraconfig/tasks/tripleo_upgrade_node.sh
+
+  {{role.name}}DeliverUpgradeScriptDeployment:
+    type: OS::Heat::SoftwareDeploymentGroup
+    properties:
+      servers:  {get_param: [servers, {{role.name}}]}
+      config: {get_resource: {{role.name}}DeliverUpgradeScriptConfig}
+{% endfor %}
+
+# Upgrade Steps for all roles, batched updates
+# The UpgradeConfig resources could actually be created without
+# serialization, but the event output is easier to follow if we
+# do, and there should be minimal performance hit (creating the
+# config is cheap compared to the time to apply the deployment).
+{% for step in range(0, batch_upgrade_steps_max) %}
+  # Batch config resources step {{step}}
+  {%- for role in roles %}
+  {{role.name}}UpgradeBatchConfig_Step{{step}}:
+    type: OS::TripleO::UpgradeConfig
+  {%- if step > 0 %}
+    {%- if role in enabled_roles %}
+    depends_on:
+      - {{role.name}}UpgradeBatch_Step{{step -1}}
+    {%- endif %}
+  {%- else %}
+    {% for role in roles if role.disable_upgrade_deployment|default(false) %}
+      {% if deliver_script.update({'deliver': True}) %} {% endif %}
+    {% endfor %}
+    {% if deliver_script.deliver %}
+    depends_on:
+    {% endif %}
+      {% for dep in roles if dep.disable_upgrade_deployment|default(false) %}
+      - {{dep.name}}DeliverUpgradeScriptDeployment
+      {% endfor %}
+  {% endif %}
+    properties:
+      UpgradeStepConfig: {get_param: [role_data, {{role.name}}, upgrade_batch_tasks]}
+      step: {{step}}
+  {%- endfor %}
+
+  # Batch deployment resources for step {{step}} (only for enabled roles)
+  {%- for role in enabled_roles %}
+  {{role.name}}UpgradeBatch_Step{{step}}:
+    type: OS::Heat::SoftwareDeploymentGroup
+    {%- if step > 0 %}
+    depends_on:
+      {%- for role_inside in enabled_roles %}
+      - {{role_inside.name}}UpgradeBatch_Step{{step -1}}
+      {%- endfor %}
+    {%- endif %}
+    update_policy:
+      batch_create:
+        max_batch_size: {{role.upgrade_batch_size|default(1)}}
+      rolling_update:
+        max_batch_size: {{role.upgrade_batch_size|default(1)}}
+    properties:
+      name: {{role.name}}UpgradeBatch_Step{{step}}
+      servers: {get_param: [servers, {{role.name}}]}
+      config: {get_resource: {{role.name}}UpgradeBatchConfig_Step{{step}}}
+      input_values:
+        role: {{role.name}}
+        update_identifier: {get_param: UpdateIdentifier}
+  {%- endfor %}
+{%- endfor %}
+
+# Dump the puppet manifests to be apply later when disable_upgrade_deployment
+# is to true
+{% for role in roles  if role.disable_upgrade_deployment|default(false) %}
+  {{role.name}}DeliverPuppetConfig:
+    type: OS::Heat::SoftwareConfig
+    properties:
+      group: script
+      config:
+        list_join:
+        - ''
+        - - str_replace:
+              template: |
+                #!/bin/bash
+                cat > /root/{{role.name}}_puppet_config.pp << ENDOFCAT
+                PUPPET_CLASSES
+                ENDOFCAT
+              params:
+                PUPPET_CLASSES: {get_param: [role_data, {{role.name}}, step_config]}
+
+  {{role.name}}DeliverPuppetDeployment:
+    type: OS::Heat::SoftwareDeploymentGroup
+    properties:
+      servers:  {get_param: [servers, {{role.name}}]}
+      config: {get_resource: {{role.name}}DeliverPuppetConfig}
+{% endfor %}
+
+# Upgrade Steps for all roles
+{%- for step in range(0, upgrade_steps_max) %}
+  # Config resources for step {{step}}
+  {%- for role in roles %}
+  {{role.name}}UpgradeConfig_Step{{step}}:
+    type: OS::TripleO::UpgradeConfig
+  # The UpgradeConfig resources could actually be created without
+  # serialization, but the event output is easier to follow if we
+  # do, and there should be minimal performance hit (creating the
+  # config is cheap compared to the time to apply the deployment).
+  {%- if step > 0 %}
+    {%- if role in enabled_roles %}
+    depends_on:
+      - {{role.name}}Upgrade_Step{{step -1}}
+    {%- endif %}
+  {%- endif %}
+    properties:
+      UpgradeStepConfig: {get_param: [role_data, {{role.name}}, upgrade_tasks]}
+      step: {{step}}
+  {%- endfor %}
+
+  # Deployment resources for step {{step}} (only for enabled roles)
+  {%- for role in enabled_roles %}
+  {{role.name}}Upgrade_Step{{step}}:
+    type: OS::Heat::SoftwareDeploymentGroup
+    {%- if step > 0 %}
+    # Make sure we wait that all roles have finished their own
+    # previous step before going to the next, so we can guarantee
+    # state for each steps.
+    depends_on:
+      {%- for role_inside in enabled_roles %}
+      - {{role_inside.name}}Upgrade_Step{{step -1}}
+      {%- endfor %}
+    {%- else %}
+    depends_on:
+      {%- for role_inside in enabled_roles %}
+      - {{role_inside.name}}UpgradeBatch_Step{{batch_upgrade_steps_max -1}}
+      {%- endfor %}
+    {%- endif %}
+    properties:
+      name: {{role.name}}Upgrade_Step{{step}}
+      servers: {get_param: [servers, {{role.name}}]}
+      config: {get_resource: {{role.name}}UpgradeConfig_Step{{step}}}
+      input_values:
+        role: {{role.name}}
+        update_identifier: {get_param: UpdateIdentifier}
+  {%- endfor %}
+{%- endfor %}
+
+  # Post upgrade deployment steps for all roles
+  # This runs the normal configuration (e.g puppet) steps unless upgrade
+  # is disabled for the role
+  AllNodesPostUpgradeSteps:
+    type: OS::TripleO::PostUpgradeSteps
+    depends_on:
+{%- for dep in enabled_roles %}
+      - {{dep.name}}Upgrade_Step{{upgrade_steps_max - 1}}
+{%- endfor %}
+    properties:
+      servers: {get_param: servers}
+      role_data: {get_param: role_data}
+
+outputs:
+  # Output the config for each role, just use Step1 as the config should be
+  # the same for all steps (only the tag provided differs)
+  upgrade_configs:
+    description: The per-role upgrade configuration used
+    value:
+{% for role in roles %}
+      {{role.name.lower()}}: {get_attr: [{{role.name}}UpgradeConfig_Step1, upgrade_config]}
+{% endfor %}

@@ -1,0 +1,111 @@
+heat_template_version: ocata
+
+description: >
+  OpenStack Panko API service configured with Puppet
+
+parameters:
+  ServiceNetMap:
+    default: {}
+    description: Mapping of service_name -> network name. Typically set
+                 via parameter_defaults in the resource registry.  This
+                 mapping overrides those in ServiceNetMapDefaults.
+    type: json
+  DefaultPasswords:
+    default: {}
+    type: json
+  EndpointMap:
+    default: {}
+    description: Mapping of service endpoint -> protocol. Typically set
+                 via parameter_defaults in the resource registry.
+    type: json
+  MonitoringSubscriptionPankoApi:
+    default: 'overcloud-ceilometer-panko-api'
+    type: string
+  EnableInternalTLS:
+    type: boolean
+    default: false
+
+resources:
+  PankoBase:
+    type: ./panko-base.yaml
+    properties:
+      ServiceNetMap: {get_param: ServiceNetMap}
+      DefaultPasswords: {get_param: DefaultPasswords}
+      EndpointMap: {get_param: EndpointMap}
+
+  ApacheServiceBase:
+    type: ./apache.yaml
+    properties:
+      ServiceNetMap: {get_param: ServiceNetMap}
+      DefaultPasswords: {get_param: DefaultPasswords}
+      EndpointMap: {get_param: EndpointMap}
+      EnableInternalTLS: {get_param: EnableInternalTLS}
+
+outputs:
+  role_data:
+    description: Role data for the Panko API service.
+    value:
+      service_name: panko_api
+      monitoring_subscription: {get_param: MonitoringSubscriptionPankoApi}
+      config_settings:
+        map_merge:
+          - get_attr: [PankoBase, role_data, config_settings]
+          - get_attr: [ApacheServiceBase, role_data, config_settings]
+          - panko::wsgi::apache::ssl: {get_param: EnableInternalTLS}
+            panko::wsgi::apache::servername:
+              str_replace:
+                template:
+                  "%{hiera('fqdn_$NETWORK')}"
+                params:
+                  $NETWORK: {get_param: [ServiceNetMap, PankoApiNetwork]}
+            panko::api::service_name: 'httpd'
+            panko::api::enable_proxy_headers_parsing: true
+            tripleo.panko_api.firewall_rules:
+              '140 panko-api':
+                dport:
+                  - 8779
+                  - 13779
+            panko::api::host:
+              str_replace:
+                template:
+                  "%{hiera('fqdn_$NETWORK')}"
+                params:
+                  $NETWORK: {get_param: [ServiceNetMap, PankoApiNetwork]}
+            # NOTE: bind IP is found in Heat replacing the network name with the
+            # local node IP for the given network; replacement examples
+            # (eg. for internal_api):
+            # internal_api -> IP
+            # internal_api_uri -> [IP]
+            # internal_api_subnet - > IP/CIDR
+            panko::wsgi::apache::bind_host: {get_param: [ServiceNetMap, PankoApiNetwork]}
+      service_config_settings:
+        get_attr: [PankoBase, role_data, service_config_settings]
+      step_config: |
+        include tripleo::profile::base::panko::api
+      metadata_settings:
+        get_attr: [ApacheServiceBase, role_data, metadata_settings]
+      upgrade_tasks:
+        yaql:
+          expression: $.data.apache_upgrade + $.data.panko_api_upgrade
+          data:
+            apache_upgrade:
+              get_attr: [ApacheServiceBase, role_data, upgrade_tasks]
+            panko_api_upgrade:
+              - name: Check if httpd is deployed
+                command: systemctl is-enabled httpd
+                tags: common
+                ignore_errors: True
+                register: httpd_enabled
+              - name: "PreUpgrade step0,validation: Check if httpd is running"
+                shell: >
+                  /usr/bin/systemctl show 'httpd' --property ActiveState |
+                  grep '\bactive\b'
+                when: httpd_enabled.rc == 0
+                tags: step0,validation
+              - name: Stop panko-api service (running under httpd)
+                tags: step1
+                service: name=httpd state=stopped
+                when: httpd_enabled.rc == 0
+              - name: Install openstack-panko-api package if it was not installed
+                tags: step3
+                yum: name=openstack-panko-api state=latest

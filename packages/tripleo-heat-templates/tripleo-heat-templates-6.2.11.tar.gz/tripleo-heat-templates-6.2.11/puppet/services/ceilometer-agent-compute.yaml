@@ -1,0 +1,64 @@
+heat_template_version: ocata
+
+description: >
+  OpenStack Ceilometer Compute Agent service configured with Puppet
+
+parameters:
+  ServiceNetMap:
+    default: {}
+    description: Mapping of service_name -> network name. Typically set
+                 via parameter_defaults in the resource registry.  This
+                 mapping overrides those in ServiceNetMapDefaults.
+    type: json
+  DefaultPasswords:
+    default: {}
+    type: json
+  EndpointMap:
+    default: {}
+    description: Mapping of service endpoint -> protocol. Typically set
+                 via parameter_defaults in the resource registry.
+    type: json
+  MonitoringSubscriptionCeilometerCompute:
+    default: 'overcloud-ceilometer-agent-compute'
+    type: string
+  InstanceDiscoveryMethod:
+    default: 'libvirt_metadata'
+    description: Method used to discover instances running on compute node
+    type: string
+    constraints:
+    - allowed_values: ['naive', 'libvirt_metadata', 'workload_partitioning']
+
+resources:
+  CeilometerServiceBase:
+    type: ./ceilometer-base.yaml
+    properties:
+      ServiceNetMap: {get_param: ServiceNetMap}
+      DefaultPasswords: {get_param: DefaultPasswords}
+      EndpointMap: {get_param: EndpointMap}
+
+outputs:
+  role_data:
+    description: Role data for the Ceilometer Compute Agent role.
+    value:
+      service_name: ceilometer_agent_compute
+      monitoring_subscription: {get_param: MonitoringSubscriptionCeilometerCompute}
+      config_settings:
+        map_merge:
+          - get_attr: [CeilometerServiceBase, role_data, config_settings]
+          - ceilometer::agent::compute::instance_discovery_method: {get_param: InstanceDiscoveryMethod}
+      step_config: |
+        include ::tripleo::profile::base::ceilometer::agent::compute
+      upgrade_tasks:
+        - name: Check if ceilometer_agent_compute is deployed
+          command: systemctl is-enabled openstack-ceilometer-compute
+          tags: common
+          ignore_errors: True
+          register: ceilometer_agent_compute_enabled
+        - name: "PreUpgrade step0,validation: Check service openstack-ceilometer-compute is running"
+          shell: /usr/bin/systemctl show 'openstack-ceilometer-compute' --property ActiveState | grep '\bactive\b'
+          when: ceilometer_agent_compute_enabled.rc == 0
+          tags: step0,validation
+        - name: Stop ceilometer_agent_compute service
+          tags: step1
+          when: ceilometer_agent_compute_enabled.rc == 0
+          service: name=openstack-ceilometer-compute state=stopped

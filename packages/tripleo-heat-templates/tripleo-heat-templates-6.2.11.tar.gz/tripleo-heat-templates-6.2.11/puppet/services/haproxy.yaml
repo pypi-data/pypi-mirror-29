@@ -1,0 +1,103 @@
+heat_template_version: ocata
+
+description: >
+  HAproxy service configured with Puppet
+
+parameters:
+  ServiceNetMap:
+    default: {}
+    description: Mapping of service_name -> network name. Typically set
+                 via parameter_defaults in the resource registry.  This
+                 mapping overrides those in ServiceNetMapDefaults.
+    type: json
+  DefaultPasswords:
+    default: {}
+    type: json
+  EndpointMap:
+    default: {}
+    description: Mapping of service endpoint -> protocol. Typically set
+                 via parameter_defaults in the resource registry.
+    type: json
+  HAProxyStatsPassword:
+    description: Password for HAProxy stats endpoint
+    hidden: true
+    type: string
+  HAProxyStatsUser:
+    description: User for HAProxy stats endpoint
+    default: admin
+    type: string
+  HAProxySyslogAddress:
+    default: /dev/log
+    description: Syslog address where HAproxy will send its log
+    type: string
+  RedisPassword:
+    description: The password for Redis
+    type: string
+    hidden: true
+  MonitoringSubscriptionHaproxy:
+    default: 'overcloud-haproxy'
+    type: string
+
+resources:
+
+  HAProxyPublicTLS:
+    type: OS::TripleO::Services::HAProxyPublicTLS
+    properties:
+      ServiceNetMap: {get_param: ServiceNetMap}
+      DefaultPasswords: {get_param: DefaultPasswords}
+      EndpointMap: {get_param: EndpointMap}
+
+  HAProxyInternalTLS:
+    type: OS::TripleO::Services::HAProxyInternalTLS
+    properties:
+      ServiceNetMap: {get_param: ServiceNetMap}
+      DefaultPasswords: {get_param: DefaultPasswords}
+      EndpointMap: {get_param: EndpointMap}
+
+outputs:
+  role_data:
+    description: Role data for the HAproxy role.
+    value:
+      service_name: haproxy
+      monitoring_subscription: {get_param: MonitoringSubscriptionHaproxy}
+      config_settings:
+        map_merge:
+          - get_attr: [HAProxyPublicTLS, role_data, config_settings]
+          - get_attr: [HAProxyInternalTLS, role_data, config_settings]
+          - tripleo.haproxy.firewall_rules:
+              '107 haproxy stats':
+                dport: 1993
+            tripleo::haproxy::haproxy_log_address: {get_param: HAProxySyslogAddress}
+            tripleo::haproxy::haproxy_stats_user: {get_param: HAProxyStatsUser}
+            tripleo::haproxy::haproxy_stats_password: {get_param: HAProxyStatsPassword}
+            tripleo::haproxy::redis_password: {get_param: RedisPassword}
+            tripleo::profile::base::haproxy::certificates_specs:
+              map_merge:
+                - get_attr: [HAProxyPublicTLS, role_data, certificates_specs]
+                - get_attr: [HAProxyInternalTLS, role_data, certificates_specs]
+      step_config: |
+        include ::tripleo::profile::base::haproxy
+      upgrade_tasks:
+        - name: Check if haproxy is deployed
+          command: systemctl is-enabled haproxy
+          tags: common
+          ignore_errors: True
+          register: haproxy_enabled
+        - name: "PreUpgrade step0,validation: Check service haproxy is running"
+          shell: /usr/bin/systemctl show 'haproxy' --property ActiveState | grep '\bactive\b'
+          when: haproxy_enabled.rc == 0
+          tags: step0,validation
+        - name: Stop haproxy service
+          tags: step2
+          when: haproxy_enabled.rc == 0
+          service: name=haproxy state=stopped
+        - name: Start haproxy service
+          tags: step4 # Needed at step 4 for mysql
+          when: haproxy_enabled.rc == 0
+          service: name=haproxy state=started
+      metadata_settings:
+        yaql:
+          expression: '[].concat(coalesce($.data.internal, []), coalesce($.data.public, []))'
+          data:
+            public: {get_attr: [HAProxyPublicTLS, role_data, metadata_settings]}
+            internal: {get_attr: [HAProxyInternalTLS, role_data, metadata_settings]}

@@ -1,0 +1,82 @@
+heat_template_version: ocata
+
+description: >
+  OpenStack Libvirt Service
+
+parameters:
+  DockerNamespace:
+    description: namespace
+    default: 'tripleoupstream'
+    type: string
+  DockerLibvirtImage:
+    description: image
+    default: 'centos-binary-libvirt'
+    type: string
+  ServiceNetMap:
+    default: {}
+    description: Mapping of service_name -> network name. Typically set
+                 via parameter_defaults in the resource registry.  This
+                 mapping overrides those in ServiceNetMapDefaults.
+    type: json
+  DefaultPasswords:
+    default: {}
+    type: json
+  EndpointMap:
+    default: {}
+    description: Mapping of service endpoint -> protocol. Typically set
+                 via parameter_defaults in the resource registry.
+    type: json
+
+resources:
+
+  NovaLibvirtBase:
+    type: ../../puppet/services/nova-libvirt.yaml
+    properties:
+      EndpointMap: {get_param: EndpointMap}
+
+outputs:
+  role_data:
+    description: Role data for the Libvirt service.
+    value:
+      config_settings: {get_attr: [NovaLibvirtBase, role_data, config_settings]}
+      step_config: {get_attr: [NovaLibvirtBase, role_data, step_config]}
+      puppet_tags: nova_config
+      kolla_config:
+        /var/lib/etc-data/json-config/nova-libvirt.json:
+           command: /usr/sbin/libvirtd --config /etc/libvirt/libvirtd.conf
+           config_files:
+           - dest: /etc/libvirt/libvirtd.conf
+             owner: root
+             perm: '0644'
+             source: /var/lib/kolla/config_files/libvirtd.conf
+      docker_config:
+        step_1:
+          nova_libvirt:
+            image:
+              list_join:
+                - '/'
+                - [ {get_param: DockerNamespace}, {get_param: DockerLibvirtImage} ]
+            net: host
+            pid: host
+            privileged: true
+            restart: always
+            volumes:
+              - /var/lib/etc-data/json-config/nova-libvirt.json:/var/lib/kolla/config_files/config.json
+              - /var/lib/etc-data/libvirt/libvirtd.conf:/var/lib/kolla/config_files/libvirtd.conf
+              # NOTE(mandre) Ideally the qemu.conf file is mounted in
+              # /var/lib/kolla/config_files and copied to the right place but
+              # copy-json.py doesn't allow us to do that without appending the
+              # file as an additional config on the CLI
+              - /var/lib/etc-data/libvirt/qemu.conf:/etc/libvirt/qemu.conf:ro
+              - /etc/localtime:/etc/localtime:ro
+              - /lib/modules:/lib/modules:ro
+              - /run:/run
+              - /dev:/dev
+              - /sys/fs/cgroup:/sys/fs/cgroup
+              - logs:/var/log/kolla/
+              - libvirtd:/var/lib/libvirt
+              - nova_compute:/var/lib/nova/
+              - nova_libvirt_qemu:/etc/libvirt/qemu
+            environment:
+              - KOLLA_CONFIG_STRATEGY=COPY_ALWAYS
+        step_2: {}
