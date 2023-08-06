@@ -1,0 +1,44 @@
+# -*- coding: utf-8 -*-
+# :Project:   PatchDB -- I18n related targets
+# :Created:   gio 17 nov 2016 17:30:29 CET
+# :Author:    Lele Gaifax <lele@metapensiero.it>
+# :License:   GNU General Public License version 3 or later
+# :Copyright: © 2016, 2017 Lele Gaifax
+#
+
+PROJECT := metapensiero.sphinx.patchdb
+PYBABEL := pybabel
+POBUGSADDR := lele@metapensiero.it
+POCOPYRIGHT := "Lele Gaifax"
+PBEXTRACT = $(PYBABEL) extract --project=$(PROJECT) \
+			       --version=$(VERSION) \
+			       --add-comments=TRANSLATORS: \
+			       --msgid-bugs-address=$(POBUGSADDR) \
+			       --copyright-holder=$(POCOPYRIGHT) \
+			       --sort-output
+SRC := src/$(subst .,/,$(PROJECT))
+LOCALEDIR := $(SRC)/locale
+PBUPDATE := $(PYBABEL) update --output-dir $(LOCALEDIR) --previous
+PBCOMPILE := $(PYBABEL) compile --directory $(LOCALEDIR) --statistics
+PBINIT := $(PYBABEL) init --output-dir $(LOCALEDIR)
+PBDB_DOMAIN := $(subst .,-,$(PROJECT))
+PBDB_MAP := $(LOCALEDIR)/mapping.cfg
+PBDB_POT := $(LOCALEDIR)/$(PBDB_DOMAIN).pot
+PBDB_POs := $(wildcard $(LOCALEDIR)/*/LC_MESSAGES/*.po)
+PBDB_MOs := $(patsubst %.po,%.mo,$(PBDB_POs))
+
+.PHONY: update-catalogs
+update-catalogs:
+	$(PBEXTRACT) --mapping $(PBDB_MAP) --output $(PBDB_POT) $(SRC)
+	$(PBUPDATE) --domain $(PBDB_DOMAIN) --input-file $(PBDB_POT)
+
+%.mo: %.po
+	$(PBCOMPILE) --domain $(PBDB_DOMAIN)
+
+.PHONY: compile-catalogs
+compile-catalogs: $(PBDB_MOs)
+
+.PHONY: init-catalog-%
+init-catalog-%:
+	$(PBINIT) --locale $(@:init-catalog-%=%) --domain $(PBDB_DOMAIN) \
+		  --input-file $(LOCALEDIR)/$(PBDB_DOMAIN).pot
