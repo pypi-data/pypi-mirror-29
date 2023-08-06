@@ -1,0 +1,18 @@
+/*!
+  * Copyright 2017,  Digital Reasoning
+  * 
+  * Licensed under the Apache License, Version 2.0 (the "License");
+  * you may not use this file except in compliance with the License.
+  * You may obtain a copy of the License at
+  * 
+  *     http://www.apache.org/licenses/LICENSE-2.0
+  * 
+  * Unless required by applicable law or agreed to in writing, software
+  * distributed under the License is distributed on an "AS IS" BASIS,
+  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  * See the License for the specific language governing permissions and
+  * limitations under the License.
+  * 
+*/
+
+define(["jquery","knockout","bloodhound","bootbox","utils/class","utils/utils","typeahead"],function(s,r,e,i,o,a){"use strict";return o.extend({breadcrumbs:[],permsUrl:null,saveUrl:null,availableUserPermissions:r.observableArray([]),availableGroupPermissions:r.observableArray([]),userPermissions:r.observableArray([]),groupPermissions:r.observableArray([]),init:function(){this.users=this.getBloodhound("user",this.userPermissions),this.groups=this.getBloodhound("group",this.groupPermissions),this.createTypeahead("user",this.userPermissions,this.availableUserPermissions),this.createTypeahead("group",this.groupPermissions,this.availableGroupPermissions),this.loadPermissions()},getBloodhound:function(s,r){var i;switch(s){case"user":i="username";break;case"group":i="name"}return new e({datumTokenizer:e.tokenizers.whitespace,queryTokenizer:e.tokenizers.whitespace,remote:{url:"/api/"+s+"s/?"+i+"=%QUERY",wildcard:"%QUERY",transform:function(e){var o=[],a=r().map(function(r){return r[s]});return e.results.forEach(function(s){a.indexOf(s[i])<0&&o.push(s)}),o}}})},createTypeahead:function(e,i,o){var a,n=s("#add-"+e+" .typeahead");switch(e){case"user":a="username";break;case"group":a="name"}n.typeahead({highlight:!0},{name:e+"s",display:a,source:this[e+"s"]}),n.bind("typeahead:select",function(s,t){var u=[];o().forEach(function(s){u[s]=r.observable(!1)});var l={permissions:u};l[e]=t[a],i.push(l),n.typeahead("val",null)})},transformPermissions:function(s){var e=this[s+"Permissions"],i=this["available"+s.capitalize()+"Permissions"];return function(s){s.results.forEach(function(e){var i={};s.available_permissions.forEach(function(s){i[s]=r.observable(!1)}),e.permissions.forEach(function(s){i[s](!0)}),e.permissions=i}),e(s.results),i(s.available_permissions)}},savePermissions:function(r,e,i){var o=this,n=[],t=[];return e.forEach(function(e){var o=[];i.forEach(function(s){e.permissions[s]()&&o.push(s)});var a={permissions:o};a[r]=e[r],e.hasOwnProperty("url")?t.push(a):n.push(s.ajax({method:"POST",url:this.permsUrl+r+"s/",data:JSON.stringify(a)}))},this),s.when.apply(this,n).done(function(){return s.ajax({method:"PUT",url:o.permsUrl+r+"s/",data:JSON.stringify(t)}).done(function(s){a.growlAlert("Successfully saved "+r+" permissions!","success"),o.loadPermissions()}).fail(function(s){a.alertError(s,"Error saving permissions")})}).fail(function(s){a.alertError(s,"Error saving permissions")})},loadPermissions:function(){s.ajax({method:"GET",url:this.permsUrl+"users/"}).done(this.transformPermissions("user")).fail(function(s){a.alertError(s,"Error fetching permissions")}),s.ajax({method:"GET",url:this.permsUrl+"groups/"}).done(this.transformPermissions("group")).fail(function(s){a.alertError(s,"Error fetching permissions")})},userSave:function(){this.savePermissions("user",this.userPermissions(),this.availableUserPermissions())},groupSave:function(){this.savePermissions("group",this.groupPermissions(),this.availableGroupPermissions())}})});
