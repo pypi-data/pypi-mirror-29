@@ -1,0 +1,202 @@
+#!/usr/bin/env python
+from __future__ import print_function
+
+import sys
+import os
+import json
+import datetime
+
+from colorama import Fore, Back, Style
+from terminaltables import AsciiTable
+
+from odie import Odie
+
+
+
+if __name__ == "__main__":
+
+    import optparse
+
+    item_name = ""
+    parser = optparse.OptionParser()
+    parser.add_option('-g', '--global_item', help='Edit global item')
+    parser.add_option('-k', '--config_item', help='Edit config item')
+    parser.add_option('-o', '--object_item', help='Edit object item ')
+    parser.add_option('-r', '--role_item', help='Edit role item ')
+    parser.add_option('-c', '--copy_item', help='Copy into (Ex. odie -o src -c dest)')
+    parser.add_option('-e', '--restore_item', action="store", help='restore role or object')
+    parser.add_option('-j', '--json', action="store_true", help='Edit raw JSON')
+    parser.add_option('-d', '--dump_item', action="store_true", help='Dump an item')
+    parser.add_option('-l', '--list_item', action="store_true", help='List objects in a role')
+    parser.add_option('-x', '--delete_item', action="store_true", help='Delete a role or object')
+    parser.add_option('-i', '--list_revisions', action="store_true", help='List role or object revisions')
+    parser.add_option('-a', '--raw', action="store_true", help='Output lists without colors or formatting')
+
+    (opts, args) = parser.parse_args()
+
+    try:
+        odie_host = os.environ['ODIE_HOST']
+        odie_username = os.environ['ODIE_USER']
+        odie_password = os.environ['ODIE_PASSWORD']
+        odie_stage = os.environ['ODIE_STAGE']
+    except:
+        print("Please set ODIE_HOST, ODIE_USER, ODIE_PASSWORD, and ODIE_STAGE")
+        print(Fore.BLUE+"export ODIE_HOST=https://odie.domain.com")
+        print(Fore.BLUE+"export ODIE_USER=user")
+        print(Fore.BLUE+"export ODIE_PASSWORD=password")
+        print(Fore.BLUE+'export ODIE_STAGE=dev')
+        print(Style.RESET_ALL, end='')
+        sys.exit(1)
+
+    if opts.global_item is None and opts.object_item is None and opts.role_item is None and opts.config_item is None and opts.delete_item is None and opts.list_revisions is None and opts.restore_item is None:
+        parser.print_help()
+        sys.exit(1)
+
+    if opts.global_item:
+        table = 'global'
+        item_name = opts.global_item
+
+    if opts.object_item:
+        table = 'object'
+        item_name = opts.object_item
+
+    if opts.role_item:
+        table = 'role'
+        item_name = opts.role_item
+
+    if opts.config_item:
+        table = 'config'
+        item_name = opts.config_item
+
+    if odie_stage == 'prod':
+        odie_host = odie_host + '/odie'
+    elif odie_stage == 'dev':
+        odie_host = odie_host + '/odie-dev'
+    elif odie_stage == 'stg':
+        odie_host = odie_host + '/odie-stg'
+
+    x = Odie(base_url=odie_host, username=odie_username, password=odie_password)
+
+    # edit stuff
+    if opts.copy_item is None and opts.dump_item is None and opts.list_item is None and opts.delete_item is None and opts.restore_item is None and opts.list_revisions is None:
+        # Get the object in YAML format
+        if opts.json is None:
+            data = x.dump_yaml(raw_data=x.get_object(table=table, name=item_name))
+        else:
+            data = json.dumps(x.get_object(table=table, name=item_name), indent=1)
+
+        edit_data = x.editor(raw_data=data.rstrip())
+
+        if opts.json is None:
+            try:
+                raw_data = x.convert_yaml(yaml_data=edit_data)
+            except Exception, e:
+                print(e)
+                print(x.convert_error(raw_data=edit_data))
+                sys.exit(1)
+        else:
+            raw_data = json.loads(edit_data)
+
+        # wow this is hacky
+        if opts.json is None:
+            if cmp(x.convert_yaml(yaml_data=data), raw_data):
+                status = x.put_object(table=table, name=item_name, data=raw_data)
+            else:
+                print("No changes made")
+                sys.exit(0)
+        else:
+            if cmp(json.loads(data), raw_data):
+                status = x.put_object(table=table, name=item_name, data=raw_data)
+            else:
+                print("No changes made")
+                sys.exit(0)
+
+        if status is not True:
+            print(x.convert_error(raw_data=raw_data))
+            sys.exit(1)
+
+    if opts.copy_item:
+        dest_item = opts.copy_item
+        ret = x.copy_object(source_object=item_name, dest_object=dest_item, table=table)
+	if ret is True:
+	    print("copy Success")
+	else:
+	    print("copy failed")
+
+    if opts.dump_item:
+        if item_name == 'all':
+            yaml_data = x.list_object(table=table)
+            item_list = []
+            for i in yaml_data:
+                # Dot record?
+                if i['_id'] != unicode('.'):
+                    item_list.append([i['_id']])
+            # Sort for easier listing
+            item_list.sort()
+            # If raw is set, just output doc _id's
+            if opts.raw == True:
+                for i in item_list:
+                    print(i[0])
+                sys.exit(0)
+            else:
+                item_list.insert(0, ['Table: {}'.format(table)])
+                table = AsciiTable(item_list)
+                print(Fore.GREEN + table.table)
+                print(Style.RESET_ALL, end='')
+        else:
+            yaml_data = x.dump_yaml(raw_data=x.get_object(table=table, name=item_name))
+            print(yaml_data[0:-1])
+
+
+    if opts.list_item:
+        if opts.raw == True:
+            yaml_data = x.dump_list(raw_data=x.list_object_role(role=item_name))
+            print(yaml_data[0:-1])
+        else:
+            item_list = []
+            role_members = x.list_object_role(role=item_name)
+            for i in role_members:
+                item_list.append([i['_id']])
+            item_list.insert(0, ['Objects in role: {}'.format(item_name)])
+            table = AsciiTable(item_list)
+            print(Fore.GREEN + table.table)
+            print(Style.RESET_ALL, end='')
+        sys.exit(0)
+
+
+    if opts.delete_item:
+    	if item_name == "" or table is None:
+    		raise Exception("please provide a role or object name")
+    	else:
+    		if table == 'object' or table == 'role':
+    			ret = x.delete_odie_record(override_confirmation=False, table=table,name=item_name)
+
+    			if ret is True:
+    				print(("%s item, %s has been deleted") % (table, item_name))
+    		else:
+    			raise Exception("you can only delete roles or objects")
+
+    if opts.list_revisions:
+        if item_name == 'all':
+            print("Unable to list history for all objects")
+            sys.exit(1)
+        # If raw, just output ids
+        if opts.raw == True:
+            revs = x.get_revisions(table=table, name=item_name)
+            for rev in revs.keys():
+                print(rev)
+            sys.exit(0)
+        else:
+            revs = x.get_revisions(table=table, name=item_name)
+            table_data = []
+            for k,v in revs.items():
+                table_data.append([Fore.GREEN+k, Fore.BLUE+str(datetime.datetime.fromtimestamp(int(k))), Fore.MAGENTA+v['author']])
+            table_data.sort()
+            table_data.insert(0, [Fore.GREEN+'Id', Fore.BLUE+'Created', Fore.MAGENTA+'Author'])
+            table = AsciiTable(table_data)
+            print(table.table)
+            print(Style.RESET_ALL, end='')
+
+    if opts.restore_item:
+        x.restore_revision(table=table, name=item_name, revision_id=opts.restore_item)
+        print("Restored object {}".format(item_name))
