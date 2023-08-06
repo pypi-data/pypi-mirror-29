@@ -1,0 +1,263 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>How OAuth Works &#8212; Flask Dance 0.13.0 documentation</title>
+    
+    <link rel="stylesheet" href="_static/flasky.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '0.13.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Developer Interface" href="api.html" />
+    <link rel="prev" title="Signals" href="signals.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9">
+
+  </head>
+  <body role="document">
+  
+  
+
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="api.html" title="Developer Interface"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="signals.html" title="Signals"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">Flask Dance 0.13.0 documentation</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="how-oauth-works">
+<h1>How OAuth Works<a class="headerlink" href="#how-oauth-works" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="definitions">
+<h2>Definitions<a class="headerlink" href="#definitions" title="Permalink to this headline">¶</a></h2>
+<p>OAuth uses a series of specially-crafted HTTP views and redirects to allow
+websites to share information with each other securely, and with the user&#8217;s
+consent <a class="footnote-reference" href="#oauth-user" id="id1">[1]</a>. There are four roles in an OAuth interaction:</p>
+<dl class="docutils">
+<dt>provider</dt>
+<dd>A website that has information about a user. Well-known OAuth providers
+include Google, Facebook, Twitter, etc.</dd>
+<dt>consumer</dt>
+<dd>A website that wants to obtain some information about a user from the
+provider.</dd>
+<dt>user</dt>
+<dd>An actual person who controls information stored with the provider.</dd>
+<dt>client</dt>
+<dd>A program (usually a web browser) that interacts with the provider and
+consumer on behalf of the user.</dd>
+</dl>
+<p>In order to securely interact with each other, the provider and consumer must
+exchange secrets ahead of time, before any OAuth communication actually happens.
+Generally, this happens when someone who runs the consumer website goes to the
+provider website and registers an application with the provider, putting
+in information about the name and URL of the consumer website. The provider
+then gives the consumer a &#8220;client secret&#8221;, which is a random string of letters
+and numbers. By presenting this client secret in future OAuth communication,
+the provider website can verify that the consumer is who they say they are,
+and not some other website trying to intercept the communication.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">Even though it is called a &#8220;client secret&#8221;, the secret represents the
+consumer website, not the client (the user&#8217;s web browser).</p>
+</div>
+<p>After the consumer has registered an application with the provider and gotten
+a client secret, the consumer can do the &#8220;OAuth dance&#8221; to get consent from a
+user to share information with the consumer. There are two different versions
+of the dance: OAuth 1, which is the original version; and OAuth 2, the successor
+to OAuth 1 which is more flexible and more widely used today.</p>
+</div>
+<div class="section" id="oauth-2">
+<h2>OAuth 2<a class="headerlink" href="#oauth-2" title="Permalink to this headline">¶</a></h2>
+<div><img height="780" src="_images/seqdiag-ab120b586748b533696f5c2a6e9ce2431bc6f159.png" width="640" /></div><ol class="arabic simple">
+<li>The client visits the consumer at a special URL, indicating that they
+want to connect to the provider with OAuth. Typically, there is a button
+on the consumer&#8217;s website labelled &#8220;Log In with Google&#8221; or similar, which
+takes the user to this special URL.</li>
+<li>The consumer decides how much of the user&#8217;s data they want to access,
+using specfic keywords called &#8220;scopes&#8221;. The consumer also makes up a random
+string of letters and numbers, called a &#8220;state&#8221; token. The consumer crafts
+a special URL that points to the provider, but has the client secret,
+the scopes, the state token embedded in it. The consumer asks the client
+to visit the provider using this special URL.</li>
+<li>When the client visits the provider at that URL, the provider notices the
+client secret, and looks up the consumer that it belongs to.
+The provider also notices the scopes that the consumer is requesting.
+The provider displays a page informing the user what information the
+consumer wants access to &#8211; it may be all of the user&#8217;s information, or
+just some of the user&#8217;s information. The user gets to decide if this is
+OK or not. If the user decides that this is not OK, the dance is over.</li>
+<li>If the user grants consent, the provider makes up a new secret, called
+the &#8220;authorization code&#8221;. The provider crafts a special URL that points to
+the consumer, but has the authorization code and the state token
+embedded in it. The provider asks the client to visit the consumer
+using this special URL.</li>
+<li>When the client visits the consumer at that URL, the consumer first checks
+the state token to be sure that it hasn&#8217;t changed, just to verify that
+no one has tampered with the request. Then, the consumer makes a separate
+request to the provider, passing along the client secret and the
+authorization code. If everything looks good to the provider, the provider
+makes up one final secret, called the &#8220;access token&#8221;, and sends it back
+to the consumer. This completes the dance.</li>
+</ol>
+</div>
+<div class="section" id="oauth-1">
+<h2>OAuth 1<a class="headerlink" href="#oauth-1" title="Permalink to this headline">¶</a></h2>
+<div><img height="898" src="_images/seqdiag-e325cfd4b76f39bd136782d7cb141cf0d7f85c4b.png" width="640" /></div><ol class="arabic simple">
+<li>The client visits the consumer at a special URL, indicating that they
+want to connect to the provider with OAuth. Typically, there is a button
+on the consumer&#8217;s website labelled &#8220;Log In with Twitter&#8221; or similar, which
+takes the user to this special URL.</li>
+<li>The consumer tells the provider that they&#8217;re about to do the OAuth dance.
+The consumer gives the provider the client secret, to verify that
+everything&#8217;s cool. The provider checks the OAuth secret, and if it
+looks good, the provider makes up a new secret called a
+&#8220;request token&#8221;, and gives it to the consumer.</li>
+<li>The consumer crafts a special URL that points to the provider, but has the
+client secret and request token embedded in it. The consumer asks the client
+to visit the provider using this special URL.</li>
+<li>When the client visits the provider at that URL, the provider notices the
+request token, and looks up the consumer that it belongs to.
+The provider tells the user that this consumer wants to access some or all
+of the user&#8217;s information. The user gets to decide if this is OK or not.
+If the user decides that this is not OK, the dance is over.</li>
+<li>If the user grants consent, the provider makes up another new secret, called
+the &#8220;authorization code&#8221;. The provider crafts a special URL that points to
+the consumer, but has the authorization code embedded in it.
+The provider asks the client to go visit the consumer at that special URL.</li>
+<li>When the client visits the consumer at that URL, the consumer notices the
+authorization code. The consumer makes another request to the provider,
+passing along the client secret and the authorization code.
+If everything looks good to the provider, the provider makes up one
+final secret, called the &#8220;access token&#8221;, and sends it back to the consumer.
+This completes the dance.</li>
+</ol>
+</div>
+<div class="section" id="dance-complete">
+<h2>Dance Complete<a class="headerlink" href="#dance-complete" title="Permalink to this headline">¶</a></h2>
+<p>Phew, that was complicated! But the end result is, the consumer has an access
+token, which proves that the user has given consent for the provider to give
+the consumer information about that user. Now, whenever the consumer needs
+information from the provider about the user, the consumer simply makes an
+API request to the provider and passes the access token along with the request.
+The provider sees the access token, looks up the user that granted consent,
+and determines whether the requested information falls within what the user
+authorized. If so, the provider returns that information to the consumer.
+In effect, the consumer is now the user&#8217;s client!</p>
+<div class="admonition warning">
+<p class="first admonition-title">Warning</p>
+<p class="last">Keep your access tokens secure! Treat a user&#8217;s access token like you would
+treat their password.</p>
+</div>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">The OAuth dance normally only needs to be performed once per user.
+Once the consumer has an access token, that access token can be used
+to make many API requests on behalf of the user. Some OAuth
+implementations put a lifespan on the access token, after which it must
+be refreshed, but refreshing an access token does not require any
+interaction from the user.</p>
+</div>
+<table class="docutils footnote" frame="void" id="oauth-user" rules="none">
+<colgroup><col class="label" /><col /></colgroup>
+<tbody valign="top">
+<tr><td class="label"><a class="fn-backref" href="#id1">[1]</a></td><td>Not all OAuth interactions share information about specific
+users. When no user-specific information is involved, then the consumer
+is able to get information from the provider without getting a user&#8217;s
+consent, since there is no one to get consent from. In practice, however,
+most OAuth interactions are about sharing information about users, so this
+documentation assumes that use-case.</td></tr>
+</tbody>
+</table>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">How OAuth Works</a><ul>
+<li><a class="reference internal" href="#definitions">Definitions</a></li>
+<li><a class="reference internal" href="#oauth-2">OAuth 2</a></li>
+<li><a class="reference internal" href="#oauth-1">OAuth 1</a></li>
+<li><a class="reference internal" href="#dance-complete">Dance Complete</a></li>
+</ul>
+</li>
+</ul>
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="signals.html" title="previous chapter">Signals</a></li>
+      <li>Next: <a href="api.html" title="next chapter">Developer Interface</a></li>
+  </ul></li>
+</ul>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/how-oauth-works.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+  
+    <a href="http://github.com/singingwolfboy/flask-dance" class="github"><img src="http://s3.amazonaws.com/github/ribbons/forkme_right_darkblue_121621.png" alt="Fork me on GitHub" /></a>
+  
+
+  <div class="footer">
+    &copy; Copyright 2014-2016, David Baumgold.
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a>.
+  </div>
+  
+  </body>
+</html>

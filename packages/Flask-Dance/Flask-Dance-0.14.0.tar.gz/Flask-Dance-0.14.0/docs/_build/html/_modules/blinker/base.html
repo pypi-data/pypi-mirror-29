@@ -1,0 +1,550 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>blinker.base &#8212; Flask Dance 0.13.0 documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/flasky.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '0.13.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9">
+
+  </head>
+  <body role="document">
+  
+  
+
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">Flask Dance 0.13.0 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" accesskey="U">Module code</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for blinker.base</h1><div class="highlight"><pre>
+<span></span><span class="c1"># -*- coding: utf-8; fill-column: 76 -*-</span>
+<span class="sd">&quot;&quot;&quot;Signals and events.</span>
+
+<span class="sd">A small implementation of signals, inspired by a snippet of Django signal</span>
+<span class="sd">API client code seen in a blog post.  Signals are first-class objects and</span>
+<span class="sd">each manages its own receivers and message emission.</span>
+
+<span class="sd">The :func:`signal` function provides singleton behavior for named signals.</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">from</span> <span class="nn">warnings</span> <span class="k">import</span> <span class="n">warn</span>
+<span class="kn">from</span> <span class="nn">weakref</span> <span class="k">import</span> <span class="n">WeakValueDictionary</span>
+
+<span class="kn">from</span> <span class="nn">blinker._utilities</span> <span class="k">import</span> <span class="p">(</span>
+    <span class="n">WeakTypes</span><span class="p">,</span>
+    <span class="n">contextmanager</span><span class="p">,</span>
+    <span class="n">defaultdict</span><span class="p">,</span>
+    <span class="n">hashable_identity</span><span class="p">,</span>
+    <span class="n">lazy_property</span><span class="p">,</span>
+    <span class="n">reference</span><span class="p">,</span>
+    <span class="n">symbol</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
+<span class="n">ANY</span> <span class="o">=</span> <span class="n">symbol</span><span class="p">(</span><span class="s1">&#39;ANY&#39;</span><span class="p">)</span>
+<span class="n">ANY</span><span class="o">.</span><span class="vm">__doc__</span> <span class="o">=</span> <span class="s1">&#39;Token for &quot;any sender&quot;.&#39;</span>
+<span class="n">ANY_ID</span> <span class="o">=</span> <span class="mi">0</span>
+
+
+<span class="k">class</span> <span class="nc">Signal</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A notification emitter.&quot;&quot;&quot;</span>
+
+    <span class="c1">#: An :obj:`ANY` convenience synonym, allows ``Signal.ANY``</span>
+    <span class="c1">#: without an additional import.</span>
+    <span class="n">ANY</span> <span class="o">=</span> <span class="n">ANY</span>
+
+    <span class="nd">@lazy_property</span>
+    <span class="k">def</span> <span class="nf">receiver_connected</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Emitted after each :meth:`connect`.</span>
+
+<span class="sd">        The signal sender is the signal instance, and the :meth:`connect`</span>
+<span class="sd">        arguments are passed through: *receiver*, *sender*, and *weak*.</span>
+
+<span class="sd">        .. versionadded:: 1.2</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">Signal</span><span class="p">(</span><span class="n">doc</span><span class="o">=</span><span class="s2">&quot;Emitted after a receiver connects.&quot;</span><span class="p">)</span>
+
+    <span class="nd">@lazy_property</span>
+    <span class="k">def</span> <span class="nf">receiver_disconnected</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Emitted after :meth:`disconnect`.</span>
+
+<span class="sd">        The sender is the signal instance, and the :meth:`disconnect` arguments</span>
+<span class="sd">        are passed through: *receiver* and *sender*.</span>
+
+<span class="sd">        Note, this signal is emitted **only** when :meth:`disconnect` is</span>
+<span class="sd">        called explicitly.</span>
+
+<span class="sd">        The disconnect signal can not be emitted by an automatic disconnect</span>
+<span class="sd">        (due to a weakly referenced receiver or sender going out of scope),</span>
+<span class="sd">        as the receiver and/or sender instances are no longer available for</span>
+<span class="sd">        use at the time this signal would be emitted.</span>
+
+<span class="sd">        An alternative approach is available by subscribing to</span>
+<span class="sd">        :attr:`receiver_connected` and setting up a custom weakref cleanup</span>
+<span class="sd">        callback on weak receivers and senders.</span>
+
+<span class="sd">        .. versionadded:: 1.2</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">Signal</span><span class="p">(</span><span class="n">doc</span><span class="o">=</span><span class="s2">&quot;Emitted after a receiver disconnects.&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">doc</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :param doc: optional.  If provided, will be assigned to the signal&#39;s</span>
+<span class="sd">          __doc__ attribute.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">doc</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="vm">__doc__</span> <span class="o">=</span> <span class="n">doc</span>
+        <span class="c1">#: A mapping of connected receivers.</span>
+        <span class="c1">#:</span>
+        <span class="c1">#: The values of this mapping are not meaningful outside of the</span>
+        <span class="c1">#: internal :class:`Signal` implementation, however the boolean value</span>
+        <span class="c1">#: of the mapping is useful as an extremely efficient check to see if</span>
+        <span class="c1">#: any receivers are connected to the signal.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">receivers</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_by_receiver</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">set</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_by_sender</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">set</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_weak_senders</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="k">def</span> <span class="nf">connect</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">receiver</span><span class="p">,</span> <span class="n">sender</span><span class="o">=</span><span class="n">ANY</span><span class="p">,</span> <span class="n">weak</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Connect *receiver* to signal events sent by *sender*.</span>
+
+<span class="sd">        :param receiver: A callable.  Will be invoked by :meth:`send` with</span>
+<span class="sd">          `sender=` as a single positional argument and any \*\*kwargs that</span>
+<span class="sd">          were provided to a call to :meth:`send`.</span>
+
+<span class="sd">        :param sender: Any object or :obj:`ANY`, defaults to ``ANY``.</span>
+<span class="sd">          Restricts notifications delivered to *receiver* to only those</span>
+<span class="sd">          :meth:`send` emissions sent by *sender*.  If ``ANY``, the receiver</span>
+<span class="sd">          will always be notified.  A *receiver* may be connected to</span>
+<span class="sd">          multiple *sender* values on the same Signal through multiple calls</span>
+<span class="sd">          to :meth:`connect`.</span>
+
+<span class="sd">        :param weak: If true, the Signal will hold a weakref to *receiver*</span>
+<span class="sd">          and automatically disconnect when *receiver* goes out of scope or</span>
+<span class="sd">          is garbage collected.  Defaults to True.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">receiver_id</span> <span class="o">=</span> <span class="n">hashable_identity</span><span class="p">(</span><span class="n">receiver</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">weak</span><span class="p">:</span>
+            <span class="n">receiver_ref</span> <span class="o">=</span> <span class="n">reference</span><span class="p">(</span><span class="n">receiver</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cleanup_receiver</span><span class="p">)</span>
+            <span class="n">receiver_ref</span><span class="o">.</span><span class="n">receiver_id</span> <span class="o">=</span> <span class="n">receiver_id</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">receiver_ref</span> <span class="o">=</span> <span class="n">receiver</span>
+        <span class="k">if</span> <span class="n">sender</span> <span class="ow">is</span> <span class="n">ANY</span><span class="p">:</span>
+            <span class="n">sender_id</span> <span class="o">=</span> <span class="n">ANY_ID</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">sender_id</span> <span class="o">=</span> <span class="n">hashable_identity</span><span class="p">(</span><span class="n">sender</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">receivers</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">receiver_id</span><span class="p">,</span> <span class="n">receiver_ref</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_by_sender</span><span class="p">[</span><span class="n">sender_id</span><span class="p">]</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">receiver_id</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_by_receiver</span><span class="p">[</span><span class="n">receiver_id</span><span class="p">]</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">sender_id</span><span class="p">)</span>
+        <span class="k">del</span> <span class="n">receiver_ref</span>
+
+        <span class="k">if</span> <span class="n">sender</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">ANY</span> <span class="ow">and</span> <span class="n">sender_id</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_weak_senders</span><span class="p">:</span>
+            <span class="c1"># wire together a cleanup for weakref-able senders</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">sender_ref</span> <span class="o">=</span> <span class="n">reference</span><span class="p">(</span><span class="n">sender</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cleanup_sender</span><span class="p">)</span>
+                <span class="n">sender_ref</span><span class="o">.</span><span class="n">sender_id</span> <span class="o">=</span> <span class="n">sender_id</span>
+            <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+                <span class="k">pass</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_weak_senders</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">sender_id</span><span class="p">,</span> <span class="n">sender_ref</span><span class="p">)</span>
+                <span class="k">del</span> <span class="n">sender_ref</span>
+
+        <span class="c1"># broadcast this connection.  if receivers raise, disconnect.</span>
+        <span class="k">if</span> <span class="p">(</span><span class="s1">&#39;receiver_connected&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__dict__</span> <span class="ow">and</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">receiver_connected</span><span class="o">.</span><span class="n">receivers</span><span class="p">):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">receiver_connected</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+                                             <span class="n">receiver</span><span class="o">=</span><span class="n">receiver</span><span class="p">,</span>
+                                             <span class="n">sender</span><span class="o">=</span><span class="n">sender</span><span class="p">,</span>
+                                             <span class="n">weak</span><span class="o">=</span><span class="n">weak</span><span class="p">)</span>
+            <span class="k">except</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">disconnect</span><span class="p">(</span><span class="n">receiver</span><span class="p">,</span> <span class="n">sender</span><span class="p">)</span>
+                <span class="k">raise</span>
+        <span class="k">if</span> <span class="n">receiver_connected</span><span class="o">.</span><span class="n">receivers</span> <span class="ow">and</span> <span class="bp">self</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">receiver_connected</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">receiver_connected</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+                                        <span class="n">receiver_arg</span><span class="o">=</span><span class="n">receiver</span><span class="p">,</span>
+                                        <span class="n">sender_arg</span><span class="o">=</span><span class="n">sender</span><span class="p">,</span>
+                                        <span class="n">weak_arg</span><span class="o">=</span><span class="n">weak</span><span class="p">)</span>
+            <span class="k">except</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">disconnect</span><span class="p">(</span><span class="n">receiver</span><span class="p">,</span> <span class="n">sender</span><span class="p">)</span>
+                <span class="k">raise</span>
+        <span class="k">return</span> <span class="n">receiver</span>
+
+    <span class="k">def</span> <span class="nf">connect_via</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sender</span><span class="p">,</span> <span class="n">weak</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Connect the decorated function as a receiver for *sender*.</span>
+
+<span class="sd">        :param sender: Any object or :obj:`ANY`.  The decorated function</span>
+<span class="sd">          will only receive :meth:`send` emissions sent by *sender*.  If</span>
+<span class="sd">          ``ANY``, the receiver will always be notified.  A function may be</span>
+<span class="sd">          decorated multiple times with differing *sender* values.</span>
+
+<span class="sd">        :param weak: If true, the Signal will hold a weakref to the</span>
+<span class="sd">          decorated function and automatically disconnect when *receiver*</span>
+<span class="sd">          goes out of scope or is garbage collected.  Unlike</span>
+<span class="sd">          :meth:`connect`, this defaults to False.</span>
+
+<span class="sd">        The decorated function will be invoked by :meth:`send` with</span>
+<span class="sd">          `sender=` as a single positional argument and any \*\*kwargs that</span>
+<span class="sd">          were provided to the call to :meth:`send`.</span>
+
+
+<span class="sd">        .. versionadded:: 1.1</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">def</span> <span class="nf">decorator</span><span class="p">(</span><span class="n">fn</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="n">fn</span><span class="p">,</span> <span class="n">sender</span><span class="p">,</span> <span class="n">weak</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">fn</span>
+        <span class="k">return</span> <span class="n">decorator</span>
+
+    <span class="nd">@contextmanager</span>
+    <span class="k">def</span> <span class="nf">connected_to</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">receiver</span><span class="p">,</span> <span class="n">sender</span><span class="o">=</span><span class="n">ANY</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Execute a block with the signal temporarily connected to *receiver*.</span>
+
+<span class="sd">        :param receiver: a receiver callable</span>
+<span class="sd">        :param sender: optional, a sender to filter on</span>
+
+<span class="sd">        This is a context manager for use in the ``with`` statement.  It can</span>
+<span class="sd">        be useful in unit tests.  *receiver* is connected to the signal for</span>
+<span class="sd">        the duration of the ``with`` block, and will be disconnected</span>
+<span class="sd">        automatically when exiting the block:</span>
+
+<span class="sd">        .. testsetup::</span>
+
+<span class="sd">          from __future__ import with_statement</span>
+<span class="sd">          from blinker import Signal</span>
+<span class="sd">          on_ready = Signal()</span>
+<span class="sd">          receiver = lambda sender: None</span>
+
+<span class="sd">        .. testcode::</span>
+
+<span class="sd">          with on_ready.connected_to(receiver):</span>
+<span class="sd">             # do stuff</span>
+<span class="sd">             on_ready.send(123)</span>
+
+<span class="sd">        .. versionadded:: 1.1</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="n">receiver</span><span class="p">,</span> <span class="n">sender</span><span class="o">=</span><span class="n">sender</span><span class="p">,</span> <span class="n">weak</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">yield</span> <span class="kc">None</span>
+        <span class="k">except</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">disconnect</span><span class="p">(</span><span class="n">receiver</span><span class="p">)</span>
+            <span class="k">raise</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">disconnect</span><span class="p">(</span><span class="n">receiver</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">temporarily_connected_to</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">receiver</span><span class="p">,</span> <span class="n">sender</span><span class="o">=</span><span class="n">ANY</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;An alias for :meth:`connected_to`.</span>
+
+<span class="sd">        :param receiver: a receiver callable</span>
+<span class="sd">        :param sender: optional, a sender to filter on</span>
+
+<span class="sd">        .. versionadded:: 0.9</span>
+
+<span class="sd">        .. versionchanged:: 1.1</span>
+<span class="sd">          Renamed to :meth:`connected_to`.  ``temporarily_connected_to`` was</span>
+<span class="sd">          deprecated in 1.2 and will be removed in a subsequent version.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">warn</span><span class="p">(</span><span class="s2">&quot;temporarily_connected_to is deprecated; &quot;</span>
+             <span class="s2">&quot;use connected_to instead.&quot;</span><span class="p">,</span>
+             <span class="ne">DeprecationWarning</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">connected_to</span><span class="p">(</span><span class="n">receiver</span><span class="p">,</span> <span class="n">sender</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">send</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">sender</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Emit this signal on behalf of *sender*, passing on \*\*kwargs.</span>
+
+<span class="sd">        Returns a list of 2-tuples, pairing receivers with their return</span>
+<span class="sd">        value. The ordering of receiver notification is undefined.</span>
+
+<span class="sd">        :param \*sender: Any object or ``None``.  If omitted, synonymous</span>
+<span class="sd">          with ``None``.  Only accepts one positional argument.</span>
+
+<span class="sd">        :param \*\*kwargs: Data to be sent to receivers.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Using &#39;*sender&#39; rather than &#39;sender=None&#39; allows &#39;sender&#39; to be</span>
+        <span class="c1"># used as a keyword argument- i.e. it&#39;s an invisible name in the</span>
+        <span class="c1"># function signature.</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">sender</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">sender</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">sender</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;send() accepts only one positional argument, &#39;</span>
+                            <span class="s1">&#39;</span><span class="si">%s</span><span class="s1"> given&#39;</span> <span class="o">%</span> <span class="nb">len</span><span class="p">(</span><span class="n">sender</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">sender</span> <span class="o">=</span> <span class="n">sender</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">receivers</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[(</span><span class="n">receiver</span><span class="p">,</span> <span class="n">receiver</span><span class="p">(</span><span class="n">sender</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">))</span>
+                    <span class="k">for</span> <span class="n">receiver</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">receivers_for</span><span class="p">(</span><span class="n">sender</span><span class="p">)]</span>
+
+    <span class="k">def</span> <span class="nf">has_receivers_for</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sender</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;True if there is probably a receiver for *sender*.</span>
+
+<span class="sd">        Performs an optimistic check only.  Does not guarantee that all</span>
+<span class="sd">        weakly referenced receivers are still alive.  See</span>
+<span class="sd">        :meth:`receivers_for` for a stronger search.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">receivers</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_by_sender</span><span class="p">[</span><span class="n">ANY_ID</span><span class="p">]:</span>
+            <span class="k">return</span> <span class="kc">True</span>
+        <span class="k">if</span> <span class="n">sender</span> <span class="ow">is</span> <span class="n">ANY</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">return</span> <span class="n">hashable_identity</span><span class="p">(</span><span class="n">sender</span><span class="p">)</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_by_sender</span>
+
+    <span class="k">def</span> <span class="nf">receivers_for</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sender</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Iterate all live receivers listening for *sender*.&quot;&quot;&quot;</span>
+        <span class="c1"># TODO: test receivers_for(ANY)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">receivers</span><span class="p">:</span>
+            <span class="n">sender_id</span> <span class="o">=</span> <span class="n">hashable_identity</span><span class="p">(</span><span class="n">sender</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">sender_id</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_by_sender</span><span class="p">:</span>
+                <span class="n">ids</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_by_sender</span><span class="p">[</span><span class="n">ANY_ID</span><span class="p">]</span> <span class="o">|</span>
+                       <span class="bp">self</span><span class="o">.</span><span class="n">_by_sender</span><span class="p">[</span><span class="n">sender_id</span><span class="p">])</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_by_sender</span><span class="p">[</span><span class="n">ANY_ID</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+            <span class="k">for</span> <span class="n">receiver_id</span> <span class="ow">in</span> <span class="n">ids</span><span class="p">:</span>
+                <span class="n">receiver</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">receivers</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">receiver_id</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">receiver</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">receiver</span><span class="p">,</span> <span class="n">WeakTypes</span><span class="p">):</span>
+                    <span class="n">strong</span> <span class="o">=</span> <span class="n">receiver</span><span class="p">()</span>
+                    <span class="k">if</span> <span class="n">strong</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">_disconnect</span><span class="p">(</span><span class="n">receiver_id</span><span class="p">,</span> <span class="n">ANY_ID</span><span class="p">)</span>
+                        <span class="k">continue</span>
+                    <span class="n">receiver</span> <span class="o">=</span> <span class="n">strong</span>
+                <span class="k">yield</span> <span class="n">receiver</span>
+
+    <span class="k">def</span> <span class="nf">disconnect</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">receiver</span><span class="p">,</span> <span class="n">sender</span><span class="o">=</span><span class="n">ANY</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Disconnect *receiver* from this signal&#39;s events.</span>
+
+<span class="sd">        :param receiver: a previously :meth:`connected&lt;connect&gt;` callable</span>
+
+<span class="sd">        :param sender: a specific sender to disconnect from, or :obj:`ANY`</span>
+<span class="sd">          to disconnect from all senders.  Defaults to ``ANY``.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">sender</span> <span class="ow">is</span> <span class="n">ANY</span><span class="p">:</span>
+            <span class="n">sender_id</span> <span class="o">=</span> <span class="n">ANY_ID</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">sender_id</span> <span class="o">=</span> <span class="n">hashable_identity</span><span class="p">(</span><span class="n">sender</span><span class="p">)</span>
+        <span class="n">receiver_id</span> <span class="o">=</span> <span class="n">hashable_identity</span><span class="p">(</span><span class="n">receiver</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_disconnect</span><span class="p">(</span><span class="n">receiver_id</span><span class="p">,</span> <span class="n">sender_id</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="p">(</span><span class="s1">&#39;receiver_disconnected&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__dict__</span> <span class="ow">and</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">receiver_disconnected</span><span class="o">.</span><span class="n">receivers</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">receiver_disconnected</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+                                            <span class="n">receiver</span><span class="o">=</span><span class="n">receiver</span><span class="p">,</span>
+                                            <span class="n">sender</span><span class="o">=</span><span class="n">sender</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_disconnect</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">receiver_id</span><span class="p">,</span> <span class="n">sender_id</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">sender_id</span> <span class="o">==</span> <span class="n">ANY_ID</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_by_receiver</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">receiver_id</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>
+                <span class="k">for</span> <span class="n">bucket</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_by_sender</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+                    <span class="n">bucket</span><span class="o">.</span><span class="n">discard</span><span class="p">(</span><span class="n">receiver_id</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">receivers</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">receiver_id</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_by_sender</span><span class="p">[</span><span class="n">sender_id</span><span class="p">]</span><span class="o">.</span><span class="n">discard</span><span class="p">(</span><span class="n">receiver_id</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_by_receiver</span><span class="p">[</span><span class="n">receiver_id</span><span class="p">]</span><span class="o">.</span><span class="n">discard</span><span class="p">(</span><span class="n">sender_id</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_cleanup_receiver</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">receiver_ref</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Disconnect a receiver from all senders.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_disconnect</span><span class="p">(</span><span class="n">receiver_ref</span><span class="o">.</span><span class="n">receiver_id</span><span class="p">,</span> <span class="n">ANY_ID</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_cleanup_sender</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sender_ref</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Disconnect all receivers from a sender.&quot;&quot;&quot;</span>
+        <span class="n">sender_id</span> <span class="o">=</span> <span class="n">sender_ref</span><span class="o">.</span><span class="n">sender_id</span>
+        <span class="k">assert</span> <span class="n">sender_id</span> <span class="o">!=</span> <span class="n">ANY_ID</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_weak_senders</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">sender_id</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">receiver_id</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_by_sender</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">sender_id</span><span class="p">,</span> <span class="p">()):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_by_receiver</span><span class="p">[</span><span class="n">receiver_id</span><span class="p">]</span><span class="o">.</span><span class="n">discard</span><span class="p">(</span><span class="n">sender_id</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_cleanup_bookkeeping</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Prune unused sender/receiver bookeeping. Not threadsafe.</span>
+
+<span class="sd">        Connecting &amp; disconnecting leave behind a small amount of bookeeping</span>
+<span class="sd">        for the receiver and sender values. Typical workloads using Blinker,</span>
+<span class="sd">        for example in most web apps, Flask, CLI scripts, etc., are not</span>
+<span class="sd">        adversely affected by this bookkeeping.</span>
+
+<span class="sd">        With a long-running Python process performing dynamic signal routing</span>
+<span class="sd">        with high volume- e.g. connecting to function closures, &quot;senders&quot; are</span>
+<span class="sd">        all unique object instances, and doing all of this over and over- you</span>
+<span class="sd">        may see memory usage will grow due to extraneous bookeeping. (An empty</span>
+<span class="sd">        set() for each stale sender/receiver pair.)</span>
+
+<span class="sd">        This method will prune that bookeeping away, with the caveat that such</span>
+<span class="sd">        pruning is not threadsafe. The risk is that cleanup of a fully</span>
+<span class="sd">        disconnected receiver/sender pair occurs while another thread is</span>
+<span class="sd">        connecting that same pair. If you are in the highly dynamic, unique</span>
+<span class="sd">        receiver/sender situation that has lead you to this method, that</span>
+<span class="sd">        failure mode is perhaps not a big deal for you.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">mapping</span> <span class="ow">in</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_by_sender</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_by_receiver</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">_id</span><span class="p">,</span> <span class="n">bucket</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">mapping</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">bucket</span><span class="p">:</span>
+                    <span class="n">mapping</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">_id</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_clear_state</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Throw away all signal state.  Useful for unit tests.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_weak_senders</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">receivers</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_by_sender</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_by_receiver</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+
+
+<span class="n">receiver_connected</span> <span class="o">=</span> <span class="n">Signal</span><span class="p">(</span><span class="s2">&quot;&quot;&quot;</span><span class="se">\</span>
+<span class="s2">Sent by a :class:`Signal` after a receiver connects.</span>
+
+<span class="s2">:argument: the Signal that was connected to</span>
+<span class="s2">:keyword receiver_arg: the connected receiver</span>
+<span class="s2">:keyword sender_arg: the sender to connect to</span>
+<span class="s2">:keyword weak_arg: true if the connection to receiver_arg is a weak reference</span>
+
+<span class="s2">.. deprecated:: 1.2</span>
+
+<span class="s2">As of 1.2, individual signals have their own private</span>
+<span class="s2">:attr:`~Signal.receiver_connected` and</span>
+<span class="s2">:attr:`~Signal.receiver_disconnected` signals with a slightly simplified</span>
+<span class="s2">call signature.  This global signal is planned to be removed in 1.6.</span>
+
+<span class="s2">&quot;&quot;&quot;</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">NamedSignal</span><span class="p">(</span><span class="n">Signal</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A named generic notification emitter.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">doc</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="n">Signal</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">doc</span><span class="p">)</span>
+
+        <span class="c1">#: The name of this signal.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">base</span> <span class="o">=</span> <span class="n">Signal</span><span class="o">.</span><span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="k">return</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">; </span><span class="si">%r</span><span class="s2">&gt;&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">base</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">Namespace</span><span class="p">(</span><span class="nb">dict</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A mapping of signal names to signals.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">signal</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">doc</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the :class:`NamedSignal` *name*, creating it if required.</span>
+
+<span class="sd">        Repeated calls to this function will return the same signal object.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="p">[</span><span class="n">name</span><span class="p">]</span>
+        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">NamedSignal</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">doc</span><span class="p">))</span>
+
+
+<span class="k">class</span> <span class="nc">WeakNamespace</span><span class="p">(</span><span class="n">WeakValueDictionary</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A weak mapping of signal names to signals.</span>
+
+<span class="sd">    Automatically cleans up unused Signals when the last reference goes out</span>
+<span class="sd">    of scope.  This namespace implementation exists for a measure of legacy</span>
+<span class="sd">    compatibility with Blinker &lt;= 1.2, and may be dropped in the future.</span>
+
+<span class="sd">    .. versionadded:: 1.3</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">signal</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">doc</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the :class:`NamedSignal` *name*, creating it if required.</span>
+
+<span class="sd">        Repeated calls to this function will return the same signal object.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="p">[</span><span class="n">name</span><span class="p">]</span>
+        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">NamedSignal</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">doc</span><span class="p">))</span>
+
+
+<span class="n">signal</span> <span class="o">=</span> <span class="n">Namespace</span><span class="p">()</span><span class="o">.</span><span class="n">signal</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+  
+    <a href="http://github.com/singingwolfboy/flask-dance" class="github"><img src="http://s3.amazonaws.com/github/ribbons/forkme_right_darkblue_121621.png" alt="Fork me on GitHub" /></a>
+  
+
+  <div class="footer">
+    &copy; Copyright 2014-2016, David Baumgold.
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a>.
+  </div>
+  
+  </body>
+</html>

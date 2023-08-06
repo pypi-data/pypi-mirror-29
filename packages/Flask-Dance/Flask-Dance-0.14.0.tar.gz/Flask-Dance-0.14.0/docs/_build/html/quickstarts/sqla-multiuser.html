@@ -1,0 +1,500 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>SQLAlchemy Multi-User Quickstart &#8212; Flask Dance 0.13.0 documentation</title>
+    
+    <link rel="stylesheet" href="../_static/flasky.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '0.13.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Providers" href="../providers.html" />
+    <link rel="prev" title="Nylas Quickstart" href="nylas.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9">
+
+  </head>
+  <body role="document">
+  
+  
+
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="../providers.html" title="Providers"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="nylas.html" title="Nylas Quickstart"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../index.html">Flask Dance 0.13.0 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="index.html" accesskey="U">Quickstarts</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="sqlalchemy-multi-user-quickstart">
+<h1>SQLAlchemy Multi-User Quickstart<a class="headerlink" href="#sqlalchemy-multi-user-quickstart" title="Permalink to this headline">¶</a></h1>
+<p>This quickstart will help you get started with a multi-user application where
+OAuth tokens are stored using the
+<a class="reference internal" href="../backends.html#sqlalchemy-backend"><span class="std std-ref">SQLAlchemy backend</span></a>. You should already
+be familiar with setting up a single-use Flask-Dance application &#8211; you can
+consult some of the other quickstarts for that.</p>
+<p>Further details are available in the documentation for <a class="reference internal" href="../multi-user.html"><span class="doc">Multi-User Setups</span></a>.</p>
+<div class="section" id="code">
+<h2>Code<a class="headerlink" href="#code" title="Permalink to this headline">¶</a></h2>
+<p>Create a file called <code class="docutils literal"><span class="pre">multi.py</span></code> with the following contents:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">from</span> <span class="nn">flask</span> <span class="kn">import</span> <span class="n">Flask</span><span class="p">,</span> <span class="n">redirect</span><span class="p">,</span> <span class="n">url_for</span><span class="p">,</span> <span class="n">flash</span><span class="p">,</span> <span class="n">render_template</span>
+<span class="kn">from</span> <span class="nn">flask_sqlalchemy</span> <span class="kn">import</span> <span class="n">SQLAlchemy</span>
+<span class="kn">from</span> <span class="nn">sqlalchemy.orm.exc</span> <span class="kn">import</span> <span class="n">NoResultFound</span>
+<span class="kn">from</span> <span class="nn">flask_dance.contrib.github</span> <span class="kn">import</span> <span class="n">make_github_blueprint</span><span class="p">,</span> <span class="n">github</span>
+<span class="kn">from</span> <span class="nn">flask_dance.consumer.backend.sqla</span> <span class="kn">import</span> <span class="n">OAuthConsumerMixin</span><span class="p">,</span> <span class="n">SQLAlchemyBackend</span>
+<span class="kn">from</span> <span class="nn">flask_dance.consumer</span> <span class="kn">import</span> <span class="n">oauth_authorized</span><span class="p">,</span> <span class="n">oauth_error</span>
+<span class="kn">from</span> <span class="nn">flask_login</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">LoginManager</span><span class="p">,</span> <span class="n">UserMixin</span><span class="p">,</span> <span class="n">current_user</span><span class="p">,</span>
+    <span class="n">login_required</span><span class="p">,</span> <span class="n">login_user</span><span class="p">,</span> <span class="n">logout_user</span>
+<span class="p">)</span>
+
+<span class="c1"># setup Flask application</span>
+<span class="n">app</span> <span class="o">=</span> <span class="n">Flask</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+<span class="n">app</span><span class="o">.</span><span class="n">secret_key</span> <span class="o">=</span> <span class="s2">&quot;supersekrit&quot;</span>
+<span class="n">blueprint</span> <span class="o">=</span> <span class="n">make_github_blueprint</span><span class="p">(</span>
+    <span class="n">client_id</span><span class="o">=</span><span class="s2">&quot;my-key-here&quot;</span><span class="p">,</span>
+    <span class="n">client_secret</span><span class="o">=</span><span class="s2">&quot;my-secret-here&quot;</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">app</span><span class="o">.</span><span class="n">register_blueprint</span><span class="p">(</span><span class="n">blueprint</span><span class="p">,</span> <span class="n">url_prefix</span><span class="o">=</span><span class="s2">&quot;/login&quot;</span><span class="p">)</span>
+
+<span class="c1"># setup database models</span>
+<span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s2">&quot;SQLALCHEMY_DATABASE_URI&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;sqlite:///multi.db&quot;</span>
+<span class="n">db</span> <span class="o">=</span> <span class="n">SQLAlchemy</span><span class="p">()</span>
+
+<span class="k">class</span> <span class="nc">User</span><span class="p">(</span><span class="n">db</span><span class="o">.</span><span class="n">Model</span><span class="p">,</span> <span class="n">UserMixin</span><span class="p">):</span>
+    <span class="nb">id</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">Column</span><span class="p">(</span><span class="n">db</span><span class="o">.</span><span class="n">Integer</span><span class="p">,</span> <span class="n">primary_key</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+    <span class="n">username</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">Column</span><span class="p">(</span><span class="n">db</span><span class="o">.</span><span class="n">String</span><span class="p">(</span><span class="mi">256</span><span class="p">),</span> <span class="n">unique</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+    <span class="c1"># ... other columns as needed</span>
+
+<span class="k">class</span> <span class="nc">OAuth</span><span class="p">(</span><span class="n">OAuthConsumerMixin</span><span class="p">,</span> <span class="n">db</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+    <span class="n">provider_user_id</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">Column</span><span class="p">(</span><span class="n">db</span><span class="o">.</span><span class="n">String</span><span class="p">(</span><span class="mi">256</span><span class="p">),</span> <span class="n">unique</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+    <span class="n">user_id</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">Column</span><span class="p">(</span><span class="n">db</span><span class="o">.</span><span class="n">Integer</span><span class="p">,</span> <span class="n">db</span><span class="o">.</span><span class="n">ForeignKey</span><span class="p">(</span><span class="n">User</span><span class="o">.</span><span class="n">id</span><span class="p">))</span>
+    <span class="n">user</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">relationship</span><span class="p">(</span><span class="n">User</span><span class="p">)</span>
+
+<span class="c1"># setup login manager</span>
+<span class="n">login_manager</span> <span class="o">=</span> <span class="n">LoginManager</span><span class="p">()</span>
+<span class="n">login_manager</span><span class="o">.</span><span class="n">login_view</span> <span class="o">=</span> <span class="s1">&#39;github.login&#39;</span>
+
+<span class="nd">@login_manager.user_loader</span>
+<span class="k">def</span> <span class="nf">load_user</span><span class="p">(</span><span class="n">user_id</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">User</span><span class="o">.</span><span class="n">query</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">user_id</span><span class="p">))</span>
+
+<span class="c1"># setup SQLAlchemy backend</span>
+<span class="n">blueprint</span><span class="o">.</span><span class="n">backend</span> <span class="o">=</span> <span class="n">SQLAlchemyBackend</span><span class="p">(</span><span class="n">OAuth</span><span class="p">,</span> <span class="n">db</span><span class="o">.</span><span class="n">session</span><span class="p">,</span> <span class="n">user</span><span class="o">=</span><span class="n">current_user</span><span class="p">)</span>
+
+<span class="c1"># create/login local user on successful OAuth login</span>
+<span class="nd">@oauth_authorized.connect_via</span><span class="p">(</span><span class="n">github_bp</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">github_logged_in</span><span class="p">(</span><span class="n">blueprint</span><span class="p">,</span> <span class="n">token</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">token</span><span class="p">:</span>
+        <span class="n">flash</span><span class="p">(</span><span class="s2">&quot;Failed to log in with GitHub.&quot;</span><span class="p">,</span> <span class="n">category</span><span class="o">=</span><span class="s2">&quot;error&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">False</span>
+
+    <span class="n">resp</span> <span class="o">=</span> <span class="n">blueprint</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;/user&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">resp</span><span class="o">.</span><span class="n">ok</span><span class="p">:</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;Failed to fetch user info from GitHub.&quot;</span>
+        <span class="n">flash</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="n">category</span><span class="o">=</span><span class="s2">&quot;error&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">False</span>
+
+    <span class="n">github_info</span> <span class="o">=</span> <span class="n">resp</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+    <span class="n">github_user_id</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">github_info</span><span class="p">[</span><span class="s2">&quot;id&quot;</span><span class="p">])</span>
+
+    <span class="c1"># Find this OAuth token in the database, or create it</span>
+    <span class="n">query</span> <span class="o">=</span> <span class="n">OAuth</span><span class="o">.</span><span class="n">query</span><span class="o">.</span><span class="n">filter_by</span><span class="p">(</span>
+        <span class="n">provider</span><span class="o">=</span><span class="n">blueprint</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+        <span class="n">provider_user_id</span><span class="o">=</span><span class="n">github_user_id</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">oauth</span> <span class="o">=</span> <span class="n">query</span><span class="o">.</span><span class="n">one</span><span class="p">()</span>
+    <span class="k">except</span> <span class="n">NoResultFound</span><span class="p">:</span>
+        <span class="n">oauth</span> <span class="o">=</span> <span class="n">OAuth</span><span class="p">(</span>
+            <span class="n">provider</span><span class="o">=</span><span class="n">blueprint</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+            <span class="n">provider_user_id</span><span class="o">=</span><span class="n">github_user_id</span><span class="p">,</span>
+            <span class="n">token</span><span class="o">=</span><span class="n">token</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">oauth</span><span class="o">.</span><span class="n">user</span><span class="p">:</span>
+        <span class="n">login_user</span><span class="p">(</span><span class="n">oauth</span><span class="o">.</span><span class="n">user</span><span class="p">)</span>
+        <span class="n">flash</span><span class="p">(</span><span class="s2">&quot;Successfully signed in with GitHub.&quot;</span><span class="p">)</span>
+
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c1"># Create a new local user account for this user</span>
+        <span class="n">user</span> <span class="o">=</span> <span class="n">User</span><span class="p">(</span>
+            <span class="c1"># Remember that `email` can be None, if the user declines</span>
+            <span class="c1"># to publish their email address on GitHub!</span>
+            <span class="n">email</span><span class="o">=</span><span class="n">github_info</span><span class="p">[</span><span class="s2">&quot;email&quot;</span><span class="p">],</span>
+            <span class="n">name</span><span class="o">=</span><span class="n">github_info</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">],</span>
+        <span class="p">)</span>
+        <span class="c1"># Associate the new local user account with the OAuth token</span>
+        <span class="n">oauth</span><span class="o">.</span><span class="n">user</span> <span class="o">=</span> <span class="n">user</span>
+        <span class="c1"># Save and commit our database models</span>
+        <span class="n">db</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">add_all</span><span class="p">([</span><span class="n">user</span><span class="p">,</span> <span class="n">oauth</span><span class="p">])</span>
+        <span class="n">db</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+        <span class="c1"># Log in the new local user account</span>
+        <span class="n">login_user</span><span class="p">(</span><span class="n">user</span><span class="p">)</span>
+        <span class="n">flash</span><span class="p">(</span><span class="s2">&quot;Successfully signed in with GitHub.&quot;</span><span class="p">)</span>
+
+    <span class="c1"># Disable Flask-Dance&#39;s default behavior for saving the OAuth token</span>
+    <span class="k">return</span> <span class="bp">False</span>
+
+<span class="c1"># notify on OAuth provider error</span>
+<span class="nd">@oauth_error.connect_via</span><span class="p">(</span><span class="n">blueprint</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">github_error</span><span class="p">(</span><span class="n">blueprint</span><span class="p">,</span> <span class="n">error</span><span class="p">,</span> <span class="n">error_description</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">error_uri</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+    <span class="n">msg</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="s2">&quot;OAuth error from {name}! &quot;</span>
+        <span class="s2">&quot;error={error} description={description} uri={uri}&quot;</span>
+    <span class="p">)</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+        <span class="n">name</span><span class="o">=</span><span class="n">blueprint</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+        <span class="n">error</span><span class="o">=</span><span class="n">error</span><span class="p">,</span>
+        <span class="n">description</span><span class="o">=</span><span class="n">error_description</span><span class="p">,</span>
+        <span class="n">uri</span><span class="o">=</span><span class="n">error_uri</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">flash</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="n">category</span><span class="o">=</span><span class="s2">&quot;error&quot;</span><span class="p">)</span>
+
+<span class="nd">@app.route</span><span class="p">(</span><span class="s2">&quot;/logout&quot;</span><span class="p">)</span>
+<span class="nd">@login_required</span>
+<span class="k">def</span> <span class="nf">logout</span><span class="p">():</span>
+    <span class="n">logout_user</span><span class="p">()</span>
+    <span class="n">flash</span><span class="p">(</span><span class="s2">&quot;You have logged out&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">redirect</span><span class="p">(</span><span class="n">url_for</span><span class="p">(</span><span class="s2">&quot;index&quot;</span><span class="p">))</span>
+
+<span class="nd">@app.route</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">index</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">render_template</span><span class="p">(</span><span class="s2">&quot;home.html&quot;</span><span class="p">)</span>
+
+<span class="c1"># hook up extensions to app</span>
+<span class="n">db</span><span class="o">.</span><span class="n">init_app</span><span class="p">(</span><span class="n">app</span><span class="p">)</span>
+<span class="n">login_manager</span><span class="o">.</span><span class="n">init_app</span><span class="p">(</span><span class="n">app</span><span class="p">)</span>
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+    <span class="k">if</span> <span class="s2">&quot;--setup&quot;</span> <span class="ow">in</span> <span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">:</span>
+        <span class="k">with</span> <span class="n">app</span><span class="o">.</span><span class="n">app_context</span><span class="p">():</span>
+            <span class="n">db</span><span class="o">.</span><span class="n">create_all</span><span class="p">()</span>
+            <span class="n">db</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+            <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Database tables created&quot;</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">app</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">debug</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Make a <code class="docutils literal"><span class="pre">templates</span></code> directory next to <code class="docutils literal"><span class="pre">multi.py</span></code>. In that directory, create
+a file called <code class="docutils literal"><span class="pre">home.html</span></code> with the following contents:</p>
+<div class="highlight-jinja"><div class="highlight"><pre><span></span><span class="x">&lt;!DOCTYPE html&gt;</span>
+<span class="x">&lt;head&gt;</span>
+<span class="x">    &lt;title&gt;Flask-Dance Multi-User SQLAlchemy&lt;/title&gt;</span>
+<span class="x">&lt;/head&gt;</span>
+<span class="x">&lt;body&gt;</span>
+<span class="cp">{%</span> <span class="k">with</span> <span class="nv">messages</span> <span class="o">=</span> <span class="nv">get_flashed_messages</span><span class="o">(</span><span class="nv">with_categories</span><span class="o">=</span><span class="kp">true</span><span class="o">)</span> <span class="cp">%}</span><span class="x"></span>
+<span class="x">  </span><span class="cp">{%</span> <span class="k">if</span> <span class="nv">messages</span> <span class="cp">%}</span><span class="x"></span>
+<span class="x">    &lt;ul class=&quot;flash&quot;&gt;</span>
+<span class="x">    </span><span class="cp">{%</span> <span class="k">for</span> <span class="nv">category</span><span class="o">,</span> <span class="nv">message</span> <span class="k">in</span> <span class="nv">messages</span> <span class="cp">%}</span><span class="x"></span>
+<span class="x">      &lt;li class=&quot;</span><span class="cp">{{</span> <span class="nv">category</span> <span class="cp">}}</span><span class="x">&quot;&gt;</span><span class="cp">{{</span> <span class="nv">message</span> <span class="cp">}}</span><span class="x">&lt;/li&gt;</span>
+<span class="x">    </span><span class="cp">{%</span> <span class="k">endfor</span> <span class="cp">%}</span><span class="x"></span>
+<span class="x">    &lt;/ul&gt;</span>
+<span class="x">  </span><span class="cp">{%</span> <span class="k">endif</span> <span class="cp">%}</span><span class="x"></span>
+<span class="cp">{%</span> <span class="k">endwith</span> <span class="cp">%}</span><span class="x"></span>
+<span class="cp">{%</span> <span class="k">if</span> <span class="nv">current_user.is_authenticated</span> <span class="cp">%}</span><span class="x"></span>
+<span class="x">  You are logged in as </span><span class="cp">{{</span> <span class="nv">current_user.username</span> <span class="cp">}}</span><span class="x">!</span>
+<span class="x">  &lt;a href=&quot;</span><span class="cp">{{</span> <span class="nv">url_for</span><span class="o">(</span><span class="s2">&quot;logout&quot;</span><span class="o">)</span> <span class="cp">}}</span><span class="x">&quot;&gt;Log out&lt;/a&gt;</span>
+<span class="cp">{%</span> <span class="k">else</span> <span class="cp">%}</span><span class="x"></span>
+<span class="x">  You are not logged in.</span>
+<span class="x">  &lt;a href=&quot;</span><span class="cp">{{</span> <span class="nv">url_for</span><span class="o">(</span><span class="s2">&quot;github.login&quot;</span><span class="o">)</span> <span class="cp">}}</span><span class="x">&quot;&gt;Log in&lt;/a&gt;</span>
+<span class="cp">{%</span> <span class="k">endif</span> <span class="cp">%}</span><span class="x"></span>
+<span class="x">&lt;/body&gt;</span>
+</pre></div>
+</div>
+<p>For this to work properly, you must also do these things:</p>
+<ol class="arabic simple">
+<li>Register an application with GitHub, where the &#8220;authorization callback URL&#8221;
+is <code class="docutils literal"><span class="pre">http://localhost:5000/login/github/authorized</span></code></li>
+<li>Replace <code class="docutils literal"><span class="pre">my-key-here</span></code> and <code class="docutils literal"><span class="pre">my-secret-here</span></code> with the client ID
+and client secret that you got from your GitHub application</li>
+<li>Install <code class="docutils literal"><span class="pre">Flask-Dance</span></code>, <code class="docutils literal"><span class="pre">Flask-SQLAlchemy</span></code>, <code class="docutils literal"><span class="pre">Flask-Login</span></code>, and <code class="docutils literal"><span class="pre">blinker</span></code></li>
+<li>Run <code class="docutils literal"><span class="pre">python</span> <span class="pre">multi.py</span> <span class="pre">--setup</span></code> to create your sqlite database</li>
+<li>Set the <span class="target" id="index-0"></span><code class="xref std std-envvar docutils literal"><span class="pre">OAUTHLIB_INSECURE_TRANSPORT</span></code> environment variable, so
+OAuthlib doesn&#8217;t complain about running over <code class="docutils literal"><span class="pre">http</span></code> (for testing only!)</li>
+<li>Run <code class="docutils literal"><span class="pre">python</span> <span class="pre">multi.py</span></code> to run the application, and visit
+<code class="docutils literal"><span class="pre">http://localhost:5000</span></code> in your browser.</li>
+</ol>
+</div>
+<div class="section" id="explanation">
+<h2>Explanation<a class="headerlink" href="#explanation" title="Permalink to this headline">¶</a></h2>
+<p>There&#8217;s a lot going on here, so let&#8217;s break it down. This code uses Flask-Dance,
+<a class="reference external" href="http://pythonhosted.org/Flask-SQLAlchemy/">Flask-SQLAlchemy</a> for a database, and <a class="reference external" href="https://flask-login.readthedocs.org/">Flask-Login</a> for user management. It
+also hooks into several signals, powered by the <a class="reference external" href="http://pythonhosted.org//blinker/">blinker</a> library.</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="c1"># setup Flask application</span>
+<span class="n">app</span> <span class="o">=</span> <span class="n">Flask</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+<span class="n">app</span><span class="o">.</span><span class="n">secret_key</span> <span class="o">=</span> <span class="s2">&quot;supersekrit&quot;</span>
+<span class="n">blueprint</span> <span class="o">=</span> <span class="n">make_github_blueprint</span><span class="p">(</span>
+    <span class="n">client_id</span><span class="o">=</span><span class="s2">&quot;my-key-here&quot;</span><span class="p">,</span>
+    <span class="n">client_secret</span><span class="o">=</span><span class="s2">&quot;my-secret-here&quot;</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">app</span><span class="o">.</span><span class="n">register_blueprint</span><span class="p">(</span><span class="n">blueprint</span><span class="p">,</span> <span class="n">url_prefix</span><span class="o">=</span><span class="s2">&quot;/login&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>This is the standard pattern for creating a Flask-Dance blueprint and attaching
+it to your Flask application.</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="c1"># setup database models</span>
+<span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s2">&quot;SQLALCHEMY_DATABASE_URI&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;sqlite:///multi.db&quot;</span>
+<span class="n">db</span> <span class="o">=</span> <span class="n">SQLAlchemy</span><span class="p">()</span>
+
+<span class="k">class</span> <span class="nc">User</span><span class="p">(</span><span class="n">db</span><span class="o">.</span><span class="n">Model</span><span class="p">,</span> <span class="n">UserMixin</span><span class="p">):</span>
+    <span class="nb">id</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">Column</span><span class="p">(</span><span class="n">db</span><span class="o">.</span><span class="n">Integer</span><span class="p">,</span> <span class="n">primary_key</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+    <span class="n">username</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">Column</span><span class="p">(</span><span class="n">db</span><span class="o">.</span><span class="n">String</span><span class="p">(</span><span class="mi">256</span><span class="p">),</span> <span class="n">unique</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+    <span class="c1"># ... other columns as needed</span>
+
+<span class="k">class</span> <span class="nc">OAuth</span><span class="p">(</span><span class="n">OAuthConsumerMixin</span><span class="p">,</span> <span class="n">db</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+    <span class="n">provider_user_id</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">Column</span><span class="p">(</span><span class="n">db</span><span class="o">.</span><span class="n">String</span><span class="p">(</span><span class="mi">256</span><span class="p">),</span> <span class="n">unique</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+    <span class="n">user_id</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">Column</span><span class="p">(</span><span class="n">db</span><span class="o">.</span><span class="n">Integer</span><span class="p">,</span> <span class="n">db</span><span class="o">.</span><span class="n">ForeignKey</span><span class="p">(</span><span class="n">User</span><span class="o">.</span><span class="n">id</span><span class="p">))</span>
+    <span class="n">user</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">relationship</span><span class="p">(</span><span class="n">User</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>This code sets up <a class="reference external" href="http://pythonhosted.org/Flask-SQLAlchemy/">Flask-SQLAlchemy</a>, and configures it to use a sqlite database
+called <code class="docutils literal"><span class="pre">multi.db</span></code>. You can change this to use any database that <a class="reference external" href="http://www.sqlalchemy.org/">SQLAlchemy</a>
+supports. This code also defines two database models: a <code class="xref py py-class docutils literal"><span class="pre">User</span></code> model
+that inherits from <a class="reference external" href="https://flask-login.readthedocs.io/en/latest/index.html#flask_login.UserMixin" title="(in Flask-Login v0.4.1)"><code class="xref py py-class docutils literal"><span class="pre">flask_login.UserMixin</span></code></a> (to ensure it has the
+methods that Flask-Login expects), and an <code class="xref py py-class docutils literal"><span class="pre">OAuth</span></code> model for actually
+storing OAuth tokens. In addition to providing a connection to the
+<code class="xref py py-class docutils literal"><span class="pre">User</span></code> model, the <code class="xref py py-class docutils literal"><span class="pre">OAuth</span></code> model also stores the user ID that
+the provider uses &#8211; in this case, the GitHub user ID.</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="c1"># setup login manager</span>
+<span class="n">login_manager</span> <span class="o">=</span> <span class="n">LoginManager</span><span class="p">()</span>
+<span class="n">login_manager</span><span class="o">.</span><span class="n">login_view</span> <span class="o">=</span> <span class="s1">&#39;github.login&#39;</span>
+
+<span class="nd">@login_manager.user_loader</span>
+<span class="k">def</span> <span class="nf">load_user</span><span class="p">(</span><span class="n">user_id</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">User</span><span class="o">.</span><span class="n">query</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">user_id</span><span class="p">))</span>
+</pre></div>
+</div>
+<p>This code sets up <a class="reference external" href="https://flask-login.readthedocs.org/">Flask-Login</a>, informing it about our <code class="xref py py-class docutils literal"><span class="pre">User</span></code> model
+and the &#8220;github.login&#8221; view, so that it can properly redirect users if they
+try to access views that are login-protected.</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="c1"># setup SQLAlchemy backend</span>
+<span class="n">blueprint</span><span class="o">.</span><span class="n">backend</span> <span class="o">=</span> <span class="n">SQLAlchemyBackend</span><span class="p">(</span><span class="n">OAuth</span><span class="p">,</span> <span class="n">db</span><span class="o">.</span><span class="n">session</span><span class="p">,</span> <span class="n">user</span><span class="o">=</span><span class="n">current_user</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>This code hooks up the
+<a class="reference internal" href="../api.html#flask_dance.consumer.backend.sqla.SQLAlchemyBackend" title="flask_dance.consumer.backend.sqla.SQLAlchemyBackend"><code class="xref py py-class docutils literal"><span class="pre">SQLAlchemyBackend</span></code></a> backend
+to Flask-Dance, so that it can store OAuth tokens in the database.
+Notice that we also pass <code class="docutils literal"><span class="pre">user=current_user</span></code>, where <code class="xref py py-attr docutils literal"><span class="pre">current_user</span></code>
+is a proxy provided by <a class="reference external" href="https://flask-login.readthedocs.org/">Flask-Login</a>. This will ensure that OAuth tokens
+are scoped to individual users.</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="c1"># create/login local user on successful OAuth login</span>
+<span class="nd">@oauth_authorized.connect_via</span><span class="p">(</span><span class="n">github_bp</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">github_logged_in</span><span class="p">(</span><span class="n">blueprint</span><span class="p">,</span> <span class="n">token</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">token</span><span class="p">:</span>
+        <span class="n">flash</span><span class="p">(</span><span class="s2">&quot;Failed to log in with GitHub.&quot;</span><span class="p">,</span> <span class="n">category</span><span class="o">=</span><span class="s2">&quot;error&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">False</span>
+
+    <span class="n">resp</span> <span class="o">=</span> <span class="n">blueprint</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;/user&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">resp</span><span class="o">.</span><span class="n">ok</span><span class="p">:</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;Failed to fetch user info from GitHub.&quot;</span>
+        <span class="n">flash</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="n">category</span><span class="o">=</span><span class="s2">&quot;error&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">False</span>
+
+    <span class="n">github_info</span> <span class="o">=</span> <span class="n">resp</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+    <span class="n">github_user_id</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">github_info</span><span class="p">[</span><span class="s2">&quot;id&quot;</span><span class="p">])</span>
+
+    <span class="c1"># Find this OAuth token in the database, or create it</span>
+    <span class="n">query</span> <span class="o">=</span> <span class="n">OAuth</span><span class="o">.</span><span class="n">query</span><span class="o">.</span><span class="n">filter_by</span><span class="p">(</span>
+        <span class="n">provider</span><span class="o">=</span><span class="n">blueprint</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+        <span class="n">provider_user_id</span><span class="o">=</span><span class="n">github_user_id</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">oauth</span> <span class="o">=</span> <span class="n">query</span><span class="o">.</span><span class="n">one</span><span class="p">()</span>
+    <span class="k">except</span> <span class="n">NoResultFound</span><span class="p">:</span>
+        <span class="n">oauth</span> <span class="o">=</span> <span class="n">OAuth</span><span class="p">(</span>
+            <span class="n">provider</span><span class="o">=</span><span class="n">blueprint</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+            <span class="n">provider_user_id</span><span class="o">=</span><span class="n">github_user_id</span><span class="p">,</span>
+            <span class="n">token</span><span class="o">=</span><span class="n">token</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">oauth</span><span class="o">.</span><span class="n">user</span><span class="p">:</span>
+        <span class="n">login_user</span><span class="p">(</span><span class="n">oauth</span><span class="o">.</span><span class="n">user</span><span class="p">)</span>
+        <span class="n">flash</span><span class="p">(</span><span class="s2">&quot;Successfully signed in with GitHub.&quot;</span><span class="p">)</span>
+
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c1"># Create a new local user account for this user</span>
+        <span class="n">user</span> <span class="o">=</span> <span class="n">User</span><span class="p">(</span>
+            <span class="c1"># Remember that `email` can be None, if the user declines</span>
+            <span class="c1"># to publish their email address on GitHub!</span>
+            <span class="n">email</span><span class="o">=</span><span class="n">github_info</span><span class="p">[</span><span class="s2">&quot;email&quot;</span><span class="p">],</span>
+            <span class="n">name</span><span class="o">=</span><span class="n">github_info</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">],</span>
+        <span class="p">)</span>
+        <span class="c1"># Associate the new local user account with the OAuth token</span>
+        <span class="n">oauth</span><span class="o">.</span><span class="n">user</span> <span class="o">=</span> <span class="n">user</span>
+        <span class="c1"># Save and commit our database models</span>
+        <span class="n">db</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">add_all</span><span class="p">([</span><span class="n">user</span><span class="p">,</span> <span class="n">oauth</span><span class="p">])</span>
+        <span class="n">db</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+        <span class="c1"># Log in the new local user account</span>
+        <span class="n">login_user</span><span class="p">(</span><span class="n">user</span><span class="p">)</span>
+        <span class="n">flash</span><span class="p">(</span><span class="s2">&quot;Successfully signed in with GitHub.&quot;</span><span class="p">)</span>
+
+    <span class="c1"># Disable Flask-Dance&#39;s default behavior for saving the OAuth token</span>
+    <span class="k">return</span> <span class="bp">False</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>This code hooks into the <a class="reference internal" href="../signals.html#flask_dance.consumer.oauth_authorized" title="flask_dance.consumer.oauth_authorized"><code class="xref py py-data docutils literal"><span class="pre">oauth_authorized</span></code></a> signal,
+which is triggered when a user successfully completes the OAuth dance.
+We make an HTTP request to GitHub using <code class="xref py py-attr docutils literal"><span class="pre">blueprint.session</span></code>,
+which already has the OAuth token loaded, in order to determine some
+basic information for the user, like their GitHub user ID. Then we look up
+in our local database to see if we already have a user associated with that
+GitHub user ID &#8211; if not, we create a new user.
+We then log that user in, using Flask-Login&#8217;s
+<code class="xref py py-func docutils literal"><span class="pre">login_user()</span></code> function.</p>
+<p>We also use the <a class="reference external" href="http://flask.pocoo.org/docs/api/#flask.flash" title="(in Flask v0.13-dev)"><code class="xref py py-func docutils literal"><span class="pre">flash()</span></code></a> function to display status messages to the
+user, so that they understand that they&#8217;ve just logged in. Good feedback to the
+user is crucial for a good user experience.</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="c1"># notify on OAuth provider error</span>
+<span class="nd">@oauth_error.connect_via</span><span class="p">(</span><span class="n">blueprint</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">github_error</span><span class="p">(</span><span class="n">blueprint</span><span class="p">,</span> <span class="n">error</span><span class="p">,</span> <span class="n">error_description</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">error_uri</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+    <span class="n">msg</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="s2">&quot;OAuth error from {name}! &quot;</span>
+        <span class="s2">&quot;error={error} description={description} uri={uri}&quot;</span>
+    <span class="p">)</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+        <span class="n">name</span><span class="o">=</span><span class="n">blueprint</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+        <span class="n">error</span><span class="o">=</span><span class="n">error</span><span class="p">,</span>
+        <span class="n">description</span><span class="o">=</span><span class="n">error_description</span><span class="p">,</span>
+        <span class="n">uri</span><span class="o">=</span><span class="n">error_uri</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">flash</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="n">category</span><span class="o">=</span><span class="s2">&quot;error&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Sometimes, the OAuth provider may throw an error message instead of allowing
+the OAuth dance to complete successfully. If so, Flask-Dance will redirect the
+user just as though the dance <em>did</em> complete successfully, so it is crucial
+to provide feedback to the user by hooking into the
+<a class="reference internal" href="../signals.html#flask_dance.consumer.oauth_error" title="flask_dance.consumer.oauth_error"><code class="xref py py-data docutils literal"><span class="pre">oauth_error</span></code></a> signal.</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="nd">@app.route</span><span class="p">(</span><span class="s2">&quot;/logout&quot;</span><span class="p">)</span>
+<span class="nd">@login_required</span>
+<span class="k">def</span> <span class="nf">logout</span><span class="p">():</span>
+    <span class="n">logout_user</span><span class="p">()</span>
+    <span class="n">flash</span><span class="p">(</span><span class="s2">&quot;You have logged out&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">redirect</span><span class="p">(</span><span class="n">url_for</span><span class="p">(</span><span class="s2">&quot;index&quot;</span><span class="p">))</span>
+
+<span class="nd">@app.route</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">index</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">render_template</span><span class="p">(</span><span class="s2">&quot;home.html&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>This code sets up some routes for our application: a <code class="docutils literal"><span class="pre">logout</span></code> route, so that
+users can choose to log out of their user account, and an <code class="docutils literal"><span class="pre">index</span></code> route,
+so that there&#8217;s something to see in the application.</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="c1"># hook up extensions to app</span>
+<span class="n">db</span><span class="o">.</span><span class="n">init_app</span><span class="p">(</span><span class="n">app</span><span class="p">)</span>
+<span class="n">login_manager</span><span class="o">.</span><span class="n">init_app</span><span class="p">(</span><span class="n">app</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Since we set up the Flask-SQLAlchemy and Flask-Login extensions initally
+without passing the application object, we have to pass the app to them after
+they&#8217;ve been fully configured. This is called the
+<a class="reference external" href="http://flask.pocoo.org/docs/patterns/appfactories/#app-factories" title="(in Flask v0.13-dev)"><span class="xref std std-ref">application factory pattern</span></a>.</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+    <span class="k">if</span> <span class="s2">&quot;--setup&quot;</span> <span class="ow">in</span> <span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">:</span>
+        <span class="k">with</span> <span class="n">app</span><span class="o">.</span><span class="n">app_context</span><span class="p">():</span>
+            <span class="n">db</span><span class="o">.</span><span class="n">create_all</span><span class="p">()</span>
+            <span class="n">db</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+            <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Database tables created&quot;</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">app</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">debug</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>We need a way to set up the database tables before the application is run,
+so this code checks for a <code class="docutils literal"><span class="pre">--setup</span></code> flag when running the code, and if so
+it sets up the database tables instead of running the application. Note that
+the application is running in debug mode &#8211; be sure to turn this off before
+running your application in production!</p>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="../index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">SQLAlchemy Multi-User Quickstart</a><ul>
+<li><a class="reference internal" href="#code">Code</a></li>
+<li><a class="reference internal" href="#explanation">Explanation</a></li>
+</ul>
+</li>
+</ul>
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+  <li><a href="index.html">Quickstarts</a><ul>
+      <li>Previous: <a href="nylas.html" title="previous chapter">Nylas Quickstart</a></li>
+      <li>Next: <a href="../providers.html" title="next chapter">Providers</a></li>
+  </ul></li>
+  </ul></li>
+</ul>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../_sources/quickstarts/sqla-multiuser.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+  
+    <a href="http://github.com/singingwolfboy/flask-dance" class="github"><img src="http://s3.amazonaws.com/github/ribbons/forkme_right_darkblue_121621.png" alt="Fork me on GitHub" /></a>
+  
+
+  <div class="footer">
+    &copy; Copyright 2014-2016, David Baumgold.
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a>.
+  </div>
+  
+  </body>
+</html>
