@@ -1,0 +1,193 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+        <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>Command Signals &#8212; django-extensions 2.0.0 documentation</title>
+    <link rel="stylesheet" href="_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript" src="_static/documentation_options.js"></script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Current Admin Extensions" href="admin_extensions.html" />
+    <link rel="prev" title="Ideas for New Command Extensions" href="command_extension_ideas.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="admin_extensions.html" title="Current Admin Extensions"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="command_extension_ideas.html" title="Ideas for New Command Extensions"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">django-extensions 2.0.0 documentation</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="command-signals">
+<h1>Command Signals<a class="headerlink" href="#command-signals" title="Permalink to this headline">¶</a></h1>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">synopsis:</th><td class="field-body">Signals fired before and after a command is executed.</td>
+</tr>
+</tbody>
+</table>
+<p>A signal is thrown pre/post each management command allowing your application
+to hook into each commands execution.</p>
+<div class="section" id="basic-example">
+<h2>Basic Example<a class="headerlink" href="#basic-example" title="Permalink to this headline">¶</a></h2>
+<p>An example hooking into show_template_tags:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">django_extensions.management.signals</span> <span class="k">import</span> <span class="n">pre_command</span><span class="p">,</span> <span class="n">post_command</span>
+<span class="kn">from</span> <span class="nn">django_extensions.management.commands.show_template_tags</span> <span class="k">import</span> <span class="n">Command</span>
+
+<span class="k">def</span> <span class="nf">pre_receiver</span><span class="p">(</span><span class="n">sender</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">kwargs</span><span class="p">):</span>
+  <span class="c1"># I&#39;m executed prior to the management command</span>
+
+<span class="k">def</span> <span class="nf">post_receiver</span><span class="p">(</span><span class="n">sender</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">kwargs</span><span class="p">,</span> <span class="n">outcome</span><span class="p">):</span>
+  <span class="c1"># I&#39;m executed after the management command</span>
+
+<span class="n">pre_command</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="n">pre_receiver</span><span class="p">,</span> <span class="n">Command</span><span class="p">)</span>
+<span class="n">post_command</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="n">post_receiver</span><span class="p">,</span> <span class="n">Command</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="custom-permissions-for-all-models">
+<h2>Custom Permissions For All Models<a class="headerlink" href="#custom-permissions-for-all-models" title="Permalink to this headline">¶</a></h2>
+<p>You can use the post signal to hook into the <code class="docutils literal notranslate"><span class="pre">update_permissions</span></code> command so that
+you can add your own permissions to each model.</p>
+<p>For instance, lets say you want to add <code class="docutils literal notranslate"><span class="pre">list</span></code> and <code class="docutils literal notranslate"><span class="pre">view</span></code> permissions to
+each model. You could do this by adding them to the <code class="docutils literal notranslate"><span class="pre">permissions</span></code> tuple inside
+your models <code class="docutils literal notranslate"><span class="pre">Meta</span></code> class but this gets pretty tedious.</p>
+<p>An easier solution is to hook into the <code class="docutils literal notranslate"><span class="pre">update_permissions</span></code> call, as follows;</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">django.db.models.signals</span> <span class="k">import</span> <span class="n">post_syncdb</span>
+<span class="kn">from</span> <span class="nn">django.contrib.contenttypes.models</span> <span class="k">import</span> <span class="n">ContentType</span>
+<span class="kn">from</span> <span class="nn">django.contrib.auth.models</span> <span class="k">import</span> <span class="n">Permission</span>
+<span class="kn">from</span> <span class="nn">django_extensions.management.signals</span> <span class="k">import</span> <span class="n">post_command</span>
+<span class="kn">from</span> <span class="nn">django_extensions.management.commands.update_permissions</span> <span class="k">import</span> <span class="n">Command</span> <span class="k">as</span> <span class="n">UpdatePermissionsCommand</span>
+
+<span class="k">def</span> <span class="nf">add_permissions</span><span class="p">(</span><span class="n">sender</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+  <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">  Add view and list permissions to all content types.</span>
+<span class="sd">  &quot;&quot;&quot;</span>
+  <span class="c1"># for each of our content types</span>
+  <span class="k">for</span> <span class="n">content_type</span> <span class="ow">in</span> <span class="n">ContentType</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">():</span>
+
+    <span class="k">for</span> <span class="n">action</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;view&#39;</span><span class="p">,</span> <span class="s1">&#39;list&#39;</span><span class="p">]:</span>
+      <span class="c1"># build our permission slug</span>
+      <span class="n">codename</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">_</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">action</span><span class="p">,</span> <span class="n">content_type</span><span class="o">.</span><span class="n">model</span><span class="p">)</span>
+
+      <span class="k">try</span><span class="p">:</span>
+        <span class="n">Permission</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">content_type</span><span class="o">=</span><span class="n">content_type</span><span class="p">,</span> <span class="n">codename</span><span class="o">=</span><span class="n">codename</span><span class="p">)</span>
+        <span class="c1"># Already exists, ignore</span>
+      <span class="k">except</span> <span class="n">Permission</span><span class="o">.</span><span class="n">DoesNotExist</span><span class="p">:</span>
+        <span class="c1"># Doesn&#39;t exist, add it</span>
+        <span class="n">Permission</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">content_type</span><span class="o">=</span><span class="n">content_type</span><span class="p">,</span>
+                      <span class="n">codename</span><span class="o">=</span><span class="n">codename</span><span class="p">,</span>
+                      <span class="n">name</span><span class="o">=</span><span class="s2">&quot;Can </span><span class="si">%s</span><span class="s2"> </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">action</span><span class="p">,</span> <span class="n">content_type</span><span class="o">.</span><span class="n">name</span><span class="p">))</span>
+        <span class="nb">print</span> <span class="s2">&quot;Added </span><span class="si">%s</span><span class="s2"> permission for </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">action</span><span class="p">,</span> <span class="n">content_type</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+<span class="n">post_command</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="n">add_permissions</span><span class="p">,</span> <span class="n">UpdatePermissionsCommand</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Each time <code class="docutils literal notranslate"><span class="pre">update_permissions</span></code> is called <code class="docutils literal notranslate"><span class="pre">add_permissions</span></code> will be called which
+ensures there are view and list permissions to all content types.</p>
+</div>
+<div class="section" id="using-pre-post-signals-on-your-own-commands">
+<h2>Using pre/post signals on your own commands<a class="headerlink" href="#using-pre-post-signals-on-your-own-commands" title="Permalink to this headline">¶</a></h2>
+<p>The signals are implemented using a decorator on the handle method of a management command,
+thus using this functionality in your own application is trivial:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">django_extensions.management.utils</span> <span class="k">import</span> <span class="n">signalcommand</span>
+
+<span class="k">class</span> <span class="nc">Command</span><span class="p">(</span><span class="n">BaseCommand</span><span class="p">):</span>
+
+  <span class="nd">@signalcommand</span>
+  <span class="k">def</span> <span class="nf">handle</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="o">...</span>
+    <span class="o">...</span>
+</pre></div>
+</div>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">Command Signals</a><ul>
+<li><a class="reference internal" href="#basic-example">Basic Example</a></li>
+<li><a class="reference internal" href="#custom-permissions-for-all-models">Custom Permissions For All Models</a></li>
+<li><a class="reference internal" href="#using-pre-post-signals-on-your-own-commands">Using pre/post signals on your own commands</a></li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="command_extension_ideas.html"
+                        title="previous chapter">Ideas for New Command Extensions</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="admin_extensions.html"
+                        title="next chapter">Current Admin Extensions</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/command_signals.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="admin_extensions.html" title="Current Admin Extensions"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="command_extension_ideas.html" title="Ideas for New Command Extensions"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">django-extensions 2.0.0 documentation</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright Copyright (C) 2008-2015 Michael Trier, Bas van Oostveen and contributors.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.7.0.
+    </div>
+  </body>
+</html>
