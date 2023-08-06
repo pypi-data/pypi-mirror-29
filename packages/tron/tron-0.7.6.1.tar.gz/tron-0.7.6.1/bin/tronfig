@@ -1,0 +1,186 @@
+#!/usr/bin/env python
+from __future__ import absolute_import
+from __future__ import print_function
+from __future__ import unicode_literals
+from __future__ import with_statement
+
+import logging
+import os
+import shutil
+import sys
+import tempfile
+import traceback
+
+from six.moves import input
+
+from tron.commands import cmd_utils
+from tron.commands.client import Client
+from tron.config import config_parse
+from tron.config import ConfigError
+from tron.config import manager
+from tron.config import schema
+
+
+log = logging.getLogger('tronfig')
+
+
+def parse_cli():
+    parser = cmd_utils.build_option_parser()
+
+    parser.add_argument(
+        "-p", "--print", action="store_true", dest="print_config",
+        help="Print config to stdout, rather than uploading",
+    )
+    parser.add_argument(
+        "-C", "--check", action="store_true", dest="check",
+        help="Upload and check configuration, don't apply, "
+             "useful when you want to verify if tron daemon "
+             "will accept your configuration.",
+    )
+    parser.add_argument(
+        "-d", "--delete", action="store_true",
+        help="Delete the configuration for this namespace",
+    )
+    parser.add_argument(
+        "-V", "--validate", action="store_true", dest="validate",
+        help="Only validate configuration, don't upload, "
+             "useful for verifying config locally. If namespace "
+             "is not specified, it will be derived from file "
+             "name, if any.",
+    )
+    parser.add_argument(
+        "-D", "--validate-dir",
+        action="store",
+        dest="validate_dir",
+        help="Full validation of a folder, don't upload, "
+             "same as -V but checks for more edge-cases",
+    )
+    parser.add_argument(
+        "-n", "--namespace", action="store",
+        help="Alternate namespace to use",
+    )
+    parser.add_argument('source')
+
+    return parser.parse_args()
+
+
+def upload_config(client, config_name, contents, config_hash, check=False):
+    response = client.config(
+        config_name,
+        config_data=contents,
+        config_hash=config_hash,
+        check=check,
+    )
+
+    if 'error' in response:
+        log.error(response['error'])
+        return False
+
+    print("Configuration uploaded successfully", file=sys.stderr)
+    return True
+
+
+def validate(config_name, config_content):
+    try:
+        config_data = manager.from_string(config_content)
+        config_parse.validate_fragment(config_name, config_data)
+    except ConfigError as e:
+        return str(e)
+
+
+def delete_config(client, config_name):
+    if config_name == schema.MASTER_NAMESPACE:
+        log.error(
+            "Deleting MASTER namespace is not allowed. Name must be specified.",
+        )
+        return
+
+    response = input(
+        "This will delete the configuration for the %s namespace. Proceed? (y/n): " % config_name,
+    )
+    if response[:1].lower() != 'y':
+        return
+
+    config_hash = client.config(config_name)['hash']
+    if upload_config(client, config_name, "", config_hash):
+        return
+    raise SystemExit("tronfig deletion failed")
+
+
+def validate_dir(path):
+    try:
+        manifest_dir = tempfile.mkdtemp()
+        manifest = manager.ManifestFile(manifest_dir)
+        manifest.create()
+        for fname in os.listdir(path):
+            name, ext = os.path.splitext(fname)
+            if ext == 'yaml':
+                namespace = name
+                manifest.add(namespace, os.path.join(path, fname))
+
+        config_manager = manager.ConfigManager(path, manifest)
+        config_manager.load()
+    except ConfigError as e:
+        traceback.print_exc()
+        return str(e)
+    finally:
+        if manifest_dir:
+            shutil.rmtree(manifest_dir)
+
+
+def get_config_input(namespace, source):
+    if source == '-':
+        source_io = sys.stdin
+        if not namespace:
+            namespace = schema.MASTER_NAMESPACE
+    else:
+        source_io = open(source, 'r')
+        if not namespace:
+            name, _ = os.path.splitext(os.path.basename(source))
+            namespace = name
+
+    content = source_io.read()
+
+    return namespace, content
+
+
+if __name__ == '__main__':
+    args = parse_cli()
+    cmd_utils.setup_logging(args)
+    cmd_utils.load_config(args)
+
+    if args.validate or args.validate_dir:
+        if args.validate:
+            name, content = get_config_input(args.namespace, args.source)
+            result = validate(name, content)
+        elif args.validate_dir is not None:
+            result = validate_dir(args.validate_dir)
+
+        if not result:
+            print("OK")
+            sys.exit(0)
+        else:
+            print(result)
+            sys.exit(1)
+
+    client = Client(args.server)
+
+    if args.print_config:
+        print(client.config(args.source)['config'])
+    elif args.delete:
+        delete_config(client, args.source)
+    else:
+        namespace, content = get_config_input(args.namespace, args.source)
+        config_hash = client.config(args.namespace)['hash']
+        result = validate(namespace, content)
+        if result:
+            print(result)
+            sys.exit(1)
+
+        if upload_config(
+                client, namespace, content, config_hash, check=args.check,
+        ):
+            sys.exit(0)
+
+        print("Uploading failed")
+        sys.exit(1)
