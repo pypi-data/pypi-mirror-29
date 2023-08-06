@@ -1,0 +1,236 @@
+#!python
+# -*- coding: utf-8 -*-
+
+'''Shows all times of day for the given timezones.
+
+This can be useful to select a common meeting time across multiple
+timezones easily. This takes into account daylight savings and
+whatnot, and can schedule meetings in the future.
+'''
+
+__description__ = '''pick a meeting time'''
+__website__ = 'https://gitlab.com/anarcat/undertime'
+__prog__ = 'undertime'
+__author__ = 'Antoine Beaupré'
+__email__ = 'anarcat@debian.org'
+__copyright__ = "Copyright (C) 2017 Antoine Beaupré"
+__license_short__ = 'AGPLv3'
+__license__ = """
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+"""
+
+import argparse
+import datetime
+import logging
+import sys
+
+# also considered colorama and crayons
+# 1. colorama requires to send reset codes. annoying.
+# 2. crayons is a wrapper around colorama, not in debian
+import termcolor
+# another alternative: http://dateparser.readthedocs.io/
+# also not packaged in debian
+import parsedatetime
+import pytz
+
+# for tabulated data, i looked at other alternatives
+# humanfriendly has a tabulator: https://humanfriendly.readthedocs.io/en/latest/#module-humanfriendly.tables
+# tabulate is similar: https://pypi.python.org/pypi/tabulate
+# texttable as well: https://github.com/foutaise/texttable/
+# terminaltables is the full thing: https://robpol86.github.io/terminaltables/
+
+# originally, i was just centering thing with the .format()
+# handler. this was working okay except that it was too wide because i
+# was using the widest column as width everywhere because i'm lazy.
+
+# we use DoubleTable instead of SingleTable because the latter sends
+# vt100 escape sequences instead of unicode, which breaks pagers and
+# other things. See https://bugs.debian.org/891381 for the full
+# discussion.
+from terminaltables import DoubleTable
+
+
+class NegateAction(argparse.Action):
+    '''add a toggle flag to argparse
+
+    this is similar to 'store_true' or 'store_false', but allows
+    arguments prefixed with --no to disable the default. the default
+    is set depending on the first argument - if it starts with the
+    negative form (defined by default as '--no'), the default is False,
+    otherwise True.
+
+    originally written for the stressant project.
+    '''
+
+    negative = '--no'
+
+    def __init__(self, option_strings, *args, **kwargs):
+        '''set default depending on the first argument'''
+        kwargs['default'] = kwargs.get('default', not option_strings[0].startswith(self.negative))
+        super(NegateAction, self).__init__(option_strings, *args,
+                                           nargs=0, **kwargs)
+
+    def __call__(self, parser, ns, values, option):
+        '''set the truth value depending on whether
+        it starts with the negative form'''
+        setattr(ns, self.dest, not option.startswith(self.negative))
+
+
+def arg_parser():
+    parser = argparse.ArgumentParser(description=__description__,
+                                     epilog=__doc__)
+    parser.add_argument('timezones', nargs='*',
+                        help='timezones to show [default: current timezone]')
+    parser.add_argument('--start', '-s', default=9, type=int, metavar='HOUR',
+                        help='start of working day, in hours [default: %(default)s]')
+    parser.add_argument('--end', '-e', default=17, type=int, metavar='HOUR',
+                        help='end of working day, in hours [default: %(default)s]')
+    parser.add_argument('--date', '-d', default=None, metavar='WHEN',
+                        help='target date for the meeting, supports arbitrary dates like "in two weeks" [default: now]')
+    parser.add_argument('--colors', '--no-colors', action=NegateAction, default=sys.stdout.isatty(),
+                        help='show colors [default: %(default)s]')
+    parser.add_argument('--default-zone', '--no-default-zone', action=NegateAction,
+                        help='show current timezone first [default: %(default)s]')
+    parser.add_argument('--print-zones', action='store_true',
+                        help='show valid timezones and exit')
+    return parser
+
+
+def fmt_time(dt, args):
+    string = "{0:%H:%M}".format(dt.timetz())
+    if args.start <= dt.hour <= args.end:
+        return termcolor.colored(string, 'yellow', attrs=args.attrs)
+    else:
+        return termcolor.colored(string, attrs=args.attrs)
+
+
+def main():
+    args = arg_parser().parse_args()
+    logging.basicConfig(format='%(levelname)s: %(message)s')
+    if args.print_zones:
+        print("\n".join(pytz.all_timezones))
+        return
+
+    if not args.colors:
+        # monkeypatch
+        def dummy(string, color=None, attrs=None, *args, **kwargs):
+            if attrs:
+                return string + '*'
+            elif color:
+                return string + '_'
+            return string
+        termcolor.colored = dummy
+
+    # https://stackoverflow.com/a/39079819/1174784
+    local_zone = datetime.datetime.now(datetime.timezone.utc).astimezone().tzinfo
+    if args.date is None:
+        now = datetime.datetime.now(local_zone)
+    else:
+        cal = parsedatetime.Calendar()
+        now, parse_status = cal.parseDT(datetimeString=args.date,
+                                        tzinfo=local_zone)
+        if not parse_status:
+            logging.warning('date provided cannot be parsed: %s', args.date)
+            now = datetime.datetime.now(local_zone)
+    now = now.replace(second=0, microsecond=0)
+    logging.debug('parsed target time: %s', now)
+
+    timezones = []
+    if args.default_zone:
+        timezones.append(local_zone)
+    timezones += list(guess_zones(args.timezones))
+    timezones = list(uniq_zones(timezones, now))
+
+    rows = compute_table(now, timezones, args)
+    table = DoubleTable(rows)
+    for i in range(0, len(timezones)):
+        table.justify_columns[i] = 'center'
+    print(table.table)
+
+
+def guess_zones(timezones):
+    for zone in timezones:
+        found = False
+        zones = (zone, zone.upper(), zone.replace(' ', '_'))
+        for zone in zones:
+            if found:
+                break
+            try:
+                yield pytz.timezone(zone)
+                found = True
+            except pytz.UnknownTimeZoneError as e:
+                for z in pytz.all_timezones:
+                    if zone in z:
+                        yield pytz.timezone(z)
+                        found = True
+        if not found:
+            logging.warning('unknown zone, skipping: %s', zone)
+
+
+def uniq_zones(timezones, now):
+    now = now.replace(tzinfo=None)
+    offsets = set()
+    for zone in timezones:
+        offset = zone.utcoffset(now)
+        if offset in offsets:
+            sign = ''
+            if offset < datetime.timedelta(0):
+                offset = -offset
+                sign = '-'
+            logging.warning('skipping zone %s with existing offset %s%s', zone, sign, offset)
+        else:
+            offsets.add(offset)
+            yield zone
+
+
+def compute_table(now, timezones, args):
+    nearest_hour = now.replace(minute=0, second=0, microsecond=0)
+    logging.debug('nearest hour is %s', nearest_hour)
+
+    start_time = current_time = nearest_hour.replace(hour=0)
+
+    # the table is a list of rows, which are themselves a list of cells
+    rows = []
+
+    # the first line is the list of timezones
+    line = []
+    for t in timezones:
+        line.append(str(t))
+    rows.append(line)
+
+    # set each start time
+    times = [start_time.astimezone(tz=zone) for zone in timezones]
+    while current_time < start_time + datetime.timedelta(hours=24):
+        args.attrs = []
+        # if this is the current time, show it in bold
+        if current_time == now:
+            args.attrs.append('bold')
+        line = []
+        for i, t in enumerate(times):
+            line.append(fmt_time(t, args))
+            times[i] += datetime.timedelta(hours=1)
+        rows.append(line)
+        # show the current time on a separate line, in bold
+        if current_time < now < current_time + datetime.timedelta(hours=1):
+            line = []
+            args.attrs.append('bold')
+            for zone in timezones:
+                line.append(fmt_time(now.astimezone(tz=zone), args))
+            rows.append(line)
+        current_time += datetime.timedelta(hours=1)
+    return rows
+
+
+if __name__ == '__main__':
+    main()
