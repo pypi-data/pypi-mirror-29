@@ -1,0 +1,450 @@
+{% extends parent_template %}
+
+# Disable external repos
+{% set base_yum_repo_files_override = [] %}
+{% set base_yum_url_packages_override = [] %}
+{% set base_yum_repo_keys_override = [] %}
+
+# Enable ODL repo in ODL Dockerfile
+{% block opendaylight_header %}
+RUN echo $'[opendaylight-6-release]\n\
+name=CentOS CBS OpenDaylight Carbon repository\n\
+baseurl=http://cbs.centos.org/repos/nfv7-opendaylight-6-release/$basearch/os/\n\
+enabled=1\n\
+gpgcheck=0' >> /etc/yum.repos.d/opendaylight.repo
+{% endblock %}
+
+# Enable Sensu repo in Sensu Dockerfile
+{% block sensu_base_header %}
+RUN echo $'[sensu]\n\
+name=sensu\n\
+baseurl=https://sensu.global.ssl.fastly.net/yum/$releasever/$basearch/\n\
+gpgcheck=1\n\
+enabled=1\n\
+gpgkey=https://sensu.global.ssl.fastly.net/yum/pubkey.gpg' >> /etc/yum.repos.d/sensu.repo
+{% endblock %}
+
+# Remove EPEL and the dependencies requiring it
+{% set base_centos_yum_repo_packages_remove = ['epel-release'] %}
+{% set base_centos_binary_packages_remove = ['scsi-target-utils'] %}
+{% set cinder_volume_packages_remove = ['scsi-target-utils'] %}
+{% set ironic_conductor_packages_remove = ['shellinabox'] %}
+{% set barbican_api_packages_remove = ['uwsgi-plugin-python'] %}
+{% block cinder_volume_redhat_setup %}
+# RUN sed -i '1 i include /var/lib/cinder/volumes/*' /etc/tgt/tgtd.conf
+{% endblock %}
+
+# This installs the puppet dependency in the base container and includes helper scripts
+# Rsync is required for docker-puppet.py to move the generated config to /var/lib/config-data
+# Cron is required by multiple services
+{% set base_centos_binary_packages_append = ['openstack-tripleo-common-container-base', 'rsync', 'cronie', 'crudini', 'openstack-selinux'] %}
+{% set nova_scheduler_packages_append = ['openstack-tripleo-common'] %}
+
+# Required for mistral-db-populate to load tripleo custom actions on
+# the undercloud
+{% set mistral_base_packages_append = ['openstack-tripleo-common'] %}
+
+# NOTE: Mistral executor needs to run nova-manage cells_v2 commands on
+# the undercloud baremetal workflows.
+{% set mistral_executor_packages_append = ['openstack-nova-common'] %}
+
+# NOTE(mandre) remove once https://review.openstack.org/#/c/513089/ merges
+{% set mistral_api_packages_append = ['httpd','mod_ssl', 'mod_wsgi'] %}
+{% block mistral_api_footer %}
+RUN sed -i -r 's,^(Listen 80),#\1,' /etc/httpd/conf/httpd.conf \
+    && sed -i -r 's,^(Listen 443),#\1,' /etc/httpd/conf.d/ssl.conf \
+    && echo "if [[ "\$\(whoami\)" == 'root' ]]; then rm -rf /var/run/httpd/* /run/httpd/* /tmp/httpd*; fi" >> /usr/local/bin/kolla_mistral_extend_start
+{% endblock %}
+
+# FIXME (kolla review to add ceilometer to swift proxy image)
+# NOTE (jaosorior): swift proxy with TLS everywhere needs these packages.
+# NOTE(mandre) Apache cleanup done below in swift_proxy_server_footer block
+{% set swift_proxy_server_packages_append = ['openstack-ceilometer-common', 'httpd', 'mod_ssl'] %}
+
+# NOTE (jaosorior): glance-api with TLS everywhere needs these packages.
+# NOTE(mandre) Apache cleanup done below in glance_api_footer block
+{% set glance_api_packages_append = ['httpd', 'mod_ssl'] %}
+
+# NOTE (ratailor): ec2-api with TLS needs these packages.
+{% set ec2_api_packages_append = ['httpd', 'mod_ssl'] %}
+{% block ec2_api_footer %}
+RUN sed -i -r 's,^(Listen 80),#\1,' /etc/httpd/conf/httpd.conf \
+    && sed -i -r 's,^(Listen 443),#\1,' /etc/httpd/conf.d/ssl.conf \
+    && echo "if [[ "\$\(whoami\)" == 'root' ]]; then rm -rf /var/run/httpd/* /run/httpd/* /tmp/httpd*; fi" >> /usr/local/bin/kolla_extend_start
+{% endblock %}
+
+# NOTE (jaosorior): neutron-server with TLS everywhere needs these packages.
+{% set neutron_server_packages_append = ['httpd', 'mod_ssl'] %}
+{% block neutron_server_footer %}
+RUN sed -i -r 's,^(Listen 80),#\1,' /etc/httpd/conf/httpd.conf \
+    && sed -i -r 's,^(Listen 443),#\1,' /etc/httpd/conf.d/ssl.conf \
+    && echo "if [[ "\$\(whoami\)" == 'root' ]]; then rm -rf /var/run/httpd/* /run/httpd/* /tmp/httpd*; fi" >> /usr/local/bin/kolla_neutron_extend_start
+{% endblock %}
+
+# NOTE (jaosorior): redis with TLS everywhere needs these packages.
+# redis resource-agent requires pidof
+{% set redis_packages_append = ['stunnel', 'sysvinit-tools'] %}
+
+# Remove packages not present in repos
+#
+{# 'libtomcrypt',    # EPEL, Unknown use
+   'libtommath',     # EPEL, Unknown use
+   'python2-crypto', # EPEL, RDO is python-crypto
+   'python2-msgpack' # EPEL, RDO is python-msgpack
+#}
+{% set openstack_base_packages_remove = [
+    'Percona-Server-shared-56',
+    'libtomcrypt',
+    'libtommath',
+    'python2-crypto',
+    'python2-msgpack'
+] %}
+# Pick up the proper packages for python2-crypto and python2-msgpack
+{% set openstack_base_packages_append = ['python-crypto', 'python-msgpack'] %}
+
+# Use mariadb-server-galera and xinetd for galera and clustercheck
+{#  'percona-xtrabackup', # EPEL
+    'pv'                  # EPEL
+#}
+{% set mariadb_packages_remove = [
+    'MariaDB-Galera-server',
+    'MariaDB-client',
+    'percona-xtrabackup',
+    'pv'
+] %}
+{% set sensu_client_packages_remove = [
+    'MariaDB-client',
+] %}
+{% set mariadb_packages_append = ['mariadb-server', 'mariadb-server-galera', 'xinetd'] %}
+{% set sensu_client_packages_append = ['mariadb-server', 'mariadb-server-galera'] %}
+
+# Required for nova migration
+{% set nova_compute_packages_append = ['openstack-nova-migration', 'openssh-server'] %}
+{% set nova_libvirt_packages_append = ['openstack-nova-migration'] %}
+
+############################ service container footers #########################
+
+{% block aodh_evaluator_footer %}
+RUN mkdir -p /openstack && \
+    ln -s /usr/share/openstack-tripleo-common/healthcheck/aodh-evaluator /openstack/healthcheck && \
+    chmod a+rx /openstack/healthcheck
+HEALTHCHECK CMD /openstack/healthcheck
+{% endblock %}
+
+{% block aodh_listener_footer %}
+RUN mkdir -p /openstack && \
+    ln -s /usr/share/openstack-tripleo-common/healthcheck/aodh-listener /openstack/healthcheck && \
+    chmod a+rx /openstack/healthcheck
+HEALTHCHECK CMD /openstack/healthcheck
+{% endblock %}
+
+{% block aodh_notifier_footer %}
+RUN mkdir -p /openstack && \
+    ln -s /usr/share/openstack-tripleo-common/healthcheck/aodh-notifier /openstack/healthcheck && \
+    chmod a+rx /openstack/healthcheck
+HEALTHCHECK CMD /openstack/healthcheck
+{% endblock %}
+
+{% block ceilometer_central_footer %}
+RUN mkdir -p /openstack && \
+    ln -s /usr/share/openstack-tripleo-common/healthcheck/ceilometer-agent-central /openstack/healthcheck && \
+    chmod a+rx /openstack/healthcheck
+HEALTHCHECK CMD /openstack/healthcheck
+{% endblock %}
+
+{% block ceilometer_ipmi_footer %}
+RUN mkdir -p /openstack && \
+    ln -s /usr/share/openstack-tripleo-common/healthcheck/ceilometer-agent-ipmi /openstack/healthcheck && \
+    chmod a+rx /openstack/healthcheck
+HEALTHCHECK CMD /openstack/healthcheck
+{% endblock %}
+
+{% block ceilometer_notification_footer %}
+RUN mkdir -p /openstack && \
+    ln -s /usr/share/openstack-tripleo-common/healthcheck/ceilometer-agent-notification /openstack/healthcheck && \
+    chmod a+rx /openstack/healthcheck
+HEALTHCHECK CMD /openstack/healthcheck
+{% endblock %}
+
+{% block cinder_backup_footer %}
+RUN yum install -y pacemaker pacemaker-remote pcs libqb resource-agents && mkdir /etc/libqb
+
+RUN mkdir -p /openstack && \
+    ln -s /usr/share/openstack-tripleo-common/healthcheck/cinder-backup /openstack/healthcheck && \
+    chmod a+rx /openstack/healthcheck
+HEALTHCHECK CMD /openstack/healthcheck
+{% endblock %}
+
+{% block cinder_scheduler_footer %}
+RUN mkdir -p /openstack && \
+    ln -s /usr/share/openstack-tripleo-common/healthcheck/cinder-scheduler /openstack/healthcheck && \
+    chmod a+rx /openstack/healthcheck
+HEALTHCHECK CMD /openstack/healthcheck
+{% endblock %}
+
+{% block cinder_volume_footer %}
+RUN yum install -y pacemaker pacemaker-remote pcs libqb resource-agents && mkdir /etc/libqb
+
+RUN mkdir -p /openstack && \
+    ln -s /usr/share/openstack-tripleo-common/healthcheck/cinder-volume /openstack/healthcheck && \
+    chmod a+rx /openstack/healthcheck
+HEALTHCHECK CMD /openstack/healthcheck
+{% endblock %}
+
+{% block glance_api_footer %}
+RUN mkdir -p /openstack && \
+    ln -s /usr/share/openstack-tripleo-common/healthcheck/glance-api /openstack/healthcheck && \
+    chmod a+rx /openstack/healthcheck && \
+    sed -i -r 's,^(Listen 80),#\1,' /etc/httpd/conf/httpd.conf && \
+    sed -i -r 's,^(Listen 443),#\1,' /etc/httpd/conf.d/ssl.conf && \
+    echo "if [[ "\$\(whoami\)" == 'root' ]]; then rm -rf /var/run/httpd/* /run/httpd/* /tmp/httpd*; fi" >> /usr/local/bin/kolla_glance_extend_start
+HEALTHCHECK CMD /openstack/healthcheck
+{% endblock %}
+
+{% block heat_api_footer %}
+RUN mkdir -p /openstack && \
+    ln -s /usr/share/openstack-tripleo-common/healthcheck/heat-api /openstack/healthcheck && \
+    chmod a+rx /openstack/healthcheck
+HEALTHCHECK CMD /openstack/healthcheck
+{% endblock %}
+
+{% block heat_api_cfn_footer %}
+RUN mkdir -p /openstack && \
+    ln -s /usr/share/openstack-tripleo-common/healthcheck/heat-api-cfn /openstack/healthcheck && \
+    chmod a+rx /openstack/healthcheck
+HEALTHCHECK CMD /openstack/healthcheck
+{% endblock %}
+
+{% block heat_engine_footer %}
+RUN mkdir -p /openstack && \
+    ln -s /usr/share/openstack-tripleo-common/healthcheck/heat-engine /openstack/healthcheck && \
+    chmod a+rx /openstack/healthcheck
+HEALTHCHECK CMD /openstack/healthcheck
+{% endblock %}
+
+{% block haproxy_footer %}
+RUN yum install -y pacemaker pacemaker-remote pcs libqb resource-agents && mkdir /etc/libqb
+{% endblock %}
+
+{% block ironic_conductor_footer %}
+RUN mkdir -p /openstack && \
+    ln -s /usr/share/openstack-tripleo-common/healthcheck/ironic-conductor /openstack/healthcheck && \
+    chmod a+rx /openstack/healthcheck
+HEALTHCHECK CMD /openstack/healthcheck
+{% endblock %}
+
+{% block keystone_footer %}
+RUN mkdir -p /openstack && \
+    ln -s /usr/share/openstack-tripleo-common/healthcheck/keystone-public /openstack/healthcheck && \
+    chmod a+rx /openstack/healthcheck
+HEALTHCHECK CMD /openstack/healthcheck
+{% endblock %}
+
+{% block manila_scheduler_footer %}
+RUN mkdir -p /openstack && \
+    ln -s /usr/share/openstack-tripleo-common/healthcheck/manila-scheduler /openstack/healthcheck && \
+    chmod a+rx /openstack/healthcheck
+HEALTHCHECK CMD /openstack/healthcheck
+{% endblock %}
+
+{% block manila_share_footer %}
+RUN yum install -y pacemaker pacemaker-remote pcs libqb resource-agents && mkdir /etc/libqb
+{% endblock %}
+
+{% block mariadb_footer %}
+# We'll configure mariadb with galera.cnf
+RUN rm /etc/my.cnf.d/mariadb-server.cnf /etc/my.cnf.d/auth_gssapi.cnf
+
+RUN yum install -y pacemaker pacemaker-remote pcs libqb resource-agents && mkdir /etc/libqb
+
+RUN mkdir -p /openstack && \
+    ln -s /usr/share/openstack-tripleo-common/healthcheck/mariadb /openstack/healthcheck && \
+    chmod a+rx /openstack/healthcheck
+HEALTHCHECK CMD /openstack/healthcheck
+{% endblock %}
+
+{% block mistral_engine_footer %}
+RUN mkdir -p /openstack && \
+    ln -s /usr/share/openstack-tripleo-common/healthcheck/mistral-engine /openstack/healthcheck && \
+    chmod a+rx /openstack/healthcheck
+HEALTHCHECK CMD /openstack/healthcheck
+{% endblock %}
+
+{% block mistral_executor_footer %}
+RUN mkdir -p /openstack && \
+    ln -s /usr/share/openstack-tripleo-common/healthcheck/mistral-executor /openstack/healthcheck && \
+    chmod a+rx /openstack/healthcheck
+HEALTHCHECK CMD /openstack/healthcheck
+{% endblock %}
+
+{% block neutron_dhcp_agent_footer %}
+RUN mkdir -p /openstack && \
+    ln -s /usr/share/openstack-tripleo-common/healthcheck/neutron-dhcp /openstack/healthcheck && \
+    chmod a+rx /openstack/healthcheck
+HEALTHCHECK CMD /openstack/healthcheck
+{% endblock %}
+
+{% block neutron_l3_agent_footer %}
+RUN mkdir -p /openstack && \
+    ln -s /usr/share/openstack-tripleo-common/healthcheck/neutron-l3 /openstack/healthcheck && \
+    chmod a+rx /openstack/healthcheck
+HEALTHCHECK CMD /openstack/healthcheck
+{% endblock %}
+
+{% block neutron_metadata_agent_footer %}
+RUN mkdir -p /openstack && \
+    ln -s /usr/share/openstack-tripleo-common/healthcheck/neutron-metadata /openstack/healthcheck && \
+    chmod a+rx /openstack/healthcheck
+HEALTHCHECK CMD /openstack/healthcheck
+{% endblock %}
+
+{% block neutron_openvswitch_agent_footer %}
+RUN mkdir -p /openstack && \
+    ln -s /usr/share/openstack-tripleo-common/healthcheck/neutron-ovs-agent /openstack/healthcheck && \
+    chmod a+rx /openstack/healthcheck
+HEALTHCHECK CMD /openstack/healthcheck
+{% endblock %}
+
+{% block nova_api_footer %}
+RUN mkdir -p /openstack && \
+    ln -s /usr/share/openstack-tripleo-common/healthcheck/nova-api /openstack/healthcheck && \
+    chmod a+rx /openstack/healthcheck
+HEALTHCHECK CMD /openstack/healthcheck
+{% endblock %}
+
+{% block nova_compute_footer %}
+RUN mkdir -p /openstack && \
+    ln -s /usr/share/openstack-tripleo-common/healthcheck/nova-compute /openstack/healthcheck && \
+    chmod a+rx /openstack/healthcheck
+HEALTHCHECK CMD /openstack/healthcheck
+{% endblock %}
+
+{% block nova_compute_ironic_footer %}
+RUN mkdir -p /openstack && \
+    ln -s /usr/share/openstack-tripleo-common/healthcheck/nova-ironic /openstack/healthcheck && \
+    chmod a+rx /openstack/healthcheck
+HEALTHCHECK CMD /openstack/healthcheck
+{% endblock %}
+
+{% block nova_consoleauth_footer %}
+RUN mkdir -p /openstack && \
+    ln -s /usr/share/openstack-tripleo-common/healthcheck/nova-consoleauth /openstack/healthcheck && \
+    chmod a+rx /openstack/healthcheck
+HEALTHCHECK CMD /openstack/healthcheck
+{% endblock %}
+
+{% block nova_novncproxy_footer %}
+RUN mkdir -p /openstack && \
+    ln -s /usr/share/openstack-tripleo-common/healthcheck/nova-vnc-proxy /openstack/healthcheck && \
+    chmod a+rx /openstack/healthcheck
+HEALTHCHECK CMD /openstack/healthcheck
+{% endblock %}]
+
+{% block nova_scheduler_footer %}
+RUN mkdir -p /openstack && \
+    ln -s /usr/share/openstack-tripleo-common/healthcheck/nova-scheduler /openstack/healthcheck && \
+    chmod a+rx /openstack/healthcheck
+HEALTHCHECK CMD /openstack/healthcheck
+{% endblock %}
+
+{% block nova_conductor_footer %}
+RUN mkdir -p /openstack && \
+    ln -s /usr/share/openstack-tripleo-common/healthcheck/nova-conductor /openstack/healthcheck && \
+    chmod a+rx /openstack/healthcheck
+HEALTHCHECK CMD /openstack/healthcheck
+{% endblock %}
+
+{% block octavia_health_manager_footer %}
+RUN mkdir -p /openstack && \
+    ln -s /usr/share/openstack-tripleo-common/healthcheck/octavia-health-manager /openstack/healthcheck && \
+    chmod a+rx /openstack/healthcheck
+HEALTHCHECK CMD /openstack/healthcheck
+{% endblock %}
+
+{% block octavia_housekeeping_footer %}
+RUN mkdir -p /openstack && \
+    ln -s /usr/share/openstack-tripleo-common/healthcheck/octavia-housekeeping /openstack/healthcheck && \
+    chmod a+rx /openstack/healthcheck
+HEALTHCHECK CMD /openstack/healthcheck
+{% endblock %}
+
+{% block octavia_worker_footer %}
+RUN mkdir -p /openstack && \
+    ln -s /usr/share/openstack-tripleo-common/healthcheck/octavia-worker /openstack/healthcheck && \
+    chmod a+rx /openstack/healthcheck
+HEALTHCHECK CMD /openstack/healthcheck
+{% endblock %}
+
+{% block opendaylight_footer %}
+RUN mkdir -p /openstack && \
+    ln -s /usr/share/openstack-tripleo-common/healthcheck/opendaylight-api /openstack/healthcheck && \
+    chmod a+rx /openstack/healthcheck
+HEALTHCHECK CMD /openstack/healthcheck
+{% endblock %}
+
+{% block rabbitmq_footer %}
+RUN yum install -y pacemaker pacemaker-remote pcs libqb resource-agents && mkdir /etc/libqb
+
+RUN mkdir -p /openstack && \
+    ln -s /usr/share/openstack-tripleo-common/healthcheck/rabbitmq /openstack/healthcheck && \
+    chmod a+rx /openstack/healthcheck
+HEALTHCHECK CMD /openstack/healthcheck
+{% endblock %}
+
+{% block redis_footer %}
+RUN yum install -y pacemaker pacemaker-remote pcs libqb resource-agents && mkdir /etc/libqb
+{% endblock %}
+
+{% block sahara_engine_footer %}
+RUN mkdir -p /openstack && \
+    ln -s /usr/share/openstack-tripleo-common/healthcheck/sahara-engine /openstack/healthcheck && \
+    chmod a+rx /openstack/healthcheck
+HEALTHCHECK CMD /openstack/healthcheck
+{% endblock %}
+
+{% block sensu_client_footer %}
+RUN mkdir -p /openstack && \
+    ln -s /usr/share/openstack-tripleo-common/healthcheck/sensu-client /openstack/healthcheck && \
+    chmod a+rx /openstack/healthcheck
+HEALTHCHECK CMD /openstack/healthcheck
+{% endblock %}
+
+{% block swift_account_footer %}
+RUN mkdir -p /openstack && \
+    ln -s /usr/share/openstack-tripleo-common/healthcheck/swift-account-server /openstack/healthcheck && \
+    chmod a+rx /openstack/healthcheck
+HEALTHCHECK CMD /openstack/healthcheck
+{% endblock %}
+
+{% block swift_container_footer %}
+RUN mkdir -p /openstack && \
+    ln -s /usr/share/openstack-tripleo-common/healthcheck/swift-container-server /openstack/healthcheck && \
+    chmod a+rx /openstack/healthcheck
+HEALTHCHECK CMD /openstack/healthcheck
+{% endblock %}
+
+{% block swift_object_footer %}
+RUN mkdir -p /openstack && \
+    ln -s /usr/share/openstack-tripleo-common/healthcheck/swift-object-server /openstack/healthcheck && \
+    chmod a+rx /openstack/healthcheck
+HEALTHCHECK CMD /openstack/healthcheck
+{% endblock %}
+
+{% block swift_proxy_server_footer %}
+RUN mkdir -p /openstack && \
+    ln -s /usr/share/openstack-tripleo-common/healthcheck/swift-proxy /openstack/healthcheck && \
+    chmod a+rx /openstack/healthcheck && \
+    sed -i -r 's,^(Listen 80),#\1,' /etc/httpd/conf/httpd.conf && \
+    sed -i -r 's,^(Listen 443),#\1,' /etc/httpd/conf.d/ssl.conf && \
+    echo "if [[ "\$\(whoami\)" == 'root' ]]; then rm -rf /var/run/httpd/* /run/httpd/* /tmp/httpd*; fi" >> /usr/local/bin/kolla_extend_start
+HEALTHCHECK CMD /openstack/healthcheck
+{% endblock %}
+
+{% block ovn_northd_footer %}
+RUN yum install -y pacemaker pacemaker-remote pcs libqb resource-agents && mkdir /etc/libqb
+{% endblock %}
+
+{% block base_footer %}
+# workaround LP1696283
+RUN mkdir -p /etc/ssh && touch /etc/ssh/ssh_known_hosts
+{% endblock %}
