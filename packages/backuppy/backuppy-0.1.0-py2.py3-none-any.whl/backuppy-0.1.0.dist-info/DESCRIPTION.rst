@@ -1,0 +1,113 @@
+
+Backuppy
+========
+
+
+.. image:: https://travis-ci.org/bartfeenstra/backuppy.svg?branch=master
+   :target: https://travis-ci.org/bartfeenstra/backuppy
+   :alt: Build Status
+
+.. image:: https://coveralls.io/repos/github/bartfeenstra/backuppy/badge.svg?branch=master
+   :target: https://coveralls.io/github/bartfeenstra/backuppy?branch=master
+   :alt: Coverage Status
+
+.. image:: https://img.shields.io/badge/Python-2.7%2C%203.5%2C%203.6-blue.svg
+   :target: https://img.shields.io/badge/Python-2.7%2C%203.5%2C%203.6-blue.svg
+   :alt: Backuppy runs on Python 2.7, 3.5, and 3.6
+
+.. image:: https://img.shields.io/github/tag/bartfeenstra/backuppy.svg
+   :target: https://img.shields.io/github/tag/bartfeenstra/backuppy.svg
+   :alt: Latest Git tag
+
+.. image:: https://img.shields.io/github/license/bartfeenstra/backuppy.svg
+   :target: https://img.shields.io/github/license/bartfeenstra/backuppy.svg
+   :alt: Backuppy is released under the MIT license
+
+
+About
+-----
+
+Backuppy backs up and restores your data using rsync, allowing different routes to the same, or different destinations.
+
+The following instructions can be executed in any system Python environment, but you may want to use a
+`virtual environment <https://docs.python.org/3/library/venv.html>`_. Alternatively, some actions can be performed using
+`tox <https://tox.readthedocs.io/>`_ as well, which produces its own virtual environments in ``.tox/py**``.
+
+License
+-------
+
+Backuppy is released under the `MIT <./LICENSE>`_ license.
+
+Usage
+-----
+
+Requirements
+^^^^^^^^^^^^
+
+
+* Python 2.7+
+
+Installation
+^^^^^^^^^^^^
+
+In any Python environment, run ``pip install backuppy``.
+
+Command line
+^^^^^^^^^^^^
+
+.. code-block:: bash
+
+   $ backuppy --help
+   usage: backuppy [-h] -c CONFIGURATION
+
+   Backs up your data.
+
+   optional arguments:
+     -h, --help            show this help message and exit
+     -c CONFIGURATION, --configuration CONFIGURATION
+                           The path to the back-up configuration file.
+
+Configuration file
+^^^^^^^^^^^^^^^^^^
+
+Configuration files are written in YAML or JSON, and can be stored anywhere as ``*.yml``\ , ``*.yaml``\ , or ``*.json``.
+`View example <./backuppy/tests/resources/configuration/backuppy.json>`_.
+
+Development
+-----------
+
+Requirements
+^^^^^^^^^^^^
+
+
+* The generic requirements documented earlier.
+* Bash (you're all good if ``which bash`` outputs a path in your terminal)
+
+Installation
+^^^^^^^^^^^^
+
+Run ``git clone https://github.com/bartfeenstra/backuppy.git``.
+
+If you wish to contribute code changes, you may want to fork this project first, and clone your own forked repository
+instead.
+
+Building
+^^^^^^^^
+
+In any Python environment, run ``./bin/build-dev``.
+
+With tox, run ``tox --develop --notest``.
+
+Testing
+^^^^^^^
+
+In any Python environment, run ``./bin/test``.
+
+With tox, run ``tox --develop``
+
+Fixing problems automatically
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+In any Python environment, run ``./bin/fix``.
+
+
