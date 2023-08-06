@@ -1,0 +1,145 @@
+* Introduction
+The traditional =Makefile= is replaced by =Cookbook.py=. Use =cook= in place
+of =make=.
+
+This results in a lot of flexibility, because the new "Makefile" is
+scripted in a full-featured language - Python.
+
+- Recipe :: the equivalent of a Makefile's rule
+  - A Python function that takes a single argument called =recipe= and
+    returns a vector of strings - a sequence of commands to run.
+
+* Installing
+Install system-wide:
+#+begin_src sh
+sudo -H pip3 --no-cache-dir install --upgrade pycook
+#+end_src
+
+To hook up bash completion for =cook=, add to your
+=~/.bashrc=:
+#+begin_src sh
+. /usr/local/cook/bash-completion.sh
+#+end_src
+
+* Running recipes
+You can run the recipes with =cook <recipe>=.
+
+Minimal =Cookbook.py= example:
+#+begin_src python
+#* Recipes
+def files_in_dir(recipe):
+    return ["ls"]
+
+def files_in_parent_dir(recipe):
+    res = ["cd .."]
+    res += ["find ."]
+    return res
+
+def last_commit(recipe):
+    return ["git rev-parse HEAD"]
+#+end_src
+
+Runing e.g.:
+#+begin_src sh
+cook files_in_dir
+#+end_src
+
+will call:
+#+begin_src python
+from Cookbook import *
+bash(files_in_dir(42))
+#+end_src
+
+* Running global recipes
+You can also run "global" recipes, which are installed together with
+=pycook=.
+
+As example of a recipe without args, this will show you your current
+IP address:
+#+begin_src sh
+cook :net ip
+#+end_src
+
+
+Here's a recipe with args, and the equivalent =sed= command:
+#+begin_src sh
+echo foo:bar:baz | cook :str split :
+echo foo:bar:baz | sed -e 's/:/\n/g'
+#+end_src
+
+Both commands have the same length, but:
+
+- =sed= is more generic, harder to remember, harder to get right off the
+  bat
+- =cook= is less generic, but easy to remember and discoverable
+
+All global recipes start with =cook :=. Pressing ~TAB~ after that should
+show all available recipe modules, like e.g. =str= or =net= or =pip= etc.
+
+After selecting a module, pressing ~TAB~ should show all available
+recipes within the module.
+
+Finally, you enter the arguments to the recipe if it has any.
+
+* Running user recipes
+Users can add to the global recipes list by placing Python files in
+=~/.cook.d/=.
+
+Example, =~/.cook.d/foo.py=:
+
+#+begin_src python
+def bar(recipe):
+    print("Hello, World!")
+#+end_src
+
+You can run it like this:
+#+begin_src sh
+cook :foo bar
+#+end_src
+
+* Automatic logging
+=cook= can automatically log your =stdout= to a file with a
+timestamped name in a location you specify.
+
+To make use of this, create a file =~/.cookrc.py= with the following
+contents:
+
+#+begin_src python
+config = {
+    "*": {
+        "tee": {
+            "location": "/tmp/cook"
+        }
+    }
+}
+#+end_src
+
+Here, the inital ="*"= is used to select all books. It's possible to
+customize each book separately by using the file name as a key.
+
+* Elisp completion
+It's actually much more convenient to use =cook= from Emacs.
+
+The main advantage is that Emacs will find the appropriate cookbook
+from anywhere in the project.
+
+The secondary advantages are:
+- better completion for recipe selection
+- the selected recipe is run in =compilation-mode=, which connects any
+  errors or warings to locations in a project.
+- the selected recipe is run in a buffer named after the recipe
+- works with TRAMP, so the recipes from remote cookbooks will be run
+  remotely.
+
+~M-x cook~ will:
+
+- go recursively up from the current directory until a cookbook is
+  found
+- parse the cookbook for recipes
+- offer the list of recipes
+- run the seleted recipe in =compilation-mode=
+
+I'm using this binding:
+#+begin_src elisp
+(global-set-key [f6] 'cook)
+#+end_src
