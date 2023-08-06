@@ -1,0 +1,162 @@
+
+connect_ssh:
+  preface: |
+    The authenticity of host '127.0.0.1 (127.0.0.1)' can't be established.
+    RSA key fingerprint is a1:07:ac:9b:8c:c2:db:c5:4c:dc:70:b5:09:2a:a5:b1.
+  prompt: "Are you sure you want to continue connecting (yes/no)? "
+  commands:
+    "yes":
+      new_state: password
+
+login:
+  preface: file|mock_data/iosxr/login_banner.txt
+  prompt: "Username: "
+  commands:
+    "admin":
+      new_state: password
+
+password:
+  prompt: "Password: "
+  commands:
+    "admin":
+      response: "\n"
+      new_state: enable
+
+ssh_password:
+  prompt: "cisco@172.16.34.1's password: "
+  commands:
+    "admin":
+      response: "\n"
+      new_state: enable
+
+exec:
+  prompt: Router>
+  commands:
+    "enable":
+      new_state: enable
+
+enable:
+  prompt: Router#
+  commands:
+    "show version": file|mock_data/iosxr/show_version.txt
+    "configure terminal":
+      new_state: config
+
+    "redundancy switchover":
+      timing:
+        - "0:,0,0.02"
+      response: file|mock_data/iosxr/redundancy_switchover.txt
+
+    "term len 0": ""
+    "term width 0": ""
+    "terminal length 0": ""
+    "terminal width 0": ""
+
+    "admin":
+      new_state: admin
+    "show redundancy": |2
+
+      Thu Jul 27 12:13:48.175 UTC
+      Redundancy information for node 0/0/CPU0:
+      ==========================================
+      Node 0/0/CPU0 is in ACTIVE role
+      Partner node (0/1/CPU0) is in STANDBY role
+      Standby node in 0/1/CPU0 is ready
+      Standby node in 0/1/CPU0 is NSR-ready
+
+      Reload and boot info
+      ----------------------
+      RP reloaded Thu Jul 27 11:04:28 2017: 1 hour, 9 minutes ago
+      Active node booted Thu Jul 27 11:04:28 2017: 1 hour, 9 minutes ago
+      Standby node boot Thu Jul 27 11:04:33 2017: 1 hour, 9 minutes ago
+      Standby node last went not ready Thu Jul 27 11:08:54 2017: 1 hour, 4 minutes ago
+      Standby node last went ready Thu Jul 27 11:08:54 2017: 1 hour, 4 minutes ago
+      Standby node last went not NSR-ready Thu Jul 27 11:07:17 2017: 1 hour, 6 minutes ago
+      Standby node last went NSR-ready Thu Jul 27 11:08:52 2017: 1 hour, 4 minutes ago
+      There have been 0 switch-overs since reload
+
+      Unable to get read_ptrget_reboot_reason: Error getting last reboot record
+      Active node reload : Unable to retrieve reboot reason
+      Unable to get read_ptrget_reboot_reason: Error getting last reboot record
+      Standby node reload : Unable to retrieve reboot reason
+
+    "process restart ifmgr location all":
+        response: |2
+          Tue Nov 21 15:22:04.330 UTC
+          Location all can affect the stability of the System. Proceed? [confirm]
+        new_state: prompt_confirm
+
+    "clear logging":
+        response: |2
+          Tue Nov 21 15:26:28.299 UTC
+          Clear logging buffer [confirm] [y/n] : 
+        new_state: prompt_yn
+
+prompt_confirm:
+  prompt: ""
+  commands:
+    "":
+      new_state: enable
+
+prompt_yn:
+  prompt: ""
+  commands:
+    "y":
+      new_state: enable
+
+admin:
+  prompt: "Router(admin)#"
+  commands:
+    "clear configuration inconsistency": |2
+
+      Thu Jul 27 12:13:42.016 UTC
+
+      Creating any missing directories in ADMIN Configuration File system...OK
+      Initializing ADMIN Configuration Version Manager...OK
+      Syncing ADMIN commit database with running configuration...OK
+    "exit":
+      new_state: enable
+
+config:
+  prompt: "Router(config)#"
+  commands:
+    "logging console disable": ""
+    "line con 0":
+      new_state:
+        config_line
+    "line default":
+      new_state: config_line
+    "line console":
+      new_state: config_line
+    "hostname Router": ""
+    "no logging console": ""
+    "line console":
+      new_state:
+        line_console
+
+config_line:
+  prompt: "Router(config-line)#"
+  commands: 
+    "exec-timeout 0 0": ""
+    "clock timezone UTC 0 0": ""
+    "commit": ""
+    "end":
+      new_state: enable
+    "absolute-timeout 0": ""
+    "exec-timeout 0 0": ""
+    "absolute-timeout 0": ""
+    "session-timeout 0": ""
+    "line default":
+      new_state: config_line
+
+line_console:
+  prompt: "Router(config-line)#"
+  commands:
+    "exec-timeout 0 0": ""
+    "absolute-timeout 0": ""
+    "session-timeout 0": ""
+    "line default": ""
+    "end":
+      new_state: enable
+
+
