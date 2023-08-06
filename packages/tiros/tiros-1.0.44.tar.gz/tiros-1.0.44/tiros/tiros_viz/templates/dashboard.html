@@ -1,0 +1,350 @@
+
+<link href="//netdna.bootstrapcdn.com/font-awesome/4.0.3/css/font-awesome.min.css" rel="stylesheet">
+<link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.0/jquery.min.js"></script>
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+
+
+<nav class="navbar navbar-default">
+  <div class="container-fluid">
+    <div class="navbar-header">
+      <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1">
+        <span class="sr-only">Toggle navigation</span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+      </button>
+      <a class="navbar-brand" href="/">Tiros Visualization</a>
+    </div>
+
+    <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+      <ul class="nav navbar-nav">
+      <li><a href="/refresh"><i class="fa fa-refresh icon-5x" aria-hidden="true"></i></a></li>
+        <li class="dropdown">
+          <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-expanded="false">Query<span class="caret"></span></a>
+          <ul class="dropdown-menu" role="menu">
+            <li><a data-toggle="modal" data-target="#inlinequerymodal" href="#">Inline query</a></li>
+            <li><a href="https://github.com/awslabs/BETA-tiros/wiki/1.0-Introduction-to-Tiros" target="_blank">Tiros Wiki</a></li>
+          </ul>
+        </li>
+        <li class="dropdown">
+          <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-expanded="false">Generic Queries<span class="caret"></span></a>
+          <ul class="dropdown-menu" role="menu">
+            <li>Generic queries</li>
+              {% for index, instrument in enumerate(policy) %}
+                <li class="dropdown-submenu">
+                  <a style="width:250px;white-space: normal;" tabindex="-1" href="#" class="test"><b>{{instrument['Name']}}</b></a>
+                  <ul class="dropdown-menu">
+                    <li style="width:400px;">
+                    <div style="width:90%;margin:5%;">
+                      <p>{{instrument['Description']}}</p>
+                      <br />
+                      <form>
+                      {% for input in instrument['Inputs'] %}
+                        <label for="{{input['Name']}}-{{instrument.get('uuid')}}">Enter a value for {{input['Name']}} (Must be of type {{input['Type']}})</label>
+                        <input id="{{input['Name']}}-{{instrument.get('uuid')}}" class="form-control tiros-input-{{input['Type']}}" name="{{input['Name']}}-{{instrument.get('uuid')}}" />
+                      {% endfor %}
+                      <input name="instrument-uuid" style="display:none;" value="{{instrument.get('uuid')}}" />
+                      <button class="btn btn-warning runquery" type="submit">Run!</button>
+                      </form>
+                    </div>
+                    </li>
+                    </ul>
+                </li>
+              {% endfor %}
+          </ul>
+        </li>
+      </ul>
+      <form class="navbar-form navbar-right" role="search" onsubmit="search()">
+        <div class="form-group">
+          <input class="form-control" id="filter" style="width:300px;" placeholder="Filter By Id" type="text">
+        </div>
+        <button type="submit" id="filtersubmit" class="btn btn-default">Search</button>
+      </form>
+    </div>
+  </div>
+</nav>
+
+<div style="position:absolute; right:0px;top:150px;z-index:2;" id="drawers">
+  <button class="btn btn-primary drawerbtn" onClick="showLegend()">Show Legend</button><br />
+  <button class="btn btn-primary drawerbtn" onClick="showResults()">Show Results</button><br />
+  <button class="btn btn-primary drawerbtn" onClick="showSelected()">Show Selected</button>
+</div>
+<div class="col-sm-12" id="graphcolumn">
+<div id="graph">
+  <svg width="500" height="560" style="border: 0px solid black;"></svg>
+</div>
+</div>
+<div class="col-sm-3 well" style="display:none;" id="legendcolumn" style="height:460px;overflow-y: scroll;">
+<div id="legend" class="row" style="z-index:2;">
+  <div class="col-xs-12">
+    <p class="lead">Legend</p>
+  </div>
+  <div class="col-xs-2 col-xs-offset-2"><img src="../static/img/aws.png" style="width:24px;height:20px;" /></div>
+  <p class="col-xs-8"> AWS account</p>
+  <div class="col-xs-2 col-xs-offset-2"><img src="../static/img/vpc.png" style="width:24px;height:24px;" /></div>
+  <p class="col-xs-8"> VPC</p>
+  <div class="col-xs-2 col-xs-offset-2"><img src="../static/img/subnet.png" style="width:24px;height:24px;" /></div>
+  <p class="col-xs-8"> Subnet</p>
+  <div class="col-xs-2 col-xs-offset-2"><img src="../static/img/instance.png" style="width:24px;height:24px;" /></div>
+  <p class="col-xs-8"> Instance</p>
+  <div class="col-xs-2 col-xs-offset-2"><img src="../static/img/igw.png" style="width:24px;height:24px;" /></div>
+  <p class="col-xs-8"> Internet Gateway</p>
+  <!-- <div class="col-xs-2 col-xs-offset-2">ESC</div>
+  <p class="col-xs-8"> - Expand Nodes Apart</p>
+  <div class="col-xs-2 col-xs-offset-2">F1</div>
+  <p class="col-xs-8"> - Contract Nodes</p> -->
+  <button class="btn btn-primary col-sm-6 col-sm-offset-6" onClick="hideLegend()">Hide Legend</button>
+</div>
+</div>
+<div class="col-sm-3 well" style="display:none;" id="selectedcolumn" style="height:460px;overflow-y: scroll;">
+  <div id="info"><p>Nothing Selected</p></div>
+  <button class="btn btn-primary col-sm-6 col-sm-offset-6" onClick="hideSelected()">Hide Selected</button>
+</div>
+<div class="col-sm-3 well" style="display:none;" id="resultscolumn" style="height:460px;overflow-y: scroll;">
+  <div id="tirosresult"><p>No Results</p></div>
+  <button class="btn btn-primary col-sm-6 col-sm-offset-6" onClick="hideResults()">Hide Results</button>
+</div>
+</div>
+</div>
+
+
+<div class="modal" id="resultsmodal">
+  <div class="modal-dialog">
+    <div class="modal-content" style="max-height:300px;overflow-y: scroll;">
+      <div class="modal-body">
+                <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+<div id="tirosresult2"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="modal" id="sgmodal">
+  <div class="modal-dialog">
+    <div class="modal-content" style="max-height:300px;overflow-y: scroll;">
+      <div class="modal-body">
+                <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+<div id="sginfo"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="modal" id="enimodal">
+  <div class="modal-dialog">
+    <div class="modal-content" style="max-height:300px;overflow-y: scroll;">
+      <div class="modal-body">
+                <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+<div id="eniinfo"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="modal" id="tagsmodal">
+  <div class="modal-dialog">
+    <div class="modal-content" style="max-height:300px;overflow-y: scroll;">
+      <div class="modal-body">
+                <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+<div id="tagsinfo"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="modal" id="loadingmodal">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-body">
+        <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+        <p align="center"><i class="fa fa-cog fa-spin fa-5x fa-fw"></i></p>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="modal" id="inlinequerymodal">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-body">
+        <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+        <div style="width:90%;margin:5%;">
+          <p class="lead">Enter Tiros Query [<a href="https://github.com/awslabs/BETA-tiros/wiki/1.3-Intoduction-to-the-Tiros-Query-Language-(TQL)" target="_blank">Language Reference</a>]</p>
+          <br />
+          <form>
+            <label for="inlinequery">Query</label>
+            <textarea rows="5" id="inlinequery" class="form-control tiros-input" name="inlinequery"></textarea>
+            <button class="btn btn-warning" id="inlinequerysubmit" type="submit">Run!</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+  <style>
+.links line {
+  stroke: #999;
+  stroke-opacity: 0.6;
+}
+.nodes circle {
+  /*stroke: black ;*/
+  stroke-width: 5px;
+}
+.drawerbtn {
+  width: 100%;
+  margin: 1px;
+}
+</style>
+<script>
+/* JS for floating submenus within dropdown. */
+$(document).ready(function(){
+  var lastselected = null;
+  $('.dropdown-submenu a.test').on("click", function(e){
+    $(lastselected).next('ul').toggle();
+    lastselected = this;
+    $(this).next('ul').toggle();
+    e.stopPropagation();
+    e.preventDefault();
+  });
+  $('svg').css('width', '100%');
+  $('svg').css('height', '100%');
+});
+var showingColumn = null;
+function showLegend() {
+  showingColumn = "legendcolumn";
+  $('#legendcolumn').css('display', 'block');
+  $('#drawers').css('display', 'none');
+  $('#graphcolumn').attr('class', 'col-sm-9');
+}
+function hideLegend() {
+  showingColumn = null;
+  $('#legendcolumn').css('display', 'none');
+  $('#drawers').css('display', 'block');
+  $('#graphcolumn').attr('class', 'col-sm-12');
+}
+function showResults() {
+  showingColumn = "resultscolumn"
+  $('#resultscolumn').css('display', 'block');
+  $('#drawers').css('display', 'none');
+  $('#graphcolumn').attr('class', 'col-sm-9');
+}
+function hideResults() {
+  showingColumn = null;
+  $('#resultscolumn').css('display', 'none');
+  $('#drawers').css('display', 'block');
+  $('#graphcolumn').attr('class', 'col-sm-12');
+}
+function showSelected() {
+  showingColumn = "selectedcolumn";
+  $('#selectedcolumn').css('display', 'block');
+  $('#drawers').css('display', 'none');
+  $('#graphcolumn').attr('class', 'col-sm-9');
+}
+function hideSelected() {
+  showingColumn = null;
+  $('#selectedcolumn').css('display', 'none');
+  $('#drawers').css('display', 'block');
+  $('#graphcolumn').attr('class', 'col-sm-12');
+}
+function hideShowing() {
+  $('#' + showingColumn).css('display', 'none');
+  $('#drawers').css('display', 'block');
+  $('#graphcolumn').attr('class', 'col-sm-12');
+}
+</script>
+<script src="http://d3js.org/d3.v4.min.js" charset="utf-8"></script>
+<script src="/static/js/tiros_network.js"></script>
+<script src="/static/js/tiros_async_requests.js"></script>
+<script>
+
+/* Highlights search result with red stroke and dropshadow.
+   Does nothing when no result is found. */
+var lastSearched;
+var lasthref;
+function search(){
+    window.event.preventDefault();
+    $('#' + lastSearched).attr("href", lasthref);
+    $('#' + lastSearched).attr("style", null);
+    var filter = $('#filter').val();
+    lastSearched = filter;
+    lasthref = $('#' + filter).attr("href");
+    if (typeof lasthref !== "undefined"){
+      $('#' + filter).attr("href",lasthref.replace("-selected","").replace(".png","-selected.png"));
+      $('#' + filter).attr("stroke", "red");
+      $('#' + filter).attr("style","filter: drop-shadow(0px 0px 20px blue)");
+    }
+    return false;
+}
+
+initializeGraph('{{snapshot_file}}');
+</script>
+<style>
+  .dropdown-submenu {
+      position: relative;
+  }
+
+  .dropdown-submenu .dropdown-menu {
+      top: 0;
+      left: 100%;
+      margin-top: -1px;
+  }
+  .bigger {
+    font-size: 16px;
+  }
+  #vpckey { width: 20px; height: 20px; background: #3182bd; -moz-border-radius: 10px; -webkit-border-radius: 5px; border-radius: 10px; }
+  #instancekey { width: 20px; height: 20px; background: #ccccff; -moz-border-radius: 10px; -webkit-border-radius: 5px; border-radius: 10px; }
+  #subnetkey { width: 20px; height: 20px; background: #ff8000; -moz-border-radius: 10px; -webkit-border-radius: 5px; border-radius: 10px; }
+  #selectedkey { width: 20px; height: 20px; background: yellow; -moz-border-radius: 10px; -webkit-border-radius: 5px; border-radius: 10px; }
+  #returnedkey { border:2px solid black;width: 20px; height: 20px; background: red; -moz-border-radius: 10px; -webkit-border-radius: 5px; border-radius: 10px; }
+  #subnetlinkkey { width: 30px; height: 6px; background: #669999; }
+  #vpclinkkey { width: 30px; height: 6px; background: #DEA5A4; }
+  #otherlinkkey { width: 30px; height: 6px; background: #FF7F50; }
+
+/* pulse in SVG */
+.first-circle, .second-circle, .third-circle {
+  /*fill: #0F0;*/
+  transform: scale(0.5);
+  transform-origin: center center;
+  animation: pulse-me 3s linear infinite;
+  opacity: 0;
+}
+
+.second-circle {
+  animation-delay: 1s;
+}
+
+.third-circle {
+  animation-delay: 2s;
+}
+
+.tooltip{
+    font-family: sans-serif;
+    font-size: 14px;
+    fill: #000;
+    opacity: 0.5;
+    text-anchor: middle;
+}
+
+.tooltip {
+    background: rgba(0, 0, 0, 0.6);
+    color: #fff;
+    padding: 5px 10px;
+    border-radius: 3px;
+}
+
+@keyframes pulse-me {
+  0% {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+
+  50% {
+    opacity: 0.2;
+  }
+
+  70% {
+    opacity: 0.1;
+  }
+
+  100% {
+    transform: scale(3);
+    opacity: 0;
+  }
+}
+</style>
