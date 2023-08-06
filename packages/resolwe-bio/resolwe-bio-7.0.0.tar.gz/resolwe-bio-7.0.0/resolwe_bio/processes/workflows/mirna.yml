@@ -1,0 +1,68 @@
+- slug: workflow-mirna
+  category: workflow:primary
+  name: miRNA pipeline
+  data_name: "miRNA pipeline ({{ reads|sample_name|default('?') }})"
+  requirements:
+    expression-engine: jinja
+  version: 0.0.3
+  type: data:workflow:mirna
+  input:
+      # this set of parameters is for bowtie2
+    - name: reads
+      label: Input miRNA reads.
+      type: data:reads:fastq
+      description: >
+        Note that these reads should already be void of adapters.
+    - name: genome
+      label: Genome
+      type: data:genome:fasta
+      # this set of parameters is for featureCounts
+    - name: annotation
+      label: Annotation (GTF/GFF3)
+      type: data:annotation
+    - name: id_attribute
+      label: ID attribute
+      type: basic:string
+      default: gene_id
+      allow_custom_choice: true
+      choices:
+        - label: gene_id
+          value: gene_id
+        - label: transcript_id
+          value: transcript_id
+        - label: ID
+          value: ID
+        - label: geneid
+          value: geneid
+      description: >
+        GTF/GFF3 attribute to be used as feature ID. Several GTF/GFF3 lines
+        with the same feature ID will be considered as parts of the same
+        feature. The feature ID is used to identify the counts in the
+        output table. In GTF files this is usually 'gene_id', in GFF3 files
+        this is often 'ID', and 'transcript_id' is frequently a valid
+        choice for both annotation formats.
+    # this next option could perhaps be hidden and hard-coded into the workflow
+    - name: feature_class
+      label: Feature class
+      type: basic:string
+      default: miRNA
+      description: >
+        Feature class (3rd column in GFF file) to be used, all features of other
+        types are ignored.
+  run:
+    language: workflow
+    program:
+      - id: mirna_align_bowtie2
+        run: alignment-bowtie2
+        input:
+          genome: '{{ input.genome }}'
+          reads: '{{ input.reads }}'
+      - id: mirna_featurecounts
+        run: feature_counts
+        input:
+          alignment:
+            aligned_reads: '{{ steps.mirna_align_bowtie2 }}'
+          annotation:
+            annotation: '{{ input.annotation }}'
+            id_attribute: '{{ input.id_attribute }}'
+            feature_class: '{{ input.feature_class }}'
