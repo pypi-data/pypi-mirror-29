@@ -1,0 +1,312 @@
+Browser views
+=============
+
+Imports
+-------
+
+    >>> import re
+    >>> from zope.component import getMultiAdapter
+    >>> from eea.facetednavigation.interfaces import IWidgetsInfo
+    >>> from eea.facetednavigation.tests.utils import preparefile
+
+    >>> from plone.testing.z2 import Browser
+    >>> from plone.app.testing import TEST_USER_NAME, TEST_USER_PASSWORD
+    >>> try:
+    ...     from Products.CMFPlone.interfaces import IBundleRegistry
+    ... except ImportError:
+    ...     PLONE = 4
+    ... else:
+    ...     PLONE = 5
+
+Set up
+------
+
+  Add sandbox
+
+    >>> portal = layer["portal"]
+    >>> request = layer['request']
+    >>> sandbox = portal['sandbox']
+    >>> portal.error_log._ignored_exceptions = ()
+    >>> app = layer["app"]
+
+    >>> sandbox.setLanguage("en")
+    >>> subtyper = getMultiAdapter((sandbox, request), name=u'faceted_subtyper')
+    >>> subtyper.enable()
+
+  Initialize browser
+
+    >>> browser = Browser(app)
+    >>> browser.handleErrors = False
+    >>> browser.addHeader('Authorization', 'Basic %s:%s' % (TEST_USER_NAME, TEST_USER_PASSWORD))
+    >>> import transaction
+    >>> transaction.commit()
+
+
+Browser views
+-------------
+
+  Default view
+
+    >>> sandbox_url = sandbox.absolute_url()
+    >>> browser.open(sandbox_url)
+    >>> 'faceted-results' in browser.contents
+    True
+
+  Configure faceted criteria view
+
+    >>> browser.open(sandbox_url + '/@@configure_faceted.html')
+    >>> 'faceted-edit-widgets-ajax' in browser.contents
+    True
+
+CSS
+---
+
+  View css
+
+    >>> browser.open(sandbox_url)
+    >>> if PLONE == 5:
+    ...     'faceted-view.min.css' in browser.contents
+    ... else:
+    ...     # XXX Plone 4 doesn't seem to use CSS bundles as expected
+    ...     re.search("faceted", browser.contents) is not None
+    True
+
+  Edit css
+
+    >>> browser.open(sandbox_url + '/configure_faceted.html')
+    >>> if PLONE == 5:
+    ...    'faceted-edit.min.css' in browser.contents
+    ... else:
+    ...    re.search("eea.faceted-navigation-edit-cachekey-.*.css", browser.contents) is not None
+    True
+
+Javascript
+----------
+
+  View js
+
+    >>> browser.open(sandbox_url)
+    >>> if PLONE == 5:
+    ...     'faceted-view.min.js' in browser.contents
+    ... else:
+    ...     # XXX Plone 4 doesn't seem to use JS bundles as expected
+    ...     re.search("faceted", browser.contents) is not None
+    True
+
+  Edit js
+
+    >>> browser.open(sandbox_url + '/configure_faceted.html')
+    >>> if PLONE == 5:
+    ...    'faceted-edit.min.js' in browser.contents
+    ... else:
+    ...    re.search("eea.faceted-navigation-edit-cachekey-.*.js", browser.contents) is not None
+    True
+
+Views used by AJAX framework
+----------------------------
+
+  Search
+
+    >>> browser.open(sandbox_url + '/@@faceted_query')
+    >>> # u'Sandbox faceted navigation' in browser.contents
+
+  Widgets
+
+    >>> browser.open(sandbox_url + '/@@faceted_widgets')
+    >>> '<legend>Results per page</legend>' in browser.contents
+    True
+    >>> '<legend>Current search</legend>' in browser.contents
+    True
+    >>> '<legend>Sort on</legend>' in browser.contents
+    True
+
+  Schema
+
+    >>> browser.open(sandbox_url + '/@@faceted_schema?criterion=c0')
+    >>> 'Results per page starting value' in browser.contents
+    True
+
+    >>> browser.open(sandbox_url + '/@@faceted_schema?widget=text')
+    >>> 'Catalog index' in browser.contents
+    True
+
+
+Edit (no AJAX)
+--------------
+
+    >>> browser.open(sandbox_url + '/@@configure_faceted.html')
+
+  Delete default widgets
+
+    >>> 'name="paths:list"' in browser.contents
+    True
+    >>> cids = browser.getControl(name='paths:list').options
+    >>> browser.getControl(name='paths:list').value = cids
+    >>> browser.getControl(name='deleteWidgets_button').click()
+    >>> 'name="paths:list"' in browser.contents
+    False
+
+  Add widgets
+
+    >>> wtypes = browser.getControl(name='wtype').options
+    >>> for wtype in wtypes:
+    ...     browser.getControl(name='wtype').value = [wtype]
+    ...     browser.getControl('Add').click()
+    >>> browser.getControl(name='paths:list').options
+    ['c0', 'c1', ..., 'c7', 'c8', ...]
+
+  Check that there is no error in widgets view
+
+    >>> browser.open(sandbox_url + '/@@faceted_widgets')
+    >>> 'faceted-column' in browser.contents
+    True
+
+  Reorder
+
+    >>> browser.open(sandbox_url + '/@@configure_faceted.html')
+    >>> browser.getControl(name='moveDown_button+++c0').click()
+    >>> browser.getControl(name='paths:list').options
+    ['c1', 'c0', 'c2', ...]
+
+    >>> browser.getControl(name='moveUp_button+++c2').click()
+    >>> browser.getControl(name='paths:list').options
+    ['c1', 'c2', 'c0', ...]
+
+  Save
+
+    >>> browser.getControl(name='faceted.c0.title').value = 'C0 title changed'
+    >>> browser.getControl(name='faceted.c0.position:list').value = ['left']
+    >>> browser.getControl(name='faceted.c1.title').value = 'C1 title changed'
+    >>> browser.getControl(name='faceted.c1.position:list').value = ['right']
+    >>> browser.getControl('Save').click()
+
+    >>> browser.getControl(name='faceted.c0.title').value
+    'C0 title changed'
+    >>> browser.getControl(name='faceted.c0.position:list').value
+    ['left']
+    >>> browser.getControl(name='faceted.c1.title').value
+    'C1 title changed'
+    >>> browser.getControl(name='faceted.c1.position:list').value
+    ['right']
+
+  Import
+
+    >>> import_file = preparefile('data/exportimport.xml')
+    >>> browser.getControl(name='import_file').value = import_file
+    >>> browser.getControl('Import').click()
+
+  Export
+
+    >>> browser.getControl('Export').click()
+    >>> print browser.contents
+    <?xml version="1.0"?>
+    <object name="sandbox" meta_type="...">
+     <criteria>
+      <criterion name="c2">
+       <property name="widget">tagscloud</property>
+       <property name="title">Meta-type d'element</property>
+       <property name="index">meta_type</property>
+       <property name="vocabulary"></property>
+       <property name="default">ATFolder</property>
+       <property name="position">top</property>
+       <property name="section">default</property>
+       <property name="hidden">False</property>
+       <property name="count">False</property>
+       <property name="cloud">sphere</property>
+      </criterion>
+      <criterion name="c7">
+       <property name="widget">checkbox</property>
+       <property name="title">Type d'element</property>
+       <property name="index">portal_type</property>
+       <property name="vocabulary"></property>
+       <property name="default">
+        <element value="Folder"/>
+        <element value="Document"/>
+       </property>
+       <property name="position">left</property>
+       <property name="section">default</property>
+       <property name="hidden">True</property>
+       <property name="count">True</property>
+      </criterion>
+     </criteria>
+    </object>
+
+
+Edit (AJAX)
+-----------
+We can not use the ajax framework to click on buttons and drag&drop widgets, but
+we can reproduce the ajax calls.
+
+  Delete widgets
+
+    >>> browser.open(sandbox_url + '/@@faceted_configure?deleteWidget_button=Delete&path=c7&redirect=')
+    >>> browser.contents
+    'Filter deleted'
+    >>> browser.open(sandbox_url + '/@@faceted_configure?deleteWidget_button=Delete&path=c2&redirect=')
+    >>> browser.contents
+    'Filter deleted'
+    >>> browser.open(sandbox_url + '/@@configure_faceted.html')
+    >>> 'name="paths:list"' in browser.contents
+    False
+
+  Add widgets
+
+    >>> wtypes = browser.getControl(name='wtype').options
+    >>> for wtype in wtypes:
+    ...     browser.open(sandbox_url + ('/@@faceted_configure?'
+    ...                                 'addPropertiesWidget_button=Add'
+    ...                                 '&wtype=%s'
+    ...                                 '&wposition=top'
+    ...                                 '&wsection=default'
+    ...                                 '&redirect='
+    ...                                 '&faceted.c0.title=Test+widget+%s') % (wtype, wtype))
+
+    >>> browser.open(sandbox_url + '/@@configure_faceted.html')
+    >>> browser.getControl(name='paths:list').options
+    ['c0', 'c1', ..., 'c7', 'c8', ...]
+
+  Check that there is no error in widgets view
+
+    >>> browser.open(sandbox_url + '/@@faceted_widgets')
+    >>> 'faceted-column' in browser.contents
+    True
+
+  Reorder (jQuery 1.3.2 style)
+
+    >>> browser.open(sandbox_url + ('/@@faceted_configure?'
+    ...                             'updatePosition_button=Update'
+    ...                             '&redirect='
+    ...                             '&top=c1&top=c2&top=c3'
+    ...                             '&left=c0&left=c4&left=c5'
+    ...                             '&center=c6'
+    ...                             '&right=c7&right=c8&right=c9'))
+    >>> browser.open(sandbox_url + '/@@configure_faceted.html')
+    >>> browser.getControl(name='paths:list').options
+    ['c1', 'c2', 'c3', 'c0', 'c4', 'c5', 'c6', 'c7', 'c8', 'c9']
+
+  Reorder (jQuery 1.4.2 style)
+
+    >>> browser.open(sandbox_url + ('/@@faceted_configure?'
+    ...                             'updatePosition_button=Update'
+    ...                             '&redirect='
+    ...                             '&top[]=c1&top[]=c2&top[]=c3'
+    ...                             '&left[]=c0&left[]=c4&left[]=c5'
+    ...                             '&center[]=c6'
+    ...                             '&right[]=c7&right[]=c8&right[]=c9'))
+    >>> browser.open(sandbox_url + '/@@configure_faceted.html')
+    >>> browser.getControl(name='paths:list').options
+    ['c1', 'c2', 'c3', 'c0', 'c4', 'c5', 'c6', 'c7', 'c8', 'c9']
+
+  Edit widget properties
+
+    >>> browser.open(sandbox_url + ('/@@faceted_configure?'
+    ...                             'updateCriterion_button=Save'
+    ...                             '&redirect='
+    ...                             '&cid=c0'
+    ...                             '&faceted.c0.title=C0+title+changed'
+    ...                             '&faceted.c0.section=advanced'
+    ...                             '&faceted.c0.hidden=selected'
+    ...                             '&faceted.c0.position=right'))
+    >>> browser.open(sandbox_url + '/@@faceted_widgets')
+    >>> 'C0 title changed' in browser.contents
+    True

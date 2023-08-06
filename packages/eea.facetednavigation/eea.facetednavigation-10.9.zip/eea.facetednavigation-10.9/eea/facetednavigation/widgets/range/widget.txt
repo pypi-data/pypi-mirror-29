@@ -1,0 +1,155 @@
+Range widget
+============
+
+Implementation of range criteria for facted navigation usage.
+
+Imports
+-------
+
+  >>> from zope.interface import Interface
+  >>> from zope.component import provideAdapter
+  >>> from DateTime import DateTime
+  >>> from zope.component import getMultiAdapter
+  >>> from eea.facetednavigation.interfaces import ICriteria
+
+Set up
+------
+
+  >>> portal = layer['portal']
+  >>> request = layer['request']
+  >>> sandbox = portal['sandbox']
+  >>> sandbox.setTitle('Faceted navigation folder test')
+
+  >>> subtyper = getMultiAdapter((sandbox, request), name=u'faceted_subtyper')
+  >>> subtyper.enable()
+
+  >>> handler = getMultiAdapter((sandbox, request), name=u'faceted_configure')
+  >>> query = getMultiAdapter((sandbox, request), name=u'faceted_query')
+
+  >>> minval, inval, maxval = 2, 4, 6
+  >>> cminval, cinval, cmaxval = 'aa', 'bb', 'cc'
+
+  >>> testfolder = sandbox.invokeFactory('Folder', 'testfolder')
+  >>> rangeable_doc = getattr(sandbox, testfolder)
+  >>> t2 = rangeable_doc.invokeFactory('Folder', 'testfolder2', title='range widget 1')
+  >>> t4 = rangeable_doc.invokeFactory('Folder', 'testfolder4', title='range widget 2')
+  >>> t6 = rangeable_doc.invokeFactory('Folder', 'testfolder6', title='range widget 4')
+  >>> t2 = rangeable_doc[t2]
+  >>> t4 = rangeable_doc[t4]
+  >>> t6 = rangeable_doc[t6]
+  >>> t2.rangen = minval
+  >>> t4.rangen = inval
+  >>> t6.rangen = maxval
+  >>> t2.rangea = cminval
+  >>> t4.rangea = cinval
+  >>> t6.rangea = cmaxval
+
+We will need also to add those indexes to the catalog
+
+  >>> from plone.indexer.decorator import indexer
+  >>> def folder_rangea(object, **kw):
+  ...     return object.rangea
+  >>> fra = indexer(Interface)(folder_rangea)
+  >>> def folder_rangen(object, **kw):
+  ...     return object.rangen
+  >>> frn = indexer(Interface)(folder_rangen)
+  >>> catalog = t2.portal_catalog
+
+  >>> provideAdapter(fra, name='getRangea')
+  >>> provideAdapter(frn, name='getRangen')
+  >>> catalog.addIndex('getRangea', 'FieldIndex')
+  >>> catalog.addIndex('getRangen', 'FieldIndex')
+  >>> catalog.reindexIndex('getRangea', portal.REQUEST)
+  >>> catalog.reindexIndex('getRangen', portal.REQUEST)
+  >>> [x for x in catalog.Indexes['getRangea'].uniqueValues()]
+  ['aa', 'bb', 'cc']
+
+  >>> [x for x in catalog.Indexes['getRangen'].uniqueValues()]
+  [2, 4, 6]
+
+  atct.addIndex('getRangea', friendlyName='rangea', enabled=True, criteria=['ATSimpleStringCriterion', 'ATSimpleCriterion'])
+  atct.addIndex('getRangen', friendlyName='rangen', enabled=True, criteria=['ATSimpleStringCriterion', 'ATSimpleCriterion'])
+
+Cleanup default widgets
+-----------------------
+
+    >>> cids = ICriteria(sandbox).keys()
+
+Default widgets
+
+    >>> cids
+    [...'c1',...]
+
+    >>> for cid in cids:
+    ...     ICriteria(sandbox).delete(cid)
+    >>> ICriteria(sandbox).keys()
+    []
+
+Add hidden text widget
+----------------------
+
+    >>> _ = handler(addWidget_button=True, wtype='text')
+    >>> _ = handler(updateCriterion_button='Save', cid='c0',
+    ...     default='range widget', index='Title', hidden=True)
+
+Add test folders
+----------------
+
+Empty query
+-----------
+
+    >>> brains = query.query(batch=False)
+    >>> len(brains)
+    3
+
+Add widget
+----------
+
+    >>> _ = handler(wtype='range', addWidget_button=True)
+
+
+Get some results (default set) for integers
+-------------------------------------------
+
+  >>> def make_test(range_query):
+  ...     _ = handler(
+  ...         updateCriterion_button='Save',
+  ...         cid='c1', hidden=True,
+  ...         index='getRangen', default=range_query)
+  ...     brains = query.query()
+  ...     return [brain.getId for brain in brains]
+  >>> make_test('2=>6')
+  ['testfolder6', 'testfolder4', 'testfolder2']
+  >>> make_test('4=>6')
+  ['testfolder6', 'testfolder4']
+  >>> make_test('6=>6')
+  ['testfolder6']
+  >>> make_test('0=>1')
+  []
+  >>> make_test('0=>3')
+  ['testfolder2']
+  >>> make_test('3=>5')
+  ['testfolder4']
+
+Get some results (default set) for Strings
+-------------------------------------------
+
+  >>> def make_test(range_query):
+  ...     _ = handler(
+  ...         updateCriterion_button='Save',
+  ...         cid='c1', hidden=True,
+  ...         index='getRangea', default=range_query)
+  ...     brains = query.query()
+  ...     return [brain.getId for brain in brains]
+  >>> make_test('aa=>cc')
+  ['testfolder6', 'testfolder4', 'testfolder2']
+  >>> make_test('aa=>bb')
+  ['testfolder4', 'testfolder2']
+  >>> make_test('aa=>a')
+  ['testfolder2']
+  >>> make_test('e=>z')
+  []
+  >>> make_test('c=>z')
+  ['testfolder6']
+  >>> make_test('1=>2')
+  []
