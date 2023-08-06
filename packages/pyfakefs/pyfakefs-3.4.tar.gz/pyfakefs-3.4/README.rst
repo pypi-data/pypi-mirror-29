@@ -1,0 +1,252 @@
+pyfakefs
+========
+
+pyfakefs implements a fake file system that mocks the Python file system
+modules. Using pyfakefs, your tests operate on a fake file system in
+memory without touching the real disk. The software under test requires
+no modification to work with pyfakefs.
+
+pyfakefs works with Linux, Windows and MacOS.
+
+Documentation
+-------------
+
+This file provides general usage instructions for pyfakefs. There is
+more:
+
+-  The documentation at `GitHub
+   Pages: <http://jmcgeheeiv.github.io/pyfakefs>`__
+
+   -  The `Release
+      documentation <http://jmcgeheeiv.github.io/pyfakefs/release>`__
+      contains usage documentation for pyfakefs and a description of the
+      most relevent classes, methods and functions for the last version
+      released on PyPi
+   -  The `Development
+      documentation <http://jmcgeheeiv.github.io/pyfakefs/master>`__
+      contains the same documentation for the current master branch
+   -  The `Release 3.3
+      documentation <http://jmcgeheeiv.github.io/pyfakefs/3.3>`__
+      contains usage documentation for the last version of pyfakefs
+      supporting Python 2.6, and for the old-style API (which is still
+      supported but not documented in the current release)
+
+-  The `Release
+   Notes <https://github.com/jmcgeheeiv/pyfakefs/blob/master/CHANGES.md>`__
+   show a list of changes in the latest versions
+
+Linking to pyfakefs
+~~~~~~~~~~~~~~~~~~~
+
+In your own documentation, please link to pyfakefs using the canonical
+URL http://pyfakefs.org. This URL always points to the most relevant top
+page for pyfakefs.
+
+Usage
+-----
+
+There are several approaches to implementing tests using pyfakefs.
+
+Automatically find and patch
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+| The first approach is to allow pyfakefs to automatically find all real
+  file functions and modules, and stub these out with the fake file
+  system functions and modules.
+| This is explained in the pyfakefs wiki page `Automatically find and
+  patch file functions and
+  modules <http://jmcgeheeiv.github.io/pyfakefs/master/autopatch.html>`__
+  and demonstrated in files ``example.py`` and ``example_test.py``.
+
+Patch using the PyTest plugin
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If you use `PyTest <https://doc.pytest.org>`__, you will be interested
+in the PyTest plugin in pyfakefs. This automatically patches all file
+system functions and modules in a manner similar to the `automatic find
+and patch
+approach <http://jmcgeheeiv.github.io/pyfakefs/master/autopatch.html>`__
+described above.
+
+The PyTest plugin provides the ``fs`` fixture for use in your test. For
+example:
+
+.. code:: python
+
+    def my_fakefs_test(fs):
+        # "fs" is the reference to the fake file system
+        fs.create_file('/var/data/xx1.txt')
+        assert os.path.exists('/var/data/xx1.txt')
+
+Patch using fake_filesystem_unittest.Patcher
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If you are using other means of testing like
+`nose <http://nose2.readthedocs.io>`__, you can do the patching using
+``fake_filesystem_unittest.Patcher`` - the class doing the the actual
+work of replacing the filesystem modules with the fake modules in the
+first two approaches.
+
+The easiest way is to just use ``Patcher`` as a context manager:
+
+.. code:: python
+
+    from fake_filesystem_unittest import Patcher
+
+    with Patcher() as patcher:
+       # access the fake_filesystem object via patcher.fs
+       patcher.fs.create_file('/foo/bar', contents='test')
+
+       # the following code works on the fake filesystem
+       with open('/foo/bar') as f:
+           contents = f.read()
+
+You can also initialize ``Patcher`` manually:
+
+.. code:: python
+
+    from fake_filesystem_unittest import Patcher
+
+    patcher = Patcher()
+    patcher.setUp()     # called in the initialization code
+    ...
+    patcher.tearDown()  # somewhere in the cleanup code
+
+Patch using unittest.mock (deprecated)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+You can also use ``mock.patch()`` to patch the modules manually. This
+approach will only work for the directly imported modules, therefore it
+is not suited for testing larger code bases. As the other approaches are
+more convenient, this one is considered deprecated. You have to create a
+fake filesystem object, and afterwards fake modules based on this file
+system for the modules you want to patch.
+
+The following modules and functions can be patched:
+
+-  ``os`` and ``os.path`` by ``fake_filessystem.FakeOsModule``
+-  ``io`` by ``fake_filessystem.FakeIoModule``
+-  ``pathlib`` by ``fake_pathlib.FakePathlibModule``
+-  build-in ``open()`` by ``fake_filessystem.FakeFileOpen``
+
+.. code:: python
+
+
+       import pyfakefs.fake_filesystem as fake_fs
+
+       # Create a faked file system
+       fs = fake_fs.FakeFilesystem()
+
+       # Do some setup on the faked file system
+       fs.CreateFile('/foo/bar', contents='test')
+
+       # Replace some built-in file system related modules you use with faked ones
+
+       # Assuming you are using the mock library to ... mock things
+       try:
+           from unittest.mock import patch  # In Python 3, mock is built-in
+       except ImportError:
+           from mock import patch  # Python 2
+
+       # Note that this fake module is based on the fake fs you just created
+       os = fake_fs.FakeOsModule(fs)
+       with patch('mymodule.os', os):
+           fd = os.open('/foo/bar', os.O_RDONLY)
+           contents = os.read(fd, 4)
+
+Installation
+------------
+
+Compatibility
+~~~~~~~~~~~~~
+
+pyfakefs works with CPython 2.7, 3.3 and above, on Linux, Windows and
+OSX (MacOS), and with PyPy2 and PyPy3.
+
+pyfakefs works with `PyTest <http://doc.pytest.org>`__ version 2.8.6 or
+above.
+
+pyfakefs will not work with Python libraries that use C libraries to
+access the file system. This is because pyfakefs cannot patch the
+underlying C libraries’ file access functions–the C libraries will
+always access the real file system. For example, pyfakefs will not work
+with ```lxml`` <http://lxml.de/>`__. In this case ``lxml`` must be
+replaced with a pure Python alternative such as
+```xml.etree.ElementTree`` <https://docs.python.org/3/library/xml.etree.elementtree.html>`__.
+
+PyPi
+~~~~
+
+`pyfakefs is available on
+PyPi <https://pypi.python.org/pypi/pyfakefs/>`__.
+
+Development
+-----------
+
+Continuous integration
+~~~~~~~~~~~~~~~~~~~~~~
+
+pyfakefs is currently automatically tested: \* On Linux, with Python
+2.7, 3.3 and above using
+`Travis <https://travis-ci.org/jmcgeheeiv/pyfakefs>`__ \* On MacOS, with
+Python 2.7 and 3.6, also using
+`Travis <https://travis-ci.org/jmcgeheeiv/pyfakefs>`__. The Linux/MacOS
+build is currently |Build Status|. \* On Windows, with Python 2.7, 3.4
+and above using
+`Appveyor <https://ci.appveyor.com/project/jmcgeheeiv/pyfakefs>`__. The
+Windows build is currently |Build status|.
+
+Running pyfakefs unit tests
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+pyfakefs unit tests are available via two test scripts:
+
+.. code:: bash
+
+    $ python all_tests.py
+    $ py.test pytest_plugin_test.py
+
+These scripts are called by ``tox`` and Travis-CI. ``tox`` can be used
+to run tests locally against supported python versions:
+
+.. code:: bash
+
+    $ tox
+
+Contributing to pyfakefs
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+We always welcome contributions to the library. Check out the
+`Contributing
+Guide <https://github.com/jmcgeheeiv/pyfakefs/blob/master/CONTRIBUTING.md>`__
+for more information.
+
+History
+-------
+
+pyfakefs.py was initially developed at Google by Mike Bland as a modest
+fake implementation of core Python modules. It was introduced to all of
+Google in September 2006. Since then, it has been enhanced to extend its
+functionality and usefulness. At last count, pyfakefs is used in over
+2,000 Python tests at Google.
+
+Google released pyfakefs to the public in 2011 as Google Code project
+`pyfakefs <http://code.google.com/p/pyfakefs/>`__: \* Fork
+`jmcgeheeiv-pyfakefs <http://code.google.com/p/jmcgeheeiv-pyfakefs/>`__
+added `direct support for unittest and
+doctest <../../wiki/Automatically-find-and-patch-file-functions-and-modules>`__
+\* Fork
+`shiffdane-jmcgeheeiv-pyfakefs <http://code.google.com/p/shiffdane-jmcgeheeiv-pyfakefs/>`__
+added further corrections
+
+After the `shutdown of Google
+Code <http://google-opensource.blogspot.com/2015/03/farewell-to-google-code.html>`__
+was announced, `John McGehee <https://github.com/jmcgeheeiv>`__ merged
+all three Google Code projects together `here on
+GitHub <https://github.com/jmcgeheeiv/pyfakefs>`__ where an enthusiastic
+community actively supports, maintains and extends pyfakefs.
+
+.. |Build Status| image:: https://travis-ci.org/jmcgeheeiv/pyfakefs.svg
+   :target: https://travis-ci.org/jmcgeheeiv/pyfakefs
+.. |Build status| image:: https://ci.appveyor.com/api/projects/status/4o8j21ufuo056873/branch/master?svg=true
+   :target: https://ci.appveyor.com/project/jmcgeheeiv/pyfakefs/branch/master
