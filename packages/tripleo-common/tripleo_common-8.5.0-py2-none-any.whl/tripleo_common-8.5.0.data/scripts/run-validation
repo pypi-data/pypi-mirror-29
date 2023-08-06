@@ -1,0 +1,57 @@
+#!/bin/bash
+
+set -e
+set -o pipefail
+
+VALIDATION_FILE=$1
+IDENTITY_FILE=$2
+PLAN_NAME=$3
+
+if [[ -z "$VALIDATION_FILE" ]]; then
+    echo "Missing required validation file"
+    exit 1
+fi
+
+if [[ ! -r "$VALIDATION_FILE" ]]; then
+    echo "Can not find validation at $VALIDATION_FILE"
+    exit 1
+fi
+
+if [[ -z "$IDENTITY_FILE" ]]; then
+    echo "Missing required identity file"
+    exit 1
+fi
+
+# Make sure ssh is not asking interactively for hosts it can't check the key
+# authenticity
+export ANSIBLE_HOST_KEY_CHECKING=False
+# Disable retry files until we find a good use and location for them
+export ANSIBLE_RETRY_FILES_ENABLED=False
+# Add `-E` to the sudo flags to preserve the shell environment. The `-H -S -n`
+# options are Ansible's default values.
+export ANSIBLE_SUDO_FLAGS="-H -S -n -E"
+
+export ANSIBLE_PRIVATE_KEY_FILE=$IDENTITY_FILE
+
+export ANSIBLE_INVENTORY=$(which tripleo-ansible-inventory)
+
+# Use the custom validation-specific formatter
+export ANSIBLE_STDOUT_CALLBACK=validation_output
+
+# Environment variable is the easiest way to pass variables to an Ansible
+# dynamic inventory script
+export TRIPLEO_PLAN_NAME=${PLAN_NAME}
+
+# NOTE(shadower): set up token-based environment for the openstack
+# client when the password doesn't exist. This happens when called
+# from mistral:
+if [ -z "${OS_PASSWORD:-}" ]; then
+    # The auth type must be explicitly set to token
+    export OS_AUTH_TYPE=token
+    # The openstack client expects the token as OS_TOKEN
+    export OS_TOKEN=$OS_AUTH_TOKEN
+    # TODO(shadower): I could not get the token auth working with v3:
+    export OS_AUTH_URL=${OS_AUTH_URL/%v3/v2.0}
+fi
+
+ansible-playbook $VALIDATION_FILE

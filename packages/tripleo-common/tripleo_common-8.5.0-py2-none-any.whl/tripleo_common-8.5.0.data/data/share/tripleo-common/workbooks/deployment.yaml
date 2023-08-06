@@ -1,0 +1,411 @@
+---
+version: '2.0'
+name: tripleo.deployment.v1
+description: TripleO deployment workflows
+
+workflows:
+
+  deploy_on_server:
+
+    input:
+      - server_uuid
+      - server_name
+      - config
+      - config_name
+      - group
+      - queue_name: tripleo
+
+    tags:
+      - tripleo-common-managed
+
+    tasks:
+
+      deploy_config:
+        action: tripleo.deployment.config
+        on-complete: send_message
+        input:
+          server_id: <% $.server_uuid %>
+          name: <% $.config_name %>
+          config: <% $.config %>
+          group: <% $.group %>
+        publish:
+          stdout: <% task().result.deploy_stdout %>
+          stderr: <% task().result.deploy_stderr %>
+          status_code: <% task().result.deploy_status_code %>
+        publish-on-error:
+          status: FAILED
+          message: <% task().result %>
+
+      send_message:
+        action: zaqar.queue_post
+        retry: count=5 delay=1
+        input:
+          queue_name: <% $.queue_name %>
+          messages:
+            body:
+              type: tripleo.deployment.v1.deploy_on_server
+              payload:
+                status: <% $.get("status", "SUCCESS") %>
+                message: <% $.get("message", "") %>
+                server_uuid: <% $.server_uuid %>
+                server_name: <% $.server_name %>
+                config_name: <% $.config_name %>
+                status_code: <% $.get("status_code", "") %>
+                stdout: <% $.get("stdout", "") %>
+                stderr: <% $.get("stderr", "") %>
+                execution: <% execution() %>
+        on-success:
+          - fail: <% $.get('status') = "FAILED" %>
+
+  deploy_on_servers:
+
+    input:
+      - server_name
+      - config_name
+      - config
+      - group: script
+      - queue_name: tripleo
+
+    tags:
+      - tripleo-common-managed
+
+    tasks:
+
+      get_servers_matching:
+        action: nova.servers_list
+        on-success: deploy_on_servers
+        publish:
+          servers_with_name: <% task().result._info.where($.name.indexOf(execution().input.server_name) > -1) %>
+
+      deploy_on_servers:
+        on-success: send_success_message
+        on-error: send_failed_message
+        with-items: server in <% $.servers_with_name %>
+        workflow: tripleo.deployment.v1.deploy_on_server
+        input:
+          server_name: <% $.server.name %>
+          server_uuid: <% $.server.id %>
+          config: <% $.config %>
+          config_name: <% $.config_name %>
+          group: <% $.group %>
+          queue_name: <% $.queue_name %>
+
+      send_success_message:
+        action: zaqar.queue_post
+        retry: count=5 delay=1
+        input:
+          queue_name: <% $.queue_name %>
+          messages:
+            body:
+              type: tripleo.deployment.v1.deploy_on_servers
+              payload:
+                status: SUCCESS
+                execution: <% execution() %>
+
+      send_failed_message:
+        action: zaqar.queue_post
+        retry: count=5 delay=1
+        input:
+          queue_name: <% $.queue_name %>
+          messages:
+            body:
+              type: tripleo.deployment.v1.deploy_on_servers
+              payload:
+                status: FAILED
+                message: <% task(deploy_on_servers).result %>
+                execution: <% execution() %>
+        on-success: fail
+
+  deploy_plan:
+
+    description: >
+      Deploy the overcloud for a plan.
+
+    input:
+      - container
+      - run_validations: False
+      - timeout: 240
+      - skip_deploy_identifier: False
+      - queue_name: tripleo
+
+    tags:
+      - tripleo-common-managed
+
+    tasks:
+
+      add_validation_ssh_key:
+        workflow: tripleo.validations.v1.add_validation_ssh_key_parameter
+        input:
+          container: <% $.container %>
+          queue_name: <% $.queue_name %>
+        on-complete:
+          - run_validations: <% $.run_validations %>
+          - create_swift_rings_backup_plan: <% not $.run_validations %>
+
+      run_validations:
+        workflow: tripleo.validations.v1.run_groups
+        input:
+          group_names:
+            - 'pre-deployment'
+          plan: <% $.container %>
+          queue_name: <% $.queue_name %>
+        on-success: create_swift_rings_backup_plan
+        on-error: set_validations_failed
+
+      set_validations_failed:
+        on-success: send_message
+        publish:
+          status: FAILED
+          message: <% task(run_validations).result %>
+
+      create_swift_rings_backup_plan:
+        workflow: tripleo.swift_rings_backup.v1.create_swift_rings_backup_container_plan
+        on-success: cell_v2_discover_hosts
+        on-error: create_swift_rings_backup_plan_set_status_failed
+        input:
+          container: <% $.container %>
+          queue_name: <% $.queue_name %>
+          use_default_templates: true
+
+      cell_v2_discover_hosts:
+        on-success: deploy
+        on-error: cell_v2_discover_hosts_failed
+        action: tripleo.baremetal.cell_v2_discover_hosts
+
+      cell_v2_discover_hosts_failed:
+        on-success: send_message
+        publish:
+          status: FAILED
+          message: <% task(cell_v2_discover_hosts).result %>
+
+      deploy:
+        action: tripleo.deployment.deploy
+        input:
+          timeout: <% $.timeout %>
+          container: <% $.container %>
+          skip_deploy_identifier: <% $.skip_deploy_identifier %>
+        on-success: send_message
+        on-error: set_deployment_failed
+
+      create_swift_rings_backup_plan_set_status_failed:
+        on-success: send_message
+        publish:
+          status: FAILED
+          message: <% task(create_swift_rings_backup_plan).result %>
+
+      set_deployment_failed:
+        on-success: send_message
+        publish:
+          status: FAILED
+          message: <% task(deploy).result %>
+
+      send_message:
+        action: zaqar.queue_post
+        retry: count=5 delay=1
+        input:
+          queue_name: <% $.queue_name %>
+          messages:
+            body:
+              type: tripleo.deployment.v1.deploy_plan
+              payload:
+                status: <% $.get('status', 'SUCCESS') %>
+                message: <% $.get('message', '') %>
+                execution: <% execution() %>
+        on-success:
+          - fail: <% $.get('status') = "FAILED" %>
+
+  get_horizon_url:
+
+    description: >
+      Retrieve the Horizon URL from the Overcloud stack.
+
+    input:
+      - stack: overcloud
+      - queue_name: tripleo
+
+    tags:
+      - tripleo-common-managed
+
+    output:
+      horizon_url: <% $.horizon_url %>
+
+    tasks:
+      get_horizon_url:
+        action: heat.stacks_get
+        input:
+          stack_id: <% $.stack %>
+        publish:
+          horizon_url: <% task().result.outputs.where($.output_key = "EndpointMap").output_value.HorizonPublic.uri.single() %>
+        on-success: notify_zaqar
+        publish-on-error:
+          status: FAILED
+          message: <% task().result %>
+
+      notify_zaqar:
+        action: zaqar.queue_post
+        retry: count=5 delay=1
+        input:
+          queue_name: <% $.queue_name %>
+          messages:
+            body:
+              type: tripleo.deployment.v1.get_horizon_url
+              payload:
+                horizon_url: <% $.get('horizon_url', '') %>
+                status: <% $.get('status', 'SUCCESS') %>
+                message: <% $.get('message', '') %>
+                execution: <% execution() %>
+        on-success:
+          - fail: <% $.get('status') = "FAILED" %>
+
+  config_download_deploy:
+
+    description: >
+      Configure the overcloud with config-download.
+
+    input:
+      - timeout: 240
+      - queue_name: tripleo
+      - plan_name: overcloud
+      - work_dir: /var/lib/mistral
+      - verbosity: 1
+
+    tags:
+      - tripleo-common-managed
+
+    tasks:
+
+      get_config:
+        action: tripleo.config.get_overcloud_config
+        on-success: download_config
+        on-error: send_message
+        publish-on-error:
+          status: FAILED
+          message: <% task().result %>
+
+      download_config:
+        action: tripleo.config.download_config
+        input:
+          work_dir: <% $.get('work_dir') %>/<% execution().id %>
+        on-success: send_msg_config_download
+        on-error: send_message
+        publish-on-error:
+          status: FAILED
+          message: <% task().result %>
+
+      send_msg_config_download:
+        action: zaqar.queue_post
+        input:
+          queue_name: <% $.queue_name %>
+          messages:
+            body:
+              type: tripleo.deployment.v1.config_download
+              payload:
+                status: <% $.get('status', 'RUNNING') %>
+                message: Config downloaded at <% $.get('work_dir') %>/<% execution().id %>
+                execution: <% execution() %>
+        on-success: get_private_key
+
+      get_private_key:
+        action: tripleo.validations.get_privkey
+        publish:
+          private_key: <% task().result %>
+        on-success: generate_inventory
+        on-error: send_message
+        publish-on-error:
+          status: FAILED
+          message: <% task().result %>
+
+      generate_inventory:
+        action: tripleo.ansible-generate-inventory
+        input:
+          ansible_ssh_user: tripleo-admin
+          work_dir: <% $.get('work_dir') %>/<% execution().id %>
+          plan_name: <% $.get('plan_name') %>
+        publish:
+          inventory: <% task().result %>
+        on-success: send_msg_generate_inventory
+        on-error: send_message
+        publish-on-error:
+          status: FAILED
+          message: <% task().result %>
+
+      send_msg_generate_inventory:
+        action: zaqar.queue_post
+        input:
+          queue_name: <% $.queue_name %>
+          messages:
+            body:
+              type: tripleo.deployment.v1.config_download
+              payload:
+                status: <% $.get('status', 'RUNNING') %>
+                message: Inventory generated at <% $.get('inventory') %>
+                execution: <% execution() %>
+        on-success: send_msg_run_ansible
+
+      send_msg_run_ansible:
+        action: zaqar.queue_post
+        input:
+          queue_name: <% $.queue_name %>
+          messages:
+            body:
+              type: tripleo.deployment.v1.config_download
+              payload:
+                status: <% $.get('status', 'RUNNING') %>
+                message: >
+                  Running ansible playbook at <% $.get('work_dir') %>/<% execution().id %>/deploy_steps_playbook.yaml.
+                  See log file at <% $.get('work_dir') %>/<% execution().id %>/ansible.log for progress.
+                  ...
+                execution: <% execution() %>
+        on-success: run_ansible
+
+      run_ansible:
+        action: tripleo.ansible-playbook
+        input:
+          inventory: <% $.inventory %>
+          playbook: <% $.get('work_dir') %>/<% execution().id %>/deploy_steps_playbook.yaml
+          remote_user: tripleo-admin
+          ssh_extra_args: '-o StrictHostKeyChecking=no'
+          ssh_private_key: <% $.private_key %>
+          use_openstack_credentials: true
+          verbosity: <% $.get('verbosity') %>
+          become: true
+          timeout: <% $.timeout %>
+          work_dir: <% $.get('work_dir') %>/<% execution().id %>
+          queue_name: <% $.queue_name %>
+          reproduce_command: true
+        publish:
+          log_path: <% task(run_ansible).result.get('log_path') %>
+        on-success:
+          - ansible_passed: <% task().result.returncode = 0 %>
+          - ansible_failed: <% task().result.returncode != 0 %>
+        on-error: send_message
+        publish-on-error:
+          status: FAILED
+          message: Ansible failed, check log at <% $.get('work_dir') %>/<% execution().id %>/ansible.log.
+
+      ansible_passed:
+        on-success: send_message
+        publish:
+          status: SUCCESS
+          message: Ansible passed.
+
+      ansible_failed:
+        on-success: send_message
+        publish:
+          status: FAILED
+          message: Ansible failed, check log at <% $.get('work_dir') %>/<% execution().id %>/ansible.log.
+
+      send_message:
+        action: zaqar.queue_post
+        retry: count=5 delay=1
+        input:
+          queue_name: <% $.queue_name %>
+          messages:
+            body:
+              type: tripleo.deployment.v1.config_download
+              payload:
+                status: <% $.get('status', 'SUCCESS') %>
+                message: <% $.get('message', '') %>
+                execution: <% execution() %>
+        on-success:
+          - fail: <% $.get('status') = "FAILED" %>
