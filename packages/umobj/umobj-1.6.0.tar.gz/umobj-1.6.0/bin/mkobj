@@ -1,0 +1,65 @@
+#!/usr/bin/env python
+
+import boto
+import sys
+import os
+import logging
+
+from umobj.utils import umobj_logging, umobj_init, \
+    umobj_get_bucket_key_pair_from_string
+from umobj.key import create_directory
+from umobj.obj import Obj
+from umobj.options import umobj_parser, get_logging_level
+
+
+if __name__ == "__main__":
+    umobj_init()
+
+    description = 'Make Bucket(s) - Create buckets or paths within buckets'
+    parser = umobj_parser(description=description)
+    parser.add_s3path(number='+', help='BUCKET', name='BUCKET')
+    args = parser.parse_args()
+
+    umobj_logging(get_logging_level(args))  # set up logging
+
+    logging.info("Running %s" % sys.argv)
+
+    if not Obj.connect(host=args.host,
+                       port=args.port,
+                       access_key=args.access_key,
+                       secret_key=args.secret_key):
+        logging.error('Unable to contact object store.')
+        sys.exit(1)
+
+    for arg in args.BUCKET:
+        bucket_name, key_name = umobj_get_bucket_key_pair_from_string(arg)
+        if key_name:
+            logging.info("Creating directory %s in bucket %s" %
+                         (key_name, bucket_name))
+            try:
+                bucket = Obj.conn.get_bucket(bucket_name)
+            except boto.exception.S3ResponseError as e:
+                logging.error("Can not access bucket %s: %s." %
+                              (bucket_name, e.error_code))
+                sys.exit(1)
+            except Exception as e:
+                logging.error("Can not access bucket %s: %s." %
+                              (bucket_name, e.error_code))
+                sys.exit(1)
+            current_path = ''
+            for dir_part in key_name.lstrip(os.sep).split(os.sep):
+                current_path = current_path + dir_part + '/'
+                create_directory(bucket, current_path)
+        else:
+            try:
+                bucket = Obj.conn.create_bucket(bucket_name)
+                print "Created bucket %s." % bucket_name
+            except boto.exception.S3CreateError as e:
+                logging.error("Cannot create bucket %s: %s." %
+                              (bucket_name, e.error_code))
+            except boto.exception.BotoClientError as e:
+                logging.error("Cannot create bucket %s: %s." %
+                              (bucket_name, e))
+            except Exception as e:
+                logging.error("Cannot create bucket %s: %s." %
+                              (bucket_name, e))

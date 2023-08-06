@@ -1,0 +1,66 @@
+#!/usr/bin/env python
+
+import boto
+import sys
+import logging
+
+from umobj.utils import umobj_logging, umobj_init, \
+    umobj_get_bucket_key_pair_from_string
+from umobj.obj import Obj
+from umobj.options import umobj_parser, get_logging_level
+
+
+if __name__ == "__main__":
+    umobj_init()
+
+    description = 'Move Bucket(s) - Move objects between buckets'
+    parser = umobj_parser(description=description)
+    parser.add_s3path(number=1, help='BUCKET:KEY', name='SRC')
+    parser.add_s3path(number=1, help='BUCKET:KEY', name='DEST')
+    args = parser.parse_args()
+
+    umobj_logging(get_logging_level(args))  # set up logging
+
+    logging.info("Running %s" % sys.argv)
+
+    if not Obj.connect(host=args.host,
+                       port=args.port,
+                       access_key=args.access_key,
+                       secret_key=args.secret_key):
+        logging.error('Unable to contact object store.')
+        sys.exit(1)
+
+    src_bucket_name, src_key_name = \
+        umobj_get_bucket_key_pair_from_string(args.SRC[0])
+    dest_bucket_name, dest_key_name = \
+        umobj_get_bucket_key_pair_from_string(args.DEST[0])
+
+    if src_bucket_name and src_key_name and dest_bucket_name and dest_key_name:
+        try:
+            dest_bucket = Obj.conn.get_bucket(dest_bucket_name)
+        except boto.exception.S3ResponseError as e:
+            logging.error("Cannot access bucket %s, %s." %
+                          (dest_bucket_name, e.error_code))
+            sys.exit(1)
+        try:
+            dest_bucket.copy_key(dest_key_name, src_bucket_name, src_key_name,
+                                 preserve_acl=True)
+            logging.info("Copied %s:%s to %s:%s" %
+                         (src_bucket_name, src_key_name,
+                          dest_bucket_name, dest_key_name))
+            # be very sure that the object copied before we delete the original
+            Obj.conn.get_bucket(src_bucket_name).get_key(src_key_name).delete()
+        except boto.exception.S3ResponseError as e:
+            logging.error("SRC %s:%s does not exist" %
+                          (src_bucket_name, src_key_name))
+        except NameError as e:
+            logging.error("DEST bucket %s does not exist" % dest_bucket_name)
+        except boto.exception.BotoClientError as e:
+            logging.error("Failed to copy %s:%s to %s:%s" %
+                          (src_bucket_name, src_key_name,
+                           dest_bucket_name, dest_key_name))
+    else:
+        logging.error("You need to provide a bucket and key in both the SRC " +
+                      "and the DEST.")
+        parser.print_help()
+        sys.exit(1)
