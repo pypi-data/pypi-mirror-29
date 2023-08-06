@@ -1,0 +1,92 @@
+variables:
+    GUIDE_ROOT: $YAMLURL                # Used by guide.py to pass to markdown.template
+
+log:
+    root:
+        level: INFO                     # Just log info, not debug
+
+app:
+  settings:
+    login_url: /$YAMLURL/auth/db        # Use DB Auth by default -- it works offline
+    cookie_secret: COOKIE_NAME
+    autoreload: False
+    debug: False
+    xsrf_cookie_kwargs:
+        httponly: false                 # Allow JavaScript access to cookies
+
+import:
+  subdirs:
+    path: '*/gramex.yaml'              # Import gramex.yaml from immediate subdirs
+    namespace: [url, schedule, cache, import]
+  ui:
+    path: $GRAMEXAPPS/ui/gramex.yaml    # Import UI app
+    YAMLURL: $YAMLURL/ui/
+
+handlers:
+    FileHandler:
+        ignore:
+            - ".*"                      # Hide only dotfiles, allow gramex.yaml
+
+url:
+    # Default FileHandler. Serve all .md files as Markdown
+    markdown:
+        pattern: /$YAMLURL/(.*)
+        handler: FileHandler
+        priority: -0.5          # Lower than new handlers (0), higher than default (-1)
+        kwargs:
+            path: $YAMLPATH
+            default_filename: README.md
+            index: true
+            transform:
+                "*.md":
+                    function: guide.markdown_template(content, handler)
+                    encoding: utf-8
+                    headers:
+                        Content-Type: text/html
+            headers:
+                Cache-Control: public, max-age=300
+    # The welcome page is the first page that's served when users login.
+    # Normally, / points README.md. Make /welcome point to the static welcome page
+    welcome:
+        pattern: /$YAMLURL/welcome
+        handler: FileHandler
+        kwargs:
+            path: $YAMLPATH/index.html
+            headers:
+                Cache-Control: public, max-age=300
+    # The final *computed* gramex.yaml configuration
+    final-config:
+        pattern: /$YAMLURL/final-config
+        handler: FunctionHandler
+        kwargs:
+            function: guide.config
+            headers:
+                Content-Type: text/yaml
+    # Just serve the root gramex.yaml file
+    root-config:
+        pattern: /$YAMLURL/root.gramex.yaml
+        handler: FileHandler
+        kwargs:
+            path: $GRAMEXPATH/gramex.yaml
+            headers:
+                Cache-Control: public, max-age=300
+
+    # Static files are cached on the browser
+    static:
+        pattern: /$YAMLURL/(.*.css|.*.js)
+        handler: FileHandler
+        cache: {duration: 300}
+        kwargs:
+            path: $YAMLPATH/*
+            headers:
+                Cache-Control: public, max-age=300
+
+    # /path.source shows the raw file as plain text
+    source:
+        pattern: /$YAMLURL/(.*)\.source
+        handler: FileHandler
+        kwargs:
+            path: $YAMLPATH
+            headers:
+                Content-Type: text/plain
+                Cache-Control: public, max-age=300
