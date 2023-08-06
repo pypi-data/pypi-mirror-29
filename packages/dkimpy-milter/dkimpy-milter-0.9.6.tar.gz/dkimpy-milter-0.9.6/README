@@ -1,0 +1,135 @@
+This is a DKIM signing and verification milter.  In theory it works with both
+Postfix and Sendmail, but the author has zero experience with Sendmail, so
+reports of success/failure with Sendmail and patches are welcom.
+
+The configuration file is designed to be compatible with OpenDKIM, but only
+a subset of OpenDKIM options are supported.  If an unsupported option is
+specified, an error will be raised.
+
+This package includes a default configuration file and man pages.  For those
+to be installed when installing using setup.py, the following incantation is
+required because setuptools developers decided not being able to do this by
+default is a feature:
+
+python setup.py install --single-version-externally-managed --record=/dev/null
+
+For users of Debian Stable (Debian 9, Codename Squueze), all dependencies are
+available in either the main or backports repositories:
+
+[sudo] apt install python-milter python-nacl python-ipaddress python-dnspython
+[sudo] apt install -t stretch-backports python-authres python-dkim
+
+The preferred method of installation is from PyPi using pip (if distribution
+packages are not available):
+
+[sudo] pip install dkimpy_milter
+
+Using pip will cause required packages to be installed via easy_install if they
+have not been previously installed.
+
+The milter will work with either pydns (DNS) or dnspython (dns), preferring
+dnspython is both are available.  The dkimpy DKIM module also works with
+either.
+
+Both a systemd unit file and a sysv init file are provided.  Both make
+assumptions about defaults being used, e.g. if a non-standard pidfile name is
+used, they will need to be updated.  The sysv init file is Debian specific and
+untested, since the developers are not using sysv init.  Feedback/patches
+welcome.
+
+The dkimpy-milter drops priviledges after setup to the user/group specified in
+UserID.  During initial setup, this system user needs to be manually created.
+As an example, using the default dkimpy-user on Debian, the command would be:
+
+[sudo] adduser --system --no-create-home --quiet --disabled-password \
+               --disabled-login --shell /bin/false --group \
+               --home /var/run/dkimpy-milter dkimpy-milter
+
+Since /var/run or /run is sometimes on a tempfs, if the PID file directory is
+missing, the milter will create it on startup.
+
+To start dkimpy-milter with systemd for the first time, you will need to take
+the following steps:
+
+[sudo] systemctl daemon-reload
+[sudo] systemctl enable dkimpy-milter
+[sudo] systemctl start dkimpy-milter
+[sudo] systemctl status dkimpy-milter (to verify it started correctly)
+
+As with all milters, dkimpy-milter needs to be integrated with your MTA of
+choice (Sendmail or Postfix).
+
+For Sendmail:
+
+Configuration is very similar to opendkim, but needs some adjustment for
+dkimpy-milter. Here's an example configuration line to include in your
+sendmail.mc:
+
+INPUT_MAIL_FILTER(`dkimpy-milter', `S=local:/var/run/dkimpy-milter/dkimpy-milter.sock')dnl
+
+Changing the sendmail.mc file requires a Make (to compile it into sendmail.cf)
+and a restart of sendmail.  Note that S= needs to match the value of Socket in
+the dkimpy-milter configuration file.
+
+Milter support should be present by default in most versions of sendmail
+these days, but if not included in your Sendmail build, see:
+http://www.elandsys.com/resources/sendmail/milter.html
+
+For Postfix:
+
+Integration of dkimpy-milter into Postfix is like any milter (See Postfix's
+README_FILES/MILTER_README).  Here's an example master.cf excerpt the talks to
+two dkimpy-milter instances, one configured for signing and one configured for
+verification:
+
+smtp       inet  n       -       -       -      -       smtpd
+    ...
+    -o smtpd_milters=inet:localhost:8892
+    ...
+
+submission inet  n       -       -       -      -       smtpd
+    ...
+    -o smtpd_milters=inet:localhost:8891
+    ...
+
+These need to match the Socket value for each dkimpy-milter instance.
+
+Care is required to segregate outbound mail to be signed and inbound mail to
+be verified.  The above example uses two instances of dkimpy-milter to do
+this.  There are many possible ways.  Here is another example using milter
+macros to keep the mail streams segregated:
+
+Postfix master.cf:
+
+smtp       inet  n       -       -       -       -       smtpd
+    ...
+    -o smtpd_milters=inet:localhost:8891
+    -o milter_macro_daemon_name=VERIFYING
+    ...
+
+submission inet n       -       -       -       -       smtpd
+    -o syslog_name=postfix/submission
+    -o smtpd_tls_security_level=encrypt
+    -o smtpd_sasl_auth_enable=yes
+    ...
+    -o milter_macro_daemon_name=ORIGINATING
+    -o smtpd_milters=inet:localhost:8891
+    ...
+
+Dkimpy-milter.conf:
+
+...
+Mode			sv
+MacroList		dameon_name|ORIGINATING
+MacroListVerify		daemon_name|VERIFYING
+...
+
+
+The python DKIM library, dkimpy, requires the entire message being signed or
+verified to be in memory, so dkimpy-milter does not write messages out to a temp
+file.  This may impact performance on low-memory systems.
+
+This is an beta grade release to support interoperability testing with Ed25519
+signatures sufficient functionality for basic use.  The documented
+functionality has been implemented and at least partially tested.  It is free
+of known major defects, but is not fully tested in a variety of environments.
