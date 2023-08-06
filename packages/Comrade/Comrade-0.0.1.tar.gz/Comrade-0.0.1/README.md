@@ -1,0 +1,2 @@
+# comrade
+generic command executor
