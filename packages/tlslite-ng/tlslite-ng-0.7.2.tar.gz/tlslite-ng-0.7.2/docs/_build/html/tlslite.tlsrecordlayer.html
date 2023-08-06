@@ -1,0 +1,514 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>tlslite.tlsrecordlayer module &#8212; tlslite-ng 0.7.2 documentation</title>
+    
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '0.7.2',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="module-tlslite.tlsrecordlayer">
+<span id="tlslite-tlsrecordlayer-module"></span><h1>tlslite.tlsrecordlayer module<a class="headerlink" href="#module-tlslite.tlsrecordlayer" title="Permalink to this headline">¶</a></h1>
+<p>Helper class for TLSConnection.</p>
+<dl class="class">
+<dt id="tlslite.tlsrecordlayer.TLSRecordLayer">
+<em class="property">class </em><code class="descclassname">tlslite.tlsrecordlayer.</code><code class="descname">TLSRecordLayer</code><span class="sig-paren">(</span><em>sock</em><span class="sig-paren">)</span><a class="headerlink" href="#tlslite.tlsrecordlayer.TLSRecordLayer" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<p>This class handles data transmission for a TLS connection.</p>
+<p>Its only subclass is <a class="reference internal" href="tlslite.tlsconnection.html#tlslite.tlsconnection.TLSConnection" title="tlslite.tlsconnection.TLSConnection"><code class="xref py py-class docutils literal"><span class="pre">TLSConnection</span></code></a>.
+We&#8217;ve
+separated the code in this class from TLSConnection to make things
+more readable.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Variables:</th><td class="field-body"><ul class="first last simple">
+<li><strong>sock</strong> (<em>socket.socket</em>) &#8211; The underlying socket object.</li>
+<li><a class="reference internal" href="tlslite.session.html#module-tlslite.session" title="tlslite.session"><strong>session</strong></a> (<em>Session</em>) &#8211; The session corresponding to this connection.
+Due to TLS session resumption, multiple connections can correspond
+to the same underlying session.</li>
+<li><a class="reference internal" href="tlslite.recordlayer.html#tlslite.recordlayer.RecordLayer.version" title="tlslite.recordlayer.RecordLayer.version"><strong>version</strong></a> (<em>tuple</em>) &#8211; The TLS version being used for this connection.
+(3,0) means SSL 3.0, and (3,1) means TLS 1.0.</li>
+<li><strong>closed</strong> (<em>bool</em>) &#8211; If this connection is closed.</li>
+<li><strong>resumed</strong> (<em>bool</em>) &#8211; If this connection is based on a resumed session.</li>
+<li><strong>allegedSrpUsername</strong> (<em>str</em><em> or </em><em>None</em>) &#8211; This is set to the SRP username
+asserted by the client, whether the handshake succeeded or not.
+If the handshake fails, this can be inspected to determine
+if a guessing attack is in progress against a particular user
+account.</li>
+<li><strong>closeSocket</strong> (<em>bool</em>) &#8211; <p>If the socket should be closed when the
+connection is closed, defaults to True (writable).</p>
+<p>If you set this to True, TLS Lite will assume the responsibility of
+closing the socket when the TLS Connection is shutdown (either
+through an error or through the user calling close()).  The default
+is False.</p>
+</li>
+<li><strong>ignoreAbruptClose</strong> (<em>bool</em>) &#8211; <p>If an abrupt close of the socket should
+raise an error (writable).</p>
+<p>If you set this to True, TLS Lite will not raise a
+<a class="reference internal" href="tlslite.errors.html#tlslite.errors.TLSAbruptCloseError" title="tlslite.errors.TLSAbruptCloseError"><code class="xref py py-class docutils literal"><span class="pre">TLSAbruptCloseError</span></code></a> exception if the
+underlying
+socket is unexpectedly closed.  Such an unexpected closure could be
+caused by an attacker.  However, it also occurs with some incorrect
+TLS implementations.</p>
+<p>You should set this to True only if you&#8217;re not worried about an
+attacker truncating the connection, and only if necessary to avoid
+spurious errors.  The default is False.</p>
+</li>
+<li><a class="reference internal" href="#tlslite.tlsrecordlayer.TLSRecordLayer.encryptThenMAC" title="tlslite.tlsrecordlayer.TLSRecordLayer.encryptThenMAC"><strong>encryptThenMAC</strong></a> (<em>bool</em>) &#8211; Whether the connection uses the encrypt-then-MAC
+construct for CBC cipher suites, will be False also if connection uses
+RC4 or AEAD.</li>
+<li><strong>recordSize</strong> (<em>int</em>) &#8211; maimum size of data to be sent in a single record layer
+message. Note that after encryption is established (generally after
+handshake protocol has finished) the actual amount of data written to
+network socket will be larger because of the record layer header,
+padding
+or encryption overhead. It can be set to low value (so that there is no
+fragmentation on Ethernet, IP and TCP level) at the beginning of
+connection to reduce latency and set to protocol max (2**14) to
+maximise
+throughput after sending few kiB of data. Setting to values greater
+than
+2**14 will cause the connection to be dropped by RFC compliant peers.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<dl class="method">
+<dt id="tlslite.tlsrecordlayer.TLSRecordLayer.__init__">
+<code class="descname">__init__</code><span class="sig-paren">(</span><em>sock</em><span class="sig-paren">)</span><a class="headerlink" href="#tlslite.tlsrecordlayer.TLSRecordLayer.__init__" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="tlslite.tlsrecordlayer.TLSRecordLayer.clearReadBuffer">
+<code class="descname">clearReadBuffer</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#tlslite.tlsrecordlayer.TLSRecordLayer.clearReadBuffer" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="tlslite.tlsrecordlayer.TLSRecordLayer.clearWriteBuffer">
+<code class="descname">clearWriteBuffer</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#tlslite.tlsrecordlayer.TLSRecordLayer.clearWriteBuffer" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="tlslite.tlsrecordlayer.TLSRecordLayer.close">
+<code class="descname">close</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#tlslite.tlsrecordlayer.TLSRecordLayer.close" title="Permalink to this definition">¶</a></dt>
+<dd><p>Close the TLS connection.</p>
+<p>This function will block until it has exchanged close_notify
+alerts with the other party.  After doing so, it will shut down the
+TLS connection.  Further attempts to read through this connection
+will return &#8220;&#8221;.  Further attempts to write through this connection
+will raise ValueError.</p>
+<p>If makefile() has been called on this connection, the connection
+will be not be closed until the connection object and all file
+objects have been closed.</p>
+<p>Even if an exception is raised, the connection will have been
+closed.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Raises:</th><td class="field-body"><ul class="first last simple">
+<li><strong>socket.error</strong> &#8211; If a socket error occurs.</li>
+<li><a class="reference internal" href="tlslite.errors.html#tlslite.errors.TLSAbruptCloseError" title="tlslite.errors.TLSAbruptCloseError"><strong>tlslite.errors.TLSAbruptCloseError</strong></a> &#8211; If the socket is closed
+without a preceding alert.</li>
+<li><a class="reference internal" href="tlslite.errors.html#tlslite.errors.TLSAlert" title="tlslite.errors.TLSAlert"><strong>tlslite.errors.TLSAlert</strong></a> &#8211; If a TLS alert is signalled.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="tlslite.tlsrecordlayer.TLSRecordLayer.closeAsync">
+<code class="descname">closeAsync</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#tlslite.tlsrecordlayer.TLSRecordLayer.closeAsync" title="Permalink to this definition">¶</a></dt>
+<dd><p>Start a close operation on the TLS connection.</p>
+<p>This function returns a generator which behaves similarly to
+close().  Successive invocations of the generator will return 0
+if it is waiting to read from the socket, 1 if it is waiting
+to write to the socket, or will raise StopIteration if the
+close operation has completed.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body">iterable</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">A generator; see above for details.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="tlslite.tlsrecordlayer.TLSRecordLayer.encryptThenMAC">
+<code class="descname">encryptThenMAC</code><a class="headerlink" href="#tlslite.tlsrecordlayer.TLSRecordLayer.encryptThenMAC" title="Permalink to this definition">¶</a></dt>
+<dd><p>Whether the connection uses Encrypt Then MAC (RFC 7366)</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="tlslite.tlsrecordlayer.TLSRecordLayer.fileno">
+<code class="descname">fileno</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#tlslite.tlsrecordlayer.TLSRecordLayer.fileno" title="Permalink to this definition">¶</a></dt>
+<dd><p>Not implement in TLS Lite.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="tlslite.tlsrecordlayer.TLSRecordLayer.getCipherImplementation">
+<code class="descname">getCipherImplementation</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#tlslite.tlsrecordlayer.TLSRecordLayer.getCipherImplementation" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get the name of the cipher implementation used with
+this connection.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body">str</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">The name of the cipher implementation used with
+this connection.  Either &#8216;python&#8217;, &#8216;openssl&#8217;, or &#8216;pycrypto&#8217;.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="tlslite.tlsrecordlayer.TLSRecordLayer.getCipherName">
+<code class="descname">getCipherName</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#tlslite.tlsrecordlayer.TLSRecordLayer.getCipherName" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get the name of the cipher used with this connection.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body">str</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">The name of the cipher used with this connection.
+Either &#8216;aes128&#8217;, &#8216;aes256&#8217;, &#8216;rc4&#8217;, or &#8216;3des&#8217;.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="tlslite.tlsrecordlayer.TLSRecordLayer.getVersionName">
+<code class="descname">getVersionName</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#tlslite.tlsrecordlayer.TLSRecordLayer.getVersionName" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get the name of this TLS version.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body">str</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">The name of the TLS version used with this connection.
+Either None, &#8216;SSL 3.0&#8217;, &#8216;TLS 1.0&#8217;, &#8216;TLS 1.1&#8217;, or &#8216;TLS 1.2&#8217;.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="tlslite.tlsrecordlayer.TLSRecordLayer.getpeername">
+<code class="descname">getpeername</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#tlslite.tlsrecordlayer.TLSRecordLayer.getpeername" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the remote address to which the socket is connected
+(socket emulation).</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="tlslite.tlsrecordlayer.TLSRecordLayer.getsockname">
+<code class="descname">getsockname</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#tlslite.tlsrecordlayer.TLSRecordLayer.getsockname" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the socket&#8217;s own address (socket emulation).</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="tlslite.tlsrecordlayer.TLSRecordLayer.gettimeout">
+<code class="descname">gettimeout</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#tlslite.tlsrecordlayer.TLSRecordLayer.gettimeout" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the timeout associated with socket operations (socket
+emulation).</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="tlslite.tlsrecordlayer.TLSRecordLayer.makefile">
+<code class="descname">makefile</code><span class="sig-paren">(</span><em>mode='r'</em>, <em>bufsize=-1</em><span class="sig-paren">)</span><a class="headerlink" href="#tlslite.tlsrecordlayer.TLSRecordLayer.makefile" title="Permalink to this definition">¶</a></dt>
+<dd><p>Create a file object for the TLS connection (socket emulation).</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body">socket._fileobject</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="tlslite.tlsrecordlayer.TLSRecordLayer.read">
+<code class="descname">read</code><span class="sig-paren">(</span><em>max=None</em>, <em>min=1</em><span class="sig-paren">)</span><a class="headerlink" href="#tlslite.tlsrecordlayer.TLSRecordLayer.read" title="Permalink to this definition">¶</a></dt>
+<dd><p>Read some data from the TLS connection.</p>
+<p>This function will block until at least &#8216;min&#8217; bytes are
+available (or the connection is closed).</p>
+<p>If an exception is raised, the connection will have been
+automatically closed.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>max</strong> (<em>int</em>) &#8211; The maximum number of bytes to return.</li>
+<li><strong>min</strong> (<em>int</em>) &#8211; The minimum number of bytes to return</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body"><p class="first">str</p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">A string of no more than &#8216;max&#8217; bytes, and no fewer
+than &#8216;min&#8217; (unless the connection has been closed, in which
+case fewer than &#8216;min&#8217; bytes may be returned).</p>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Raises:</th><td class="field-body"><ul class="first last simple">
+<li><strong>socket.error</strong> &#8211; If a socket error occurs.</li>
+<li><a class="reference internal" href="tlslite.errors.html#tlslite.errors.TLSAbruptCloseError" title="tlslite.errors.TLSAbruptCloseError"><strong>tlslite.errors.TLSAbruptCloseError</strong></a> &#8211; If the socket is closed
+without a preceding alert.</li>
+<li><a class="reference internal" href="tlslite.errors.html#tlslite.errors.TLSAlert" title="tlslite.errors.TLSAlert"><strong>tlslite.errors.TLSAlert</strong></a> &#8211; If a TLS alert is signalled.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="tlslite.tlsrecordlayer.TLSRecordLayer.readAsync">
+<code class="descname">readAsync</code><span class="sig-paren">(</span><em>max=None</em>, <em>min=1</em><span class="sig-paren">)</span><a class="headerlink" href="#tlslite.tlsrecordlayer.TLSRecordLayer.readAsync" title="Permalink to this definition">¶</a></dt>
+<dd><p>Start a read operation on the TLS connection.</p>
+<p>This function returns a generator which behaves similarly to
+read().  Successive invocations of the generator will return 0
+if it is waiting to read from the socket, 1 if it is waiting
+to write to the socket, or a string if the read operation has
+completed.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body">iterable</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">A generator; see above for details.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="tlslite.tlsrecordlayer.TLSRecordLayer.recv">
+<code class="descname">recv</code><span class="sig-paren">(</span><em>bufsize</em><span class="sig-paren">)</span><a class="headerlink" href="#tlslite.tlsrecordlayer.TLSRecordLayer.recv" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get some data from the TLS connection (socket emulation).</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Raises:</th><td class="field-body"><ul class="first last simple">
+<li><strong>socket.error</strong> &#8211; If a socket error occurs.</li>
+<li><a class="reference internal" href="tlslite.errors.html#tlslite.errors.TLSAbruptCloseError" title="tlslite.errors.TLSAbruptCloseError"><strong>tlslite.errors.TLSAbruptCloseError</strong></a> &#8211; If the socket is closed
+without a preceding alert.</li>
+<li><a class="reference internal" href="tlslite.errors.html#tlslite.errors.TLSAlert" title="tlslite.errors.TLSAlert"><strong>tlslite.errors.TLSAlert</strong></a> &#8211; If a TLS alert is signalled.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="tlslite.tlsrecordlayer.TLSRecordLayer.recv_into">
+<code class="descname">recv_into</code><span class="sig-paren">(</span><em>b</em><span class="sig-paren">)</span><a class="headerlink" href="#tlslite.tlsrecordlayer.TLSRecordLayer.recv_into" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="tlslite.tlsrecordlayer.TLSRecordLayer.send">
+<code class="descname">send</code><span class="sig-paren">(</span><em>s</em><span class="sig-paren">)</span><a class="headerlink" href="#tlslite.tlsrecordlayer.TLSRecordLayer.send" title="Permalink to this definition">¶</a></dt>
+<dd><p>Send data to the TLS connection (socket emulation).</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Raises:</th><td class="field-body"><strong>socket.error</strong> &#8211; If a socket error occurs.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="tlslite.tlsrecordlayer.TLSRecordLayer.sendall">
+<code class="descname">sendall</code><span class="sig-paren">(</span><em>s</em><span class="sig-paren">)</span><a class="headerlink" href="#tlslite.tlsrecordlayer.TLSRecordLayer.sendall" title="Permalink to this definition">¶</a></dt>
+<dd><p>Send data to the TLS connection (socket emulation).</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Raises:</th><td class="field-body"><strong>socket.error</strong> &#8211; If a socket error occurs.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="tlslite.tlsrecordlayer.TLSRecordLayer.setsockopt">
+<code class="descname">setsockopt</code><span class="sig-paren">(</span><em>level</em>, <em>optname</em>, <em>value</em><span class="sig-paren">)</span><a class="headerlink" href="#tlslite.tlsrecordlayer.TLSRecordLayer.setsockopt" title="Permalink to this definition">¶</a></dt>
+<dd><p>Set the value of the given socket option (socket emulation).</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="tlslite.tlsrecordlayer.TLSRecordLayer.settimeout">
+<code class="descname">settimeout</code><span class="sig-paren">(</span><em>value</em><span class="sig-paren">)</span><a class="headerlink" href="#tlslite.tlsrecordlayer.TLSRecordLayer.settimeout" title="Permalink to this definition">¶</a></dt>
+<dd><p>Set a timeout on blocking socket operations (socket emulation).</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="tlslite.tlsrecordlayer.TLSRecordLayer.shutdown">
+<code class="descname">shutdown</code><span class="sig-paren">(</span><em>how</em><span class="sig-paren">)</span><a class="headerlink" href="#tlslite.tlsrecordlayer.TLSRecordLayer.shutdown" title="Permalink to this definition">¶</a></dt>
+<dd><p>Shutdown the underlying socket.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="tlslite.tlsrecordlayer.TLSRecordLayer.unread">
+<code class="descname">unread</code><span class="sig-paren">(</span><em>b</em><span class="sig-paren">)</span><a class="headerlink" href="#tlslite.tlsrecordlayer.TLSRecordLayer.unread" title="Permalink to this definition">¶</a></dt>
+<dd><p>Add bytes to the front of the socket read buffer for future
+reading. Be careful using this in the context of select(...): if you
+unread the last data from a socket, that won&#8217;t wake up selected waiters,
+and those waiters may hang forever.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="tlslite.tlsrecordlayer.TLSRecordLayer.version">
+<code class="descname">version</code><a class="headerlink" href="#tlslite.tlsrecordlayer.TLSRecordLayer.version" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get the SSL protocol version of connection</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="tlslite.tlsrecordlayer.TLSRecordLayer.write">
+<code class="descname">write</code><span class="sig-paren">(</span><em>s</em><span class="sig-paren">)</span><a class="headerlink" href="#tlslite.tlsrecordlayer.TLSRecordLayer.write" title="Permalink to this definition">¶</a></dt>
+<dd><p>Write some data to the TLS connection.</p>
+<p>This function will block until all the data has been sent.</p>
+<p>If an exception is raised, the connection will have been
+automatically closed.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>s</strong> (<em>str</em>) &#8211; The data to transmit to the other party.</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Raises:</th><td class="field-body"><strong>socket.error</strong> &#8211; If a socket error occurs.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="tlslite.tlsrecordlayer.TLSRecordLayer.writeAsync">
+<code class="descname">writeAsync</code><span class="sig-paren">(</span><em>s</em><span class="sig-paren">)</span><a class="headerlink" href="#tlslite.tlsrecordlayer.TLSRecordLayer.writeAsync" title="Permalink to this definition">¶</a></dt>
+<dd><p>Start a write operation on the TLS connection.</p>
+<p>This function returns a generator which behaves similarly to
+write().  Successive invocations of the generator will return
+1 if it is waiting to write to the socket, or will raise
+StopIteration if the write operation has completed.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body">iterable</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">A generator; see above for details.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+  </ul></li>
+</ul>
+</div>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/tlslite.tlsrecordlayer.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2018, Hubert Kario.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.5.6</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.9</a>
+      
+      |
+      <a href="_sources/tlslite.tlsrecordlayer.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

@@ -1,0 +1,223 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>tlslite.integration.tlsasyncdispatchermixin module &#8212; tlslite-ng 0.7.2 documentation</title>
+    
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '0.7.2',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="module-tlslite.integration.tlsasyncdispatchermixin">
+<span id="tlslite-integration-tlsasyncdispatchermixin-module"></span><h1>tlslite.integration.tlsasyncdispatchermixin module<a class="headerlink" href="#module-tlslite.integration.tlsasyncdispatchermixin" title="Permalink to this headline">¶</a></h1>
+<p>TLS Lite + asyncore.</p>
+<dl class="class">
+<dt id="tlslite.integration.tlsasyncdispatchermixin.TLSAsyncDispatcherMixIn">
+<em class="property">class </em><code class="descclassname">tlslite.integration.tlsasyncdispatchermixin.</code><code class="descname">TLSAsyncDispatcherMixIn</code><span class="sig-paren">(</span><em>sock=None</em><span class="sig-paren">)</span><a class="headerlink" href="#tlslite.integration.tlsasyncdispatchermixin.TLSAsyncDispatcherMixIn" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="tlslite.integration.asyncstatemachine.html#tlslite.integration.asyncstatemachine.AsyncStateMachine" title="tlslite.integration.asyncstatemachine.AsyncStateMachine"><code class="xref py py-class docutils literal"><span class="pre">tlslite.integration.asyncstatemachine.AsyncStateMachine</span></code></a></p>
+<p>This class can be &#8220;mixed in&#8221; with an
+<code class="xref py py-class docutils literal"><span class="pre">asyncore.dispatcher</span></code> to add TLS support.</p>
+<p>This class essentially sits between the dispatcher and the select
+loop, intercepting events and only calling the dispatcher when
+applicable.</p>
+<p>In the case of <a class="reference internal" href="#tlslite.integration.tlsasyncdispatchermixin.TLSAsyncDispatcherMixIn.handle_read" title="tlslite.integration.tlsasyncdispatchermixin.TLSAsyncDispatcherMixIn.handle_read"><code class="xref py py-meth docutils literal"><span class="pre">handle_read()</span></code></a>, a read operation will be activated,
+and when it completes, the bytes will be placed in a buffer where
+the dispatcher can retrieve them by calling <a class="reference internal" href="#tlslite.integration.tlsasyncdispatchermixin.TLSAsyncDispatcherMixIn.recv" title="tlslite.integration.tlsasyncdispatchermixin.TLSAsyncDispatcherMixIn.recv"><code class="xref py py-meth docutils literal"><span class="pre">recv()</span></code></a>, and the
+dispatcher&#8217;s <a class="reference internal" href="#tlslite.integration.tlsasyncdispatchermixin.TLSAsyncDispatcherMixIn.handle_read" title="tlslite.integration.tlsasyncdispatchermixin.TLSAsyncDispatcherMixIn.handle_read"><code class="xref py py-meth docutils literal"><span class="pre">handle_read()</span></code></a> will be called.</p>
+<p>In the case of <a class="reference internal" href="#tlslite.integration.tlsasyncdispatchermixin.TLSAsyncDispatcherMixIn.handle_write" title="tlslite.integration.tlsasyncdispatchermixin.TLSAsyncDispatcherMixIn.handle_write"><code class="xref py py-meth docutils literal"><span class="pre">handle_write()</span></code></a>, the dispatcher&#8217;s
+<a class="reference internal" href="#tlslite.integration.tlsasyncdispatchermixin.TLSAsyncDispatcherMixIn.handle_write" title="tlslite.integration.tlsasyncdispatchermixin.TLSAsyncDispatcherMixIn.handle_write"><code class="xref py py-meth docutils literal"><span class="pre">handle_write()</span></code></a> will
+be called, and when it calls <a class="reference internal" href="#tlslite.integration.tlsasyncdispatchermixin.TLSAsyncDispatcherMixIn.send" title="tlslite.integration.tlsasyncdispatchermixin.TLSAsyncDispatcherMixIn.send"><code class="xref py py-meth docutils literal"><span class="pre">send()</span></code></a>, a write operation will be
+activated.</p>
+<p>To use this class, you must combine it with an asyncore.dispatcher,
+and pass in a handshake operation with setServerHandshakeOp().</p>
+<p>Below is an example of using this class with medusa.  This class is
+mixed in with http_channel to create http_tls_channel.  Note:</p>
+<blockquote>
+<div><ol class="arabic simple">
+<li>the mix-in is listed first in the inheritance list</li>
+<li>the input buffer size must be at least 16K, otherwise the
+dispatcher might not read all the bytes from the TLS layer,
+leaving some bytes in limbo.</li>
+<li>IE seems to have a problem receiving a whole HTTP response in a
+single TLS record, so HTML pages containing &#8216;rnrn&#8217; won&#8217;t
+be displayed on IE.</li>
+</ol>
+</div></blockquote>
+<p>Add the following text into &#8216;start_medusa.py&#8217;, in the &#8216;HTTP Server&#8217;
+section:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">tlslite</span> <span class="k">import</span> <span class="o">*</span>
+<span class="n">s</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="s2">&quot;./serverX509Cert.pem&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
+<span class="n">x509</span> <span class="o">=</span> <span class="n">X509</span><span class="p">()</span>
+<span class="n">x509</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+<span class="n">certChain</span> <span class="o">=</span> <span class="n">X509CertChain</span><span class="p">([</span><span class="n">x509</span><span class="p">])</span>
+
+<span class="n">s</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="s2">&quot;./serverX509Key.pem&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
+<span class="n">privateKey</span> <span class="o">=</span> <span class="n">parsePEMKey</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">private</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+<span class="k">class</span> <span class="nc">http_tls_channel</span><span class="p">(</span><span class="n">TLSAsyncDispatcherMixIn</span><span class="p">,</span>
+                       <span class="n">http_server</span><span class="o">.</span><span class="n">http_channel</span><span class="p">):</span>
+    <span class="n">ac_in_buffer_size</span> <span class="o">=</span> <span class="mi">16384</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span> <span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">server</span><span class="p">,</span> <span class="n">conn</span><span class="p">,</span> <span class="n">addr</span><span class="p">):</span>
+        <span class="n">http_server</span><span class="o">.</span><span class="n">http_channel</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">server</span><span class="p">,</span> <span class="n">conn</span><span class="p">,</span> <span class="n">addr</span><span class="p">)</span>
+        <span class="n">TLSAsyncDispatcherMixIn</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">conn</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tlsConnection</span><span class="o">.</span><span class="n">ignoreAbruptClose</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">setServerHandshakeOp</span><span class="p">(</span><span class="n">certChain</span><span class="o">=</span><span class="n">certChain</span><span class="p">,</span>
+                                  <span class="n">privateKey</span><span class="o">=</span><span class="n">privateKey</span><span class="p">)</span>
+
+<span class="n">hs</span><span class="o">.</span><span class="n">channel_class</span> <span class="o">=</span> <span class="n">http_tls_channel</span>
+</pre></div>
+</div>
+<p>If the TLS layer raises an exception, the exception will be caught
+in asyncore.dispatcher, which will call <a class="reference internal" href="#tlslite.integration.tlsasyncdispatchermixin.TLSAsyncDispatcherMixIn.close" title="tlslite.integration.tlsasyncdispatchermixin.TLSAsyncDispatcherMixIn.close"><code class="xref py py-meth docutils literal"><span class="pre">close()</span></code></a> on this class. The
+TLS layer always closes the TLS connection before raising an
+exception, so the close operation will complete right away, causing
+asyncore.dispatcher.close() to be called, which closes the socket
+and removes this instance from the asyncore loop.</p>
+<dl class="method">
+<dt id="tlslite.integration.tlsasyncdispatchermixin.TLSAsyncDispatcherMixIn.__init__">
+<code class="descname">__init__</code><span class="sig-paren">(</span><em>sock=None</em><span class="sig-paren">)</span><a class="headerlink" href="#tlslite.integration.tlsasyncdispatchermixin.TLSAsyncDispatcherMixIn.__init__" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="tlslite.integration.tlsasyncdispatchermixin.TLSAsyncDispatcherMixIn.close">
+<code class="descname">close</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#tlslite.integration.tlsasyncdispatchermixin.TLSAsyncDispatcherMixIn.close" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="tlslite.integration.tlsasyncdispatchermixin.TLSAsyncDispatcherMixIn.handle_read">
+<code class="descname">handle_read</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#tlslite.integration.tlsasyncdispatchermixin.TLSAsyncDispatcherMixIn.handle_read" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="tlslite.integration.tlsasyncdispatchermixin.TLSAsyncDispatcherMixIn.handle_write">
+<code class="descname">handle_write</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#tlslite.integration.tlsasyncdispatchermixin.TLSAsyncDispatcherMixIn.handle_write" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="tlslite.integration.tlsasyncdispatchermixin.TLSAsyncDispatcherMixIn.outCloseEvent">
+<code class="descname">outCloseEvent</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#tlslite.integration.tlsasyncdispatchermixin.TLSAsyncDispatcherMixIn.outCloseEvent" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="tlslite.integration.tlsasyncdispatchermixin.TLSAsyncDispatcherMixIn.outConnectEvent">
+<code class="descname">outConnectEvent</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#tlslite.integration.tlsasyncdispatchermixin.TLSAsyncDispatcherMixIn.outConnectEvent" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="tlslite.integration.tlsasyncdispatchermixin.TLSAsyncDispatcherMixIn.outReadEvent">
+<code class="descname">outReadEvent</code><span class="sig-paren">(</span><em>readBuffer</em><span class="sig-paren">)</span><a class="headerlink" href="#tlslite.integration.tlsasyncdispatchermixin.TLSAsyncDispatcherMixIn.outReadEvent" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="tlslite.integration.tlsasyncdispatchermixin.TLSAsyncDispatcherMixIn.outWriteEvent">
+<code class="descname">outWriteEvent</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#tlslite.integration.tlsasyncdispatchermixin.TLSAsyncDispatcherMixIn.outWriteEvent" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="tlslite.integration.tlsasyncdispatchermixin.TLSAsyncDispatcherMixIn.readable">
+<code class="descname">readable</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#tlslite.integration.tlsasyncdispatchermixin.TLSAsyncDispatcherMixIn.readable" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="tlslite.integration.tlsasyncdispatchermixin.TLSAsyncDispatcherMixIn.recv">
+<code class="descname">recv</code><span class="sig-paren">(</span><em>bufferSize=16384</em><span class="sig-paren">)</span><a class="headerlink" href="#tlslite.integration.tlsasyncdispatchermixin.TLSAsyncDispatcherMixIn.recv" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="tlslite.integration.tlsasyncdispatchermixin.TLSAsyncDispatcherMixIn.send">
+<code class="descname">send</code><span class="sig-paren">(</span><em>writeBuffer</em><span class="sig-paren">)</span><a class="headerlink" href="#tlslite.integration.tlsasyncdispatchermixin.TLSAsyncDispatcherMixIn.send" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="tlslite.integration.tlsasyncdispatchermixin.TLSAsyncDispatcherMixIn.writable">
+<code class="descname">writable</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#tlslite.integration.tlsasyncdispatchermixin.TLSAsyncDispatcherMixIn.writable" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+  </ul></li>
+</ul>
+</div>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/tlslite.integration.tlsasyncdispatchermixin.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2018, Hubert Kario.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.5.6</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.9</a>
+      
+      |
+      <a href="_sources/tlslite.integration.tlsasyncdispatchermixin.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

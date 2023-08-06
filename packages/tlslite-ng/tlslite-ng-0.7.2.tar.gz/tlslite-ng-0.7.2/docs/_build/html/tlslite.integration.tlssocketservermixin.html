@@ -1,0 +1,154 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>tlslite.integration.tlssocketservermixin module &#8212; tlslite-ng 0.7.2 documentation</title>
+    
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '0.7.2',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="module-tlslite.integration.tlssocketservermixin">
+<span id="tlslite-integration-tlssocketservermixin-module"></span><h1>tlslite.integration.tlssocketservermixin module<a class="headerlink" href="#module-tlslite.integration.tlssocketservermixin" title="Permalink to this headline">¶</a></h1>
+<p>TLS Lite + SocketServer.</p>
+<dl class="class">
+<dt id="tlslite.integration.tlssocketservermixin.TLSSocketServerMixIn">
+<em class="property">class </em><code class="descclassname">tlslite.integration.tlssocketservermixin.</code><code class="descname">TLSSocketServerMixIn</code><a class="headerlink" href="#tlslite.integration.tlssocketservermixin.TLSSocketServerMixIn" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<p>This class can be mixed in with any <code class="xref py py-class docutils literal"><span class="pre">SocketServer.TCPServer</span></code> to
+add TLS support.</p>
+<p>To use this class, define a new class that inherits from it and
+some <code class="xref py py-class docutils literal"><span class="pre">SocketServer.TCPServer</span></code> (with the mix-in first). Then
+implement the <a class="reference internal" href="#tlslite.integration.tlssocketservermixin.TLSSocketServerMixIn.handshake" title="tlslite.integration.tlssocketservermixin.TLSSocketServerMixIn.handshake"><code class="xref py py-meth docutils literal"><span class="pre">handshake()</span></code></a> method, doing some sort of server
+handshake on the connection argument.  If the handshake method
+returns True, the RequestHandler will be triggered.  Below is a
+complete example of a threaded HTTPS server:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">SocketServer</span> <span class="k">import</span> <span class="o">*</span>
+<span class="kn">from</span> <span class="nn">BaseHTTPServer</span> <span class="k">import</span> <span class="o">*</span>
+<span class="kn">from</span> <span class="nn">SimpleHTTPServer</span> <span class="k">import</span> <span class="o">*</span>
+<span class="kn">from</span> <span class="nn">tlslite</span> <span class="k">import</span> <span class="o">*</span>
+
+<span class="n">s</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="s2">&quot;./serverX509Cert.pem&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
+<span class="n">x509</span> <span class="o">=</span> <span class="n">X509</span><span class="p">()</span>
+<span class="n">x509</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+<span class="n">certChain</span> <span class="o">=</span> <span class="n">X509CertChain</span><span class="p">([</span><span class="n">x509</span><span class="p">])</span>
+
+<span class="n">s</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="s2">&quot;./serverX509Key.pem&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
+<span class="n">privateKey</span> <span class="o">=</span> <span class="n">parsePEMKey</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">private</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+<span class="n">sessionCache</span> <span class="o">=</span> <span class="n">SessionCache</span><span class="p">()</span>
+
+<span class="k">class</span> <span class="nc">MyHTTPServer</span><span class="p">(</span><span class="n">ThreadingMixIn</span><span class="p">,</span> <span class="n">TLSSocketServerMixIn</span><span class="p">,</span>
+                   <span class="n">HTTPServer</span><span class="p">):</span>
+  <span class="k">def</span> <span class="nf">handshake</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tlsConnection</span><span class="p">):</span>
+      <span class="k">try</span><span class="p">:</span>
+          <span class="n">tlsConnection</span><span class="o">.</span><span class="n">handshakeServer</span><span class="p">(</span><span class="n">certChain</span><span class="o">=</span><span class="n">certChain</span><span class="p">,</span>
+                                        <span class="n">privateKey</span><span class="o">=</span><span class="n">privateKey</span><span class="p">,</span>
+                                        <span class="n">sessionCache</span><span class="o">=</span><span class="n">sessionCache</span><span class="p">)</span>
+          <span class="n">tlsConnection</span><span class="o">.</span><span class="n">ignoreAbruptClose</span> <span class="o">=</span> <span class="kc">True</span>
+          <span class="k">return</span> <span class="kc">True</span>
+      <span class="k">except</span> <span class="n">TLSError</span><span class="p">,</span> <span class="n">error</span><span class="p">:</span>
+          <span class="nb">print</span> <span class="s2">&quot;Handshake failure:&quot;</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">error</span><span class="p">)</span>
+          <span class="k">return</span> <span class="kc">False</span>
+
+<span class="n">httpd</span> <span class="o">=</span> <span class="n">MyHTTPServer</span><span class="p">((</span><span class="s1">&#39;localhost&#39;</span><span class="p">,</span> <span class="mi">443</span><span class="p">),</span> <span class="n">SimpleHTTPRequestHandler</span><span class="p">)</span>
+<span class="n">httpd</span><span class="o">.</span><span class="n">serve_forever</span><span class="p">()</span>
+</pre></div>
+</div>
+<dl class="method">
+<dt id="tlslite.integration.tlssocketservermixin.TLSSocketServerMixIn.finish_request">
+<code class="descname">finish_request</code><span class="sig-paren">(</span><em>sock</em>, <em>client_address</em><span class="sig-paren">)</span><a class="headerlink" href="#tlslite.integration.tlssocketservermixin.TLSSocketServerMixIn.finish_request" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="tlslite.integration.tlssocketservermixin.TLSSocketServerMixIn.handshake">
+<code class="descname">handshake</code><span class="sig-paren">(</span><em>tlsConnection</em><span class="sig-paren">)</span><a class="headerlink" href="#tlslite.integration.tlssocketservermixin.TLSSocketServerMixIn.handshake" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+  </ul></li>
+</ul>
+</div>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/tlslite.integration.tlssocketservermixin.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2018, Hubert Kario.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.5.6</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.9</a>
+      
+      |
+      <a href="_sources/tlslite.integration.tlssocketservermixin.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
