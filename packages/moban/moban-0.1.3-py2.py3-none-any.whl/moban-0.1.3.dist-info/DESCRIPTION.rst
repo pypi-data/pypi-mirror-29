@@ -1,0 +1,304 @@
+================================================================================
+moban - 模板 Yet another jinja2 cli command for static text generation
+================================================================================
+
+.. image:: https://api.travis-ci.org/moremoban/moban.svg?branch=master
+   :target: http://travis-ci.org/moremoban/moban
+
+.. image:: https://codecov.io/gh/moremoban/moban/branch/master/graph/badge.svg
+    :target: https://codecov.io/gh/moremoban/moban
+
+.. image:: https://readthedocs.org/projects/moban/badge/?version=latest
+    :target: http://moban.readthedocs.org/en/latest/
+
+.. image:: https://img.shields.io/gitter/room/gitterHQ/gitter.svg
+   :target: https://gitter.im/chfw_moban/Lobby
+
+:Author: C.W.
+:Issues: http://github.com/moremoban/moban/issues
+:License: MIT
+
+
+**moban** brings the high performance template engine (JINJA2) for web into
+static text generation. It is used in pyexcel project to keep documentation
+consistent across the documentations of individual libraries.
+
+
+Installation
+================================================================================
+You can install it via pip:
+
+.. code-block:: bash
+
+    $ pip install moban
+
+
+or clone it and install it:
+
+.. code-block:: bash
+
+    $ git clone http://github.com/moremoban/moban.git
+    $ cd moban
+    $ python setup.py install
+
+
+Quick start
+================================================================================
+
+Here is a simple example:
+
+.. code-block:: bash
+
+	$ moban -c data.yml -t my.template
+	$ cat moban.output
+
+Given data.yml as::
+
+    hello: world
+
+and my.template as::
+
+    {{hello}}
+
+moban.output will contain::
+
+    world
+
+`the tutorial`_ has more use cases.
+
+.. _the tutorial: http://moban.readthedocs.org/en/latest/#tutorial
+
+
+Usage
+================================================================================
+
+usage: moban [-h] [-cd CONFIGURATION_DIR] [-c CONFIGURATION]
+             [-td [TEMPLATE_DIR [TEMPLATE_DIR ...]]] [-t TEMPLATE]
+             [--template_type TEMPLATE_TYPE] [-o OUTPUT] [-f] [-m MOBANFILE]
+
+Yet another jinja2 cli command for static text generation
+
+
+optional arguments
+--------------------------------------------------------------------------------
+
+* `-h, --help`
+  show this help message and exit
+* `-cd CONFIGURATION_DIR --configuration_dir CONFIGURATION_DIR`
+  the directory for configuration file lookup
+* `-c CONFIGURATION, --configuration CONFIGURATION`
+  the dictionary file
+* `-td [TEMPLATE_DIR [TEMPLATE_DIR ...]], --template_dir [TEMPLATE_DIR [TEMPLATE_DIR ...]]`
+  the directories for template file lookup
+* `-t TEMPLATE, --template TEMPLATE`
+  the template file
+* `--template_type TEMPLATE_TYPE`
+  the template type, default is jinja2
+* `-o OUTPUT, --output OUTPUT`
+  the output file
+* `-f`
+  force moban to template all files despite of .moban.hashes
+* `-m MOBANFILE, --mobanfile MOBANFILE`
+  custom moban file
+
+
+exit codes
+--------------------------------------------------------------------------------
+
+- 0 : no changes
+- 1 : has changes
+- 2 : error occured
+
+Special Filters
+================================================================================
+
+split_length
+--------------------------------------------------------------------------------
+
+It breaks down the given string into a fixed length paragraph. Here is the syntax::
+
+    {% for line in your_string | split_length(your_line_with) %}
+    {{line}}
+    {% endfor %}
+
+It is used to keep changelog formatted in
+`CHANGELOG.rst.jjs in pypi-mobans project <https://github.com/moremoban/pypi-mobans/blob/master/templates/CHANGELOG.rst.jj2#L15>`_
+
+github_expand
+--------------------------------------------------------------------------------
+
+It expands simple hashtags into github issues. Here is the syntax::
+
+    {{ your_github_string | github_expand }}
+
+
+It makes it easy to mention github reference in change log in all projects. Here is
+the place it is applied:
+`CHANGELOG.rst.jjs in pypi-mobans project <https://github.com/moremoban/pypi-mobans/blob/master/templates/CHANGELOG.rst.jj2#L15>`_
+
+
+Here is Grammar in the changelog.yml::
+
+    =============== ==============================
+    Syntax          Meaning
+    =============== ==============================
+    `#1`            moban issues 1
+    `PR#1`          moban pull request 1
+    `pyexcel#1`     other project issues 1
+    `pyexcel#PR#1`  other project pulll request 1
+    =============== ==============================
+
+More details can be found in `moban's changelog.yml <https://github.com/moremoban/moban/blob/master/.moban.cd/changelog.yml#L10>`_
+
+
+Change log
+================================================================================
+
+0.1.3 - 12-Mar-2018
+--------------------------------------------------------------------------------
+
+Updated
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+#. handle unicode on python 2
+
+0.1.2 - 10-Jan-2018
+--------------------------------------------------------------------------------
+
+Added
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+#. `#13 <https://github.com/moremoban/moban/issues/13>`_: strip off new lines in
+   the templated file
+
+0.1.1 - 08-Jan-2018
+--------------------------------------------------------------------------------
+
+Added
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+#. the ability to present a long text as multi-line paragraph with a custom
+   upper limit
+#. speical filter expand github references: pull request and issues
+#. `#15 <https://github.com/moremoban/moban/issues/15>`_: fix templating syntax
+   to enable python 2.6
+
+0.1.0 - 19-Dec-2017
+--------------------------------------------------------------------------------
+
+Added
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+#. `#14 <https://github.com/moremoban/moban/issues/14>`_, provide shell exit
+   code
+
+0.0.9 - 24-Nov-2017
+--------------------------------------------------------------------------------
+
+Added
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+#. `#11 <https://github.com/moremoban/moban/issues/11>`_, recognize .moban.yaml
+   as well as .moban.yml.
+#. `#9 <https://github.com/moremoban/moban/issues/9>`_, preserve file
+   permissions of the source template.
+#. `-m` option is added to allow you to specify a custom moban file. kinda
+   related to issue 11.
+
+Updated
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+#. use explicit version name: `moban_file_spec_version` so that `version` can be
+   used by users. `#10 <https://github.com/moremoban/moban/issues/10>`_ Please
+   note: moban_file_spec_version is reserved for future file spec upgrade. For
+   now, all files are assumed to be '1.0'. When there comes a new version i.e.
+   2.0, new moban file based on 2.0 will have to include
+   'moban_file_spec_version: 2.0'
+
+0.0.8 - 18-Nov-2017
+--------------------------------------------------------------------------------
+
+Added
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+#. `#8 <https://github.com/moremoban/moban/issues/8>`_, verify the existence of
+   custom template and configuration directories. default .moban.td, .moban.cd
+   are ignored if they do not exist.
+
+Updated
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+#. Colorize error messages and processing messages. crayons become a dependency.
+
+0.0.7 - 19-Jul-2017
+--------------------------------------------------------------------------------
+
+Added
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+#. Bring the visibility of environment variable into jinja2 templating process:
+   `#7 <https://github.com/moremoban/moban/issues/7>`_
+
+0.0.6 - 16-Jun-2017
+--------------------------------------------------------------------------------
+
+Added
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+#. added '-f' flag to force moban to template all files despite of .moban.hashes
+
+Updated
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+#. moban will not template target file in the situation where the changes
+   occured in target file than in the source: the template file + the data
+   configuration after moban has been applied. This new release will remove the
+   change during mobanization process.
+
+0.0.5 - 17-Mar-2017
+--------------------------------------------------------------------------------
+
+Added
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+#. Create a default hash store when processing a moban file. It will save
+   unnecessary file write to the disc if the rendered content is not changed.
+#. Added summary reports
+
+0.0.4 - 11-May-2016
+--------------------------------------------------------------------------------
+
+Updated
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+#. Bug fix `#5 <https://github.com/moremoban/moban/issues/5>`_, should detect
+   duplicated targets in `.moban.yml` file.
+
+0.0.3 - 09-May-2016
+--------------------------------------------------------------------------------
+
+Updated
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+#. Bug fix `#4 <https://github.com/moremoban/moban/issues/4>`_, keep trailing
+   new lines
+
+0.0.2 - 27-Apr-2016
+--------------------------------------------------------------------------------
+
+Updated
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+#. Bug fix `#1 <https://github.com/moremoban/moban/issues/1>`_, failed to save
+   utf-8 characters
+
+0.0.1 - 23-Mar-2016
+--------------------------------------------------------------------------------
+
+Added
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+#. Initial release
+
+
+
