@@ -1,0 +1,83 @@
+{% macro plot(packagelist) -%}
+    {% set id = counter() %}
+    <div style="width: 95%;">
+      <canvas id="linechart{{ id }}"></canvas>
+    </div>
+
+    <script>
+        var config{{ id }} = {
+        type: 'line',
+        data: {
+          datasets: [
+          {% for package in packagelist if package.releases %}
+            {
+              label: "{{ package.name }}",
+              fill: false,
+              cubicInterpolationMode: 'monotone',
+              borderColor: "{{ package.name | color(0.8, 0.8) }}",
+              pointBackgroundColor: "{{ package.name | color(0.8, 0.8) }}",
+              backgroundColor: "{{ package.name | color(0.8, 0.8) }}",
+              data: [
+              {%- for date in package.releases|sort -%}
+                {
+                  x: "{{ date }}",
+                  y: {{ package.releases[date].previous }},
+                  version: "{{ package.releases[date].version }}"
+                },
+              {%- endfor -%}
+              {
+                x: "{{ now|datetime }}",
+                y: {{ package.total_downloads }},
+              }],
+            },
+          {% endfor %}
+          ]
+        },
+        options: {
+          responsive: true,
+          defaultColor: "rgba(0, 0, 0, 0)",
+          title:{
+            display:true,
+            text:'Download counts'
+          },
+          tooltips: {
+            mode: 'point',
+            callbacks: {
+              label: function(tooltipItem, data) {
+                var version = data.datasets[tooltipItem.datasetIndex].data[tooltipItem.index]['version'];
+                var name = data.datasets[tooltipItem.datasetIndex].label;
+                if (typeof version == "undefined") {
+                  return name + " " + tooltipItem.xLabel + ": " + tooltipItem.yLabel;
+                } else {
+                  return name + " " + tooltipItem.xLabel + " (version " + version + "): " + tooltipItem.yLabel;
+                }
+              },
+            }
+          },
+          hover: {
+            mode: 'point'
+          },
+          scales: {
+            xAxes: [{
+              type: "time",
+              display: true,
+            }, ],
+            yAxes: [{
+              display: true,
+              scaleLabel: {
+                display: true,
+                labelString: 'Downloads'
+              }
+            }]
+          }
+        }
+      };
+
+      window.addEventListener("load", function(event) {
+        window.myLine{{ id }} = new Chart.Scatter(
+          document.getElementById("linechart{{ id }}").getContext("2d"),
+          config{{ id }}
+        )
+      });
+    </script>
+{%- endmacro %}
