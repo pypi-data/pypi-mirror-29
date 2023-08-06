@@ -1,0 +1,10 @@
+his is a place holder for a package released under D-Wave's EULA.
+To obtain this package run pip install dwave-system-tuning --extra-index=https://pypi.dwavesys.com/simple
+
+Home-page: https://github.com/dwavesystems/dwave_system_tuning
+Author: D-Wave Systems Inc.
+Author-email: UNKNOWN
+License: D-WAVE SYSTEMS INC. ("D-WAVE") END-USER LICENSE AGREEMENT ("EULA")
+Description-Content-Type: UNKNOWN
+Description: UNKNOWN
+Platform: UNKNOWN
