@@ -1,0 +1,206 @@
+{% macro Info(user) %}
+{% from "frontend/macros/info.html" import Field %}
+{{Field("Firstname", user.firstname)}}
+{{Field("Lastname", user.lastname)}}
+{{Field("Email", user.email)}}
+{% endmacro %}
+
+{% macro Events(user) %}
+<p>Events</p>
+{% endmacro %}
+
+{% macro AdminSettings(User, Form, Form2) %}
+{% from "frontend/macros/form.html" import render_manual %}
+<div class="modal fade" id="UserConfigure" role="dialog">
+	<div class="modal-dialog">
+		<div class="modal-content">
+			<div class="modal-header">
+				<button type="button" class="close" data-dismiss="modal">&times;</button>
+				<h2 class="modal-title">User Settings</h2>
+			</div>
+			<div class="modal-body">
+				<ul class="nav nav-pills nav-justified">
+					<li class="active"><a data-toggle="pill" href="#modifyUserGeneral">General</a></li>
+					<li><a data-toggle="pill" href="#modifyUserRole">Role</a></li>
+					<li><a data-toggle="pill" href="#modifyUserDelete">Freeze and Delete</a></li>
+				</ul>
+				<br>
+				<div class="tab-content">
+					<div id="modifyUserGeneral" class="tab-pane fade in active">
+						<div class="row">
+							{{render_manual("Firstname", "modifyUserFirstname")}}
+							{{render_manual("Lastname", "modifyUserLastname")}}
+							<div class="col-lg-12">
+								<h4>New Password</h4>
+							</div>
+							{{render_manual("Password", "modifyUserPassword")}}
+						</div>
+					</div>
+					<div id="modifyUserRole" class="tab-pane fade">
+						<div class="row">
+							<div class="col-lg-10">
+								<div class="form-group">
+									<label for="sel1">Role:</label>
+									<select class="form-control" id="selectUserRole">
+										<option value="observer">Observer</option>
+										<option value="technician">Technician</option>
+										<option value="administrator">Administrator</option>
+										<option value="superuser">Superuser</option>
+									</select>
+								</div>
+							</div>
+						</div>
+					</div>
+					<div id="modifyUserDelete" class="tab-pane fade">
+						<div class="row">
+							<div class="col-sm-10">
+								<i>By deleting this user you remove all the history associated with it.
+								Please confirm the action by entering the email of the user in the text- box below</i>
+							</div>
+						</div>
+						<div class="row">
+							<br>
+							<div class="form-group">
+								<label class="control-label col-sm-2">User Email:</label>
+								<div class="col-sm-10">
+									<input type="string" class="form-control" id="confirmUserDeleteEmail" onkeyup="confirmUserDelete()">
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+			<div class="modal-footer">
+				<button type="button" class="btn btn-primary" id="submitUserName">Update Name</button>
+				<button type="button" class="btn btn-warning" id="setPassword">Set Password</button>
+				<button type="button" class="btn btn-warning" id="resetPassword">Reset Password</button>
+				<button type="button" class="btn btn-warning" id="submitUserRole">Set Role</button>
+				<button type="button" class="btn btn-danger" id="deleteUser" disabled>Delete User</button>
+				<button type="button" class="btn btn-warning" id="freezeUser">Freeze User</button>
+				<button type="button" class="btn btn-success" id="enableUser">Enable User</button>
+			</div>
+		</div>
+	</div>
+</div>
+	<script>
+$(document).ready(function() {
+	userEmail = "{{User.email}}"
+	userEnabled = false;
+	submitUserGeneral = $('#submitUserName')
+	submitUserPassword = $('#setPassword')
+	submitResetPassword = $('#resetPassword')
+	submitUserRole = $('#submitUserRole')
+	submitUserDelete = $('#deleteUser')
+	submitUserFreeze = $('#freezeUser')
+	submitUserEnable = $('#enableUser')
+
+	submitUserRole.hide();
+	submitUserDelete.hide()
+	submitUserFreeze.hide();
+	submitUserEnable.hide()
+	submitUserGeneral.show();
+	submitUserPassword.show();
+	submitResetPassword.show();
+
+	$("a[href='#modifyUserGeneral']").on('show.bs.tab', function(e) {
+	     submitUserRole.hide();
+	     submitUserDelete.hide()
+			 submitUserFreeze.hide();
+	     submitUserEnable.hide()
+	     submitUserGeneral.show();
+			 submitUserPassword.show();
+			 submitResetPassword.show();
+	});
+	$("a[href='#modifyUserRole']").on('show.bs.tab', function(e) {
+			submitUserRole.show();
+			submitUserDelete.hide()
+			submitUserFreeze.hide();
+			submitUserEnable.hide()
+			submitUserGeneral.hide();
+			submitUserPassword.hide();
+			submitResetPassword.hide();
+	});
+	$("a[href='#modifyUserDelete']").on('show.bs.tab', function(e) {
+			submitUserRole.hide();
+			submitUserDelete.show()
+			if (userEnabled)
+				submitUserFreeze.show();
+			else
+				submitUserEnable.show();
+			submitUserGeneral.hide();
+			submitUserPassword.hide();
+			submitResetPassword.hide();
+	});
+	document.getElementById("submitUserName").onclick = function() {
+		firstname = document.getElementById("modifyUserFirstname").value;
+		lastname = document.getElementById("modifyUserLastname").value;
+		userSocket.emit("name", userEmail, firstname, lastname)
+	}
+	document.getElementById("submitUserRole").onclick = function() {
+			role = document.getElementById("selectUserRole").value;
+			userSocket.emit("role", userEmail, role);
+	}
+	document.getElementById("deleteUser").onclick = function() {
+		userSocket.emit('delete', '{{User.email}}');
+	};
+	{% if User.enabled %}
+	document.getElementById("freezeUser").onclick = function() {
+		userSocket.emit('freeze', '{{User.email}}');
+	};
+	{% else %}
+	document.getElementById("enableUser").onclick = function() {
+		userSocket.emit('enable', '{{User.email}}');
+	};
+	{% endif %}
+	document.getElementById("resetPassword").onclick = function() {
+		userSocket.emit('resetPassword', '{{User.email}}');
+	};
+	userSocket.emit("info", "{{User.email}}");
+});
+	userSocket.on("info", function(user) {
+		document.getElementById("modifyUserFirstname").value = user.firstName;
+		document.getElementById("modifyUserLastname").value = user.lastName;
+		document.getElementById("selectUserRole").value = user.role;
+		userEnabled = user.enabled;
+	});
+	function confirmUserDelete() {
+		if (document.getElementById("confirmUserDeleteEmail").value === userEmail)
+			document.getElementById("deleteUser").disabled = false;
+		else
+			document.getElementById("deleteUser").disabled = true;
+	}
+	</script>
+{% endmacro %}
+
+{% macro ListUsers(users) %}
+<table class="table table-hover">
+	<thead>
+		<tr>
+			<th>Firstname</th>
+			<th>Lastname</th>
+			<th>Email</th>
+		</tr>
+	</thead>
+	<tbody>
+		{% for user in users %}
+		<tr>
+			<td>
+				<a href="{{url_for('admin_view.admin_user', email = serialize(user.email))}}">
+				{{user.firstname}}
+				</a>
+			</td>
+			<td>
+				<a href="{{url_for('admin_view.admin_user', email = serialize(user.email))}}">
+					{{user.lastname}}
+				</a>
+			</td>
+			<td>
+				<a href="{{url_for('admin_view.admin_user', email = serialize(user.email))}}">
+				{{user.email}}
+				</a>
+			</td>
+		</tr>
+		{% endfor %}
+	</tbody>
+</table>
+{% endmacro %}

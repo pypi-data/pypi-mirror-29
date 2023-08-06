@@ -1,0 +1,239 @@
+{% macro ListMQTT(mqtts, Form) %}
+{% from "frontend/macros/info.html" import FieldID %}
+{% from "frontend/macros/form.html" import render_manual %}
+<table class="table table-hover">
+	<thead>
+		<tr>
+			<th>IP</th>
+			<th>Port</th>
+			<th>Online</th>
+		</tr>
+	</thead>
+	<tbody>
+		{% for mqtt in mqtts %}
+		<tr>
+			<td>
+				<a href="#" onclick="MQTTInfo('{{mqtt.host}}', '{{mqtt.port}}')">
+				{{mqtt.host}}
+				</a>
+			</td>
+			<td>
+				<a href="#" onclick="MQTTInfo('{{mqtt.host}}', '{{mqtt.port}}')">
+					{{mqtt.port}}
+				</a>
+			</td>
+			<td>
+				<a href="#" onclick="MQTTInfo('{{mqtt.host}}', '{{mqtt.port}}')">
+				 {{mqtt.online()}}
+				</a>
+			</td>
+		</tr>
+		{% endfor %}
+	</tbody>
+</table>
+{% from "frontend/macros/icpe.html" import iCPEList %}
+{% from "frontend/macros/group.html" import ListGroups %}
+<div class="modal fade" id="MQTTInfoModal" role="dialog">
+	<div class="modal-dialog">
+		<div class="modal-content">
+			<div class="modal-header">
+				<button type="button" class="close" data-dismiss="modal">&times;</button>
+				<h2 class="modal-title">MQTT <div id="mqttTitle" style="display: inline;"></div></h2>
+			</div>
+			<div class="modal-body">
+				<ul class="nav nav-pills nav-justified">
+					<li class="active"><a data-toggle="pill" href="#MQTTModalInfo">Information</a></li>
+					<li><a data-toggle="pill" href="#MQTTModaliCPEs">iCPEs</a></li>
+					<li><a data-toggle="pill" href="#MQTTModalGroups">Groups</a></li>
+				</ul>
+				<div class="tab-content">
+					<div id="MQTTModalInfo" class="tab-pane fade in active">
+						<div class="row">
+							{{ FieldID("Address", "-", "mqttInfoAddress") }}
+							{{ FieldID("Port", "-", "mqttInfoPort") }}
+							{{ FieldID("Online", "-", "mqttInfoOnline") }}
+							{{ FieldID("Loaded", "-", "mqttInfoLoaded") }}
+							{{ FieldID("Last message", "-", "mqttInfoLastMessage") }}
+						</div>
+					</div>
+					<div id="MQTTModaliCPEs" class="tab-pane fade">
+						{{ iCPEList() }}
+					</div>
+					<div id="MQTTModalGroups" class="tab-pane fade">
+						{{ ListGroups() }}
+					</div>
+				</div>
+			</div>
+			<div class="modal-footer">
+				<button type="button" id="modifyMQTT" class="btn btn-primary" onclick="ModifyMQTT()">Modify</button>
+				<button type="button" id="MQTTAddGroup" class="btn btn-primary" onclick="MQTTGroups()">Modify Groups</button>
+			</div>
+		</div>
+	</div>
+</div>
+<script>
+$(document).ready(function() {
+	modifyMQTTButton = $('#modifyMQTT');
+	addMQTTGroupButton = $('#MQTTAddGroup');
+	addMQTTGroupButton.hide();
+	mqttHost = null;
+	mqttPort = null;
+
+	$("a[href='#MQTTModalInfo']").on('show.bs.tab', function(e) {
+			 addMQTTGroupButton.hide();
+			 modifyMQTTButton.show();
+	});
+	$("a[href='#MQTTModaliCPEs']").on('show.bs.tab', function(e) {
+		modifyMQTTButton.hide();
+		addMQTTGroupButton.hide()
+	});
+	$("a[href='#MQTTModalGroups']").on('show.bs.tab', function(e) {
+		modifyMQTTButton.hide();
+		addMQTTGroupButton.show()
+	});
+	document.getElementById("modifyMQTTConnectionbtn").onclick = function() {
+		old_mqtt = {'host' : mqttHost, 'port' : mqttPort};
+		new_mqtt = {'host' : document.getElementById("modifyMQTTHost").value,
+								'port' : document.getElementById('modifyMQTTPort').value}
+		adminSocket.emit("mqttUpdateHost", old_mqtt, new_mqtt);
+	};
+	document.getElementById("modifyMQTTDeletebtn").onclick = function() {
+		adminSocket.emit("mqttDeleteHost", mqttHost, mqttPort);
+	};
+})
+function MQTTInfo(host, port) {
+	$('#MQTTInfoModal').modal('show');
+	adminSocket.emit("mqttInfo", host, port);
+	$("#mqttTitle").text(host);
+}
+function ModifyMQTT() {
+	$('#MQTTInfoModal').modal('hide');
+	$('#ModifyMQTTModal').modal('show');
+}
+function MQTTGroups() {
+	$('#MQTTInfoModal').modal('hide');
+	$('#MQTTGroupModal').modal('show');
+}
+
+adminSocket.on("mqttInfo", function(info) {
+	cleariCPEList();
+	clearGroupList();
+	$("#mqttInfoAddress").text(info.host);
+	$("#mqttInfoPort").text(info.port);
+	$("#mqttInfoOnline").text(info.online);
+	$("#mqttInfoLoaded").text(moment.unix(info.date_loaded, "YYYYMMDD, hh:mm:ss"));
+	$("#mqttInfoLastMessage").text(moment.unix(info.date_updated, "YYYYMMDD, hh:mm:ss").fromNow());
+	groupList(info.groups)
+	iCPEList(info.icpes)
+	document.getElementById("modifyMQTTHost").value = info.host;
+	document.getElementById("modifyMQTTPort").value = info.port;
+	mqttHost = info.host;
+	mqttPort = info.port;
+});
+function confirmMQTTDelete() {
+	if (document.getElementById("deleteMQTTValue").value === mqttHost) {
+		document.getElementById("modifyMQTTDeletebtn").disabled = false;
+	} else {
+		document.getElementById("modifyMQTTDeletebtn").disabled = true;
+	}
+}
+</script>
+<div class="modal fade" id="ModifyMQTTModal" role="dialog">
+	<div class="modal-dialog">
+		<div class="modal-content">
+			<div class="modal-header">
+				<button type="button" class="close" data-dismiss="modal">&times;</button>
+				<h2 class="modal-title">MQTT <div id="mqttTitle" stlye="display: inline;"></div></h2>
+			</div>
+			<div class="modal-body">
+				<ul class="nav nav-pills nav-justified">
+					<li class="active"><a data-toggle="pill" href="#modifyMQTTconnection">Connection</a></li>
+					<li><a data-toggle="pill" href="#modifyMQTTsecurity">Security</a></li>
+					<li><a data-toggle="pill" href="#modifyMQTTdelete">Delete</a></li>
+				</ul>
+				<br>
+				<div class="tab-content">
+					<div id="modifyMQTTconnection" class="tab-pane fade in active">
+						<div class="row">
+							{{ render_manual('Address', 'modifyMQTTHost') }}
+							{{ render_manual('Port', 'modifyMQTTPort') }}
+						</div>
+					</div>
+					<div id="modifyMQTTsecurity" class="tab-pane fade">
+
+					</div>
+					<div id="modifyMQTTdelete" class="tab-pane fade">
+						<div class="row">
+							<br>
+							<div class="form-group">
+								<label class="control-label col-sm-2">MQTT Address:</label>
+								<div class="col-sm-10">
+									<input type="string" class="form-control" id="deleteMQTTValue" onkeyup="confirmMQTTDelete()">
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+			<div class="modal-footer">
+				<button type="button" id="modifyMQTTConnectionbtn" class="btn btn-primary">Update Connection</button>
+				<button type="button" id="modifyMQTTSecuritybtn" class="btn btn-primary">Update Security</button>
+				<button type="button" id="modifyMQTTDeletebtn" class="btn btn-danger" disabled>Delete</button>
+			</div>
+		</div>
+	</div>
+</div>
+<script>
+$(document).ready(function() {
+	modifyMQTTConnectionbtn = $('#modifyMQTTConnectionbtn');
+	modifyMQTTSecuritybtn = $('#modifyMQTTSecuritybtn');
+	modifyMQTTDeletebtn = $('#modifyMQTTDeletebtn')
+	modifyMQTTSecuritybtn.hide();
+	modifyMQTTDeletebtn.hide();
+
+	$("a[href='#modifyMQTTconnection']").on('show.bs.tab', function(e) {
+		modifyMQTTConnectionbtn.show();
+		modifyMQTTSecuritybtn.hide();
+		modifyMQTTDeletebtn.hide();
+	});
+	$("a[href='#modifyMQTTsecurity']").on('show.bs.tab', function(e) {
+		modifyMQTTConnectionbtn.hide();
+		modifyMQTTSecuritybtn.show();
+		modifyMQTTDeletebtn.hide();
+	});
+	$("a[href='#modifyMQTTdelete']").on('show.bs.tab', function(e) {
+		modifyMQTTConnectionbtn.hide();
+		modifyMQTTSecuritybtn.hide();
+		modifyMQTTDeletebtn.show();
+	});
+})
+</script>
+<div class="modal fade" id="MQTTGroupModal" role="dialog">
+	<div class="modal-dialog">
+		<div class="modal-content">
+			<div class="modal-header">
+				<button type="button" class="close" data-dismiss="modal">&times;</button>
+				<h2 class="modal-title">MQTT <div id="mqttTitle" stlye="display: inline;"></div></h2>
+			</div>
+			<div class="modal-body">
+				<ul class="nav nav-pills nav-justified">
+					<li class="active"><a data-toggle="pill" href="#MQTTModalInfo">Add Group</a></li>
+					<li><a data-toggle="pill" href="#MQTTModaliCPEs">Remove Group</a></li>
+				</ul>
+				<div class="tab-content">
+					<div id="MQTTModalInfo" class="tab-pane fade in active">
+						<div class="row">
+						</div>
+					</div>
+					<div id="MQTTModaliCPEs" class="tab-pane fade">
+					</div>
+				</div>
+			</div>
+			<div class="modal-footer">
+				<button type="button" id="modifyMQTT" class="btn btn-primary">Modify</button>
+				<button type="button" id="MQTTAddGroup" class="btn btn-primary">Add Group</button>
+			</div>
+		</div>
+	</div>
+</div>
+{% endmacro %}

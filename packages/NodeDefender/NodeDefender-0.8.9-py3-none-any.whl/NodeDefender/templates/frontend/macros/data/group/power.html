@@ -1,0 +1,132 @@
+{% macro AveragePower(group) %}
+<div class="panel panel-info">
+	<div class="panel-heading">
+		Average Power, <div id="averagePowerName" style="display: inline";>None</div>
+	</div>
+	<div class="panel-body">
+		<div class="row">
+			<div class="col-xs-4">
+				<h4 id="averagePowerMonthly">
+					0.0
+				</h4>
+				<small><i>Monthly Average</i></small>
+			</div>
+			<div class="col-xs-4">
+				<h4 id="averagePowerWeekly">
+				0.0
+				</h4>
+				<small><i>Weekly Average</i></small>
+			</div>
+			<div class="col-xs-4">
+				<h4 style="color: blue;" id="averagePowerDaily">
+				0.0
+				</h4>
+				<small><i>Daily Average</i></small>
+			</div>
+		</div>
+	</div>
+</div>
+	<script>
+powerName = document.getElementById('averagePowerName')
+powerMonthly = document.getElementById('averagePowerMonthly');
+powerWeekly = document.getElementById('averagePowerWeekly');
+powerDaily = document.getElementById('averagePowerDaily');
+
+dataSocket.on('groupPowerAverage', function(data) {
+	powerName.innerHTML = data.name;
+	powerMonthly.innerHTML = parseFloat(data.monthly).toFixed(2);
+	powerWeekly.innerHTML = parseFloat(data.weekly).toFixed(2);
+	if (data.weekly > data.monthly)
+		powerWeekly.style.color = 'red';
+	else
+		powerWeekly.style.color = 'green';
+	powerDaily.innerHTML = parseFloat(data.daily).toFixed(2);
+	if (data.daily > data.weekly)
+		powerDaily.style.color = 'red';
+	else
+		powerDaily.style.color = 'green';
+})
+dataSocket.emit('groupPowerAverage', "{{group.name}}");
+	</script>
+{% endmacro %}
+
+{% macro Chart(group) %}
+<div class="panel panel-primary">
+	<div class="panel-heading">
+		{{group.name}} Power Chart
+	</div>
+	<div class="panel-body" style="padding: 0; height: 400px">
+		<div id="GroupsPowerChart" style="height: 100%; width: 100%">
+		</div>
+	</div>
+</div>
+<script>
+chartElement = document.getElementById("GroupsPowerChart");
+
+plotlySocket.on('groupPowerChart', function(data) {
+	Plotly.newPlot(chartElement, data.data, data.layout)
+});
+
+plotlySocket.emit('groupPowerChart', "{{group.name}}");
+</script>
+{% endmacro %}
+
+{% macro List(group) %}
+<div class="panel panel-default">
+	<div class="panel-heading">
+		Node List
+	</div>
+	<div class="panel-body" style="padding: 0;">
+		<table class="table table-hover">
+			<thead>
+				<tr>
+					<th>Name</th>
+					<th>Current Power</th>
+					<th>Daily Average</th>
+					<th>Weekly Average</th>
+					<th>Monthly Average</th>
+				</tr>
+			</thead>
+			<tbody>
+				{% for node in group.nodes %}
+				<tr>
+					<td>
+						<a href="{{ url_for('data_view.power_node', name = serialize(node.name)) }}">
+							{{node.name}}
+						</a>
+					</td>
+					<td>
+						<p id="{{trim(node.name)}}CurrentPower">0.0</p>
+					</td>
+					<td>
+						<p id="{{trim(node.name)}}DailyPower">0.0</p>
+					</td>
+					<td>
+						<p id="{{trim(node.name)}}WeeklyPower">0.0</p>
+					</td>
+					<td>
+						<p id="{{trim(node.name)}}MonthlyPower">0.0</p>
+					</td>
+				</a>
+			{% endfor %}
+			</tbody>
+		</table>
+	</div>
+</div>
+	<script>
+$(document).ready(function() {
+	dataSocket.on('nodePowerAverage', function(data) {
+		if (!data.name)
+			return false;
+		name = data.name.replace(/\s/g, '');
+		document.getElementById(name+"CurrentPower").innerHTML = parseFloat(data.current).toFixed(2);
+		document.getElementById(name+"DailyPower").innerHTML = parseFloat(data.daily).toFixed(2);
+		document.getElementById(name+"WeeklyPower").innerHTML = parseFloat(data.weekly).toFixed(2);
+		document.getElementById(name+"MonthlyPower").innerHTML = parseFloat(data.monthly).toFixed(2);
+	});
+	{% for node in group.nodes %}
+		dataSocket.emit('nodePowerAverage', "{{node.name}}");
+	{% endfor %}
+});
+	</script>
+{% endmacro %}
