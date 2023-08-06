@@ -1,0 +1,202 @@
+{% extends "main.html" %}
+{% load karaage_tags %}
+{% load forms %}
+
+
+{% block title %}Projects{% endblock %}
+
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+    <a href='{% url "index" %}'>Home</a>&nbsp;›
+    <a href="{% url 'kg_project_list' %}">Projects</a>&nbsp;›
+    {{ project.pid }}
+</div>
+{% endblock %}
+
+
+{% block content %}
+<div id="content-main">
+
+    <div class="module">
+        <h2>Project Details</h2>
+        <h3>{{ project }}</h3>
+        <div class="table-container">
+            <table class="keyvalue">
+                <tr>
+                    <th>Active:</th>
+                    <td>
+                        {% if not project.is_active %}
+                        <span class="no">Deleted</span>
+                        {% elif not project.is_approved %}
+                        <span class="no">Not approved</span>
+                        {% else %}
+                        <span class="yes">Yes</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% if not project.is_active %}
+                <tr>
+                    <th>Deleted:</th>
+                    <td>Deleted by {{ project.deleted_by }} on {{ project.date_deleted }}</td>
+                </tr>
+                {% endif %}
+                {% if project.leaders %}
+                <tr>
+                    <th>Leaders:</th>
+                    <td><ul>
+                        {% for l in project.leaders.all %}
+                        <li>
+                            <a href="{{ l.get_absolute_url }}">{{ l }}</a><br/>
+                            {% if l != request.user and can_edit %}
+                            <a href="{% url 'kg_revoke_leader' project.id l.username %}" class="deletelink">Revoke</a>
+                            {% endif %}
+                        </li>
+                        {% endfor %}
+                    </ul></td>
+                </tr>
+                {% endif %}
+                <tr><th>Institute:</th><td><a href="{{ project.institute.get_absolute_url }}">{{ project.institute }}</a></td></tr>
+
+
+                {% if is_admin %}
+                <tr><th>Group:</th><td><a href="{{ project.group.get_absolute_url }}">{{ project.group }}</a></td></tr>
+                {% else %}
+                <tr><th>Group:</th><td>{{ project.group }}</td></tr>
+                {% endif %}
+
+                <tr><th>Description:</th><td>{{ project.description|linebreaks }}</td></tr>
+                {% if is_admin %}
+                <tr><th>Last Usage:</th><td>{% if project.last_usage %}{{ project.last_usage|date }} ({{ project.last_usage|timesince }}){% else %}No usage{% endif %}</td></tr>
+                {% endif %}
+                <tr><th>Start Date:</th><td>{{ project.start_date|date }}</td></tr>
+                {% if project.end_date %}
+                <tr><th>End Date:</th><td>{{ project.end_date|date }}</td></tr>
+                {% endif %}
+                <tr><th>Approved:</th><td>{% yes_no project.is_approved %}</td></tr>
+                {% if is_admin %}
+                <tr class="hidden-link"><td colspan="2"><a href="#">More....</a></td></tr>
+                <tr><th>Additional Req:</th><td>{{ project.additional_req|linebreaks }}</td></tr>
+                {% if project.approved_by %}
+                <tr><th>Approved by:</th><td><a href="{{ project.approved_by.get_absolute_url }}">{{ project.approved_by }}</a></td></tr>
+                {% endif %}
+                {% if project.date_approved %}
+                <tr><th>Date Approved:</th><td>{{ project.date_approved|date }}</td></tr>
+                {% endif %}
+                {% if project.deleted_by %}
+                <tr><th>Deleted by:</th><td><a href="{{ project.deleted_by.get_absolute_url }}">{{ project.deleted_by }}</a></td></tr>
+                <tr><th>Date Deleted:</th><td>{{ project.date_deleted|date }}</td></tr>
+                {% endif %}
+                {% endif %}
+            </table>
+        </div>
+
+        <div class="object-tools">
+            <ul>
+                {% if is_admin %}
+                    <li><a href="{% url 'kg_project_logs' project.id %}">View logs</a></li>
+                    <li><a href="{% url 'kg_project_verbose' project.id %}">Verbose</a></li>
+                    <li><a href="{% url 'kg_project_edit' project.id %}" class="changelink">Edit</a></li>
+                    {% if project.is_active %}
+                        <li><a href="{% url 'kg_project_delete' project.id %}" class="deletelink">Delete project</a></li>
+                    {% else %}
+                        <li><a href="{% url 'kg_project_undelete' project.id %}" class="changelink">Undelete project</a></li>
+                    {% endif %}
+                {% else %}
+                    {% if can_edit %}
+                        <li><a href="{% url 'kg_project_edit' project.id %}" class="changelink">Edit</a></li>
+                    {% endif %}
+                {% endif %}
+                {% for_each_app_include "project_detail_tools.html" %}
+            </ul>
+        </div>
+    </div>
+
+    {% if project.group.members.all %}
+    <div class="module">
+        <h2>People</h2>
+        <table cellspacing="0">
+            <thead>
+                <tr>
+                    {% if user.is_authenticated %}
+                    <th>Username</th>
+                    {% endif %}
+                    <th>Name</th>
+                    {% if user.is_authenticated %}
+                    <th>Email</th>
+                    <th>Active</th>
+                    {% endif %}
+                    {% if is_admin %}
+                    <th>Last Usage</th>
+                    {% endif %}
+                    {% if can_edit %}
+                    <th></th>
+                    {% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for person in project.group.members.select_related %}
+                <tr>
+                    {% if user.is_authenticated %}
+                    <td><a href="{{ person.get_absolute_url }}">{{ person.username }}</a></td>
+                    {% endif %}
+                    <td>{{ person.get_full_name }}</td>
+                    {% if user.is_authenticated %}
+                    <td>{{ person.email|urlize }}</td>
+                    <td>
+                        {% if not person.is_active %}
+                        <img alt="inactive" src="{{ STATIC_URL }}img/icon-no.gif"/>
+                        {% else %}
+                        {% if person.is_locked %}
+                        <img alt="locked" src="{{ STATIC_URL }}img/lock.png"/>
+                        {% else %}
+                        <img alt="active" src="{{ STATIC_URL }}img/icon-yes.gif"/>
+                        {% endif %}
+                        {% endif %}
+                    </td>
+                    {% endif %}
+                    {% if is_admin %}
+                    <td>{{ person.last_usage }}</td>
+                    {% endif %}
+                    {% if can_edit %}
+                    <td>
+                        <a href="{% url 'kg_remove_project_member' project.id person.username %}" class="deletelink">Remove</a>
+                        {% if person not in project.leaders.all %}
+                        <a href="{% url 'kg_grant_leader' project.id person.username %}" class="addlink">Grant leader</a>
+                        {% endif %}
+                    </td>
+                    {% endif %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    {% for_each_app_include "project_detail_extra.html" %}
+
+    {% if is_admin  and project.is_active %}
+    <div class="module">
+        <h2>Add person</h2>
+        <form action="" id="joinproject_form" method="post">{% csrf_token %}
+            <div class="form-row">
+            {{ form }}
+            <input type="submit" value="Add"/>
+            </div>
+        </form>
+    </div>
+    {% endif %}
+
+    {% if is_admin %}
+    <div class="module">
+        <h2>Comments</h2>
+        {% comments project %}
+        <div class="object-tools">
+            <ul>
+                {% if is_admin %}<li><a href="{% url 'kg_project_add_comment' project.id %}" class="addlink">Add comment</a></li>{% endif %}
+            </ul>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
