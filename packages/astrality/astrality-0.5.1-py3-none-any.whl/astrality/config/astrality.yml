@@ -1,0 +1,180 @@
+config/astrality:
+    # If hot_reload_config is enabled, modifications to this file automatically
+    # runs:
+    #       1) exit actions from the old configuration
+    #       2) startup actions from the new configuration
+    # Requires restart if enabled
+    hot_reload_config: true
+
+    # You can delay astrality on startup. The delay is given in seconds.
+    startup_delay: 0
+
+
+config/modules:
+    # Modules can require successfull shell commands (non-zero exit codes) in
+    # order to be enabled. You can specify the timeout for such checks, given
+    # in seconds.
+    requires_timeout: 1
+
+    # Astrality can wait for shell commands to complete in their specified
+    # order. You can set the number of seconds Astrality waits for the shell
+    # commands to exit.
+    run_timeout: 0
+
+    # Modified templates can be automatically recompiled.
+    recompile_modified_templates: true
+
+    # There are two possible ways to define modules. Either in this file, as
+    # shown further below, or in separate external module directories within the
+    # following specified directory, relatively interpreted as:
+    # $ASTRALITY_CONFIG_HOME/modules
+    modules_directory: modules
+
+    # You enable modules by specifying the <name> of each module.
+    # Modules defined in <modules_directory>/<subdirectory>/config.yml are
+    # enabled by writing name: <subdirectory>::<name>
+    #
+    # '*' enables all modules in this file, '*::*' enables all modules defined
+    # in subdirectories of <modules_directory>.
+    enabled_modules:
+        # Module defined in this file
+        - name: polybar
+
+        # All modules defined in <modules_directory>/solar_desktop/config.yml
+        - name: solar_desktop::*
+
+        # Module defined at https://github.com/jakobgm/color-schemes.astrality
+        - name: github::jakobgm/color-schemes.astrality
+          autoupdate: true  # Fetch new color schemes as they are added
+
+
+context/host:
+    # Here we define some context values which often change between host
+    # computers, and are therefore practical to use in our templates.
+    displays:
+        # All displays defined here are used in the polybar module. It creates
+        # one bar for each of the display handles, where the bar identifier is
+        # the same as the display handle. This way you can start a polybar for
+        # the primary screen by running:
+        #     polybar --config {modules/polybar/config.template} HDMI2
+        primary:
+            handle: HDMI2
+            dpi: 96
+
+        secondary:
+            handle: eDP1
+            dpi: 96
+
+
+    interfaces:
+        wlan:
+            # You can also use command substitution in order to insert the
+            # standard output of a shell command into a configuration option.
+            #
+            # This is also used by the polybar template to point the
+            # wireless-internet polybar module to the correct interface.
+            handle: {{ 'iwconfig 2>/dev/null | grep -o "^\w*"' | shell }}
+
+        ethernet:
+            handle: eno0
+
+    commands:
+        # Here we define some commands that might change between hosts
+        # with different stacks, i.e. systemd vs init, or wayland vs Xorg
+        shutdown: systemctl poweroff -i
+        reboot: systemctl reboot -i
+
+        # In order to insert our global IP into a template, we can now do:
+        # host.commands.global_ip | shell within placeholder delimiters
+        global_ip: 'wget http://checkip.dyndns.org/ -O - -o /dev/null | cut -d: -f 2 | cut -d\< -f 1 | xargs'
+
+
+context/fonts:
+    # Here we define some context values for fonts that we want to use in
+    # several different configurations, another common use case for context
+    # values in templates.
+
+    # You can use integer indexed variables in order to have fallback values.
+    # If fonts:4/5/6 on so on is used in a template, but it is not
+    # defined, it will be replaced with ast:fonts:3 instead. This is
+    # useful when you dont want to assume how many fonts you want to use when
+    # you write your templates.
+    #
+    # Here we define the main fonts used across our applications. Where 1
+    # is the primary font, 2 the secondary font, and so on.
+    1:
+        name: FuraCode Nerd Font
+        size: 8
+
+    2:
+        name: FuraMono Nerd Font
+        size: 8
+
+    3:
+        name: RobotoMono Nerd Font
+        size: 8
+
+    # We also add some configurations which are specific for some application
+    # types.
+    terminal:
+        size: 12
+
+    status_bar:
+        size: 8
+
+
+context/color_schemes_config:
+    # These are context values used by the GitHub module:
+    # github.com/jakobgm/color-schemes.astrality
+    # See the README of this repository for more information.
+
+    # Enable the following color scheme:
+    enabled: gruvbox_dark
+
+    # Import the color scheme into the following context section
+    context_section: colors
+
+
+module/polybar:
+    requires: command -v polybar
+
+    on_startup:
+        compile:
+            - template: modules/polybar/config.template
+
+        run:
+            - killall -q polybar
+            - polybar --config={modules/polybar/config.template} --reload HDMI2
+            - polybar --config={modules/polybar/config.template} --reload eDP1
+
+    on_modified:
+        modules/polybar/config.template:
+            compile:
+                - template: modules/polybar/config.template
+
+
+module/terminals:
+    # By default, this module is not enabled, since it overwrites possibly
+    # pre-existing configuration files. Enable it in config/modules.
+    #
+    # This module uses the color scheme context syntax from:
+    # github::jakobgm/color-schemes.astrality
+    # And the color scheme can be changed in context/color_schemes_config
+    #
+    # It makes it easy to change color schemes for all your terminals at the
+    # same time.
+    #
+    # Terminals:
+    # Alacritty: https://github.com/jwilm/alacritty
+    # Kitty: https://github.com/kovidgoyal/kitty
+
+    requires:
+        - command -v alacritty
+        - command -v kitty
+
+    on_startup:
+        compile:
+            - template: modules/terminals/alacritty.yml.template
+              target: {{ env.XDG_CONFIG_HOME }}/alacritty/alacritty.yml
+            - template: modules/terminals/kitty.conf.template
+              target: {{ env.XDG_CONFIG_HOME }}/kitty/kitty.conf
