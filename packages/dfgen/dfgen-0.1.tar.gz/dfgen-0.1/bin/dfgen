@@ -1,0 +1,98 @@
+#!/usr/bin/env python3
+""" dfgen
+
+Handles the click calls and methods
+
+"""
+import click
+from dfgen.dockerfile import Dockerfile
+
+
+class Config(object):
+    """
+    Config object for click
+    """
+    def __init__(self):
+        self.verbose = False
+        self.write_to_file = False
+
+
+PASS_CONFIG = click.make_pass_decorator(Config, ensure=True)
+CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
+
+
+@click.group(context_settings=CONTEXT_SETTINGS)
+@click.option(
+    '--verbose',
+    '-v',
+    is_flag=True,
+    help='enable/disable verbose messages'
+)
+@click.option(
+    '--write-to-file',
+    '-w',
+    is_flag=True,
+    default=False,
+    help='write generated template to file'
+)
+@PASS_CONFIG
+def cli(config, verbose, write_to_file):
+    """
+    A little tool to generate commonly used ci/cd templates
+    like Dockerfiles.
+    """
+    config.verbose = verbose
+    config.write_to_file = write_to_file
+
+
+@cli.command()
+@click.option(
+    '-l',
+    '--linux-type',
+    type=click.Choice(['alpine', 'ubuntu', 'debian']),
+    prompt=True,
+    default='alpine'
+)
+@PASS_CONFIG
+def create(config, linux_type):
+    """
+    Create a dockerfile
+    """
+    docker_file = Dockerfile()
+    default_image = docker_file.set_linux_type(linux_type)
+
+    docker_image = click.prompt('Base Docker Image', default=default_image)
+    docker_file.set_base_image(docker_image)
+
+    docker_file.set_maintainer(click.prompt('Maintainer of this dockerfile', default=''))
+    docker_file.set_description(click.prompt('Description', default=''))
+    docker_file.set_vcs_url(click.prompt('Git url', default=''))
+
+    enable_vcs = click.confirm('Add automated git revision info to metadata')
+    docker_file.enable_vcs_in_labels(enable_vcs)
+    docker_file.set_package_manager(click.confirm('Add additional packages'))
+
+    docker_file.set_ports(click.prompt('Expose port', type=click.IntRange(0, 65535), default=0))
+    docker_file.set_command(click.prompt('Command to execute in the container', default=''))
+
+    if config.verbose:
+        print(f"Creating a Dockerfile with {docker_file.linux_type}", end='')
+        print(f" with {docker_image} as base image: ")
+
+    template = docker_file.render_template()
+
+    if config.verbose or not config.write_to_file:
+        print(f"\nDockerfile:\n==================\n{template}")
+        if enable_vcs:
+            docker_file.print_build_hook()
+
+    if config.write_to_file:
+        file_created = docker_file.write_template()
+        print(f"Dockerfile created: {file_created}")
+        if enable_vcs:
+            docker_file.copy_build_hook()
+
+
+# pylint: disable=no-value-for-parameter
+if __name__ == '__main__':
+    cli()
