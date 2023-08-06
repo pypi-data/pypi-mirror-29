@@ -1,0 +1,508 @@
+MPDAF, the *MUSE Python Data Analysis Framework*, is an open-source (BSD
+licensed) Python package, developed and maintained by `CRAL
+<https://cral.univ-lyon1.fr/>`_ and partially funded by the ERC advanced grant 339659-MUSICOS
+(see `Authors and Credits <http://mpdaf.readthedocs.io/en/stable/credits.html>`_ for more details).
+
+It has been developed and used in the `MUSE
+Consortium <http://muse-vlt.eu/science/>`_ for several years, and is now
+available freely for the community.
+
+It provides tools to work with MUSE-specific data (raw data, pixel tables,
+etc.), and with more general data like spectra, images and data cubes. Although
+its main use is to work with MUSE data, it is also possible to use it other
+data, for example HST images. MPDAF also provides MUSELET, a SExtractor-based
+tool to detect emission lines in a datacube, and a format to gather all the
+information on a source in one FITS file.
+
+Bug reports, comments, and help with development are very welcome.
+
+MPDAF is compatible with Python 2.7 and 3.3+.
+
+Links :
+
+- `Documentation <http://mpdaf.readthedocs.io//en/stable/>`_
+- Source, issues and pull requests on a
+  `Gitlab <https://git-cral.univ-lyon1.fr/MUSE/mpdaf>`_ instance
+- Releases on `PyPI <http://pypi.python.org/pypi/mpdaf>`_
+- `Mailing list <mpdaf-support@osulistes.univ-lyon1.fr>`_ to get help or
+  discuss issues
+
+Reporting Issues
+----------------
+
+If you have found a bug in MPDAF please report it.
+
+The preferred way is to create a new issue on `the MPDAF gitlab issue page
+<https://git-cral.univ-lyon1.fr/MUSE/mpdaf/issues>`_ .  This requires creating
+a account on `git-cral <https://git-cral.univ-lyon1.fr>`_ if you don't have
+one.  To create an account, please send email to
+`mpdaf-support@osulistes.univ-lyon1.fr
+<mailto:mpdaf-support@osulistes.univ-lyon1.fr?subject=Account%20creation>`_
+
+2.5 (02/03/2018)
+----------------
+
+- Numpy is now installed with ``setup_requires``, which means that it is no
+  more required to run the setup, and it can be installed directly as
+  a dependency.
+
+- Allow to pickle MPDAF objects (``Cube``, ``Image``, ``Spectrum``,
+  ``Source``). This makes it much easier to use these MPDAF objects with
+  ``multiprocessing`` as they can now be passed transparently to the
+  subprocesses.
+
+- Allow to specify the wavelength range in ``Cube.subcube_circle_aperture``.
+
+- Speedup ``create_psf_cube``, ``moffat_image`` and ``gauss_image``.
+
+- Add option to plot images with world coordinates axes, using
+  ``astropy.visualization.wcsaxes``. This can be used with
+  ``Image.plot(..., use_wcs=True)``
+
+Sources
+~~~~~~~
+
+- Better completions for Source attributes, and for keys in IPython.
+
+- Allow to load a "fieldmap" from a dedicated file (in ``Source.add_FSF``).
+
+- New method to get FSF keywords from a Source (``Source.get_FSF``).
+
+Catalog
+~~~~~~~
+
+- Remove the index that was added by default on the 'ID' column, as it was
+  causing errors with some operations due to bugs in the Astropy
+  implementations. Indexes can still be added manually if needed.
+
+- Allow to pass additional Ellipse arguments to ``Catalog.plot_symb``.
+
+- Allow to export coordinates from their columns to
+  a ``astropy.coordinates.SkyCoord`` object (``Catalog.to_skycoord``) and to
+  ds9 region file (``Catalog.to_ds9_regions``).
+
+- New methods ``Catalog.nearest``, to get the nearest sources with respect to
+  a given coordinate, and ``Catalog.match3Dline``, to match elements of the
+  current catalog with an other using spatial (RA, DEC) and a list of spectral
+  lines location.
+
+- ``Catalog.plot_id`` is deprecated, in favor of ``Catalog.plot_symb`` with
+  ``label=True``.
+
+- Allow to use a mask in ``Catalog.select``.
+
+- Add workaround for reading FITS table written with ``Catalog``, with Astropy
+  3.0 (because of a bug introduced with their new serialization feature, which
+  does not work with subclasses).
+
+2.4 (24/11/2017)
+----------------
+
+- Compatibility with Scipy 1.0 (removal of ``scipy.stat.threshold``).
+
+- Add compressed FITS files (``.fits.fz``) to the supported extensions.
+
+Image
+~~~~~
+
+- Add a ``var`` option to plot the variance extension with ``.plot()``.
+
+Cube
+~~~~
+
+- Fix bug in ``cube.spatial_erosion``.
+
+Sources
+~~~~~~~
+
+- Keep the original order of the header keywords in ``.info()``.
+
+- Allow to set the size of a source without needing the white image.
+
+- New option to add the white image directly within ``add_cube``.
+
+Catalog
+~~~~~~~
+
+- Fix unit conversion in ``Catalog.edgedist``.
+
+- Avoid forcing the ra/dec column names to uppercase.
+
+2.3 (13/09/2017)
+----------------
+
+- New function to create a PSF cube in `~mpdaf.MUSE.create_psf_cube`.
+
+- Update the ``mpdaf.drs.rawobj`` module.
+
+- New ``extract_cube_fieldsMap`` script.
+
+WCS
+~~~
+
+- Avoid useless unit conversions in ``pix2sky`` and ``sky2pix``.
+
+- Add back the ``WCS.rotate`` method.
+
+Spectrum
+~~~~~~~~
+
+- Fix ``Spectrum.plot`` when unit is not angstrom.
+
+- Add wavelength filtering, thanks to Markus Rexroth (EPFL):
+  `~mpdaf.obj.Spectrum.wavelet_filter`.
+
+Image
+~~~~~
+
+- Fix ``align_with_image`` which was modifying the input data.
+
+- Several bugfixes for Gaussian and Moffat fits.
+
+- Margin of 1/100th of pixel added in `~mpdaf.obj.Image.inside`.
+
+- Allow to set the center outside the parent image in `~mpdaf.obj.Image.subimage`.
+
+Cube
+~~~~
+
+- Add `~mpdaf.obj.Cube.max`, `~mpdaf.obj.Cube.spatial_erosion`.
+
+CubeList
+~~~~~~~~
+
+- Avoid warnings with HIERARCH keywords
+
+- Mask NaNs in the output cube, useful when creating the white-image after.
+
+Sources
+~~~~~~~
+
+- Fix removal of extension with the optimized source writing. [!87]
+
+- Add an overwrite parameter to `~mpdaf.sdetect.Source.write`. [#485]
+
+- Fix text truncated in source history.
+
+- New optimal extraction algorithm for "CCD spectroscopy", Horne, K. 1986.
+
+- Allow to set the order for the spline interpolation in
+  `~mpdaf.sdetect.Source.add_image`.
+
+Catalog
+~~~~~~~
+
+- Correct bug (naxis inversion) in catalog.select and catalog.edgedist
+
+Pixtable
+~~~~~~~~
+
+- Bugfix for `~mpdaf.drs.PixTable.selfcalibrate`: make sure that we have enough
+  pixels with a flux in each slice.
+
+v2.2 (24/01/2017)
+-----------------
+
+- Compatibility with Astropy 1.3
+
+- Fix direct replacement of .data in a Cube/Image/Spectrum object. [!82]
+
+WCS
+~~~
+
+- Fix bugs with the handling of ``CROTa``. [!77]
+
+Image
+~~~~~
+
+- Fix bug in `~mpdaf.obj.Image.rebin` when the ``factor`` parameter is a tuple.
+  [#483]
+
+Spectrum
+~~~~~~~~
+
+- Add HST filters to the list of filters available in
+  `~mpdaf.obj.Spectrum.abmag_filter_name`. [#484]
+
+Cube
+~~~~
+
+- Fix issue with `~mpdaf.obj.Cube.subcube_circle_aperture` which was masking
+  the original cube.
+
+- Add ``is_sum`` option in `~mpdaf.obj.Cube.aperture`.
+
+CubeList
+~~~~~~~~
+
+- Fix offset computation in `~mpdaf.obj.CubeMosaic`, using CRPIX from the
+  output cube.
+
+- More options in the ``pycombine`` methods: MAD, scales, offsets.
+
+Sources
+~~~~~~~
+
+- Correct behaviour when adding an image not overlapping with Source. [#482]
+
+Catalog
+~~~~~~~
+
+- Fix issue in `~mpdaf.sdetect.Catalog.match`
+
+Pixtable
+~~~~~~~~
+
+- A new method `~mpdaf.drs.PixTable.selfcalibrate` was added to correct the
+  background levels of the slices. This method replaces the
+  ``subtract_slice_median`` and ``divide_slice_median`` methods (which have
+  been removed). The new method works differently, gives better results, and no
+  more requires to pre-compute a mean sky spectrum with
+  `~mpdaf.drs.PixTable.sky_ref`. [!78]
+
+v2.1 (16/11/2016)
+-----------------
+
+New Features
+~~~~~~~~~~~~
+
+* Allow to pass optional arguments when opening a FITS file, using the
+  ``fits_kwargs`` parameter.
+
+* Allow to write ``CHECKSUM``/``DATASUM`` when saving a FITS file (use
+  ``checksum=True``). [!53]
+
+* ``Image`` and ``Spectrum`` objects keep now by default the type of the FITS
+  data (like ``Cube``). [!50]
+
+* Add ``dtype`` property to Data classes (Spectrum/Image/Cube).
+
+* Add ``WCS`` naxis1/naxis2 properties which uses naxis from the underlying wcs
+  object.
+
+* Determine the reference frame from the primary header if possible and don't
+  force it if not found in the primary header.  HST and MUSE files usually have
+  the EQUINOX/RADESYS/RADECSYS keywords only in the primary header, which cause
+  MPDAF to use ICRS instead of FK5. [!47] Add reference frame in ``WCS.info``.
+
+* Enhance ``fftconvolve`` and add this method for ``Cube``. [!52]
+
+* New method `MUSE.get_FSF_from_cube_keywords
+  <mpdaf.MUSE.get_FSF_from_cube_keywords>` which creates a cube of FSFs
+  corresponding to the keywords presents in the MUSE data cube primary header.
+
+* Add small utility function to create field maps.
+
+* Make ``zscale`` available from ``mpdaf.tools``.
+
+* Move tests and data inside the MPDAF package so that they are installed with
+  MPDAF.
+
+* Replace nosetest with py.test to run test.
+
+
+Breaking changes
+~~~~~~~~~~~~~~~~
+
+* ``Spectrum`` methods that return a value of flux or magnitude, return
+  now a tuple (value, error). This breaking change concerns: ``flux2mag``,
+  ``mean``, ``sum``, ``integrate``, ``abmag_band``, ``abmag_filter_name``,
+  ``abmag_filter``.
+
+* Forbid the use of several (not implemented) methods in ``CubeMosaic``.
+
+* Remove ``WCS.set_naxis`` methods.
+
+
+WCS
+~~~
+
+* Remove ``WCS.set_naxis`` methods.
+
+* Add ``WCS`` naxis1/naxis2 properties which uses naxis from the underlying wcs
+  object.
+
+* Determine the reference frame from the primary header if possible and don't
+  force it if not found in the primary header.  HST and MUSE files usually have
+  the EQUINOX/RADESYS/RADECSYS keywords only in the primary header, which cause
+  mpdaf to use ICRS instead of FK5.  Add reference frame in ``WCS.info``.
+
+* Simplify ``deg2sexa`` and ``sexa2deg``.
+
+
+Data classes (Cube, Image, Spectrum)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* Enhance reading from an HDUList without having to specify a filename.
+
+* ``Image`` and ``Spectrum`` objects keep now by default the type of the FITS
+  data (like ``Cube``).
+
+* Add ``dtype`` property to Data classes (Spectrum/Image/Cube).
+
+* Make ``DataArray[item]`` preserve WCS and/or wavelength info for all legal
+  item selections.  Prior to this patch, if ``c`` was a cube, ``c[10]`` returned
+  an MPDAF Image that didn't have any WCS information, and ``c[10:20]`` returned
+  a Cube without either WCS or wavelength information.
+
+* Refactor Spectrum/Image/Cube's methods ``.convolve`` and ``.fftconvolve``,
+  with variance propagation.
+
+  In the previous implementation of Image and Spectrum.fftconvolve(), the shape
+  of the 'other' array had to match the size of the Image or Spectrum. In the
+  new version, the 'other' array can be any size up to the size of the MPDAF
+  object that is being convolved.
+
+  The optional ``interp`` argument of ``Image.fftconvolve()`` has been removed.
+  Filling masked data and variances with zeros for the duration of the
+  convolution should be sufficient in most cases.
+
+Spectrum
+~~~~~~~~
+
+* Set default limits on the x axis for ``Spectrum`` plots.
+
+* Simplify ``Spectrum.correlate``, ``Spectrum.fftconvolve_gauss``,
+  ``Spectrum.median_filter`` and ``Spectrum._interp``.
+
+* Return flux/magnitude error if relevant.
+
+* Rewrote ``Spectrum.resample``: When pixel sizes are being increased
+  a decimation filtering stage is now used before regridding, whereas the
+  original behavior was to perform piecewise integrations for each output pixel.
+  When pixel sizes are being reduced, simple linear interpolation is followed by
+  decimation filtering.
+
+Image
+~~~~~
+
+* Fix ``Image.fwhm`` which was returning twice the FWHM.
+
+* Fix bug which caused resample to change the sign of the X-axis increment.
+
+* Simplify creation of subimages in ``Image.segment``.
+
+* Reduced memory usage in ``Image.truncate``, ``Image.regrid``,
+  ``Image.align_with_image.`` This speeds up ``align_with_image`` significantly.
+
+* Fix exceptions in ``Image.plot`` when ``.wcs`` is None.
+
+* Fix bug that sometimes caused ``Image.plot`` to fail to show the cursor
+  coordinates of an image.
+
+* Use zscale from Astropy if available (1.2 and later).
+
+* Add method ``.to_ds9()`` to visualize data in ds9 and interact with it (using
+  pyds9).
+
+
+Cube
+~~~~
+
+* Fix bug in ``Cube.rebin``. [!471]
+
+* Improved the method ``bandpass_image``:
+
+  - If their isn't a complete overlap between the bandpasses of the filter-curve
+    and the cube, truncate the filter at the edges of the cube instead of
+    raising an exception.
+
+  - When integrating the filter curve over each wavelength channel of the cube,
+    use linear interpolation by default, rather than cubic.
+
+
+Sources
+~~~~~~~
+
+* Increase the file reading speed by loading values of dictionaries (spectra,
+  images, cubes and tables) just if necessary.
+
+* ``CUBE*`` keywords became mandatory:
+
+  - ``CUBE``: Name of the MUSE data cube.
+
+  - ``CUBE_V``: Cube version.
+
+* Some keywords are renamed:
+
+  - ``ORIGIN`` -> ``FROM`` (Name of the software used  to detect the source)
+
+  - ``ORIGIN_V`` -> ``FROM_V`` (Version of the software used to detect the
+    source)
+
+  - ``SRC_VERS`` -> ``SRC_V`` (Source version)
+
+  - ``SOURCE_V`` -> ``FORMAT`` (Version of the mpdaf.sdetect.Source class used
+    to create the source)
+
+  - ``CONFI`` -> ``CONFID`` (Expert confidence index)
+
+* Change format of COMMENT and HISTORY
+
+  - ``COM***`` -> ``COMMENT``
+
+  - ``HIST***`` -> ``HISTORY``
+
+  [Date Author] User comment/History
+
+* Updated ``Source.info``: comments and histories printed more properly.
+
+* ``extract_spectra``: Add the possibility to extract MOFFAT PSF weighted
+  spectra in addition to the Gaussian PSF.
+
+* Add primary indexes (with unicity constraint) to `mag['BAND']` and
+  ``z['Z_DESC']`` for simpler indexing.
+
+* Correct behaviour when trying to add image not overlapping with Source [!482].
+
+
+Catalogs
+~~~~~~~~
+
+* Optimize catalog initialization by not loading all tables.
+
+* Update the initialization in order to be correct for Numpy arrays and masked
+  arrays.
+
+* Make Catalog compatible with Python 3.
+
+* Add comments and histories in catalog generated from a list of Source objects.
+
+* Update Catalog documentation [!467]
+
+* Correct issue #466:
+
+  - Raise ValueError if astropy.Table try to convert a string to float/int. The
+    message gives the name of the column.
+
+  - Add warning if a keyword has not the same type in all sources but the
+    conversion is possible.
+
+  - ``CUBE_V`` is now a mandatory keyword with the string format.
+
+
+muselet
+~~~~~~~
+
+* Changed default SExtractor parameters (QUIET and no segmentation).
+
+* Little optimization (don't use mask array for the continuum computation, write
+  NB images with ``astropy.io.fits``, remove ``RuntimeWarning`` warnings).
+
+* muselet now compatible with Python 3.
+
+
+Pixtable
+~~~~~~~~
+
+* Use a more efficient implementation for ``PixTable.sky_ref``.
+
+* Allow to work on ``PixTable`` object without the ``.filename`` attribute.
+
+* Fix ``PixTable.divide_slice_median``.
+
+* Add repr info for PixTable objects.
+
+* Add unit tests.
+
+
