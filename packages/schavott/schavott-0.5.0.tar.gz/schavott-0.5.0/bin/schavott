@@ -1,0 +1,109 @@
+#!/usr/bin/env python
+import argparse
+from watchdog.observers import Observer
+from watchdog.events import PatternMatchingEventHandler
+import time
+import subprocess
+import os
+
+from schavott.MainApp import MainApp
+from schavott.UI import UI
+from schavott.ReadData import ReadData
+from schavott.Scaffold import Scaffold
+
+
+class FastaHandler(PatternMatchingEventHandler):
+
+    def __init__(self, schavott,_type):
+        PatternMatchingEventHandler.__init__(self)
+        self.schavott = schavott
+        self.pattern = "*."+_type
+        self.type=_type
+
+    def on_created(self, event):
+        if self.type == "fast5":
+            self.schavott.open_read(event.src_path)
+        elif self.type == "fasta":
+            self.schavott.open_fasta(event.src_path)
+        elif self.type == "fastq":
+            self.schavott.open_fastq(event.src_path)
+
+def parse_arguments():
+    """Parse command line arguments.
+
+    Return:
+        args: Object with command line arguments.
+    """
+    parser = argparse.ArgumentParser(description='Scaffold genomes\
+                                                  in real time')
+    parser.add_argument('--run_mode', '-r',
+                        choices=['scaffold', 'assembly'],
+                        default='scaffold',
+                        help='Run scaffolding or assembly')
+    parser.add_argument('--scaffolder', '-s',
+                        choices=['links', 'sspace'],
+                        default='sspace',
+                        help='''Which scaffolder to use.''')
+    parser.add_argument('--sspace_path', '-p',
+                        help='Path to SSPACE (Only for scaffolding)')
+    parser.add_argument('--read_type', "-rt",
+                        choices=["fast5","fastq","fasta"],
+                        default="fast5",
+                        help="Select input type: fastq, fast5 or fasta, this is also the search pattern for shavott (*.read_type)"
+                        )
+    parser.add_argument('--min_read_length', '-l', default=0,
+                        help='''Minimum read length from MinION to use.''')
+    parser.add_argument('--min_quality', '-q', default=0,
+                        help='''Minimum quality for reads from MinION to use.''')
+    parser.add_argument('--watch', '-w', required=True,
+                        help='Directory to watch for fast5 files')
+    parser.add_argument('--contig_file', '-c',
+                        help='Path to contig file (Only for scaffolding)')
+    parser.add_argument('--trigger_mode', '-t', default='reads',
+                        choices=['time', 'reads'],
+                        help='''Use timer or read count.\
+                        [reads]''')
+    parser.add_argument('--skip', '-j',
+                        help='''Skips the first j read of the sequencing''')
+    parser.add_argument('--intensity', '-i', default=100,
+                        help='''How often the scaffolding process should run.\
+                        If run mode is set to reads, scaffolding will run\
+                        every i:th read.\
+                        If run mode is time, scaffolding will run\
+                        every i:th second.\
+                        [100 reads]''')
+    parser.add_argument('--plot', help='Plot result in web-browser',
+                        action="store_true")
+    parser.add_argument('--output', '-o', default='schavott',
+                        help='''Set output filename. (Defaut: schavott)''')
+
+    args = parser.parse_args()
+
+    return args
+
+
+def main():
+    """Main application"""
+    args = parse_arguments()
+    print("Argument Parsed")
+    observer = Observer()
+    print("Observer created")
+    schavott = MainApp(args)
+    print("Main app created")
+
+    '''Schavott is updated to handle fastq and fasta files directly (not fast5)
+        Changes were implemented by David Sundell @ foi.se
+    '''
+
+    observer.schedule(FastaHandler(schavott,args.read_type), path=args.watch)
+    observer.start()
+    print("Observer started")
+
+    while True:
+        time.sleep(1)
+    observer.stop()
+    observer.join()
+
+
+if __name__ == '__main__':
+    main()
