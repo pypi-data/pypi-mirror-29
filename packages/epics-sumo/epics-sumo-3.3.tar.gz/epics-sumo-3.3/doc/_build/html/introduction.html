@@ -1,0 +1,330 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>Introduction &#8212; Support Module Manager 3.3 documentation</title>
+    <link rel="stylesheet" href="_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '3.3',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Module Specifications" href="modulespecs.html" />
+    <link rel="prev" title="Installing Sumo" href="sumo-install.html" /> 
+  </head>
+  <body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="modulespecs.html" title="Module Specifications"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="sumo-install.html" title="Installing Sumo"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">Support Module Manager 3.3 documentation</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="introduction">
+<h1>Introduction<a class="headerlink" href="#introduction" title="Permalink to this headline">¶</a></h1>
+<p>The following text provides a short introduction of the tool.</p>
+<p>If you want to get an impression how you use sumo in an application look at
+<a class="reference internal" href="app-usage.html"><span class="doc">Using sumo in your application</span></a>.</p>
+<p>If you want to get an impression how to change and develop a device support with sumo look at
+<a class="reference internal" href="dev-usage.html"><span class="doc">Develop support modules with sumo</span></a>.</p>
+<div class="section" id="the-problem">
+<h2>The problem<a class="headerlink" href="#the-problem" title="Permalink to this headline">¶</a></h2>
+<p>When you develop <a class="reference external" href="http://www.aps.anl.gov/epics">EPICS</a> applications you
+usually need some <a class="reference external" href="http://www.aps.anl.gov/epics">EPICS</a> support modules to
+interface your hardware.</p>
+<p>The following picture gives an impression of a simple example:</p>
+<img alt="_images/Modules.png" src="_images/Modules.png" />
+<p>You have the following dependencies here:</p>
+<table border="1" class="docutils">
+<colgroup>
+<col width="58%" />
+<col width="42%" />
+</colgroup>
+<thead valign="bottom">
+<tr class="row-odd"><th class="head">module or application</th>
+<th class="head">depends on</th>
+</tr>
+</thead>
+<tbody valign="top">
+<tr class="row-even"><td>application</td>
+<td>BASE A B</td>
+</tr>
+<tr class="row-odd"><td>A:1.0</td>
+<td>BASE X</td>
+</tr>
+<tr class="row-even"><td>B:2.4</td>
+<td>BASE</td>
+</tr>
+<tr class="row-odd"><td>X:3.4</td>
+<td>BASE</td>
+</tr>
+</tbody>
+</table>
+<p>Note that your application depends indirectly on module X since this is
+needed by module A. This is probably not shown in your applications module
+configuration in file “configure/RELEASE”.</p>
+<div class="section" id="new-version-of-a-direct-dependency">
+<h3>New version of a direct dependency<a class="headerlink" href="#new-version-of-a-direct-dependency" title="Permalink to this headline">¶</a></h3>
+<p>If you get a newer version 1.1 of module A, which is directly used by your
+application, you have to rebuild A and then your application. The following
+picture shows in red color which modules have to be recompiled:</p>
+<img alt="_images/Modules-A-changed.png" src="_images/Modules-A-changed.png" />
+<p>This can be done relatively easy.</p>
+</div>
+<div class="section" id="new-version-of-an-indirect-dependency">
+<h3>New version of an indirect dependency<a class="headerlink" href="#new-version-of-an-indirect-dependency" title="Permalink to this headline">¶</a></h3>
+<p>If you get a newer version 3.5 of module X however, you have to rebuild X, A
+and then your application exactly in this order.The following
+picture shows in red color which modules have to be recompiled:</p>
+<img alt="_images/Modules-X-changed.png" src="_images/Modules-X-changed.png" />
+<p>There are several problems here:</p>
+<ul class="simple">
+<li>How do you find all modules that use module X ? There is no easy way to
+find them all aside from a text search of file configure/RELEASE in all
+other modules.</li>
+<li>How do you handle the new compiled version of module A ? It has the same
+sourcecode as before, except for the file configure/RELEASE. Since it uses a
+different version of X it may behave differently. Do you give it a new
+version number although it’s source hasn’t changed ?</li>
+<li>How do you know in your application, which version of X it uses ? Since your
+application doesn’t use X directly, this module is not mentioned in file
+configure/RELEASE there.</li>
+</ul>
+</div>
+<div class="section" id="the-overall-picture">
+<h3>The overall picture<a class="headerlink" href="#the-overall-picture" title="Permalink to this headline">¶</a></h3>
+<p>A further problem is that you probably have to keep many old versions of
+modules for other applications or even older versions of the same application
+that still run on some IOCs. Your overall picture of modules is more like
+the following picture (in reality it is much more complex):</p>
+<img alt="_images/Modules-all.png" src="_images/Modules-all.png" />
+</div>
+</div>
+<div class="section" id="the-solution">
+<h2>The solution<a class="headerlink" href="#the-solution" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="builds">
+<h3>Builds<a class="headerlink" href="#builds" title="Permalink to this headline">¶</a></h3>
+<p>The problems above are solved by sumo. This tool creates <a class="reference internal" href="glossary.html#term-builds"><span class="xref std std-term">builds</span></a>, which
+are guaranteed to be <em>consistent</em> and <em>complete</em> sets of compiled modules. This
+image illustrates the concept:</p>
+<img alt="_images/Modules-Sumo.png" src="_images/Modules-Sumo.png" />
+<p>You see that we have various versions of modules X, A and B. Each version of a
+module belongs to one or more <a class="reference internal" href="glossary.html#term-builds"><span class="xref std std-term">builds</span></a>:</p>
+<table border="1" class="docutils">
+<colgroup>
+<col width="56%" />
+<col width="44%" />
+</colgroup>
+<thead valign="bottom">
+<tr class="row-odd"><th class="head">module</th>
+<th class="head">builds</th>
+</tr>
+</thead>
+<tbody valign="top">
+<tr class="row-even"><td>BASE:3.14.12.2</td>
+<td>Build 1, Build 2</td>
+</tr>
+<tr class="row-odd"><td>A:1.0 built with X:3.4</td>
+<td>Build 1</td>
+</tr>
+<tr class="row-even"><td>A:1.0 built with X:3.5</td>
+<td>Build 2</td>
+</tr>
+<tr class="row-odd"><td>B:2.4</td>
+<td>Build 1, Build 2</td>
+</tr>
+<tr class="row-even"><td>X:3.4</td>
+<td>Build 1</td>
+</tr>
+<tr class="row-odd"><td>X:3.5</td>
+<td>Build 2</td>
+</tr>
+</tbody>
+</table>
+<p>A special case is module A, we have version 1.0 of the module twice, one is
+compiled with X:3.4 and one is compiled with X:3.5. Both have source version
+1.0 but they are <em>not</em> identical due to different versions of module X.</p>
+<p>In the image, the areas of Build 1 and Build 2 overlap. This illustrates that
+compiled modules are re-used when possible. When Build 2 is created after Build
+1, module BASE for example, is not compiled again.</p>
+</div>
+<div class="section" id="database-files-and-directories">
+<h3>Database files and directories<a class="headerlink" href="#database-files-and-directories" title="Permalink to this headline">¶</a></h3>
+<p>Sumo uses two database files and a <a class="reference internal" href="glossary.html#term-build"><span class="xref std std-term">build</span></a> directory to organize the data and the
+builds. Here is an overview:</p>
+<img alt="_images/Sumo-overview.png" src="_images/Sumo-overview.png" />
+<p><a class="reference internal" href="glossary.html#term-deps-db"><span class="xref std std-term">DEPS.DB</span></a> is a <a class="reference external" href="http://www.json.org">JSON</a> file which contains all
+known versions of modules, their source (usually a software repository) and
+their dependencies.</p>
+<p><a class="reference internal" href="glossary.html#term-builds-db"><span class="xref std std-term">BUILDS.DB</span></a> is a <a class="reference external" href="http://www.json.org">JSON</a> file which contains the
+versions of modules of each <a class="reference internal" href="glossary.html#term-build"><span class="xref std std-term">build</span></a> and information where a module from
+one <a class="reference internal" href="glossary.html#term-build"><span class="xref std std-term">build</span></a> is reused in another <a class="reference internal" href="glossary.html#term-build"><span class="xref std std-term">build</span></a>.</p>
+<p>The <a class="reference internal" href="glossary.html#term-build"><span class="xref std std-term">build</span></a> directory contains in a hierarchical directory structure all compiled
+modules. At the first level, directories are named after module names. At the
+second level, directories are named after the version of a module and the name
+of it’s <a class="reference internal" href="glossary.html#term-build"><span class="xref std std-term">build</span></a> separated by a ‘+’ character.</p>
+</div>
+<div class="section" id="creating-a-build">
+<h3>Creating a build<a class="headerlink" href="#creating-a-build" title="Permalink to this headline">¶</a></h3>
+<p>A build is usually created with the command:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">sumo</span> <span class="n">build</span> <span class="n">new</span>
+</pre></div>
+</div>
+<p>Sumo examines the module specification of your application, usually the file
+<code class="docutils literal"><span class="pre">configure/MODULES</span></code>, and creates a build that contains all the needed modules
+with the specified version. The process is as follows:</p>
+<ul class="simple">
+<li>Create a new entry in <a class="reference internal" href="glossary.html#term-builds-db"><span class="xref std std-term">BUILDS.DB</span></a> with <a class="reference internal" href="glossary.html#term-state"><span class="xref std std-term">state</span></a> “unstable”.</li>
+<li>Create directories for all modules that have to be compiled and check out the
+sources from the version control system.</li>
+<li>Create the file <code class="docutils literal"><span class="pre">configure/RELEASE</span></code> in every module. Also ensure that
+whenever possible, modules from existing builds are reused by corresponding
+entries in file <code class="docutils literal"><span class="pre">configure/RELEASE</span></code>.</li>
+<li>Create a makefile in the “builds” directory that ensures that modules are
+compiled in the correct order.</li>
+<li>Run the makefile.</li>
+<li>On success, mark the build in file <a class="reference internal" href="glossary.html#term-builds-db"><span class="xref std std-term">BUILDS.DB</span></a> with <a class="reference internal" href="glossary.html#term-state"><span class="xref std std-term">state</span></a> “testing”.</li>
+</ul>
+</div>
+<div class="section" id="using-a-build">
+<h3>Using a build<a class="headerlink" href="#using-a-build" title="Permalink to this headline">¶</a></h3>
+<p>You use a build in your application with the command:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">sumo</span> <span class="n">build</span> <span class="n">use</span>
+</pre></div>
+</div>
+<p>Sumo examines the module specification of your application, usually the file
+<code class="docutils literal"><span class="pre">configure/MODULES</span></code>, and searches <a class="reference internal" href="glossary.html#term-builds-db"><span class="xref std std-term">BUILDS.DB</span></a> for a build that contains
+all needed modules with the specified version. If it succeeds, it creates a
+file <code class="docutils literal"><span class="pre">configure/RELEASE</span></code> with all the needed entries to use these modules.</p>
+<p>For more details on this see also <a class="reference internal" href="app-usage.html"><span class="doc">Using sumo in your application</span></a>.</p>
+</div>
+</div>
+<div class="section" id="the-implementation">
+<h2>The implementation<a class="headerlink" href="#the-implementation" title="Permalink to this headline">¶</a></h2>
+<p>The functions described above are implemented with two programs:</p>
+<dl class="docutils">
+<dt><a class="reference internal" href="reference-sumo.html"><span class="doc">sumo</span></a></dt>
+<dd>This program implements all commands for using sumo.</dd>
+<dt><a class="reference internal" href="reference-sumo-scan.html"><span class="doc">sumo-scan</span></a></dt>
+<dd>This program can help you to convert your existing
+<a class="reference external" href="http://www.aps.anl.gov/epics">EPICS</a> support directory tree to sumo. It
+scans all modules for versions and repository sources. It generates a <em>scan</em>
+file which can be converted to a <a class="reference internal" href="glossary.html#term-deps-db"><span class="xref std std-term">DEPS.DB</span></a> file with
+<a class="reference external" href="reference-sumo">sumo</a>.</dd>
+</dl>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="sumo-install.html">Installing Sumo</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Introduction</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#the-problem">The problem</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#new-version-of-a-direct-dependency">New version of a direct dependency</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#new-version-of-an-indirect-dependency">New version of an indirect dependency</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#the-overall-picture">The overall picture</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#the-solution">The solution</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#builds">Builds</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#database-files-and-directories">Database files and directories</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#creating-a-build">Creating a build</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#using-a-build">Using a build</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#the-implementation">The implementation</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="modulespecs.html">Module Specifications</a></li>
+<li class="toctree-l1"><a class="reference internal" href="configuration-files.html">Configuration Files</a></li>
+<li class="toctree-l1"><a class="reference internal" href="reference-sumo-scan.html">sumo-scan</a></li>
+<li class="toctree-l1"><a class="reference internal" href="reference-sumo.html">sumo</a></li>
+<li class="toctree-l1"><a class="reference internal" href="app-usage.html">Using sumo in your application</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dev-usage.html">Develop support modules with sumo</a></li>
+<li class="toctree-l1"><a class="reference internal" href="example-sumo-build-try.html">Example for sumo build try</a></li>
+<li class="toctree-l1"><a class="reference internal" href="migration-examples.html">Migrating supports and applications</a></li>
+<li class="toctree-l1"><a class="reference internal" href="glossary.html">Glossary</a></li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="sumo-install.html"
+                        title="previous chapter">Installing Sumo</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="modulespecs.html"
+                        title="next chapter">Module Specifications</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/introduction.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="modulespecs.html" title="Module Specifications"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="sumo-install.html" title="Installing Sumo"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">Support Module Manager 3.3 documentation</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2015, Helmholtz-Zentrum Berlin GmbH.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.6.
+    </div>
+  </body>
+</html>

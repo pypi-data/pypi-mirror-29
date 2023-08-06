@@ -1,0 +1,591 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>sumo-scan &#8212; Support Module Manager 3.3 documentation</title>
+    <link rel="stylesheet" href="_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '3.3',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="sumo" href="reference-sumo.html" />
+    <link rel="prev" title="Configuration Files" href="configuration-files.html" /> 
+  </head>
+  <body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="reference-sumo.html" title="sumo"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="configuration-files.html" title="Configuration Files"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">Support Module Manager 3.3 documentation</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="sumo-scan">
+<h1>sumo-scan<a class="headerlink" href="#sumo-scan" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="what-the-script-does">
+<h2>What the script does<a class="headerlink" href="#what-the-script-does" title="Permalink to this headline">¶</a></h2>
+<p>This script scans an existing <a class="reference external" href="http://www.aps.anl.gov/epics">EPICS</a> support
+module directory tree and collects all information necessary to generate a
+dependency database <a class="reference internal" href="glossary.html#term-deps-db"><span class="xref std std-term">DEPS.DB</span></a> file.  The data is formatted in
+<a class="reference external" href="http://www.json.org">JSON</a> format and printed to the console. You can either
+save this output in a file or combine this script with
+<a class="reference internal" href="reference-sumo.html"><span class="doc">sumo db</span></a> in a pipe to directly create a <a class="reference internal" href="glossary.html#term-deps-db"><span class="xref std std-term">DEPS.DB</span></a>
+file.</p>
+<p>The script takes one or mode commands and has a number of options. Single
+character options always start with a single dash “-“, long options start with
+a double dash “–”, commands are simple words on the command line.</p>
+</div>
+<div class="section" id="how-it-works">
+<h2>How it works<a class="headerlink" href="#how-it-works" title="Permalink to this headline">¶</a></h2>
+<p>The program collects information in several phases. The output of each phase is
+taken as an input for the next phase. If you use the command “all”, the first
+three phases are run at a time. If you run some phases alone by using the
+commands “deps”, “groups” or “repos” you have to provide the input of a phase
+from a file by using the command line option <code class="docutils literal"><span class="pre">--info-file</span></code>.</p>
+<p>All three phases that are needed to create the data for generating a dependency
+database with <a class="reference internal" href="reference-sumo.html"><span class="doc">sumo db</span></a> are combined with the command
+“all”.</p>
+<p>Two other phases “name2paths” and “path2names” are implemented to get
+information on the existing module support tree but are not needed to create a
+dependency database.</p>
+<div class="section" id="phase-i-release-file-scanning">
+<h3>Phase I, RELEASE file scanning<a class="headerlink" href="#phase-i-release-file-scanning" title="Permalink to this headline">¶</a></h3>
+<p>Information on dependencies of <a class="reference external" href="http://www.aps.anl.gov/epics">EPICS</a> modules
+is stored in files named “RELEASE” in directory “configure”. For each module
+the module depends on, there is a variable with a path. This is a short example
+of what you could find in a RELEASE file:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span>SUPPORT=/opt/Epics/R3.14.8/support
+MISC=$(SUPPORT)/misc/2-4
+ALARM=$(SUPPORT)/alarm/3-1
+SOFT=$(SUPPORT)/soft/2-2
+</pre></div>
+</div>
+<p>The script calls “make” for each “RELEASE” file found to generate a list of all
+generated variables. By calling make it is ensured that all macros, e.g.
+“SUPPORT” in the example above, are resolved. By calling “make” twice, one time
+without and one time with the “RELEASE” file the script computes a difference
+of the set of defined variables of both runs. This difference contains all the
+changes in variables that are caused by parsing the “RELEASE” file.</p>
+<p>From this set of variable names and values the script removes names which match
+a given list. For example, “TOP” usually refers to a directory that is not an
+<a class="reference external" href="http://www.aps.anl.gov/epics">EPICS</a> support.</p>
+<p>The remaining variable definitions are assumed to be module dependencies.</p>
+<p>The program builds a map where the keys are absolute paths of support modules.
+The values are maps which map variable names to absolute paths which are in
+fact the module’s dependencies. Here is a short <a class="reference external" href="http://www.json.org">JSON</a>
+example of the created data structure:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="p">{</span>
+    <span class="s2">&quot;dependencies&quot;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s2">&quot;/srv/csr/Epics/R3.14.8/support/alarm/3-3&quot;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s2">&quot;EPICS_BASE&quot;</span><span class="p">:</span> <span class="s2">&quot;/srv/csr/Epics/R3.14.8/base/3-14-8-2-0&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;MISC&quot;</span><span class="p">:</span> <span class="s2">&quot;/srv/csr/Epics/R3.14.8/support/misc/2-4&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;TIMER&quot;</span><span class="p">:</span> <span class="s2">&quot;/srv/csr/Epics/R3.14.8/support/bspDep/timer/4-0&quot;</span>
+        <span class="p">},</span>
+        <span class="s2">&quot;/srv/csr/Epics/R3.14.8/support/alarm/3-4&quot;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s2">&quot;EPICS_BASE&quot;</span><span class="p">:</span> <span class="s2">&quot;/srv/csr/Epics/R3.14.8/base/3-14-8-2-0&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;MISC&quot;</span><span class="p">:</span> <span class="s2">&quot;/srv/csr/Epics/R3.14.8/support/misc/2-4&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;TIMER&quot;</span><span class="p">:</span> <span class="s2">&quot;/srv/csr/Epics/R3.14.8/support/bspDep/timer/5-0&quot;</span>
+        <span class="p">},</span>
+        <span class="s2">&quot;/srv/csr/Epics/R3.14.8/support/csm/3-2&quot;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s2">&quot;EPICS_BASE&quot;</span><span class="p">:</span> <span class="s2">&quot;/srv/csr/Epics/R3.14.8/base/3-14-8-2-0&quot;</span>
+        <span class="p">},</span>
+        <span class="s2">&quot;/srv/csr/Epics/R3.14.8/support/csm/3-3&quot;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s2">&quot;EPICS_BASE&quot;</span><span class="p">:</span> <span class="s2">&quot;/srv/csr/Epics/R3.14.8/base/3-14-8-2-0&quot;</span>
+        <span class="p">},</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="phase-ii-grouping">
+<span id="reference-sumo-scan-phase-ii-grouping"></span><h3>Phase II, Grouping<a class="headerlink" href="#phase-ii-grouping" title="Permalink to this headline">¶</a></h3>
+<p>In this phase the program tries to build groups of modules. A group is a
+collection all the versions of a support module. This is done by parsing module
+paths. The program assumes that each module has a path of the form
+“[BASEDIR]/[MODULEPATH]/[VERSION]”. [VERSION] is simply the last part of the
+path that contains no slashes “/”. [BASEDIR] is given as a command line option
+to the program (see option <code class="docutils literal"><span class="pre">--group-basedir</span></code>) and [MODULEPATH] is all that
+remains of the path. In order to create a <em>modulename</em> the program changes all
+characters in [MODULEPATH] to uppercase and replaces all slashes “/” with
+underscore “_” characters. Here is an example of the created datastructure in
+<a class="reference external" href="http://www.json.org">JSON</a> format:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="p">{</span>
+    <span class="s2">&quot;groups&quot;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s2">&quot;AGILENT&quot;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s2">&quot;/srv/csr/Epics/R3.14.8/support/agilent&quot;</span><span class="p">:</span> <span class="p">[</span>
+                <span class="s2">&quot;2-0&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;2-1&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;2-2&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;head&quot;</span>
+            <span class="p">]</span>
+        <span class="p">},</span>
+        <span class="s2">&quot;ALARM&quot;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s2">&quot;/srv/csr/Epics/R3.14.8/support/alarm&quot;</span><span class="p">:</span> <span class="p">[</span>
+                <span class="s2">&quot;3-0&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;3-1&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;3-2&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;3-3&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;3-4&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;3-5&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;base-3-14&quot;</span>
+            <span class="p">]</span>
+        <span class="p">},</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="phase-iii-repository-scan">
+<span id="reference-sumo-scan-phase-iii-repository-scan"></span><h3>Phase III, repository scan<a class="headerlink" href="#phase-iii-repository-scan" title="Permalink to this headline">¶</a></h3>
+<p>Usually your support modules are managed by a version control system. Currently
+the program supports <em>darcs</em>, <em>mercurial</em>, <em>git</em>, <em>subversion</em> and <em>cvs</em>.</p>
+<p>In each module the program looks for the data of a supported version control
+system. If no version control data is found, the program marks the source of
+the module as a <em>path</em> meaning that <cite>sumo build &lt;reference-sumo&gt;</cite> will
+copy the sources from exactly that path.</p>
+<p>If version control data is found the program it looks for a repository tag. It
+only accepts a tag if it matches the last part of the support module path. The
+program creates a version number from both, the path and the tag and only if
+this number is equal, the tag is accepted. Here are some examples:</p>
+<table border="1" class="docutils">
+<colgroup>
+<col width="60%" />
+<col width="15%" />
+<col width="26%" />
+</colgroup>
+<thead valign="bottom">
+<tr class="row-odd"><th class="head">path</th>
+<th class="head">tag</th>
+<th class="head">tag accepted</th>
+</tr>
+</thead>
+<tbody valign="top">
+<tr class="row-even"><td>/Epics/support/NewDyncon/3-1</td>
+<td>R3-1</td>
+<td>yes</td>
+</tr>
+<tr class="row-odd"><td>/Epics/support/NewDyncon/3-0</td>
+<td>ver-3-0</td>
+<td>yes</td>
+</tr>
+<tr class="row-even"><td>/Epics/support/NewDyncon/2-9</td>
+<td>R2-8</td>
+<td>no</td>
+</tr>
+<tr class="row-odd"><td>/Epics/support/NewDyncon/2-7</td>
+<td>R2-8</td>
+<td>no</td>
+</tr>
+</tbody>
+</table>
+<p>The program also looks for the path of the foreign repository, this is assumed
+to be the central repository we should refer to. If this is not found, the
+program takes the path of the working copy as the source repository. In this
+case, any version tag is ignored.</p>
+<p>Here is an example of the generated data
+in <a class="reference external" href="http://www.json.org">JSON</a> format:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="p">{</span>
+   <span class="s2">&quot;repos&quot;</span><span class="p">:</span> <span class="p">{</span>
+      <span class="s2">&quot;/srv/csr/Epics/R3.14.10/base/3-14-10-0-1&quot;</span><span class="p">:</span> <span class="p">{</span>
+          <span class="s2">&quot;tag&quot;</span><span class="p">:</span> <span class="s2">&quot;R3-14-10-0-1&quot;</span><span class="p">,</span>
+          <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;darcs&quot;</span><span class="p">,</span>
+          <span class="s2">&quot;url&quot;</span><span class="p">:</span> <span class="s2">&quot;rcsadm@aragon.acc.bessy.de:/opt/repositories/controls/darcs/epics/base/3-14-10&quot;</span>
+      <span class="p">},</span>
+      <span class="s2">&quot;/srv/csr/Epics/R3.14.12/base/3-14-12-2-1&quot;</span><span class="p">:</span> <span class="p">{</span>
+          <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;darcs&quot;</span><span class="p">,</span>
+          <span class="s2">&quot;url&quot;</span><span class="p">:</span> <span class="s2">&quot;rcsadm@aragon.acc.bessy.de:/opt/repositories/controls/darcs/epics/base/3-14-12-2&quot;</span>
+      <span class="p">},</span>
+      <span class="s2">&quot;/srv/csr/Epics/R3.14.8/support/apps/wlsSupport/work&quot;</span><span class="p">:</span> <span class="p">{</span>
+          <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;path&quot;</span><span class="p">,</span>
+          <span class="s2">&quot;url&quot;</span><span class="p">:</span> <span class="s2">&quot;rcsadm@aragon.acc.bessy.de:/opt/Epics/R3.14.8/support/apps/wlsSupport/work&quot;</span>
+      <span class="p">},</span>
+      <span class="s2">&quot;/srv/csr/Epics/R3.14.8/support/NewDyncon/3-0&quot;</span><span class="p">:</span> <span class="p">{</span>
+          <span class="s2">&quot;tag&quot;</span><span class="p">:</span> <span class="s2">&quot;R3-0&quot;</span><span class="p">,</span>
+          <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;darcs&quot;</span><span class="p">,</span>
+          <span class="s2">&quot;url&quot;</span><span class="p">:</span> <span class="s2">&quot;rcsadm@aragon.acc.bessy.de:/opt/repositories/controls/darcs/epics/support/dyncon&quot;</span>
+      <span class="p">},</span>
+      <span class="s2">&quot;/srv/csr/Epics/R3.14.8/support/NewDyncon/3-1&quot;</span><span class="p">:</span> <span class="p">{</span>
+          <span class="s2">&quot;tag&quot;</span><span class="p">:</span> <span class="s2">&quot;R3-1&quot;</span><span class="p">,</span>
+          <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;darcs&quot;</span><span class="p">,</span>
+          <span class="s2">&quot;url&quot;</span><span class="p">:</span> <span class="s2">&quot;rcsadm@aragon.acc.bessy.de:/opt/repositories/controls/darcs/epics/support/dyncon&quot;</span>
+      <span class="p">}</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>Optional</p>
+</div>
+<div class="section" id="optional-phase-iv-name-to-paths-map">
+<h3>Optional Phase IV, name to paths map<a class="headerlink" href="#optional-phase-iv-name-to-paths-map" title="Permalink to this headline">¶</a></h3>
+<p>This optional phase that is started with the command “name2paths” creates a map
+that shows what paths were found for modules. Here is an example of the created
+datastructure in <a class="reference external" href="http://www.json.org">JSON</a> format:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="p">{</span>
+    <span class="s2">&quot;name2paths&quot;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s2">&quot;ALARM&quot;</span><span class="p">:</span> <span class="p">[</span>
+            <span class="s2">&quot;/srv/csr/Epics/R3.14.8/support/alarm/3-2&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;/srv/csr/Epics/R3.14.8/support/alarm/3-3&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;/srv/csr/Epics/R3.14.8/support/alarm/3-5&quot;</span>
+        <span class="p">],</span>
+        <span class="s2">&quot;MOTOR&quot;</span><span class="p">:</span> <span class="p">[</span>
+            <span class="s2">&quot;/srv/csr/Epics/R3.14.8/support/motor/6-4-4-1&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;/srv/csr/Epics/R3.14.8/support/motor/6-5-1&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;/srv/csr/Epics/R3.14.8/support/motor/6-5-2&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;/srv/csr/Epics/R3.14.8/support/synApps/5-1-1-0/support/motor/5-9&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;/srv/csr/Epics/R3.14.8/support/synApps/5-2-0-1/support/motor/6-1&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;/srv/csr/Epics/R3.14.8/support/synApps/5-2-0/support/motor/6-1&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;/srv/csr/Epics/R3.14.8/support/synApps/5-4-1/support/motor/6-4-3&quot;</span><span class="p">,</span>
+        <span class="p">],</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="optional-phase-v-paths-to-names-map">
+<h3>Optional Phase V, paths to names map<a class="headerlink" href="#optional-phase-v-paths-to-names-map" title="Permalink to this headline">¶</a></h3>
+<p>This optional phase that is started with the command “path2names” creates a map
+that shows what module names were used for what module paths. Here is an
+example of the created datastructure in <a class="reference external" href="http://www.json.org">JSON</a> format:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="p">{</span>
+    <span class="s2">&quot;path2names&quot;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s2">&quot;/srv/csr/Epics/R3.14.8/support/alarm/3-0&quot;</span><span class="p">:</span> <span class="p">[</span>
+            <span class="s2">&quot;ALARM&quot;</span>
+        <span class="p">],</span>
+        <span class="s2">&quot;/srv/csr/Epics/R3.14.8/support/alarm/3-1&quot;</span><span class="p">:</span> <span class="p">[</span>
+            <span class="s2">&quot;ALARM&quot;</span>
+        <span class="p">],</span>
+        <span class="s2">&quot;/srv/csr/Epics/R3.14.8/support/alarm/3-2&quot;</span><span class="p">:</span> <span class="p">[</span>
+            <span class="s2">&quot;ALARM&quot;</span>
+        <span class="p">],</span>
+        <span class="s2">&quot;/srv/csr/Epics/R3.14.8/support/synApps/5-2-0-1/support/genSub/1-6a&quot;</span><span class="p">:</span> <span class="p">[</span>
+            <span class="s2">&quot;GENSUB&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;GEN_SUB&quot;</span>
+        <span class="p">],</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="program-output">
+<h3>Program output<a class="headerlink" href="#program-output" title="Permalink to this headline">¶</a></h3>
+<p>The output of all phases that are run is combined in a single
+<a class="reference external" href="http://www.json.org">JSON</a> datastructure that is printed on the console.</p>
+<p>From the paths of each RELEASE file, a module name is constructed. Each path of
+a support module from a RELEASE is added to the list of dependencies of that
+module.</p>
+<p>Since all the consecutive calls of “make” may take some time, the results of
+the RELEASE file scan can be saved as a file and used later on with other
+commands like “path2names” or “groups”. This is the meaning of the <code class="docutils literal"><span class="pre">-i</span></code> or
+<code class="docutils literal"><span class="pre">--info-file</span></code> option.</p>
+</div>
+</div>
+<div class="section" id="commands">
+<h2>Commands<a class="headerlink" href="#commands" title="Permalink to this headline">¶</a></h2>
+<p>This is a list of all commands. Note that if no command is provided, the
+program assumes command “all”. This is the command you want to use in most
+cases.</p>
+<div class="section" id="config-list">
+<h3>config list<a class="headerlink" href="#config-list" title="Permalink to this headline">¶</a></h3>
+<p>List all configuration files that were loaded.</p>
+</div>
+<div class="section" id="config-show-optionnames">
+<h3>config show [OPTIONNAMES]<a class="headerlink" href="#config-show-optionnames" title="Permalink to this headline">¶</a></h3>
+<p>Show the configuration in JSON format.  OPTIONNAMES is an optional list of long
+option names. If OPTIONNAMES are specified, only options from this list are
+saved in the configuration file.</p>
+</div>
+<div class="section" id="config-make-filename-optionnames">
+<h3>config make FILENAME [OPTIONNAMES]<a class="headerlink" href="#config-make-filename-optionnames" title="Permalink to this headline">¶</a></h3>
+<p>Create a new configuration file from the options read from configuration files
+and options from the command line. If FILENAME is ‘-‘ dump to the console.
+OPTIONNAMES is an optional list of long option names. If OPTIONNAMES are
+specified, only options from this list are saved in the configuration file.</p>
+</div>
+<div class="section" id="all">
+<h3>all<a class="headerlink" href="#all" title="Permalink to this headline">¶</a></h3>
+<p>This is the most important command. “all” combines the commands “deps”,
+“groups” and “repos”. The output of the commands is combined in a single large
+<a class="reference external" href="http://www.json.org">JSON</a> structure and printed to the console. You can use
+the output of this command as input for <a class="reference internal" href="reference-sumo.html"><span class="doc">sumo db</span></a> in
+order to create a dependency database.</p>
+</div>
+<div class="section" id="deps">
+<h3>deps<a class="headerlink" href="#deps" title="Permalink to this headline">¶</a></h3>
+<p>This command collects dependencies from all “RELEASE” files and returns the
+structure in <a class="reference external" href="http://www.json.org">JSON</a> format. For details see
+<a class="reference internal" href="#phase-i-release-file-scanning">Phase I, RELEASE file scanning</a>.</p>
+</div>
+<div class="section" id="groups">
+<h3>groups<a class="headerlink" href="#groups" title="Permalink to this headline">¶</a></h3>
+<p>This command collects modules of the same name but of different versions in
+groups. For details see <a class="reference internal" href="#phase-ii-grouping">Phase II, Grouping</a>.</p>
+</div>
+<div class="section" id="repos">
+<h3>repos<a class="headerlink" href="#repos" title="Permalink to this headline">¶</a></h3>
+<p>This command collects information about repositories and returns the structure
+in <a class="reference external" href="http://www.json.org">JSON</a> format. For details see
+<a class="reference internal" href="#phase-iii-repository-scan">Phase III, repository scan</a>.</p>
+</div>
+<div class="section" id="name2paths">
+<h3>name2paths<a class="headerlink" href="#name2paths" title="Permalink to this headline">¶</a></h3>
+<p>This command shows what module paths were found for module names. You do not
+need this command in order to generate a dependency database. For details see
+<a class="reference internal" href="#optional-phase-iv-name-to-paths-map">Optional Phase IV, name to paths map</a>.</p>
+</div>
+<div class="section" id="path2names">
+<h3>path2names<a class="headerlink" href="#path2names" title="Permalink to this headline">¶</a></h3>
+<p>This command shows what module names were used for what module paths. You do not
+need this command in order to generate a dependency database. For details see
+<a class="reference internal" href="#optional-phase-v-paths-to-names-map">Optional Phase V, paths to names map</a>.</p>
+</div>
+</div>
+<div class="section" id="options">
+<span id="reference-sumo-scan-options"></span><h2>Options<a class="headerlink" href="#options" title="Permalink to this headline">¶</a></h2>
+<p>Here is a short overview on command line options:</p>
+<dl class="docutils">
+<dt><code class="docutils literal"><span class="pre">--version</span></code></dt>
+<dd>show program’s version number and exit</dd>
+<dt><code class="docutils literal"><span class="pre">-h,</span> <span class="pre">--help</span></code></dt>
+<dd>show this help message and exit</dd>
+<dt><code class="docutils literal"><span class="pre">--summary</span></code></dt>
+<dd>Print a summary of the function of the program.</dd>
+<dt><code class="docutils literal"><span class="pre">--test</span></code></dt>
+<dd>Perform some self tests.</dd>
+<dt><code class="docutils literal"><span class="pre">-c</span> <span class="pre">FILE,</span> <span class="pre">--config</span> <span class="pre">FILE</span></code></dt>
+<dd>Load options from the given configuration file. You can specify more than
+one of these.  Unless –no-default-config is given, the program always
+loads configuration files from several standard directories first before it
+loads your configuration file. The contents of all configuration files are
+merged.</dd>
+<dt><code class="docutils literal"><span class="pre">-C,</span> <span class="pre">--no-default-config</span></code></dt>
+<dd>If this option is given the program doesn’t load the default configuration.</dd>
+<dt><code class="docutils literal"><span class="pre">--disable-loading</span></code></dt>
+<dd>If given, disable execution of load commands like ‘#preload’ in
+configuration files. In this case these keys are treated like ordinary
+keys.</dd>
+<dt><code class="docutils literal"><span class="pre">-A</span></code>, <code class="docutils literal"><span class="pre">--append</span> <span class="pre">OPTIONNAME</span></code></dt>
+<dd>If an option with name OPTIONNAME is given here and it is a list option,
+the list from the command line is <em>appended</em> to the list from the
+configuration file. The default is that options from the command line
+<em>override</em> option values from the configuration file.</dd>
+<dt><code class="docutils literal"><span class="pre">--#preload</span> <span class="pre">FILES</span></code></dt>
+<dd>Specify a an ‘#preload’ directive in the configuration file. This option
+has only a meaning if a configuration file is created with the ‘makeconfig’
+command. ‘#preload’ means that the following file(s) are loaded before the
+rest of the configuration file.</dd>
+<dt><code class="docutils literal"><span class="pre">--#opt-preload</span> <span class="pre">FILES</span></code></dt>
+<dd>This option does the same as –#preload but the file loading is optional.
+If they do not exist the program continues without an error.</dd>
+<dt><code class="docutils literal"><span class="pre">--#postload</span> <span class="pre">FILES</span></code></dt>
+<dd>Specify a an ‘#postload’ directive in the configuration file. This option
+has only a meaning if a configuration file is created with the ‘makeconfig’
+command. ‘#postload’ means that the following file(s) are loaded after the
+rest of the configuration file.</dd>
+<dt><code class="docutils literal"><span class="pre">--#opt-postload</span> <span class="pre">FILES</span></code></dt>
+<dd>This option does the same as –#postload but the file loading is optional.
+If they do not exist the program continues without an error.</dd>
+<dt><code class="docutils literal"><span class="pre">-d</span> <span class="pre">DIR,</span> <span class="pre">--dir</span> <span class="pre">DIR</span></code></dt>
+<dd>Parse all RELEASE files in directory DIR. You can specify more than one of
+these by repeating this option or by joining values in a single string
+separated by spaces. A default for this option can be put in a
+configuration file.</dd>
+<dt><code class="docutils literal"><span class="pre">-i</span> <span class="pre">INFOFILE,</span> <span class="pre">--info-file</span> <span class="pre">INFOFILE</span></code></dt>
+<dd>Read information from INFOFILE. This is a file generated by this script in
+a prevous run.</dd>
+<dt><code class="docutils literal"><span class="pre">-N</span> <span class="pre">NAME,</span> <span class="pre">--ignore-name</span> <span class="pre">NAME</span></code></dt>
+<dd>Define names of variables in RELEASE files that should be ignored. You
+usually want to ignore the names like ‘TOP’ or ‘SUPPORT’. You can specify
+more than one of these by repeating this option or by joining values in a
+single string separated by spaces. A default for this option can be put in
+a configuration file. If this option isn’t provided, the program uses these
+defaults: TOP EPICS_SUPPORT SUPPORT MSI TEMPLATE_TOP</dd>
+<dt><code class="docutils literal"><span class="pre">-g</span> <span class="pre">DIR,</span> <span class="pre">--group-basedir</span> <span class="pre">DIR</span></code></dt>
+<dd>Option “-g” or “–group-basedir” must be followed by a directory name. It
+defines the part of the directory path that is the same for all support
+modules. This is needed in order to generate a module name from the
+module’s directory path.  You can specify more than one of these by
+repeating this option or by joining values in a single string separated by
+spaces. A default for this option can be put in a configuration file.
+Directories (option –dir) are always appended to the list of
+group-basedirs.</dd>
+<dt><code class="docutils literal"><span class="pre">--exclude-path</span> <span class="pre">REGEXP</span></code></dt>
+<dd>Exclude all paths that match REGEXP from dependencies.  You can specify
+more than one of these by repeating this option or by joining values in a
+single string separated by spaces. A default for this option can be put in
+a configuration file.</dd>
+<dt><code class="docutils literal"><span class="pre">--exclude-deps</span> <span class="pre">REGEXP</span></code></dt>
+<dd>Exclude all paths whose dependencies match REGEXP. A default for this
+option can be put in a configuration file.</dd>
+<dt><code class="docutils literal"><span class="pre">--ignore-changes</span> <span class="pre">REGEXP</span></code></dt>
+<dd>Ignore all uncomitted changes in files that match the REGEXP. Usually
+uncomitted changes mean that we cannot use the repository as such but must
+copy the whole directory (source type is always ‘path’). A common
+application for this option is to ignore changes in ‘configure/RELEASE’.
+You can specify more than one of these by repeating this option or by
+joining values in a single string separated by spaces. A default for this
+option can be put in a configuration file.</dd>
+<dt><code class="docutils literal"><span class="pre">-D</span> <span class="pre">EXPRESSION,</span> <span class="pre">--dir-patch</span> <span class="pre">EXPRESSION</span></code></dt>
+<dd>Specify a directory patchexpression. Such an expression consists of a tuple
+of 2 python strings. The first is the match expression, the second one is
+the replacement string. The regular expression is applied to every source
+path generated. You can specify more than one patchexpression. A default
+for this option can be put in a configuration file.</dd>
+<dt><code class="docutils literal"><span class="pre">-U</span> <span class="pre">EXPRESSION,</span> <span class="pre">--url-patch</span> <span class="pre">EXPRESSION</span></code></dt>
+<dd>Specify a repository url patchexpression. Such an expression consists of a
+tuple of 2 python strings. The first is the match expression, the second
+one is the replacement string. The regular expression is applied to every
+source url generated. You can specify more than one patchexpression. A
+default for this option can be put in a configuration file.</dd>
+<dt><code class="docutils literal"><span class="pre">--hint</span> <span class="pre">HINT</span></code></dt>
+<dd>Specify a HINT. A HINT has the form REGEXP,FLAG{,FLAG}.  REGEXP is a
+regular expression that is matched with the module path. FLAG is a string
+that gives hints how to treat that module.  You can specify more than one
+hint. A default for this option can be put in a configuration file.</dd>
+<dt><code class="docutils literal"><span class="pre">--missing-tag</span></code></dt>
+<dd>Show directories where a repository was found but no tag. A default for
+this option can be put in a configuration file.</dd>
+<dt><code class="docutils literal"><span class="pre">--missing-repo</span></code></dt>
+<dd>Show directories where no repository was found. A default for this option
+can be put in a configuration file.</dd>
+<dt><code class="docutils literal"><span class="pre">-t</span> <span class="pre">BUILDTAG,</span> <span class="pre">--buildtag</span> <span class="pre">BUILDTAG</span></code></dt>
+<dd>Scan only directories of the given buildtag.</dd>
+<dt><code class="docutils literal"><span class="pre">-p,</span> <span class="pre">--progress</span></code></dt>
+<dd>Show progress on stderr. A default for this option can be put in a
+configuration file.</dd>
+<dt><code class="docutils literal"><span class="pre">-t,</span> <span class="pre">--trace</span></code></dt>
+<dd>Switch on some trace messages.</dd>
+<dt><code class="docutils literal"><span class="pre">--exceptions</span></code></dt>
+<dd>On fatal errors that raise python exceptions, don’t catch these. This will
+show a python stacktrace instead of an error message and may be useful for
+debugging the program.”</dd>
+<dt><code class="docutils literal"><span class="pre">-v,</span> <span class="pre">--verbose</span></code></dt>
+<dd>Show command calls. A default for this option can be put in a
+configuration file</dd>
+<dt><code class="docutils literal"><span class="pre">-n,</span> <span class="pre">--dry-run</span></code></dt>
+<dd>Just show what the program would do.</dd>
+</dl>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="sumo-install.html">Installing Sumo</a></li>
+<li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="modulespecs.html">Module Specifications</a></li>
+<li class="toctree-l1"><a class="reference internal" href="configuration-files.html">Configuration Files</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">sumo-scan</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#what-the-script-does">What the script does</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#how-it-works">How it works</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#phase-i-release-file-scanning">Phase I, RELEASE file scanning</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#phase-ii-grouping">Phase II, Grouping</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#phase-iii-repository-scan">Phase III, repository scan</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#optional-phase-iv-name-to-paths-map">Optional Phase IV, name to paths map</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#optional-phase-v-paths-to-names-map">Optional Phase V, paths to names map</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#program-output">Program output</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#commands">Commands</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#config-list">config list</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#config-show-optionnames">config show [OPTIONNAMES]</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#config-make-filename-optionnames">config make FILENAME [OPTIONNAMES]</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#all">all</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#deps">deps</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#groups">groups</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#repos">repos</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#name2paths">name2paths</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#path2names">path2names</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#options">Options</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="reference-sumo.html">sumo</a></li>
+<li class="toctree-l1"><a class="reference internal" href="app-usage.html">Using sumo in your application</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dev-usage.html">Develop support modules with sumo</a></li>
+<li class="toctree-l1"><a class="reference internal" href="example-sumo-build-try.html">Example for sumo build try</a></li>
+<li class="toctree-l1"><a class="reference internal" href="migration-examples.html">Migrating supports and applications</a></li>
+<li class="toctree-l1"><a class="reference internal" href="glossary.html">Glossary</a></li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="configuration-files.html"
+                        title="previous chapter">Configuration Files</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="reference-sumo.html"
+                        title="next chapter">sumo</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/reference-sumo-scan.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="reference-sumo.html" title="sumo"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="configuration-files.html" title="Configuration Files"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">Support Module Manager 3.3 documentation</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2015, Helmholtz-Zentrum Berlin GmbH.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.6.
+    </div>
+  </body>
+</html>
