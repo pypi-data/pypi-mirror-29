@@ -1,0 +1,212 @@
+from typing import Dict, Any, TypeVar, Type, Union, Callable, List, Generic, Collection, Optional
+
+from dataclasses import fields, MISSING, is_dataclass, Field, dataclass, field as dc_field
+
+
+class DaciteError(Exception):
+    pass
+
+
+class WrongTypeError(DaciteError):
+    def __init__(self, field: Field, value: Any):
+        super().__init__(f'wrong type for field "{field.name}" - should be "{_get_type_name(field.type)}" '
+                         f'instead of "{_get_type_name(type(value))}"')
+        self.field = field
+        self.value = value
+
+
+class MissingValueError(DaciteError):
+    def __init__(self, field: Field):
+        super().__init__(f'missing value for field {field.name}')
+        self.field = field
+
+
+@dataclass
+class Config:
+    rename: Dict[str, str] = dc_field(default_factory=dict)
+    prefixed: Dict[str, str] = dc_field(default_factory=dict)
+    cast: List[str] = dc_field(default_factory=list)
+    transform: Dict[str, Callable[[Any], Any]] = dc_field(default_factory=dict)
+    flattened: List[str] = dc_field(default_factory=list)
+
+
+T = TypeVar('T')
+Data = Dict[str, Any]
+
+
+def make(data_class: Type[T], data: Union[Data, List[Data]], config: Optional[Config] = None) -> T:
+    """Create a data class instance from a dictionary.
+
+    :param data_class: a data class type
+    :param data: a dictionary of a input data
+    :param config: a configuration of the creation process
+    :return: an instance of a data class
+    """
+    data = _merge_data(data)
+    config = config or Config()
+    values: Data = {}
+    for field in fields(data_class):
+        value = _get_value_for_field(field, data, config)
+        if field.name in config.transform:
+            value = config.transform[field.name](value)
+        if value is not None and _has_data_class_collection(field.type):
+            collection_type = _extract_data_class_collection(field.type)
+            value = collection_type.__extra__(make(
+                data_class=_extract_data_class(field.type),
+                data=item,
+                config=_make_inner_config(field, config),
+            ) for item in value)
+        elif value is not None and _has_data_class(field.type):
+            value = make(
+                data_class=_extract_data_class(field.type),
+                data=value,
+                config=_make_inner_config(field, config),
+            )
+        elif field.name in config.cast:
+            value = field.type(value)
+        elif not _is_instance(field.type, value):
+            raise WrongTypeError(field, value)
+        values[field.name] = value
+    return data_class(**values)
+
+
+def _get_value_for_field(field: Field, data: Data, config: Config) -> Any:
+    try:
+        if field.name in config.prefixed:
+            return _extract_nested_dict_for_prefix(config.prefixed[field.name], data)
+        elif field.name in config.flattened:
+            return _extract_flattened_fields(field, data, config.rename)
+        else:
+            key_name = config.rename.get(field.name, field.name)
+            return data[key_name]
+    except KeyError:
+        if _is_optional(field.type):
+            return None
+        elif field.default == MISSING:
+            raise MissingValueError(field)
+        else:
+            return field.default
+
+
+def _merge_data(data: Union[Dict[str, Any], List[Dict[str, Any]]]) -> Dict[str, Any]:
+    if isinstance(data, list):
+        new_data = {}
+        for single_data in data:
+            new_data.update(single_data)
+        data = new_data
+    return data
+
+
+def _make_inner_config(field: Field, config: Config) -> Config:
+    return Config(
+        rename=_extract_nested_dict(field, config.rename),
+        prefixed=_extract_nested_dict(field, config.prefixed),
+        cast=_extract_nested_list(field, config.cast),
+        transform=_extract_nested_dict(field, config.transform),
+        flattened=_extract_nested_list(field, config.flattened),
+    )
+
+
+def _extract_flattened_fields(field: Field, data: Dict[str, Any], rename: Dict[str, str]):
+    result = {}
+    for inner_field in fields(_extract_data_class(field.type)):
+        field_name = rename.get(field.name + '.' + inner_field.name, inner_field.name)
+        if field_name in data:
+            result[field_name] = data[field_name]
+    return result
+
+
+def _extract_nested_dict(field: Field, params: Dict[str, Any]) -> Dict[str, Any]:
+    prefix = field.name + '.'
+    return _extract_nested_dict_for_prefix(prefix=prefix, data=params)
+
+
+def _extract_nested_dict_for_prefix(prefix: str, data: Dict[str, Any]) -> Dict[str, Any]:
+    result = {}
+    prefix_len = len(prefix)
+    for key, val in data.items():
+        if key.startswith(prefix):
+            result[key[prefix_len:]] = val
+    return result
+
+
+def _extract_nested_list(field: Field, params: List[str]) -> List[str]:
+    result = []
+    prefix = field.name + '.'
+    prefix_len = len(prefix)
+    for name in params:
+        if name.startswith(prefix):
+            result.append(name[prefix_len:])
+    return result
+
+
+def _is_optional(t: Type) -> bool:
+    return _is_union(t) and type(None) in t.__args__
+
+
+def _is_union(t: Type) -> bool:
+    return type(t) == type(Union)
+
+
+def _is_generic(t: Type) -> bool:
+    return type(t) == type(Generic)
+
+
+def _is_instance(t: Type, value: Any) -> bool:
+    if _is_union(t):
+        types = tuple(t.__origin__ if _is_generic(t) else t for t in t.__args__)
+        return isinstance(value, types)
+    elif _is_generic(t):
+        return isinstance(value, t.__origin__)
+    else:
+        return isinstance(value, t)
+
+
+def _has_data_class(t: Type) -> bool:
+    if _is_union(t):
+        return _has_inner_data_class(t)
+    else:
+        return is_dataclass(t)
+
+
+def _has_inner_data_class(t: Type) -> bool:
+    return hasattr(t, '__args__') and any(is_dataclass(it) for it in t.__args__)
+
+
+def _extract_data_class(t: Type) -> Any:
+    if _has_data_class_collection(t):
+        t = _extract_data_class_collection(t)
+    if _has_inner_data_class(t):
+        for inner_type in t.__args__:
+            if is_dataclass(inner_type):
+                return inner_type
+    elif is_dataclass(t):
+        return t
+
+
+def _has_data_class_collection(t: Type) -> bool:
+    if _is_union(t):
+        return _has_inner_data_class_collection(t)
+    else:
+        return _is_data_class_collection(t)
+
+
+def _is_data_class_collection(t: Type) -> bool:
+    return not _is_union(t) and issubclass(t, Collection) and _has_inner_data_class(t)
+
+
+def _has_inner_data_class_collection(t: Type) -> bool:
+    return hasattr(t, '__args__') and any(_is_data_class_collection(it) for it in t.__args__)
+
+
+def _extract_data_class_collection(t: Type) -> Any:
+    if _has_inner_data_class_collection(t):
+        for inner_type in t.__args__:
+            if _is_data_class_collection(inner_type):
+                return inner_type
+    elif _is_data_class_collection(t):
+        return t
+
+
+def _get_type_name(t: Type) -> str:
+    return t.__name__ if hasattr(t, '__name__') else str(t)
