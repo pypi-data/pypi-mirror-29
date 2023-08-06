@@ -1,0 +1,53 @@
+#!/bin/bash
+#
+# Script by: Mike Fuller (mfuller@atlassian.com)
+#            Shane Anderson (sanderson@atlassian.com)
+#
+# This script should not be run directly, instead it should be sourced into your shell.
+
+CLOUDTOKEN_DIR=~/.config/cloudtoken
+DAEMON_MODE=0
+
+SOURCED_FILE=$(command which cloudtoken)
+
+INSTALL_DIR="$( cd "$( dirname "${SOURCED_FILE}" )" && pwd )"
+
+PARAMS=( "$@" )
+
+# -d (daemon mode) argument passed?
+while test $# != 0
+do
+    case "$1" in
+    -d) DAEMON_MODE=1;;
+    --daemon) DAEMON_MODE=1;;
+    esac
+    shift
+done
+
+if [[ ${DAEMON_MODE} -eq 1 ]]; then
+    rm -f "${CLOUDTOKEN_DIR}"/tokens.shell
+
+    echo "Launching in daemon mode..."
+    if [[ ${EUID} -ne 0 ]]; then
+        sudo HOME="${HOME}" "${INSTALL_DIR}"/cloudtoken_proxy.sh -u "${USER}" "${PARAMS[@]}"
+    else
+        "${INSTALL_DIR}"/cloudtoken_proxy.sh
+    fi
+else
+    "${INSTALL_DIR}"/cloudtoken.cmd "${PARAMS[@]}"
+fi
+
+if [[ -f "${CLOUDTOKEN_DIR}"/tokens.tmp ]]; then
+    source "${CLOUDTOKEN_DIR}"/tokens.tmp
+    rm -f "${CLOUDTOKEN_DIR}"/tokens.tmp
+elif [[ -f "${CLOUDTOKEN_DIR}"/tokens.shell ]]; then
+    if [[ ${DAEMON_MODE} -eq 0 ]]; then
+        source "${CLOUDTOKEN_DIR}"/tokens.shell
+    fi
+fi
+
+unset INSTALL_DIR
+unset DAEMON_MODE
+unset SOURCED_FILE
+unset INSTALL_DIR
+unset PARAMS
