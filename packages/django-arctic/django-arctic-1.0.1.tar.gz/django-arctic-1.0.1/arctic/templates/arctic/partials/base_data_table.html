@@ -1,0 +1,219 @@
+{% load i18n staticfiles arctic_tags arctic_pagination_tags %}
+
+<div class="row">
+    {% block tool_links %}
+        <div class="col">
+            {% if tool_links %}
+                <div class="form-group">
+                {% if tool_links|length > 1 %}
+                    <button class="btn btn-secondary float-right" type="button" data-toggle="tool-links"><i class="fa {{ tool_links_icon }}"></i></button>
+                        <div class="dropdown-pane bottom" id="tool-links" data-dropdown data-close-on-click="true">
+                            <ul>
+                                {% for link in tool_links %}
+                                    <li><a href="{% url link.url %}">{{ link.label }}</a></li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                {% else %}
+                    <a class="btn btn-secondary" title="{{ tool_links.0.label }}" href="{% url tool_links.0.url %}"><i title="{{ tool_links.0.label }}" class="fa {% if tool_links.0.icon %}{{ tool_links.0.icon }}{% else %}{{ tool_links_icon }}{% endif %}"></i></a>
+                {% endif %}
+                </div>
+            {% endif %}
+        </div>
+    {% endblock %}
+    {% if simple_search_form or advanced_search_form %}
+        <form action="" method="GET" class="search-form col-12 col-md-6 push-right list-inline-search">
+            {% block search_form %}
+            <fieldset type="get" id="arctic_search_form">
+                <div class="page-filters row">
+                    <div class="col">
+                        <div class="form-group">
+                            <label class="sr-only" for="search">Search</label>
+                            <div class="input-group mb-2 mr-sm-2 mb-sm-0 {% if simple_search_form.errors or advanced_search_form.errors %} invalid-form-field {% endif %}">
+                                {% if advanced_search_form %}
+                                    <a id="arctic_toggle_advanced_search_form_button" class="input-group-btn arctic_toggle_form_button" tabindex="0" popover-trigger="manual" data-placement="bottom" data-container="#arctic_search_form" data-popover_content_container="#arctic_advanced_search">
+                                        <button class="btn btn-secondary" type="button">
+                                            <i class="fa fa-sliders"></i>
+                                        </button>
+                                    </a>
+                                {% endif %}
+                                <input type="text" class="form-control" id="search" placeholder="{% trans 'Search' %}" value="{{ simple_search_form.search.value|default:"" }}" name="search">
+                                <span class="input-group-btn">
+                                    <button class="btn btn-secondary" type="button" js-search-submit>
+                                        <i class="fa fa-search"></i>
+                                    </button>
+                                </span>
+
+                            </div>
+                        </div>
+                        {% if simple_search_form.errors %}
+                            {% block errors %}
+                                {% for field in simple_search_form %}
+                                    {% for error in field.errors %}
+                                        <p class="invalid-feedback invalid-form-field">{{ error }}</p>
+                                    {% endfor %}
+                                {% endfor %}
+                                {% for error in form.non_field_errors %}
+                                    <p class="invalid-feedback invalid-form-field">{{ error }}</p>
+                                {% endfor %}
+                            {% endblock %}
+                        {% endif %}
+
+
+                        {% if advanced_search_form %}
+                            {% block advanced_search_form %}
+                                <div class="artic_toggle_form hidden" id="arctic_advanced_search" hidden>
+                                    {% include "arctic/partials/form_fields.html" with form=advanced_search_form %}
+                                    <div class="form-block">
+                                        <input type="submit" value="{% trans 'Search' %}" class="btn btn-primary">
+                                    </div>
+                                </div>
+                            {% endblock %}
+                        {% endif %}
+                    </div>
+                </div>
+            </fieldset>
+            {% endblock %}
+        </form>
+    {% endif %}
+</div>
+
+{% block top_pagination %}
+{% endblock %}
+
+{% block table %}
+<div class="row">
+    {# data table #}
+    {% if list_items %}
+        <div class="col-sm-12 col">
+            <div class="arctic-card">
+                {% if list_summary %}
+                    <div class="arctic-card__header">
+                        <h4 class="arctic-card__title">
+                            {{ page_title }}
+                        </h4>
+                    </div>
+                {% endif %}
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                {% if sorting_url %}
+                                    <th class="drag-cell">&nbsp;</th>
+                                {% endif %}
+                                {% for item in list_header %}
+                                    <th>
+                                        {% if item.order_url %}
+                                            <a href="{{ item.order_url }}">{{ item.label }}&nbsp;
+                                                {% if item.order_direction == 'desc' %}
+                                                    <i class="fa fa-sort-desc"></i>
+                                                {% elif item.order_direction == 'asc' %}
+                                                    <i class="fa fa-sort-asc"></i>
+                                                {% else %}
+                                                    <i class="fa fa-sort show-on-hover"></i>
+                                                {% endif %}</a>
+                                        {% else %}
+                                            {{ item.label }}
+                                        {% endif %}
+                                        {% block extra_table_header_data %}{% endblock %}
+                                    </th>
+                                {% endfor %}
+
+                                {% if has_action_links %}
+                                    <th>&nbsp;</th>
+                                {% endif %}
+                            </tr>
+                        </thead>
+                        <tbody {% if list_items.0.0.type == 'sorting' %}data-sorting-url="{{ sorting_url }}"{% endif %}>
+                            {% for row in list_items %}
+                                <tr>
+                                    {% for column in row %}
+                                        {% if column.type == 'field' %}
+                                            <td {% if column.class %}class="{{ column.class }}"{%endif%}>
+                                                {% if column.url %}
+                                                    <a href="{{ column.url }}"{% if list_items.0.0.type == 'sorting' %}style="display:block;"{% endif %}>
+                                                {% endif %}
+                                                {% if column.value|typename != 'list' %}
+                                                    {{ column.value|default_if_none:"" }}
+                                                {% else %}
+                                                    {% for item in column.value %}
+                                                        <span class="list-tag">{{ item }}</span>
+                                                    {% endfor %}
+                                                {% endif %}
+                                                {% if column.url %}
+                                                    </a>
+                                                {% endif %}
+                                            </td>
+                                        {% elif column.type == 'actions' %}
+                                            <td>
+                                            {% block list_actions %}
+                                            <div class="list-actions">
+                                                {% for link in column.actions %}
+                                                    <a href="{{ link.url }}" class="action-{{ link.label }} btn btn-secondary btn-sm show-on-hover" title="{{ link.label|capfirst }}" 
+                                                    {% if link.confirm %}
+                                                        data-toggle="modal" 
+                                                        data-target="#confirm-dialog"
+                                                        data-confirm-title="{{ link.confirm.title }}"
+                                                        data-confirm-message="{{ link.confirm.message }}"
+                                                        data-confirm-ok="{{ link.confirm.ok }}"
+                                                        data-confirm-cancel="{{ link.confirm.cancel }}"
+                                                    {% endif %}
+                                                    >
+                                                    {% if link.icon %}
+                                                        <i class="fa {{ link.icon }} fa-lg"></i>
+                                                    {% else %}
+                                                        {{ link.label|capfirst }}
+                                                    {% endif %}
+                                                    </a>
+                                                {% endfor %}
+                                                <div class="list-actions-placeholder"></div>
+                                            {% endblock %}
+                                            </div>
+                                            </td>
+                                        {% elif column.type == 'sorting' %}
+                                            <td class="drag-cell">
+                                                <div class="list-actions drag-handle show-on-hover">
+                                                    <i data-sorting-key="{{ column.id }}" data-sorting-value="{{ column.value }}" class="fa fa-bars"></i>
+                                                </div>
+                                            </td>
+                                        {% endif %}
+                                    {% endfor %}
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% block pagination %}
+                {% arctic_paginate page_obj range=5 paginator=paginator show_first_last=True %}
+            {% endblock %}
+        </div>
+    {% else %}
+       <h3 class="col text-center">{% trans 'No result...' %}</h3>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block confirm_dialog %}
+<div class="modal fade" id="confirm-dialog" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="exampleModalLabel"></h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        ...
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary confirm-cancel" data-dismiss="modal">Cancel</button>
+        <a href="#" role="button" class="btn btn-primary confirm-ok">OK</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_data %}{% endblock %}
