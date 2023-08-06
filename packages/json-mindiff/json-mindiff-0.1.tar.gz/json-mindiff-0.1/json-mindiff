@@ -1,0 +1,60 @@
+#!/usr/bin/env python2.7
+
+import argparse
+import collections
+import itertools
+import json
+import sys
+
+from collections import OrderedDict
+
+SequenceType = (list, tuple)
+MappingType = collections.Mapping
+
+
+def is_seq_of_mapping(v):
+    return isinstance(v, SequenceType) and all(map(lambda _: isinstance(_, MappingType), v))
+
+
+def mindiff(src, dest):
+    assert type(src) == type(dest)
+
+    # TODO We assume we start from dict
+
+    src_keys = src.keys()
+    dest_keys = dest.keys()
+
+    common_keys = [k for k in src_keys if k in dest_keys]
+    added_keys = [k for k in dest_keys if k not in src_keys]
+
+    for k in common_keys:
+        v1 = src[k]
+        v2 = dest[k]
+        if isinstance(v1, MappingType) and isinstance(v2, MappingType):
+            yield k, OrderedDict(mindiff(v1, v2))
+        elif is_seq_of_mapping(v1) and is_seq_of_mapping(v2):
+            v3 = map(OrderedDict, itertools.starmap(mindiff, zip(v1, v2)))
+            yield k, v3
+        else:
+            yield k, v2
+
+    for k in added_keys:
+        yield k, dest[k]
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Minimize changes introduced to json.')
+    parser.add_argument('source', metavar='JSON', type=str, help='original json file')
+
+    args = parser.parse_args()
+
+    with open(args.source, 'r') as f:
+        src = json.load(f, object_pairs_hook=OrderedDict)
+    dest = json.load(sys.stdin, object_pairs_hook=OrderedDict)
+
+    ret = OrderedDict(mindiff(src, dest))
+    json.dump(ret, sys.stdout, indent=2)
+
+
+if __name__ == '__main__':
+    main()
