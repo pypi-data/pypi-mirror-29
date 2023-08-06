@@ -1,0 +1,11 @@
+Custom AWS Client Wrapper
+-------------------------
+
+To use (with caution), simply do::
+
+    To send an email using ses
+    >>> from messagerie import AWSEntity
+    >>> client = AWSEntity(access_key='access key', access_id='access id', region='nigeria', s3_base_url='https://s3-us-west-2.amazonaws.com', s3_bucket='bucket name')
+    >>> client.send_raw_message('gaphylicious@gmail.com', subject='Test Email', body='This is news', recipients=['riri@fenty.com', 'queen@bey.tidal'])
+    >>> client.send_formatted_message('gaphylicious@gmail.com', subject='Test Email', text_body='This is news', html_body='<html><body><div><h2>This is news!!!</h2></body></html>', to='riri@fenty.com')
+
