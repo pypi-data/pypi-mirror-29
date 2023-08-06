@@ -1,0 +1,4 @@
+
+This pacakge provides data for my chemometrics blog at spectroscopy.ramer.at.
+
+
