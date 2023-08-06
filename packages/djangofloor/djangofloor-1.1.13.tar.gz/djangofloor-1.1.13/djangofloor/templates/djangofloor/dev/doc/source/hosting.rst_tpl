@@ -1,0 +1,125 @@
+{% load djangofloor_dev %}Python hosting
+==============
+
+Heroku
+------
+
+First, you need to prepare your Heroku deployment:
+
+.. code-block:: bash
+
+    mkdir heroku-hosting
+    cd heroku-hosting
+    pip install pipenv
+    heroku login
+
+Now, a few files are required:
+
+.. code-block:: bash
+
+    # create the Pipfile for downloading and installing {{ DF_PROJECT_NAME }}
+    cat << EOF > Pipfile
+    [[source]]
+    url = "https://pypi.python.org/simple"
+    verify_ssl = true
+    [packages]
+    {{ DF_PIP_NAME|pipfile_url|safe }}
+    django-redis-sessions = "*"
+    django-redis = "*"
+    psycopg2 = "*"
+    [requires]
+    python_version = "3.6"
+    EOF
+
+    # create a simple manage.py for the automatic collectstatic command
+    cat << EOF > manage.py
+    #!/usr/bin/env python
+    from djangofloor.scripts import django, set_env
+
+    set_env(command_name='{{ DF_MODULE_NAME }}-ctl')
+    django()
+    EOF
+
+    cat << EOF > local_settings.ini
+{% local_settings LOCAL_PATH="./" as settings_str %}{{ settings_str|line_prefix:'    ' }}EOF
+
+    # create the Procfile with required processes
+    cat << EOF > Procfile
+    web: {{ control_command }} server
+{% for queue in required_celery_queues %}    celery_{{ queue }}:{{ control_command }} worker -Q {{ queue }}
+{% endfor %}    EOF
+
+
+You can now deploy using git:
+
+.. code-block:: bash
+
+    git init
+    git add .
+    git commit -m 'initial commit'
+    heroku create
+    # if you prefer SSH, you should use the following line
+    heroku create --ssh-git
+    # the metadata feature is required to provide the Heroku app name in the env
+    heroku labs:enable runtime-dyno-metadata
+    git push heroku master
+
+{% if required_celery_queues %}A Redis app is also required to run {{ DF_PROJECT_NAME }} and to use efficient
+ session and cache storages.{% else %}You can add a Redis app to use efficient session and cache storages.{% endif %}.
+
+.. code-block:: bash
+
+    heroku addons:create heroku-redis -a heroku_app_name
+
+If you do not use Redis for sessions and cache, you must remove `django-redis-sessions` and `django-redis` from your Pipfile.
+
+Once deployed, you can prepare the database, create an administrator or open Python shell:
+
+.. code-block:: bash
+
+    heroku run {{ control_command }} migrate
+    heroku run {{ control_command }} createsuperuser
+    heroku run {{ control_command }} shell
+
+Finally, you need to create at least one worker{% if required_celery_queues %} by kind of process{% endif %}:
+
+.. code-block:: bash
+
+    heroku ps:scale web=1
+{% for queue in required_celery_queues %}    heroku ps:scale celery_{{ queue }}=1
+{% endfor %}
+
+
+
+{% if not required_celery_queues %}
+Gandi
+-----
+
+{{ DF_PROJECT_NAME }} must be locally installed (in a virtualenv) to prepare the deployment on a Gandi host.
+
+.. code-block:: bash
+
+    mkdir gandi-hosting
+    pip install {{ DF_PIP_NAME }}
+    cd gandi-hosting
+    cat << EOF > gandi.yml
+    python:
+      version: 3.6
+    EOF
+    cat << EOF > wsgi.py
+    import os
+    from djangofloor.scripts import get_application
+
+    os.environ['LC_ALL']="en_US.UTF-8"
+    os.environ['LC_LANG']="en_US.UTF-8"
+    application = get_application(command_name='{{ DF_MODULE_NAME }}-ctl')
+    EOF
+    cat << EOF > requirements.txt
+    {{ DF_PIP_NAME }}
+    EOF
+    cat << EOF > local_settings.ini
+{% local_settings SERVER_BASE_URL="https://www.example.com/" LOCAL_PATH="./" as settings_str %}{{ settings_str|line_prefix:'    ' }}EOF
+    {{ control_command }} collectstatic --noinput
+    git add .
+    git commit -am 'initial commit'
+{% endif %}
