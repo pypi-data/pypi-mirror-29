@@ -1,0 +1,2 @@
+webpackJsonp([45],[function(e,u,t){"use strict";function _interopRequireDefault(e){return e&&e.__esModule?e:{default:e}}var i=t(75),n=_interopRequireDefault(i),a=t(6),r=_interopRequireDefault(a),f=t(29),l=_interopRequireDefault(f);new l.default({mixins:[n.default],ready:function(){r.default.debug("Topic display page")}})}]);
+//# sourceMappingURL=topic.js.map
