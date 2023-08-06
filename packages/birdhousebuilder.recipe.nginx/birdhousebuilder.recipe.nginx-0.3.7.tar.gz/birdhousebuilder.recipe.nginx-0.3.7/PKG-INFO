@@ -1,0 +1,286 @@
+Metadata-Version: 1.1
+Name: birdhousebuilder.recipe.nginx
+Version: 0.3.7
+Summary: A Buildout recipe to install and configure Nginx with conda.
+Home-page: https://github.com/bird-house/birdhousebuilder.recipe.nginx
+Author: Birdhouse
+Author-email: UNKNOWN
+License: Apache License 2
+Description-Content-Type: UNKNOWN
+Description: *****************************
+        birdhousebuilder.recipe.nginx
+        *****************************
+        
+        .. image:: https://travis-ci.org/bird-house/birdhousebuilder.recipe.nginx.svg?branch=master
+           :target: https://travis-ci.org/bird-house/birdhousebuilder.recipe.nginx
+           :alt: Travis Build
+        
+        Introduction
+        ************
+        
+        ``birdhousebuilder.recipe.nginx`` is a `Buildout`_ recipe to install `Nginx`_ from an `Anaconda`_ channel and to deploy a site configuration for your application.
+        This recipe is used by the `Birdhouse`_ project.
+        
+        .. _`Buildout`: http://buildout.org/
+        .. _`Anaconda`: http://continuum.io/
+        .. _`Nginx`: http://nginx.org/
+        .. _`Mako`: http://www.makotemplates.org
+        .. _`Birdhouse`: http://bird-house.github.io
+        
+        Usage
+        *****
+        
+        The recipe requires that Anaconda is already installed. You can use the buildout option ``anaconda-home`` to set the prefix for the anaconda installation. Otherwise the environment variable ``CONDA_PREFIX`` (variable is set when activating a conda environment) is used as conda prefix.
+        
+        The recipe will install the ``nginx`` package from a conda channel in a conda enviroment defined by ``CONDA_PREFIX``. The intallation folder is given by the ``prefix`` buildout option. It deploys a Nginx site configuration for your application. The configuration will be deployed in ``${prefix}/etc/nginx/conf.d/myapp.conf``. Nginx can be started with ``${prefix}/etc/init.d/nginx start``.
+        
+        The recipe depends on ``birdhousebuilder.recipe.conda`` and ``zc.recipe.deployment``.
+        
+        Supported options
+        =================
+        
+        This recipe supports the following options:
+        
+        **anaconda-home**
+           Buildout option pointing to the root folder of the Anaconda installation. Default: ``$HOME/anaconda``.
+        
+        Buildout part options for the program section:
+        
+        **prefix**
+          Deployment option to set the prefix of the installation folder. Default: ``/``
+        
+        **user**
+          Deployment option to set the run user.
+        
+        **etc-user**
+          Deployment option to set the user of the ``/etc`` directory. Default: ``root``
+        
+        **name**
+           The name of your application.
+        
+        **input**
+           The path to a `Mako`_ template with a Nginx configuration for your application.
+        
+        **worker-processes**
+           The number of worker processes started (use ``auto`` for dynamic value). Default: 1
+        
+        **keepalive-timeout**
+           Timeout during keep-alive client connection will stay open on the server side. Default: 5s
+        
+        **organization**
+           The organization name for the certificate. Default: ``Birdhouse``
+        
+        **organization-unit**
+           The organization unit for the certificate. Default: ``Demo``
+        
+        **ssl-verify-client**
+          Nginx option to verify SSL client certificates. Possible values: ``off`` (default), ``on``, ``optional``.
+          `Nginx ssl_verify_client option`_
+        
+        **ssl-client-certificate**
+          Nginx option with the name of the bundle of CA certificates for the client. Default: ``esgf-ca-bundle.crt``.
+          `Nginx ssl_client_certificate`_
+        
+        **ssl-client-certificate-url**
+          Optional URL to download a bundle of CA certificates for ``ssl-client-certificate``. Default:
+          https://github.com/ESGF/esgf-dist/raw/master/installer/certs/esgf-ca-bundle.crt
+        
+        All additional options can be used as parameters in your Nginx site configuration.
+        
+        .. _Nginx ssl_verify_client option: https://nginx.org/en/docs/http/ngx_http_ssl_module.html#ssl_verify_client
+        .. _Nginx ssl_client_certificate option: https://nginx.org/en/docs/http/ngx_http_ssl_module.html#ssl_client_certificate
+        
+        
+        Example usage
+        =============
+        
+        The following example ``buildout.cfg`` installs Nginx with a site configuration for ``myapp``::
+        
+          [buildout]
+          parts = myapp_nginx
+        
+          anaconda-home = /opt/anaconda
+        
+          [myapp_nginx]
+          recipe = birdhousebuilder.recipe.nginx
+          name = myapp
+          prefix = /
+          user = www-data
+          input = ${buildout:directory}/templates/myapp_nginx.conf
+        
+          hostname =  localhost
+          port = 8081
+        
+        An example Mako template for your Nginx configuration could look like this::
+        
+          upstream myapp {
+            server unix:///tmp/myapp.socket fail_timeout=0;
+          }
+        
+          server {
+            listen ${port};
+            server_name ${hostname};
+        
+            root ${prefix}/var/www;
+            index index.html index.htm;
+        
+            location / {
+              # checks for static file, if not found proxy to app
+              try_files $uri @proxy_to_phoenix;
+            }
+        
+            location @proxy_to_phoenix {
+                proxy_pass http://myapp;
+            }
+          }
+        
+        Authors
+        *******
+        
+        Carsten Ehbrecht ehbrecht at dkrz.de
+        
+        Changes
+        *******
+        
+        0.3.7 (2018-02-07)
+        ==================
+        
+        * Feature #8: added options to handle SSL client verification.
+        * fixed travis build ... needed to update versions.
+        * pep8.
+        
+        0.3.6 (2017-03-09)
+        ==================
+        
+        * Fixed #7: create ``var/tmp/nginx`` folder.
+        * set ``user`` directive only if different from etc-user.
+        
+        0.3.5 (2016-12-12)
+        ==================
+        
+        * fixed ``etc/`` folder permissions.
+        * update MANIFEST.in.
+        
+        0.3.4 (2016-07-14)
+        ==================
+        
+        * fixed ssl-key-length option (int value).
+        
+        0.3.3 (2016-07-13)
+        ==================
+        
+        * ssl-key-length option added.
+        
+        0.3.2 (2016-07-11)
+        ==================
+        
+        * create ``var/www`` folder.
+        
+        0.3.1 (2016-07-04)
+        ==================
+        
+        * enabled user in nginx.conf.
+        * using supervisor skip-user option.
+        
+        0.3.0 (2016-06-30)
+        ==================
+        
+        * enabled travis.
+        * updated buildout and doctests.
+        * added conda options env, pkgs, channels.
+        * using zc.recipe.deployment
+        * fail save with log message when cert generation fails.
+        
+        0.2.6 (2016-04-11)
+        ==================
+        
+        * added cryptography conda package.
+        
+        0.2.5 (2016-01-19)
+        ==================
+        
+        * set keepalive_timeout to 5s (can be overwritten in options).
+        
+        
+        0.2.4 (2016-01-15)
+        ==================
+        
+        * disabled sendfile in nginx.conf.
+        * ``worker_processes`` is now configurable.
+        
+        0.2.3 (2015-07-06)
+        ==================
+        
+        * create cert.pem only if it does not exist.
+        
+        0.2.2 (2015-06-25)
+        ==================
+        
+        * cleaned up templates.
+        * added user option.
+        
+        0.2.1 (2015-06-23)
+        ==================
+        
+        * generates self-signed certificate for https.
+        
+        0.2.0 (2015-02-24)
+        ==================
+        
+        * installing in conda enviroment ``birdhouse``.
+        * using ``$ANACONDA_HOME`` environment variable.
+        * separation of anaconda-home and installation prefix.
+        
+        0.1.7 (2014-12-06)
+        ==================
+        
+        * Don't update conda on buildout update.
+        
+        0.1.6 (2014-11-11)
+        ==================
+        
+        * Removed proxy configuration.
+        * Fixed supervisor config: nginx didn't stop.
+        * nginx is started as supervisor service.
+        
+        0.1.5 (2014-10-27)
+        ==================
+        
+        * disabled SSLv3 (poodle attack)
+        
+        0.1.4 (2014-10-21)
+        ==================
+        
+        * Updated docs.
+        * Fixed pyOpenSSL dependency.
+        
+        0.1.3 (2014-08-26)
+        ==================
+        
+        * Fixed proxy config for wpsoutputs.
+        * Using proxy-enabled buildout option.
+        * options master and superuser_enabled added.
+        
+        0.1.2 (2014-08-01)
+        ==================
+        
+        * Updated documentation.
+        
+        0.1.1 (2014-07-24)
+        ==================
+        
+        * Added start-stop script for nginx.
+        * Generates self-signed certificate for https.
+        
+        0.1.0 (2014-07-10)
+        ==================
+        
+        Initial Release.
+        
+Keywords: buildout recipe birdhouse nginx conda
+Platform: UNKNOWN
+Classifier: Framework :: Buildout
+Classifier: Intended Audience :: Developers
+Classifier: Topic :: Software Development :: Build Tools
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: License :: OSI Approved :: BSD License
