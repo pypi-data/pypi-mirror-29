@@ -1,0 +1,88 @@
+##############################################################################
+# Copyright (c) 2017 ZTE Corporation and others.
+#
+# All rights reserved. This program and the accompanying materials
+# are made available under the terms of the Apache License, Version 2.0
+# which accompanies this distribution, and is available at
+# http://www.apache.org/licenses/LICENSE-2.0
+##############################################################################
+
+- name: install openssl - Cryptography and SSL/TLS Toolkit
+  become: yes
+  package:
+    name: openssl
+    state: present
+
+- name: RSA signatures speed measurement
+  command: openssl speed rsa
+  register: openssl_rsa_out
+
+- name: AES speed measurement
+  command: openssl speed -evp aes-128-cbc
+  register: openssl_aes_out
+
+
+- name: generating log filename
+  set_fact:
+    rsa_logfile: "{{ output }}/openssl-rsa.log"
+    aes_logfile: "{{ output }}/openssl-aes.log"
+  tags: always
+
+# TODO(yujunz) `delegate_to` not working under `with_items`
+- name: saving rsa output to log
+  copy:
+    content: "{{ openssl_rsa_out.stdout }}"
+    dest: "{{ rsa_logfile }}"
+  delegate_to: localhost
+
+- name: saving aes output to log
+  copy:
+    content: "{{ openssl_aes_out.stdout }}"
+    dest: "{{ aes_logfile }}"
+  delegate_to: localhost
+
+- name: collect ssl rsa metrics
+  collect:
+    string: "{{ lookup('file', rsa_logfile) }}"
+    patterns:
+      - |-
+          ^rsa\s+512\sbits\s.+\s+
+          ?(?P<rsa_sign_512>\d+\.\d)\s+
+          ?(?P<rsa_verify_512>\d+\.\d)$
+      - |-
+          ^rsa\s+1024\sbits\s.+\s+
+          ?(?P<rsa_sign_1024>\d+\.\d)\s+
+          ?(?P<rsa_verify_1024>\d+\.\d)$
+      - |-
+          ^rsa\s+2048\sbits\s.+\s+
+          ?(?P<rsa_sign_2048>\d+\.\d)\s+
+          ?(?P<rsa_verify_2048>\d+\.\d)$
+      - |-
+          ^rsa\s+4096\sbits\s.+\s+
+          ?(?P<rsa_sign_4096>\d+\.\d)\s+
+          ?(?P<rsa_verify_4096>\d+\.\d)$
+    dest: "{{ output }}/rsa-metrics.json"
+  register: ssl_rsa_metrics
+  tags: collect
+
+- name: collect ssl aes metrics
+  collect:
+    string: "{{ lookup('file', aes_logfile) }}"
+    patterns:
+      - |-
+          ^aes-128-cbc\s+
+          ?(?P<aes_128_cbc_16_bytes>\d+\.\w+)\s+
+          ?(?P<aes_128_cbc_64_bytes>\d+\.\w+)\s+
+          ?(?P<aes_128_cbc_256_bytes>\d+\.\w+)\s+
+          ?(?P<aes_128_cbc_1024_bytes>\d+\.\w+)\s+
+          ?(?P<aes_128_cbc_8192_bytes>\d+\.\w+)$
+    dest: "{{ output }}/aes-metrics.json"
+  register: ssl_aes_metrics
+  tags: collect
+
+- name: create SSL report
+  template:
+    src: ssl-metrics.j2
+    dest: "{{ output }}/ssl-metrics"
+  delegate_to: localhost
+  tags: report
