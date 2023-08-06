@@ -1,0 +1,68 @@
+Dataspectra
+^^^^^^^^^^^
+
+A python package to create interactive web visualizations. 
+
+
+Requirements:
+=============
+- Python2.7
+
+
+Installation
+=============
+.. code-block:: bash
+    
+    $ pip install virtualenv
+    $ virtualenv ~/virtualenv/ds
+    $ source ~/virtualenv/ds/bin/activate
+    $ pip install dataspectra
+
+
+Development Notes
+=================
+
+Testing on your local computer without deploying
+++++++++++++++++++++++++++++++++++++++++++++++++
+
+- In order to test new functions you will need Google Cloud SDK
+- Test using dev_appserver.py --clear_datastore=yes app.yaml in the sample output. 
+- Your website will now be visible on localhost:8080
+- Upload a sample subset of your data with 
+- Once your code looks good. You can copy it to the source code in aefiles. 
+- For running a quick test, use:
+.. code-block:: bash
+
+    $ dataspectra develop 
+
+
+Updating the documentation
+++++++++++++++++++++++++++
+
+- Written in Sphinx
+- Run the following in the docs directory. 
+
+.. code-block:: bash
+
+    $ make html
+
+- If using Microsoft Visual Studio, can preview by Command-Shift-R. 
+
+
+Developing the package
+++++++++++++++++++++++
+
+.. code-block:: bash
+
+    $ python setup.py develop
+
+
+Uploading package to pypi
++++++++++++++++++++++++++
+
+.. code-block:: bash
+
+    $ python setup.py sdist upload
+
+
+
