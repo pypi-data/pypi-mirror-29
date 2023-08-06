@@ -1,0 +1,115 @@
+{% extends "orga/submission/base.html" %}
+{% load bootstrap4 %}
+{% load i18n %}
+{% load rich_text %}
+{% block submission_content %}
+
+    <div class="alert alert-info{% if not form.instance.pk and not read_only %} offset-3 col-md-9{% endif %}">
+        {% if not read_only %}
+            {{ request.event.settings.review_help_text|rich_text }}
+            {% if not form.instance.pk %}
+                {% blocktrans trimmed %}
+                    You will be able to see other reviews once you have given yours.
+                {% endblocktrans %}
+            {% endif %}
+        {% else %}
+            {% blocktrans trimmed %}
+                This submission can no longer be reviewed, as a decision regarding its
+                role in this event has already been made, or the review deadline is over.
+            {% endblocktrans %}
+        {% endif %}
+        {% if override_left %}
+            {% blocktrans trimmed with count=override_left %}
+                You have <strong>{{ count }}</strong> override votes left.
+            {% endblocktrans %}
+        {% endif %}
+    </div>
+
+    {% if not form.instance.pk and not read_only %}
+    <form method="post" action="">
+        {% csrf_token %}
+        <div class="form-group row">
+            <label class="col-md-3 col-form-label" for="id_text">{% trans "Submission Type" %}</label>
+            <div class="col-md-9">
+                {{ submission.submission_type }}
+            </div>
+        </div>
+        <div class="form-group row">
+            <label class="col-md-3 col-form-label" for="id_text">{% trans "Abstract" %}</label>
+            <div class="col-md-9">
+                {{ submission.abstract|rich_text }}
+            </div>
+        </div>
+        <div class="form-group row">
+            <label class="col-md-3 col-form-label" for="id_text">{% trans "Description" %}</label>
+            <div class="col-md-9">
+                {{ submission.description|rich_text }}
+            </div>
+        </div>
+        <div class="form-group row">
+            <label class="col-md-3 col-form-label" for="id_text">{% trans "Notes for the organizer" %}</label>
+            <div class="col-md-9">
+                {{ submission.notes|rich_text }}
+            </div>
+        </div>
+        {% bootstrap_field form.score layout='event' %}
+        {% bootstrap_form qform layout='event' %}
+        {% bootstrap_field form.text layout='event' %}
+        <div class="form-group row">
+            <div class="ml-auto col-md-9">
+                <button type="submit" class="btn btn-primary" name="show_next" value="1">{% trans "Save and next" %}</button>
+                <button type="submit" class="btn btn-secondary">{% trans "Save" %}</button>
+            </div>
+        </div>
+    </form>
+    {% endif %}
+
+    {% if form.instance.pk or read_only %}
+    <table class="table review-table table-responsive-md">
+            <tr>
+                <th>{% trans "Points" %}</th>
+                {% for field in qform %}
+                    <th>{{ field.label }}</th>
+                {% endfor %}
+                <th>{% trans "Review" %}</th>
+                <th></th>
+            </tr>
+        <tbody>
+            {% if form.instance.pk or not read_only %}
+            <tr><form method="post">
+                {% csrf_token %}
+                <td>{% bootstrap_field form.score layout="inline" %}</td>
+                {% for field in qform %}
+                    <td>{% bootstrap_field field layout="inline" %}</td>
+                {% endfor %}
+                <td>{% bootstrap_field form.text layout="inline" %}</td>
+                <td>
+                    {% if not read_only %}
+                        <button type="submit" class="btn btn-primary">{% trans "Save" %}
+                    {% else %}
+                        {{ request.user.get_display_name }}
+                    {% endif %}
+                </td>
+            </form></tr>
+            {% endif %}
+            {% for review in reviews %}
+                {% if review != form.instance %}
+                    <tr>
+                        <td>{{ review.score }}</td>
+                        {% for answer in review.answers %}
+                            <td>
+                                {{ answer.answer }}
+                            </td>
+                        {% endfor %}
+                        <td>{{ review.text }}</td>
+                        <td>{{ review.user }}</td>
+                    </tr>
+                {% endif %}
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+
+{% endblock %}
+

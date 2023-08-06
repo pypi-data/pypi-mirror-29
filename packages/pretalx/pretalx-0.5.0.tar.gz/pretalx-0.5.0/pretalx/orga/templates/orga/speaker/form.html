@@ -1,0 +1,87 @@
+{% extends "orga/cfp/base.html" %}
+{% load bootstrap4 %}
+{% load i18n %}
+{% load rules %}
+
+{% block content %}
+{% has_perm 'orga.change_speaker' request.user form.instance as can_edit_speaker %}
+    <legend>
+        {{ form.instance.user.get_display_name }} ({{ submission_count }}
+        {% blocktrans trimmed count count=submission_count %}
+        submission
+        {% plural %}
+        submissions
+        {% endblocktrans %})
+    </legend>
+    <div class="alert alert-info">
+        <h5>{% if submission_count > 1 %}{% trans "Submissions" %}{% else %}{% trans "Submission" %}{% endif %}</h5>
+        <ul>
+            {% for submission in submissions %}
+            <li>
+                <a href="{{ submission.orga_urls.base }}">
+                    {{ submission.title }}
+                    ({% include "cfp/event/fragment_state.html" with state=submission.state %})
+                </a>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+    <form method="post" action="">
+        {% csrf_token %}
+        {% bootstrap_field form.name layout='event' %}
+        {% bootstrap_field form.email layout='event' %}
+        {% bootstrap_field form.biography layout='event' %}
+        {% bootstrap_field form.availabilities layout='event' %}
+        <div class="form-group row">
+            <div class="ml-auto col-md-9">
+                {% if action == "edit" %}
+                    <button type="submit" class="btn btn-primary">{% trans "Save" %}</button>
+                {% elif action == "view" %}
+                    {% if form.instance.pk and can_edit_speaker %}
+                        <a class="btn btn-secondary" href={% url "orga:speakers.view" event=request.event.slug pk=object.pk %}>{% trans "Edit" %}</a>
+                    {% endif %}
+                {% endif %}
+            </div>
+        </div>
+    </form>
+
+    {% if questions %}
+    <legend>{% trans "Answers" %}</legend>
+    <ul>
+    {% for q_info in questions %}
+        {% if q_info.answers.count %}
+        <li>
+            <strong>{{ q_info.question.question }}</strong>
+            {% if q_info.answers.count == 1 %}{% with answer=q_info.answers.first %}
+                -
+                {% if answer.options.count > 0 %}
+                    {% for option in answer.options.all %}
+                    {{ option }},
+                    {% endfor %}
+                {% else %}
+                    {{ answer.answer }}
+                {% endif %}
+                {% if answer.submission %}({{ answer.submission.title }}){% endif %}
+            {% endwith %}{% else %}
+            <ul>
+                {% for answer in q_info.answers %}
+                <li>
+                    {% if answer.options.count > 0 %}
+                        {% for option in answer.options.all %}
+                        {{ option }}, 
+                        {% endfor %}
+                    {% else %}
+                        {{ answer.answer }}
+                    {% endif %}
+                    {% if answer.submission %}({{ answer.submission.title }}){% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+        </li>
+        {% endif %}
+    {% endfor %}
+    </ul>
+    {% endif %}
+
+{% endblock %}

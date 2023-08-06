@@ -1,0 +1,112 @@
+{% extends "agenda/base.html" %}
+{% load compress %}
+{% load i18n %}
+{% load staticfiles %}
+
+{% block agenda_content %}
+
+<div id="fahrplan">
+    {% if schedule != schedule.event.current_schedule %}
+        <div class="alert alert-warning">
+            {% if not schedule.version %}
+                {{ phrases.agenda.schedule_editable }}
+            {% else %}
+                {% blocktrans trimmed with current_url=schedule.event.urls.schedule %}
+                    You are currently viewing an older schedule version. You may find the current version <a href="{{ current_url }}">here</a>.
+                {% endblocktrans %}
+            {% endif %}
+        </div>
+    {% endif %}
+    <div class="schedule-header">
+        <div class="header-right pull-right">
+            <span class="icon">{% trans "Version" %} {{ schedule.version }}</span>
+            · <span class="icon"><a href="{{ request.event.urls.changelog }}"><i class="fa fa-clock-o"></i></a></span>
+            · <span class="icon"><a href="{{ request.event.urls.feed }}"><i class="fa fa-feed"></i></a></span>
+            · <span class="dropdown">
+                <button class="btn btn-secondary btn-sm dropdown-toggle" id="exportDropdown" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <i class="fa fa-code"></i>
+                </button>
+                <div class="dropdown-menu" aria-labelledby="exportDropdown">
+                    {% for exporter in exporters %}{% if exporter.public %}
+                    <a class="dropdown-item" href="{{ request.event.urls.export }}?exporter={{ exporter.identifier|iriencode }}">
+                        {% if exporter.icon|slice:":3" == "fa-" %}
+                            <span class="fa {{ exporter.icon }} export-icon"></span>
+                        {% else %}
+                            <span class="export-icon">{{ exporter.icon }}</span>
+                        {% endif %}
+                        {{ exporter.verbose_name }}
+                    </a>
+                    {% endif %}{% endfor %}
+                </div>
+              </span>
+        </div>
+    </div>
+
+    {% for day in data %}
+        <h3 id="{{ day.start.date|date:"c" }}">
+            <a href="#{{ day.start.date|date:"c" }}">{{ day.start.date|date:"DATE_FORMAT" }}</a>
+        </h3>
+        <div class="day">
+            {% if day.first_start %}
+                <div class="header-row">
+                    <span class="date">{{ day.start.date|date:"c" }}</span>
+                    {% for room in day.rooms %}
+                        <div class="room-header">{{ room.name }}</div>
+                    {% endfor %}
+                </div>
+                <div class="rooms">
+                    <div class="time-column">
+                        {% for hour in day.hours %}
+                            <div class="hour">{{ hour }}</div>
+                        {% endfor %}
+                    </div>
+                    {% for room in day.rooms %}
+                    <div class="room">
+                        <div class="talk-container" style="height: {{ day.height }}px">
+                            {% for talk in room.talks %}
+                                {% if not schedule.is_archived %}
+                                  <a href="{{ talk.submission.urls.public }}">
+                                {% endif %}
+
+                                <div class="talk{% if request.user in talk.submission.speakers.all %} talk-personal{% endif %}{% if talk.is_active %} active{% endif %}"
+                                     id="{{ talk.submission.code }}"
+                                     title="{{ talk.submission.title }} {% if talk.submission.speakers.exists %}({{ talk.submission.display_speaker_names }}){% endif %}"
+                                     style="height: {{ talk.height }}px; min-height: {{ talk.height }}px; top: {{ talk.top }}px"
+                                     data-time="{{ talk.start|date:"H:i" }}–{{ talk.end|date:"H:i" }}">
+                                    <div class="talk-content">
+                                        {% if talk.submission.do_not_record %}
+                                            <span class="fa-stack">
+                                              <i class="fa fa-video-camera fa-stack-1x"></i>
+                                              <i class="fa fa-ban fa-stack-2x do-not-record" aria-hidden="true" title="{{ phrases.agenda.schedule_do_not_record }}"></i>
+                                            </span>
+                                        {% endif %}
+
+                                        {% if talk.submission.is_deleted %}
+                                          <span class="talk-title">[{% trans deleted %}]</span>
+                                        {% else %}
+                                            <span class="talk-title">{{ talk.submission.title }}</span>
+
+                                            {% if talk.submission.speakers.exists %}
+                                              <span class="talk-speakers">({{ talk.submission.display_speaker_names }})</span><br>
+                                            {% endif %}
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </a>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="no-talks">
+                    {% blocktrans with day.start.date as current_day trimmed %}
+                        No talks on {{ current_day }}.
+                    {% endblocktrans %}
+                </div>
+            {% endif %}
+        </div>
+    {% endfor %}
+</div>
+
+{% endblock %}
