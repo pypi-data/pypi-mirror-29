@@ -1,0 +1,3 @@
+Django settings sans boilerplate
+
+
