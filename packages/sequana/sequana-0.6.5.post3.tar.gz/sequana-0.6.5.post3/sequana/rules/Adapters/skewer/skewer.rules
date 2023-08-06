@@ -1,0 +1,66 @@
+__sequana__skewer = [":fwd", ":rev", ":m", ":q"]
+
+from sequana import SequanaConfig
+cfg = SequanaConfig(config)
+skewer = cfg.config.skewer
+
+prefix = "skewer/"
+
+# TODO: should make these lines more robus (R1 hardcoded)
+__skewer__output = [prefix + cfg.PROJECT +"_R1_.trimmed.fastq.gz"]
+
+if len(cfg.DATASET) == 2:
+    __skewer__output += [prefix + cfg.PROJECT +"_R2_.trimmed.fastq.gz"]
+
+
+if "adapter_removal_input" in config.keys():
+    if config["adapter_removal_input"] == "bwa_bam_to_fastq":
+        __skewer__input = __bwa_bam_to_fastq__output[:]
+        __skewer__input = [x for x in __skewer__input if "unmapped" in x]
+else:
+    __skewer__input = cfg.DATASET[:]
+
+
+if len(cfg.DATASET) == 2:
+    rule skewer:
+        input: 
+            file1 = __skewer__input[0],
+            file2 = __skewer__input[1]
+        output:
+            file1 = __skewer__output[0],
+            file2 = __skewer__output[1],
+        params:
+            fwd= skewer.fwd,
+            rev= skewer.rev,
+            m= skewer.m,
+            quality= skewer.quality,
+            kwargs= skewer.kwargs
+        log: "logs/skewer.txt"
+        threads: 4
+        run:
+            shell("skewer " 
+                        " {input.file1} {input.file2} "
+                        " -x {params.fwd} "
+                        " -y {params.rev} "
+                        " -q {params.quality} "
+                        " -t {threads}"
+                        " {params.kwargs} > {log}")
+else:
+    rule skewer:
+        input:
+            file1 = __skewer__input[0],
+        output:
+            file1 = __skewer__output[0],
+        params:
+            fwd= skewer.fwd,
+            m= skewer.m,
+            quality= skewer.quality,
+            kwargs= skewer.kwargs
+        log: "logs/skewer.txt"
+        run:
+            shell("skewer -o {output.file1} "
+                    "  {input.file1}  "
+                    " -x {params.fwd} "
+                    " -q {params.quality} "
+                    " -t {threads}"
+                    " {params.kwargs} > {log}")
