@@ -1,0 +1,174 @@
+|Build Status| |Test Coverage| |PyPi Version| |PyPi License| |PyPi
+Versions| |PyPi Wheel|
+
+ahocorapy - Fast Many-Keyword Search in Pure Python
+===================================================
+
+ahocorapy is a pure python implementation of the Aho-Corasick Algorithm.
+Given a list of keywords one can check if at least one of the keywords
+exist in a given text in linear time.
+
+Comparison:
+-----------
+
+Why another Aho-Corasick implementation?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+We started working on this in the beginning of 2016. Our requirements
+included unicode support combined with python2.7. That was impossible
+with C-extension based libraries (like
+`pyahocorasick <https://github.com/WojciechMula/pyahocorasick/>`__).
+Pure python libraries were very slow or unusable due to memory
+explosion. Since then another pure python library was released
+`py-aho-corasick <https://github.com/JanFan/py-aho-corasick>`__. The
+repository also contains some discussion about different
+implementations. There is also
+`acora <https://github.com/scoder/acora>`__, but it includes the note
+('current construction algorithm is not suitable for really large sets
+of keywords') which really was the case the last time I tested, because
+RAM ran out quickly.
+
+Differences
+~~~~~~~~~~~
+
+-  Compared to
+   `pyahocorasick <https://github.com/WojciechMula/pyahocorasick/>`__
+   our library supports unicode in python 2.7 just like
+   `py-aho-corasick <https://github.com/JanFan/py-aho-corasick>`__. We
+   don't use any C-Extension so the library is not platform dependant.
+
+-  On top of the standard Aho-Corasick longest suffix search, we also
+   perform a shortcutting routine in the end, so that our lookup is fast
+   while, the setup takes longer. During set up we go through the states
+   and directly add transitions that are "offered" by the longest suffix
+   or their longest suffixes. This leads to faster lookup times, because
+   in the end we only have to follow simple transitions and don't have
+   to perform any additional suffix lookup. It also leads to a bigger
+   memory footprint, because the number of transitions is higher,
+   because they are all included explicitely and not implicitely hidden
+   by suffix pointers.
+
+-  We added a small tool that helps you visualize the resulting graph.
+   This may help understanding the algorithm, if you'd like. See below.
+
+Performance
+~~~~~~~~~~~
+
+I compared the two libraries mentioned above with ahocorapy. We used
+50,000 keywords long list and an input text of 34,199 characters. In the
+text only one keyword of the list is contained. The setup process was
+run once per library and the search process was run 100 times. The
+following results are in seconds (not averaged for the lookup).
+
+You can perform this test yourself using
+``python tests/ahocorapy_performance_test.py``. (Except for the
+pyahocorasick\_py results. These were taken by importing the pure python
+version of the code of
+`pyahocorasick <https://github.com/WojciechMula/pyahocorasick/>`__. It's
+not available through pypi as stated in the code.)
+
+These are the results:
+
+::
+
+    ----------ahocorapy----------
+    setup_ahocorapy: 1.3445994260000589
+    search_ahocorapy: 1.517441007999878
+    ----------pyahocorasick----------
+    setup_pyahocorasick: 0.09675870799947006
+    search_pyahocorasick: 0.06381417899865482
+    ----------pyahocorasick python----------
+    setup_pyahocorasick_py: 0.5029343919995881
+    search_pyahocorasick_py: 1.6796333189995494
+    ----------py_aho_corasick----------
+    setup_py_aho_corasick: 1.8584364769994863
+    search_py_aho_corasick: 13.236364944999877
+
+As expected the C-Extension shatters the pure python implementations.
+Even though there is probably still room for optimization in ahocorapy
+we are not going to get to the mark that pyahocorasick sets. Our lookups
+are faster than py\_aho\_corasick though, but that can also vary
+depending on how the data is structured (both keywords and input text).
+
+Basic Usage:
+------------
+
+Creation of the Search Tree
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. code:: python
+
+    from ahocorapy.keywordtree import KeywordTree
+    kwtree = KeywordTree(case_insensitive=True)
+    kwtree.add('malaga')
+    kwtree.add('lacrosse')
+    kwtree.add('mallorca')
+    kwtree.add('mallorca bella')
+    kwtree.add('orca')
+    kwtree.finalize()
+
+Searching
+~~~~~~~~~
+
+.. code:: python
+
+    result = kwtree.search('My favorite islands are malaga and sylt.')
+    print(result)
+
+Prints :
+
+.. code:: python
+
+    ('malaga', 24)
+
+The search\_all method returns the all keywords found in a generator, or
+None if there is none.
+
+.. code:: python
+
+    results = kwtree.search_all('malheur on mallorca bellacrosse')
+    for result in results:
+        print(result)
+
+Prints :
+
+.. code:: python
+
+    ('mallorca', 11)
+    ('orca', 15)
+    ('mallorca bella', 11)
+    ('lacrosse', 23)
+
+Drawing Graph
+-------------
+
+You can print the underlying graph with the Visualizer class. This
+feature requires a working pygraphviz library installed.
+
+.. code:: python
+
+    from ahocorapy_visualizer.visualizer import Visualizer
+    visualizer = Visualizer()
+    visualizer.draw('readme_example.png', kwtree)
+
+The resulting .png of the graph looks like this:
+
+.. figure:: https://raw.githubusercontent.com/abusix/ahocorapy/master/img/readme_example.png
+   :alt: Keyword Tree
+
+   graph for kwtree
+
+.. |Build Status| image:: https://img.shields.io/travis/abusix/ahocorapy/master.svg
+   :target: https://travis-ci.org/abusix/ahocorapy
+.. |Test Coverage| image:: https://img.shields.io/coveralls/github/abusix/ahocorapy/master.svg
+   :target: https://coveralls.io/github/abusix/ahocorapy
+.. |PyPi Version| image:: https://img.shields.io/pypi/v/ahocorapy.svg
+   :target: https://pypi.python.org/pypi/ahocorapy
+.. |PyPi License| image:: https://img.shields.io/pypi/l/ahocorapy.svg
+   :target: https://pypi.python.org/pypi/ahocorapy
+.. |PyPi Versions| image:: https://img.shields.io/pypi/pyversions/ahocorapy.svg
+   :target: https://pypi.python.org/pypi/ahocorapy
+.. |PyPi Wheel| image:: https://img.shields.io/pypi/wheel/ahocorapy.svg
+   :target: https://pypi.python.org/pypi/ahocorapy
+
+
