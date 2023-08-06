@@ -1,0 +1,674 @@
+#! /usr/bin/env bash
+#
+# ========================================
+#
+# Wrapper to build/start/stop/etc Docker containers for freckle folders.
+#
+# Copyright: Markus Binsteiner, 2018
+# License: GPL v3
+
+# =============================================================
+# global vars
+PROGNAME="frocker"
+
+DOCKER_ID="local"
+FRECKLES_VERSION="git"
+NO_CACHE="--no-cache"
+DOCKER_DEFAULTS_FILE=".freckelize/docker/defaults.yml"
+FROCKER_ALIASES_FILE=".freckelize/docker/aliases.frocker"
+FROCKER_CONTAINER_DEFAULTS_FILE=".freckelize/docker/container_defaults.frocker"
+FROCKER_PROJECT_BUILD_HELP=".freckelize/docker/build.help.frocker"
+FROCKER_PROJECT_POST_BUILD_HELP=".freckelize/docker/post.build.help.frocker"
+FROCKER_PROJECT_RUN_HELP=".freckelize/docker/run.help.frocker"
+VAGRANT_DEFAULTS_FILE=".freckelize/vagrant/defaults.yml"
+
+# =============================================================
+# Helper functions
+
+config_read() {
+    CONFIG=$(cat "${1}")
+    (echo "${CONFIG}" | grep -E "^${2}=" -m 1 2>/dev/null || echo "VAR=__UNDEFINED__") | head -n 1 | cut -d '=' -f 2-;
+}
+
+
+function command_exists {
+    type "$1" > /dev/null 2>&1 ;
+}
+
+function error_exit {
+
+    #	----------------------------------------------------------------
+    #	Function for exit due to fatal program error
+    #		Accepts 1 argument:
+    #			string containing descriptive error message
+    #	----------------------------------------------------------------
+
+    echo ""
+    error_output "${PROGNAME}: ${1:-"Unknown Error"}" 1>&2
+    echo ""
+    exit 1
+}
+
+function error_output {
+    # log $1
+    (>&2 echo "$@")
+}
+
+
+function display_command_build_help {
+
+    echo ""
+    echo "Usage:"
+    echo "    frocker build -h                               display this help message."
+    echo "    frocker build [-i IMAGE_NAME] [-r CONTEXT_REPO]      build a docker container for the current folder, optionally using the provided name"
+
+    if [[ -f "${THIS_DIR}/${FROCKER_PROJECT_BUILD_HELP}" ]]; then
+        echo ""
+        echo "Project specific help:"
+        echo "----------------------"
+        echo ""
+        cat "${THIS_DIR}/${FROCKER_PROJECT_BUILD_HELP}"
+        echo ""
+    fi
+}
+
+function build {
+
+    image_name=${1}
+    repos=${2}
+    vars=${3}
+
+    if [[ ! -f "${THIS_DIR}/Dockerfile" ]]; then
+        echo "* no Dockerfile found in this folder, creating default one..."
+        echo "FROM freckles:freckelize-prod" > "${THIS_DIR}/Dockerfile"
+    fi
+
+    echo ""
+    echo "- starting build process..."
+    echo ""
+
+    docker build ${NO_CACHE} -t "${DOCKER_ID}:${1}" -f Dockerfile --build-arg FRECKLES_VERSION="${FRECKLES_VERSION}" --build-arg FRECKLE_CONTEXT_REPOS="${repos}" --build-arg FRECKLE_EXTRA_VARS="${vars}" .  || error_exit 'docker built process failed'
+
+    if [[ -f "${THIS_DIR}/${FROCKER_PROJECT_BUILD_HELP}" ]]; then
+        cat "${THIS_DIR}/${FROCKER_PROJECT_BUILD_HELP}"
+    fi
+}
+
+function command_build {
+
+    local repos=""
+    local vars=""
+
+    while getopts ":hi:r:v:" opt; do
+        case ${opt} in
+            h )
+                display_command_build_help
+                exit 0
+                ;;
+            i )
+                name=$OPTARG
+                ;;
+            r )
+                repos="${repos} -r $OPTARG"
+                ;;
+            v )
+                if [[ "$OPTARG" = /* ]]; then
+                    echo "No absolute paths allowed, please use a relative path, starting from the base freckle folder."
+                    exit 1
+                fi
+                vars="${vars} -v /freckle/$OPTARG"
+                ;;
+            \? )
+                echo "Invalid Option: -$OPTARG" 1>&2
+                display_command_build_help
+                exit 1
+                ;;
+            : )
+                echo "Invalid Option: -$OPTARG requires an argument" 1>&2
+                display_command_build_help
+                exit 1
+                ;;
+        esac
+    done
+
+    if [[ -z "$name" ]]; then
+        name="freckelize_${THIS_DIR_NAME}"
+    fi
+
+    if [[ -z "$vars" ]]; then
+        if [[ ! -f "${THIS_DIR}/${DOCKER_DEFAULTS_FILE}" ]]; then
+            echo "No extra vars provided, and no defaults file '${DOCKER_DEFAULTS_FILE}' exists. Creating one, and using it..."
+            mkdir -p "$(dirname ${THIS_DIR}/${DOCKER_DEFAULTS_FILE})"
+            echo "
+- freckle:
+    owner: freckles
+    group: freckles
+    freckle_docker: true
+
+" > "${THIS_DIR}/${DOCKER_DEFAULTS_FILE}"
+        else
+            echo "No extra vars provided, using values from existing '${DOCKER_DEFAULTS_FILE}"
+        fi
+        vars="-v /freckle/${DOCKER_DEFAULTS_FILE}"
+
+    fi
+
+    if [[ -z $repos ]]; then
+        repos="$(config_read "${THIS_DIR}/${FROCKER_CONTAINER_DEFAULTS_FILE}" "REPOS")"
+        if [[ ! -z $repos ]]; then
+            echo "* No repos specified, using default value (${repos}) from defaults file '${FROCKER_CONTAINER_DEFAULTS_FILE}'."
+            echo ""
+        fi
+    fi
+
+
+    build "${name}" "${repos}" "${vars}"
+
+}
+
+function run {
+
+    container_name="${1}"
+    image_name="${2}"
+    ports="${3}"
+    mounts="${4}"
+    rm="${5}"
+    delete_existing="${6}"
+
+    # check if image exists
+    if [[ "$(docker images -q ${image_name} 2> /dev/null)" == "" ]]; then
+        echo "No image '${image_name}' exists. Run build step first."
+        exit 1
+    fi
+
+    result=$( docker ps | grep ${container_name} )
+
+    if [[ -n "$result" ]]; then
+        if [ "${delete_existing}" = true ]; then
+            echo "Container '${container_name}' running, and '-d' specified, stopping it..."
+            c_name=$(docker stop "${container_name}")
+            echo "   container stopped: ${container_name}"
+        else
+            echo "Container '${container_name}' already running. Doing nothing..."
+            exit 0
+        fi
+
+    fi
+
+    result=$( docker ps -a | grep ${container_name} )
+
+    if [[ -n "$result" ]] && [ "${delete_existing}" = true ]; then
+        echo "Container '${container_name}' already exists and '-d' specified, removing it..."
+        c_name=$(docker rm -v "${container_name}")
+        echo "   container removed: ${container_name}"
+    fi
+
+    result=$( docker ps -a | grep ${container_name} )
+
+    if [[ -n "$result" ]]; then
+        echo "Container '${container_name}' already exists, but stopped. Starting..."
+        c_name=$(docker start "${container_name}")
+        echo "   container started: ${container_name}"
+    else
+        echo "Container '${container_name}' does not exist, creating and starting it..."
+        docker_id=$(docker run --name "${container_name}" ${rm} ${ports} ${mounts} -d "${image_name}")
+        echo "   container id: ${docker_id}"
+    fi
+
+}
+
+function display_command_run_help {
+
+    # TODO: use getopt instead of getopts to enable long options
+    echo ""
+    echo "Usage:"
+    echo "    frocker run -h                                                        display this help message."
+    echo "    frocker run [-y] [-r] [-x] [-n NAME] [-i IMAGE_NAME] [-p PORT_MAPPING]     run the docker container for this folder, build if it doesn't exist yet"
+
+}
+
+function command_run {
+
+    local ports=""
+
+    while getopts ":hxyrn:i:p:" opt; do
+        case ${opt} in
+            h )
+                display_command_run_help
+                exit 0
+                ;;
+            n )
+                name=$OPTARG
+                ;;
+            i )
+                image_name=$OPTARG
+                ;;
+            p )
+                ports="${ports} -p $OPTARG"
+                ;;
+            r )
+                rm="--rm"
+                ;;
+            x )
+                delete_existing=true
+                ;;
+            y )
+                no_mounts=true
+                ;;
+            \? )
+                echo "Invalid Option: -$OPTARG" 1>&2
+                display_command_run_help
+                exit 1
+                ;;
+            : )
+                echo "Invalid Option: -$OPTARG requires an argument" 1>&2
+                display_command_run_help
+                exit 1
+                ;;
+        esac
+    done
+
+    if [[ -z "$name" ]]; then
+        name="freckelize_${THIS_DIR_NAME}"
+    fi
+
+    if [[ -z "$image_name" ]]; then
+        image_name="${DOCKER_ID}:freckelize_${THIS_DIR_NAME}"
+    fi
+
+    if [[ -z $ports ]]; then
+        ports="$(config_read "${THIS_DIR}/${FROCKER_CONTAINER_DEFAULTS_FILE}" "PORTS")"
+        if [[ ! -z $ports ]]; then
+            echo "* No ports specified, using default value (${ports}) from defaults file '${FROCKER_CONTAINER_DEFAULTS_FILE}'."
+            echo ""
+        fi
+    fi
+
+    if [ "${no_mounts}" = true ]; then
+        mounts=""
+    else
+        mounts="--mount type=bind,source=${THIS_DIR},target=/freckle"
+    fi
+
+    run "${name}" "${image_name}" "${ports}" "${mounts}" "${rm}" "${delete_existing}"
+
+}
+
+function display_command_enter_help {
+    echo ""
+    echo "Usage:"
+    echo "    frocker enter -h                   display this help message."
+    echo "    frocker enter [-n NAME]            enter the container."
+}
+
+function enter_container {
+
+    container_name="${1}"
+    user="${2}"
+
+    result=$( docker ps | grep ${container_name} )
+
+    if [[ ! -n "$result" ]]; then
+        result=$( docker ps -a | grep ${container_name} )
+        if [[ -n "$result" ]]; then
+            echo "Container '${container_name}' stopped, starting it..."
+            c_name=$(docker start "${container_name}")
+            echo "   container started: ${container_name}"
+        else
+            echo "No container with name '${container_name}' exists. Please create it first (by using 'frocker run ...')"
+            exit 1
+        fi
+    fi
+
+    echo "Entering container: '${container_name}..."
+    docker exec -it ${user} ${container_name} /bin/bash -l
+}
+
+function command_enter {
+
+    user=""
+
+    while getopts ":hn:u:" opt; do
+        case ${opt} in
+            h )
+                display_command_build_help
+                exit 0
+                ;;
+            n )
+                name=$OPTARG
+                ;;
+            u )
+                user="--user $OPTARG"
+                ;;
+            \? )
+                echo "Invalid Option: -$OPTARG" 1>&2
+                display_command_build_help
+                exit 1
+                ;;
+            : )
+                echo "Invalid Option: -$OPTARG requires an argument" 1>&2
+                display_command_build_help
+                exit 1
+                ;;
+        esac
+    done
+
+    if [[ -z "$name" ]]; then
+        name="freckelize_${THIS_DIR_NAME}"
+    fi
+
+    if [[ -z "$user" ]]; then
+        user="--user freckles"
+    fi
+
+    enter_container "${name}" "${user}"
+}
+
+
+function display_command_exec_help {
+    echo ""
+    echo "Usage:"
+    echo "    frocker exec -h                   display this help message."
+    echo "    frocker exec [-n NAME] COMMAND    executes a command in the container for this freckle folder (or with the name provided)"
+}
+
+function exec_container {
+
+    container_name="${1}"
+    shift
+    i="${1}"
+    shift
+    t="${1}"
+    shift
+    d="${1}"
+    shift
+    u="${1}"
+    shift
+    w="${1}"
+    shift
+
+    command=${@}
+
+    result=$( docker ps | grep ${container_name} )
+
+    if [[ ! -n "$result" ]]; then
+        result=$( docker ps -a | grep ${container_name} )
+        if [[ -n "$result" ]]; then
+           echo "Container '${container_name}' stopped, starting it..."
+           c_name=$(docker start "${container_name}")
+           echo "   container started: ${container_name}"
+        else
+            echo "No container with name '${container_name}' exists. Please create it first (by using 'frocker run ...')"
+            exit 1
+        fi
+    fi
+
+    echo "Running '${@}' in container '${container_name}..."
+    docker exec ${i} ${t} ${d} ${u} ${w} ${container_name} ${command}
+
+}
+
+function command_exec {
+
+    while getopts ":hitdn:u:w:" opt; do
+        case ${opt} in
+            h )
+                display_command_exec_help
+                exit 0
+                ;;
+            n )
+                name=$OPTARG
+                ;;
+            i )
+               i="-i"
+                ;;
+            t )
+                t="-t"
+                ;;
+            d )
+                d="-d"
+                ;;
+            u )
+                user="--user $OPTARG"
+                ;;
+            w )
+                workdir="--workdir $OPTARG"
+                ;;
+            \? )
+                echo "Invalid Option: -$OPTARG" 1>&2
+                display_command_exec_help
+                exit 1
+                ;;
+            : )
+                echo "Invalid Option: -$OPTARG requires an argument" 1>&2
+                display_command_exec_help
+                exit 1
+                ;;
+        esac
+    done
+
+    if [[ -z "$name" ]]; then
+        name="freckelize_${THIS_DIR_NAME}"
+    fi
+
+    shift $((OPTIND -1))
+
+    exec_container "${name}" "${i}" "${t}" "${d}" "${user}" "${workdir}" $@
+
+}
+
+function display_command_stop_help {
+    echo ""
+    echo "Usage:"
+    echo "    frocker stop -h           display this help message."
+    echo "    frocker stop [-n NAME]    stops the container for this freckle folder (or with the name provided)"
+}
+
+function stop_container {
+
+    container_name="${1}"
+    rm="${2}"
+
+    result=$( docker ps | grep ${container_name} )
+
+    if [[ -n "$result" ]]; then
+        echo "Stopping container '${container_name}"
+        c_name=$(docker stop "${container_name}")
+        echo "    container stopped: ${container_name}"
+    else
+        echo "No container with name '${container_name} running."
+    fi
+
+    if [ "${rm}" = true ]; then
+        result=$( docker ps -a | grep ${container_name} )
+        echo "Removing container '${container_name}'..."
+        c_name=$(docker rm -v "${container_name}")
+        echo "   container removed: ${container_name}"
+    fi
+
+}
+
+function command_stop {
+
+    while getopts ":hrn:" opt; do
+        case ${opt} in
+            h )
+                display_command_stop_help
+                exit 0
+                ;;
+            n )
+                name=$OPTARG
+                ;;
+            r )
+                rm=true
+                ;;
+            \? )
+                echo "Invalid Option: -$OPTARG" 1>&2
+                display_command_stop_help
+                exit 1
+                ;;
+            : )
+                echo "Invalid Option: -$OPTARG requires an argument" 1>&2
+                display_command_stop_help
+                exit 1
+                ;;
+        esac
+    done
+
+    if [[ -z "$name" ]]; then
+        name="freckelize_${THIS_DIR_NAME}"
+    fi
+
+    stop_container "${name}" "${rm}"
+
+}
+
+function display_command_alias_help {
+    echo ""
+    echo "Usage:"
+    echo "    frocker ALIAS_KEY -h           display this help message."
+    echo "    frocker ALIAS_KEY [-n NAME]    runs the command that is aliased to the specified key in '${FROCKER_ALIASES_FILE}'"
+
+}
+
+function command_alias {
+
+    subcommand="${1}"
+    shift
+    args="${@}"
+
+    while getopts ":hn:" opt; do
+        case ${opt} in
+            h )
+                display_command_alias_help
+                exit 0
+                ;;
+            n )
+                name=$OPTARG
+                ;;
+            \? )
+                echo "Invalid Option: -$OPTARG" 1>&2
+                display_command_alias_help
+                exit 1
+                ;;
+            : )
+                echo "Invalid Option: -$OPTARG requires an argument" 1>&2
+                display_command_alias_help
+                exit 1
+                ;;
+        esac
+    done
+
+    shift $((OPTIND -1))
+
+    if [[ -z "$name" ]]; then
+        name="freckelize_${THIS_DIR_NAME}"
+    fi
+
+    if [[ ! -z "$1" ]]; then
+        echo ""
+        echo "No argument allowed."
+        echo ""
+        display_command_alias_help
+        exit 1
+    fi
+
+    alias=$(config_read "${THIS_DIR}/${FROCKER_ALIASES_FILE}" "${subcommand}")
+
+    if [ "${alias}" = "__UNDEFINED__" ]; then
+        echo "Could not find alias '${subcommand}' in alias file '${FROCKER_ALIASES_FILE}'. Doing nothing..."
+        exit 1
+    # else
+        # echo "Found alias '${subcommand}': ${alias}"
+    fi
+
+    if [[ $alias = *"CONTAINER_NAME"* ]]; then
+        # replacing container name token
+        exec_args="${alias/CONTAINER_NAME/$name}"
+    else
+        exec_args="${name} ${alias}"
+    fi
+
+    docker_cmd="docker exec ${exec_args}"
+    echo "Executing: ${docker_cmd}"
+    echo ""
+
+    docker exec ${exec_args}
+
+}
+
+
+function display_help {
+    echo ""
+    echo "Usage:"
+    echo "    frocker -h                      Display this help message."
+    echo "    frocker build                   Build a Docker container for this freckle folder."
+}
+
+# =============================================================
+# VARS
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+THIS_DIR="${PWD}"
+cd -P "$THIS_DIR"
+
+THIS_DIR_NAME=$(basename ${THIS_DIR})
+
+# script start
+# --------------
+
+# =============================================================
+# ARG PARSING
+
+echo ""
+
+while getopts ":h" opt; do
+    case ${opt} in
+        h )
+            display_help
+            exit 0
+            ;;
+        \? )
+            echo "Invalid Option: -$OPTARG" 1>&2
+            display_help
+            exit 1
+            ;;
+    esac
+done
+shift $((OPTIND -1))
+
+if [ -z "$1" ]
+then
+    display_help
+    exit 0
+fi
+
+subcommand=$1
+shift
+
+case "$subcommand" in
+
+    build)
+        command_build "$@"
+        ;;
+    run)
+        command_run "$@"
+        ;;
+    stop)
+        command_stop "$@"
+        ;;
+    rm)
+        command_rm "$@"
+        ;;
+    exec)
+        command_exec "$@"
+        ;;
+    enter)
+        command_enter "$@"
+        ;;
+    *)
+        command_alias ${subcommand} $@
+        ;;
+esac
+
+exit 0

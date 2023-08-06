@@ -1,0 +1,82 @@
+- name: "[setting variables]"
+  set_fact:
+    static_website_port: "{{ freckle_folder_vars.static_website_port | default(80) }}"
+    static_website_domain: "{{ freckle_folder_vars.static_website_domain | default('127.0.0.1') }}"
+
+- name: "[enabling letsencrypt]"
+  set_fact:
+    request_https_cert: true
+    static_website_port_new: 443
+  when: "freckle_folder_vars.get('letsencrypt_email', False) and freckle_folder_vars.get('letsencrypt_email', False) not in ['false', 'False', 'no', 'No', 'none', 'None']"
+
+- name: "[disabling letsencrypt]"
+  set_fact:
+    request_https_cert: false
+    static_website_port_new: "{{ static_website_port }}"
+  when: "not freckle_folder_vars.get('letsencrypt_email', False) or freckle_folder_vars.get('letsencrypt_email', False) in ['false', 'False', 'no', 'No', 'none', 'None']"
+
+- name: "[setting https related stuff]"
+  set_fact:
+    letsencrypt_email: "{{ freckle_folder_vars.letsencrypt_email | mandatory }}"
+    letsencrypt_cert_domains:
+      - "{{ static_website_domain }}"
+  when: request_https_cert
+
+- name: "managing https certificate for {{ static_website_domain }}"
+  include_role:
+    name: thefinn93.letsencrypt
+  vars:
+    letsencrypt_webroot_path: "{{ freckle_path }}"
+    letsencrypt_renewal_command_args: '--renew-hook "systemctl restart nginx"'
+  when: request_https_cert
+
+- name: "[setting https related stuff]"
+  set_fact:
+    nginx_https_options_1: "ssl http2"
+    nginx_https_options_2: |
+      ssl_certificate      /etc/letsencrypt/live/{{ static_website_domain }}/fullchain.pem;
+      ssl_certificate_key  /etc/letsencrypt/live/{{ static_website_domain }}/privkey.pem;
+      ssl_trusted_certificate   /etc/letsencrypt/live/{{ static_website_domain }}/fullchain.pem;
+      ssl_protocols        TLSv1.1 TLSv1.2;
+      ssl_ciphers          HIGH:!aNULL:!MD5;
+  when: request_https_cert
+
+- name: "[setting variables for non-https deployment]"
+  set_fact:
+    nginx_https_options_1: ""
+    nginx_https_options_2: ""
+  when: not request_https_cert
+
+- name: adding http -> https redirect
+  set_fact:
+    nginx_vhost_http:
+      - listen: "{{ static_website_port }}"
+        server_name: "{{ static_website_domain }}"
+        return: "301 https://{{ static_website_domain }}$request_uri"
+        filename: "{{ static_website_domain }}.80.conf"
+  when: request_https_cert
+
+# webserver
+- name: "[setting webserver vars]"
+  set_fact:
+    nginx_remove_default_vhost: true
+    nginx_vhosts:
+      - listen: "{{ static_website_port_new }} {{ nginx_https_options_1 }}"
+        server_name: "{{ static_website_domain }}"
+        root: "{{ freckle_path }}"
+        filename: "{{ freckle_folder_name }}.{{ static_website_port_new }}.conf"
+        extra_parameters: |
+          {{ nginx_https_options_2 }}
+
+- name: "[adding http -> https redirect if necessary]"
+  set_fact:
+    nginx_vhosts: "{{ nginx_vhost_http }} + {{ nginx_vhosts }}"
+  when: request_https_cert
+
+
+- name: installing and configuring nginx
+  include_role:
+    name: geerlingguy.nginx
+  vars:
+    nginx_user: "{{ freckle_owner }}"
+  become: true
