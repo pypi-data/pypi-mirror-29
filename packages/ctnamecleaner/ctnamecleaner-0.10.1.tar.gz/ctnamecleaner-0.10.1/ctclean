@@ -1,0 +1,69 @@
+#!/usr/bin/env python2
+
+""" CLI tool for replacing CT place names in spreadshseets """
+
+from ctlookup import lookup
+import argparse, sys
+
+# Parse command line argument
+parser = argparse.ArgumentParser(description='Lookup the official name of unofficial Connecticut town names.')
+parser.add_argument('town_name',help="the town name to look up",nargs='?')
+parser.add_argument('-e','--error',default=None,help="the value returned when a proper name cannot be found (default: None)")
+parser.add_argument('--icsv',default=None,help="input spreadsheet (csv)")
+parser.add_argument('--ocsv',default=None,help="name of new spreadsheet file (csv). Only works if input spreadsheet is specified.")
+parser.add_argument('--icol',default='town',help="name of the column to clean up")
+parser.add_argument('--ocol',default='town_clean',help="name of the column to store cleaned-up town names")
+parser.add_argument('--latest',action='store_true',help="force use of latest version of csv file. (slow; fetches from web")
+
+p = parser.parse_args()
+csv_mode = False
+debug_mode = False
+# Create a ct lookup object
+l = lookup.Lookup(use_inet_csv=p.latest)
+
+
+def exit_error():
+    parser.print_help()
+    exit(1)
+
+def check_args():
+    global csv_mode, p
+
+    if (len(sys.argv) < 2):
+        exit_error()
+    
+    # Check that both an input and output file are specified, or neither is specified
+    if p.icsv is not None:
+        csv_mode = True
+
+    if csv_mode and (p.icol is None or p.ocol is None):
+        exit_error() # "In csv mode, required flags are --icsv --ocsv --icol"
+
+def go_csv():
+    import pandas as pd
+    df = pd.read_csv(p.icsv)
+    df[p.ocol] = l.clean_dataframe(df, p.icol,error=p.error)
+    if p.ocsv is None:
+        print df.to_csv(index=False)
+    else:
+        df.to_csv(p.ocsv,index=False)
+
+def go_singleton():
+    # Lookup and return the value
+    print l.clean(p.town_name,error=p.error)
+    
+# Control program flow based on args
+def go():
+    check_args()
+
+    # process CSV file
+    if csv_mode:
+        go_csv()
+    else:
+        go_singleton()
+
+def debug(msg):
+    if debug_mode:
+        print "DEBUG: " + msg
+        
+go()
