@@ -1,0 +1,43 @@
+##############################################################################
+# Copyright (c) 2017 ZTE Corporation and others.
+#
+# All rights reserved. This program and the accompanying materials
+# are made available under the terms of the Apache License, Version 2.0
+# which accompanies this distribution, and is available at
+# http://www.apache.org/licenses/LICENSE-2.0
+##############################################################################
+- name: add group qtip
+  become: true
+  group: name=qtip state=present
+- name: add qtip to sudoers without password
+  become: true
+  file:
+    src: sudoers.d-qtip
+    dest: /etc/sudoers.d/50-qtip
+    mode: 0440
+- name: add users for ssh access
+  become: true
+  user:
+    name: "{{ item.name }}"
+    comment: "{{ item.comment }}"
+    groups: "qtip"
+    append: yes
+  with_items: "{{ users }}"
+- name: create .ssh directory
+  become: true
+  file:
+    path: "/home/{{ item.name }}/.ssh"
+    state: directory
+    owner: "{{ item.name }}"
+    group: "{{ item.name }}"
+    mode: 0700
+  with_items: "{{ users }}"
+- name: authorize public key
+  become: true
+  copy:
+    src: "{{ item.name }}.authorized_keys"
+    dest: "/home/{{ item.name }}/.ssh/authorized_keys"
+    owner: "{{ item.name }}"
+    group: "{{ item.name }}"
+    mode: 0600
+  with_items: "{{ users }}"

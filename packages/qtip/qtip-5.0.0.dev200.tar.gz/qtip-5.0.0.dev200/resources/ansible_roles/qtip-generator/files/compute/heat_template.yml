@@ -1,0 +1,101 @@
+##############################################################################
+# Copyright (c) 2018 ZTE Corporation and others.
+#
+# All rights reserved. This program and the accompanying materials
+# are made available under the terms of the Apache License, Version 2.0
+# which accompanies this distribution, and is available at
+# http://www.apache.org/licenses/LICENSE-2.0
+##############################################################################
+heat_template_version: 2015-04-30
+
+description: >
+  Used to run VMs for QTIP
+
+parameters:
+  image:
+    type: string
+    description: Name of the image
+    default: qtip_image
+
+  flavor:
+    type: string
+    description: Name of flavor
+    default: qtip_flavor
+
+  keypair:
+    type: string
+    description: Name of keypair
+    default: QtipKey
+
+  external_network:
+    type: string
+    description: Name of the external network
+
+resources:
+
+  network:
+    type: OS::Neutron::Net
+    properties:
+      name: qtip_net
+
+  subnet:
+    type: OS::Neutron::Subnet
+    properties:
+      name: qtip_subnet
+      ip_version: 4
+      cidr: 192.168.0.0/24
+      network: { get_resource: network }
+      dns_nameservers: [8.8.8.8]
+
+  management_router:
+    type: OS::Neutron::Router
+    properties:
+      name: qtip_router
+      external_gateway_info:
+        network: { get_param: external_network }
+
+  management_router_interface:
+    type: OS::Neutron::RouterInterface
+    properties:
+      router: { get_resource: management_router }
+      subnet: { get_resource: subnet }
+
+  floating_ip:
+    type: OS::Neutron::FloatingIP
+    properties:
+      floating_network: { get_param: external_network }
+
+  floating_ip_association:
+    type: OS::Nova::FloatingIPAssociation
+    properties:
+      floating_ip: { get_resource: floating_ip }
+      server_id: { get_resource: qtip_instance }
+
+  security_group:
+    type: OS::Neutron::SecurityGroup
+    properties:
+      name: qtip_security_group
+      rules:
+          - port_range_min: 22
+            port_range_max: 5201
+            protocol: tcp
+          - port_range_min: 22
+            port_range_max: 5201
+            protocol: udp
+          - protocol: icmp
+
+  qtip_instance:
+    type: OS::Nova::Server
+    depends_on: [subnet]
+    properties:
+      name: { get_param: "OS::stack_name" }
+      image: { get_param: image }
+      flavor: { get_param: flavor }
+      key_name: { get_param: keypair }
+      security_groups: [{ get_resource: security_group }]
+      networks:
+        - network: { get_resource: network }
+outputs:
+  instance_ip:
+    description: The IP address of the instance
+    value: { get_attr: [floating_ip, floating_ip_address] }
