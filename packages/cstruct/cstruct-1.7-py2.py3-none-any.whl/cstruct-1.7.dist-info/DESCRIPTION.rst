@@ -1,0 +1,3 @@
+Convert C struct definitions into Python classes with methods for serializing/deserializing.
+
+
