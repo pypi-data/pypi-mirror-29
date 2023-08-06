@@ -1,0 +1,55 @@
+language: python
+#virtualenv:
+#    system_site_packages: false
+
+env:
+    - CONDA_PYTHON_VERSION=2.7
+    - CONDA_PYTHON_VERSION=3.6
+
+before_install:
+    # We do this conditionally because it saves us some downloading if the
+    # version is the same.
+    - if [[ "$CONDA_PYTHON_VERSION" == "2.7" ]]; then
+        wget https://repo.continuum.io/miniconda/Miniconda2-latest-Linux-x86_64.sh -O miniconda.sh;
+      else
+        wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
+      fi
+#    - wget http://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh -O miniconda.sh
+#    - chmod +x miniconda.sh
+#    - ./miniconda.sh -b
+    - bash miniconda.sh -b -p $HOME/miniconda
+    - export PATH="$HOME/miniconda/bin:$PATH"
+    - hash -r
+    - conda config --set always_yes yes --set changeps1 no
+    - conda update -q conda
+    # Useful for debugging any issues with conda
+    - conda info -a
+
+install:
+    - sudo apt-get install -qq $(< apt_requirements.txt)
+    - mkdir -p ~/data/medical/orig
+    - wget http://147.228.240.61/queetech/sample-extra-data/io3d_sample_data.zip
+    - unzip -d ~/data/medical/orig/ io3d_sample_data.zip
+# command to install dependencies
+    - conda create --yes -n travis python=$CONDA_PYTHON_VERSION
+    - source activate travis
+#    - conda install --yes pip nose coverage
+    - conda install --yes pip nose
+    - pip install python-coveralls
+    - conda install --yes -c SimpleITK -c mjirik --file requirements_conda.txt
+#    - pip install checksumdir
+    - pip install .
+
+    - python -m io3d.datasets -l 3Dircadb1.1 jatra_5mm
+#    - pip install -r requirements.txt
+#    -
+# command to run tests
+before_script:
+    # GUI
+    - "export DISPLAY=:99.0"
+    - "sh -e /etc/init.d/xvfb start"
+    - sleep 3 # give xvfb sume time to start
+
+script: nosetests -v --with-coverage --cover-package=io3d
+after_success:
+    - coveralls
