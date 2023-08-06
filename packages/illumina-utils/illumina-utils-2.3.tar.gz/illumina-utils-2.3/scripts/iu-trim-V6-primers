@@ -1,0 +1,203 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+#
+# Copyright (C) 2011, A. Murat Eren
+#
+# This program is free software; you can redistribute it and/or modify it under
+# the terms of the GNU General Public License as published by the Free
+# Software Foundation; either version 2 of the License, or (at your option)
+# any later version.
+#
+# Please read the COPYING file.
+
+
+# This script takes a FASTA file to trim forward and reverse primers from reads.
+#
+# Any questions? Send an e-mail to meren@mbl.edu
+#
+
+import os
+import re
+import sys
+
+E = os.path.exists
+J = os.path.join
+
+import IlluminaUtils.lib.fastalib as u
+from IlluminaUtils.utils.helperfunctions import colorize
+
+
+class ConfigError(Exception):
+    pass
+
+
+def RepresentsInt(s):
+    try:
+        int(s)
+        return True
+    except ValueError:
+        return False
+
+
+def get_rp_match(seq, reverse_primer):
+    offset = 70
+    rp_match = None
+
+    while 1:
+        m = reverse_primer.search(seq, offset)
+
+        if not m:
+            break
+        else:
+            rp_match = m
+            offset = m.start() + 1
+
+    return rp_match
+
+
+def main(fasta_file, archaea = False, debug = False):
+
+    # lets setup primers based on what we are dealing with:
+    if archaea:
+        # set archaeal V6 primers.
+
+        #forward_primer = re.compile('AATTGGA.TCAACGCCGG')
+        # last 12 nts of the forward primer:
+        forward_primer = re.compile('A.TCAACGCCGG')
+
+        #reverse_primer = re.compile('CG[A,G]C[A,G]GCCATG[C,T]ACC[A,T]C')
+        # 6 nts of reverse primer:
+        reverse_primer = re.compile('G[A,T]GGT[G,A]')
+    else:
+        # set bacterial V6 primers.
+        # reverse primer (first 10 character of 1046R-rc):
+        #reverse_primer = re.compile('AGGTG.TGCA')
+        # 6 nts of reverse primer:
+        reverse_primer = re.compile('AGGTG.')
+
+        # forward primers:
+        #
+        # 967F-AQ    C    T A A    C    CG A    .    G    AACCT [CT] ACC
+        # 967F-UC3   A    T A C    G    CG A    [AG] G    AACCT T    ACC
+        # 967F-PP    C    . A C    G    CG A    A    G    AACCT T    A.C
+        # 967F-UC12* C    A A C    G    CG [AC] A    [AG] AACCT T    ACC
+        #  COMBINED: [CA] . A [AC] [CG] CG [AC] .    [AG] AACCT [CT] A.C
+
+        #forward_primer = re.compile('A[AC][CG]CG[AC].[AG]AACCT[CT]A.C')
+        # last 10 nts of the forward primer
+        forward_primer = re.compile('[AG]AACCT[CT]A.C')
+
+
+    def get_percent(x, y):
+        if y == 0:
+            return 0.0
+        else:
+            return x * 100.0 / y
+
+    def reverse_complement(seq):
+        conv_dict = {'A': 'T',
+                     'T': 'A',
+                     'C': 'G',
+                     'G': 'C',
+                     'N': 'N'}
+
+        return ''.join(reversed([conv_dict[n] for n in seq]))
+
+
+    #####################################################################################
+    # dealing with output file pointers..
+    #####################################################################################
+
+    GetFilePath = lambda p: fasta_file + ('_' + p)
+
+    errors_fp                 = open(GetFilePath('STATS'), 'w')
+    fasta_for_trimmed_sequences    = open(GetFilePath('V6_PRIMERS_REMOVED'), 'w')
+
+    #####################################################################################
+    # some useful variables before we begin..
+    #####################################################################################
+
+    number_of_sequences = 0
+    num_sequences_trimmed = 0
+    rp_failed = 0
+    fp_failed = 0
+
+    reverse_primer_found_locations = []
+
+    #####################################################################################
+    # main loop per read:
+    #####################################################################################
+
+    fasta = u.SequenceSource(fasta_file)
+    while next(fasta):
+        fasta.seq = fasta.seq.upper()
+        number_of_sequences += 1
+
+        #####################################################################################
+        # looking for reverse primer:
+        #####################################################################################
+
+        # find all instances of matching
+        rp = get_rp_match(fasta.seq, reverse_primer)
+
+        if not rp:
+            # reverse primer wasn't there
+            rp_failed += 1
+            continue
+
+        reverse_primer_found_locations.append(rp.start())
+
+        # strip reverse primers
+        sequence = fasta.seq[:rp.start()]
+
+
+        #####################################################################################
+        # looking for forward primer
+        #####################################################################################
+
+        fp = forward_primer.search(sequence, 0, 60)
+
+        if not fp:
+            fp_failed += 1
+            continue
+
+        # strip forward primers
+        sequence = sequence[fp.end():]
+
+
+        if debug:
+            print(fasta.seq[:fp.start()] + ' ' + fasta.seq[fp.start():fp.end()] + ' ' + colorize(fasta.seq[fp.end():rp.start()]) + ' ' + fasta.seq[rp.start():rp.end()] + ' ' + fasta.seq[rp.end():])
+
+        fasta_for_trimmed_sequences.write('>%s\n' % fasta.id)
+        fasta_for_trimmed_sequences.write('%s\n' % sequence)
+        num_sequences_trimmed += 1
+
+    total_sequnences_failed = number_of_sequences - num_sequences_trimmed
+    errors_fp.write('number of sequences     : %d\n' % (number_of_sequences))
+    errors_fp.write('total sequences trimmed : %d (%%%.2f of all pairs)\n' % (num_sequences_trimmed, get_percent(num_sequences_trimmed, number_of_sequences)))
+    errors_fp.write('total pairs failed      : %d (%%%.2f of all pairs)\n' % (total_sequnences_failed, get_percent(total_sequnences_failed, number_of_sequences)))
+    errors_fp.write('  FP failed             : %d (%%%.2f of all failed pairs)\n' % (fp_failed, get_percent(fp_failed, total_sequnences_failed)))
+    errors_fp.write('  RP failed             : %d (%%%.2f of all failed pairs)\n' % (rp_failed, get_percent(rp_failed, total_sequnences_failed)))
+
+    errors_fp.close()
+    fasta_for_trimmed_sequences.close()
+
+if __name__ == '__main__':
+    import argparse
+
+    parser = argparse.ArgumentParser(description='A program to trim V6 primers from V6 complete overlap workflow')
+    parser.add_argument('fasta_file', metavar = 'INPUT_FASTA',
+                                        help = 'FASTA file that contain archaeal or bacterial V6 sequences with primers. This file\
+                                                is expected to be the result of iu-merge-pairs analysis with these flags and parameter:\
+                                                "--marker-gene-stringent --retain-only-overlap --max-num-mismatches 0".')
+    parser.add_argument('--archaea', action = 'store_true', default = False,
+                                        help = 'When set, primers for arhacea is used instead of \
+                                                bacteria.')
+    parser.add_argument('--debug', action = 'store_true', default = False,
+                                        help = 'Turn on debug prints.')
+
+    args = parser.parse_args()
+
+    sys.exit(main(args.fasta_file,
+                  archaea = args.archaea,
+                  debug = args.debug))
