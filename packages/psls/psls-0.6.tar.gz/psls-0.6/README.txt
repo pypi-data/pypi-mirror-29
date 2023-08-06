@@ -1,0 +1,30 @@
+PSLS: the PLATO Solar-like Light-curve Simulator
+
+Simulate solar-like oscillators representative for PLATO observations.
+The simulator includes planetary transits, stochastically-excited oscillations, granulation and activity background components, as well as instrumental sources of noise representative for PLATO. The program also manages the existence of a time shift between groups of telescope.
+Planetary transits are included following Mandel & Agol (2002) equations (see http://adsabs.harvard.edu/abs/2002ApJ...580L.171M) and using the Python implementation by Ian Crossfield (http://www.astro.ucla.edu/~ianc/) at UCLA.
+
+For more details see http://psls.lesia.obspm.fr
+ 	
+Changes history:
+- 0.6: minor problems fixed (missing file,  link problem)
+- 0.5: can perform simulation for a given input set of theoretical frequencies (i.e. from a given .gsm file) ; new parameters included in the configuration file .yaml ; various minor improvements
+- 0.4: minor changes
+- 0.3: first working version
+
+ 	
+Copyright (c) October 2017, Reza Samadi, LESIA - Observatoire de Paris
+
+This is a free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+ 
+This software is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+ 
+You should have received a copy of the GNU General Public License
+along with this code.  If not, see <http://www.gnu.org/licenses/>.
+
