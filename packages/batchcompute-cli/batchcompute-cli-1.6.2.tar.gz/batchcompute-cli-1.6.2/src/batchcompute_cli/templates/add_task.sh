@@ -1,0 +1,12 @@
+#!/bin/bash
+
+echo ${BATCH_COMPUTE_OSS_HOST}
+echo ${BATCH_COMPUTE_REGION}
+echo ${BATCH_COMPUTE_CLUSTER_ID}
+echo ${BATCH_COMPUTE_WORKER_ID}
+
+echo ${BATCH_COMPUTE_DAG_JOB_ID}
+echo ${BATCH_COMPUTE_DAG_TASK_ID}
+echo ${BATCH_COMPUTE_DAG_INSTANCE_ID}
+
+echo "exec your program"
