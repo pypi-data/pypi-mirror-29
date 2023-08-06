@@ -1,0 +1,130 @@
+#!/usr/bin/env python
+"""Tron Control
+
+Part of the command line interface to the tron daemon. Provides the interface
+to controlling jobs and runs.
+"""
+from __future__ import absolute_import
+from __future__ import print_function
+from __future__ import unicode_literals
+
+import datetime
+import logging
+import sys
+
+import argcomplete
+from six.moves.urllib.parse import urljoin
+
+from tron.commands import client
+from tron.commands import cmd_utils
+from tron.commands.cmd_utils import ExitCode
+
+
+COMMAND_HELP = (
+    ('start',           'Start the selected job, job run, action, or service'),
+    ('rerun',           'Re-run a full job (all actions) with a new job id'),
+    ('cancel',          'Cancel the selected job run'),
+    ('disable',         'Disable selected job and cancel any outstanding runs'),
+    ('enable',          'Enable the selected job and schedule the next run'),
+    ('disableall',      'Disable all jobs'),
+    ('enableall',       'Enable all jobs'),
+    ('fail',            'Mark an UNKNOWN job as having failed'),
+    ('success',         'Mark an UNKNOWN job as having succeeded'),
+    ('skip',            'Skip a failed action, runs dependent actions.'),
+    ('stop',            'Stop the service or action run (SIGTERM)'),
+    ('kill',            'Force kill the service or action run (SIGKILL)'),
+)
+
+
+log = logging.getLogger('tronctl')
+
+
+def command_help_epilog():
+    # We want to include some extra helpful info
+    result = ["commands:", "\n"]
+    for cmd_name, desc in COMMAND_HELP:
+        result.append('  ')
+        text = ''.join((cmd_name.ljust(15), desc.ljust(40)))
+        result.append(text)
+        result.append('\n')
+    return ''.join(result)
+
+
+def parse_date(date_string):
+    return datetime.datetime.strptime(date_string, "%Y-%m-%d")
+
+
+def parse_cli():
+    parser = cmd_utils.build_option_parser(
+        epilog=command_help_epilog(),
+    )
+
+    parser.add_argument(
+        "--run-date",
+        type=parse_date, dest="run_date",
+        help="For job starts, what should run date be set to",
+    )
+    parser.add_argument(
+        'command',
+        help='Tronctl command to run',
+        choices=[row[0] for row in COMMAND_HELP],
+    )
+    parser.add_argument(
+        'id',
+        nargs='*',
+        help='job name, job run id, or action id',
+    ).completer = cmd_utils.tron_jobs_completer
+
+    argcomplete.autocomplete(parser)
+    args = parser.parse_args()
+
+    return args
+
+
+def edit(args, uri):
+    data = {'command': args.command}
+    if args.command == "start" and args.run_date:
+        data['run_time'] = str(args.run_date)
+
+    uri = urljoin(args.server, uri)
+    response = client.request(uri, data=data)
+
+    if response.error:
+        return
+
+    print(response.content['result'])
+    return True
+
+
+def control_objects(args):
+    tron_client = client.Client(args.server)
+    url_index = tron_client.index()
+    for identifier in args.id:
+        try:
+            tron_id = client.get_object_type_from_identifier(
+                url_index, identifier,
+            )
+        except ValueError as e:
+            raise SystemExit("Error: %s" % e)
+
+        yield edit(args, tron_id.url)
+
+
+def main():
+    """run tronctl"""
+    args = parse_cli()
+    cmd_utils.setup_logging(args)
+    cmd_utils.load_config(args)
+
+    if not args.id:
+        # our only non-object commands are for enabling and disabling jobs, so
+        # just direct those commands here
+        if not edit(args, client.get_job_url('')):
+            sys.exit(ExitCode.fail)
+    else:
+        if not all(control_objects(args)):
+            sys.exit(ExitCode.fail)
+
+
+if __name__ == '__main__':
+    main()
