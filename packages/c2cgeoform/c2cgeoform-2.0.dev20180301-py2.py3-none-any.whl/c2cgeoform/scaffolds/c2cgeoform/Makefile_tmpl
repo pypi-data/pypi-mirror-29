@@ -1,0 +1,103 @@
+MO_FILES = $(addprefix {{package}}/locale/, fr/LC_MESSAGES/{{package}}.mo de/LC_MESSAGES/{{package}}.mo)
+
+
+.PHONY: help
+help:
+	@echo "Usage: make <target>"
+	@echo
+	@echo "Possible targets:"
+	@echo
+	@echo "- build                   Install {{project}}"
+	@echo "- initdb                  (Re-)initialize the database"
+	@echo "- serve                   Run the dev server"
+	@echo "- check                   Check the code with flake8"
+	@echo "- modwsgi                 Create files for Apache mod_wsgi"
+	@echo "- test                    Run the unit tests"
+	@echo "- dist                    Build a source distribution"
+	@echo "- compile-catalog         Compile message catalog"
+	@echo
+
+.PHONY: build
+build: .build/requirements.timestamp node_modules compile-catalog
+
+.PHONY: initdb
+initdb: .build/requirements.timestamp
+	.build/venv/bin/initialize_{{package}}_db development.ini
+
+.PHONY: serve
+serve: build
+	.build/venv/bin/pserve --reload development.ini
+
+.PHONY: check
+check: flake8
+
+.PHONY: flake8
+flake8: .build/requirements-dev.timestamp
+	.build/venv/bin/flake8 {{package}}
+
+.PHONY: modwsgi
+modwsgi: install .build/venv/{{package}}.wsgi .build/apache.conf
+
+.PHONY: test
+test: build .build/requirements-dev.timestamp
+	.build/venv/bin/pytest
+
+.PHONY: update-catalog
+update-catalog:
+	.build/venv/bin/pot-create -c lingua.cfg -o {{package}}/locale/{{package}}.pot \
+	    {{package}}/models.py \
+	    {{package}}/views/ \
+	    {{package}}/templates/
+	msgmerge --update {{package}}/locale/fr/LC_MESSAGES/{{package}}.po {{package}}/locale/{{package}}.pot
+	msgmerge --update {{package}}/locale/de/LC_MESSAGES/{{package}}.po {{package}}/locale/{{package}}.pot
+
+.PHONY: compile-catalog
+compile-catalog: $(MO_FILES)
+
+.PHONY: dist
+dist: .build/venv.timestamp compile-catalog
+	.build/venv/bin/python setup.py sdist
+
+.PHONY: node_modules
+node_modules: package.json
+	npm install
+
+%.mo: %.po
+	msgfmt $< --output-file=$@
+
+.build/venv.timestamp:
+	mkdir -p $(dir $@)
+	# make a first virtualenv to get a recent version of virtualenv
+	# virtualenv venv
+	#venv/bin/pip install virtualenv
+	virtualenv -p python3 .build/venv
+	# remove the temporary virtualenv
+	rm -rf venv
+	touch $@
+
+.build/requirements.timestamp: .build/venv.timestamp requirements.txt
+	.build/venv/bin/pip install -U -r requirements.txt
+	touch $@
+
+.build/requirements-dev.timestamp: .build/venv.timestamp requirements-dev.txt
+	.build/venv/bin/pip install -r requirements-dev.txt > /dev/null 2>&1
+	touch $@
+
+.build/venv/{{package}}.wsgi: {{package}}.wsgi
+	sed 's#\[DIR\]#$(CURDIR)#' $< > $@
+	chmod 755 $@
+
+.build/apache.conf: apache.conf .build/venv.timestamp
+	sed -e 's#\[PYTHONPATH\]#$(shell .build/venv/bin/python -c "import distutils.sysconfig; print(distutils.sysconfig.get_python_lib())")#' \
+        -e 's#\[WSGISCRIPT\]#$(abspath .build/venv/{{package}}.wsgi)#' $< > $@
+
+.PHONY: clean
+clean:
+	rm -f .build/venv/{{package}}.wsgi
+	rm -f .build/apache.conf
+	rm -f $(MO_FILES)
+
+.PHONY: cleanall
+cleanall:
+	rm -rf .build
+	rm -rf node_modules
