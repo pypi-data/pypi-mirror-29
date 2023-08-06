@@ -1,0 +1,26 @@
+from setuptools import setup
+
+setup(name='electus',
+      version='0.2.2',
+      description='An engine for combining weak indicators into robust behavioural signatures',
+      url='https://gitlab.com/gclenden/electus',
+      author='Graham Clendenning',
+      author_email='graham.clendenning@uoit.net',
+      license='MIT',
+      packages=['electus'],
+      install_requires = ['python-dateutil', 'boolean.py', 'pytest', 'requests'],
+      project_urls={
+            'Documentation': 'http://electus.readthedocs.io/en/latest/',
+            'Source': 'https://gitlab.com/gclenden/electus',
+            'Issue tracker': 'https://gitlab.com/gclenden/electus/issues',
+            },
+      classifiers = ["Natural Language :: English",
+            'Development Status :: 4 - Beta',
+            "License :: OSI Approved :: MIT License",
+            "Operating System :: OS Independent",
+            "Programming Language :: Python",
+            "Programming Language :: Python :: 3",
+            "Programming Language :: Python :: 3.4",
+            "Programming Language :: Python :: 3.5",
+            "Programming Language :: Python :: 3.6"],
+      zip_safe=False)
