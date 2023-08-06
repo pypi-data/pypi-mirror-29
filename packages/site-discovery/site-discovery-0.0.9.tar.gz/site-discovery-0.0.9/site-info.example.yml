@@ -1,0 +1,409 @@
+---
+tests:
+- name: root_path
+  comment: site root path
+  command: pwd
+  type: string
+  groups: main
+
+- name: server
+  comment: server's hostname
+  command: hostname -f
+  type: string
+  groups: main
+
+- name: user
+  comment: site user
+  command: stat -c '%U' "$PWD"
+  type: string
+  groups: main
+
+- name: domain
+  comment: site main domain
+  command: get_domain
+  type: string
+  groups: main
+
+- name: engine
+  comment: site engine
+  command: get-engine
+  type: string
+  groups: main
+
+- name: domain_on_server
+  comment: is site domain's DNS points to current server
+  command: domain-on-server ${DOMAIN}
+  type: string
+  groups: main
+
+- name: email
+  comment: site email
+  command: get-email
+  type: string
+  groups: info
+
+- name: maintenance_mode
+  comment: is site in maintenance mode
+  command: drs vget maintenance_mode
+  validate:
+    warning: '0'
+  engine: drupal
+  groups: info
+
+- name: cron
+  comment: is site have cron entry in crontab
+  command: echo $(( $(crontab -l -u $(get_pwd_user) | grep "drs cron-run \"\?$(pwd)"
+    | wc -l) + $(crontab -l -u $(get_pwd_user) | grep "drs cron-run-elysia \"\?$(pwd)"
+    | wc -l) ))
+  validate:
+    min: 1
+    warning:
+      max: 1
+  engine: drupal
+  groups: cron
+
+- name: cache
+  comment: is anonymous cache enabled
+  command: drs vget cache
+  validate: '1'
+  engine: drupal
+  groups: cache
+
+- name: block_cache
+  comment: block cache
+  command: drs vget block_cache
+  validate: '1'
+  engine: drupal
+  groups: cache
+
+- name: cache_lifetime
+  comment: cache lifetime min
+  command: drs vget cache_lifetime
+  validate:
+    min: 300
+    warning:
+      min: 3600
+  engine: drupal
+  groups: cache
+
+- name: page_cache_maximum_age
+  comment: browser cache lifetime
+  command: drs vget page_cache_maximum_age
+  validate:
+    min: 300
+    warning:
+      min: 1800
+  engine: drupal
+  groups: cache
+
+# - name: cached_pages
+#   comment: cached pages loaded count
+#   command: drupal-cache-hit ${DOMAIN} /var/log/nginx/drupal_cache_hit.log.1 | grep
+#     HIT | cut -d' ' -f2
+#   engine: drupal
+#   groups: cache
+
+# - name: total_pages
+#   comment: total pages loaded count
+#   command: drupal-cache-hit ${DOMAIN} /var/log/nginx/drupal_cache_hit.log.1 | grep
+#     total | cut -d' ' -f2
+#   engine: drupal
+#   groups: cache
+
+- name: total_pages_load_time
+  comment: total pages loading time, seconds
+  command: grep "^${DOMAIN}" /var/log/nginx/drupal_cache_hit.log.1 | awk -F\" '{print
+    $7}' | grep -v '^$' | tr -d ' ' | awk '{ sum += $1 } END { print sum }' | cut
+    -d'.' -f1
+  groups: cache
+
+# - name: cache_hit_percent
+#   comment: cached page percent
+#   command: drupal-cache-hit ${DOMAIN} /var/log/nginx/drupal_cache_hit.log.1 | grep
+#     percent | cut -d' ' -f2
+#   validate:
+#     min: 0
+#     warning:
+#       min: 10
+#   engine: drupal
+#   groups: cache
+
+- name: preprocess_css
+  comment: css compress
+  command: drs vget preprocess_css
+  validate: '1'
+  engine: drupal
+  groups: cache
+
+- name: preprocess_js
+  comment: js compress
+  command: drs vget preprocess_js
+  validate: '1'
+  engine: drupal
+  groups: cache
+
+- name: drupal_version
+  _old_command: drush st | grep 'Drupal version' | cut -d':' -f2 | tr -d ' '
+  command: grep "'VERSION', '" includes/bootstrap.inc | head -n1 | grep -Po '\d\.\d+'
+  engine: drupal
+  type: string
+
+- name: drupal_theme
+  command: drs vget theme_default
+  engine: drupal
+  type: string
+
+- name: files_count
+  comment: site's files count
+  command: find -type f | wc -l
+  disabled: true
+  groups: files
+
+- name: dirs_count
+  comment: site's directories count
+  command: find -type d | wc -l
+  disabled: true
+  groups: files
+
+- name: styles_files
+  comment: image styles files count
+  command: test -d sites/default/files/styles && find sites/default/files/styles |
+    wc -l || echo 0
+  disabled: true
+  engine: drupal
+  groups: files
+
+- name: count_modules
+  comment: enabled modules count
+  command: drs modules-enabled | wc -l
+  validate:
+    max: 150
+    warning:
+      max: 100
+  engine: drupal
+  groups: modules
+
+- name: undoc_modules
+  comment: undoc modules count
+  command: drs modules-undoc | wc -l
+  validate:
+    max: 50
+    warning:
+      max: 20
+  engine: drupal
+  groups: modules
+
+- name: dblog
+  command: drs module-enabled dblog
+  validate: '0'
+  engine: drupal
+  groups: modules
+
+- name: syslog
+  command: drs module-enabled syslog
+  validate: '0'
+  engine: drupal
+  groups: modules
+
+- name: update
+  command: drs module-enabled update
+  validate: '0'
+  engine: drupal
+  groups: modules
+
+- name: devel
+  command: drs module-enabled devel
+  validate:
+    warning: '0'
+  engine: drupal
+  groups: modules
+
+- name: boost
+  command: drs module-enabled boost
+  validate:
+    warning: '1'
+  engine: drupal
+  groups:
+  - cache
+  - modules
+
+- name: metatag
+  command: drs module-enabled metatag
+  validate:
+    warning: '1'
+  engine: drupal
+  groups:
+  - modules
+  - seo
+
+- name: xmlsitemap
+  command: drs module-enabled xmlsitemap
+  validate:
+    warning: '1'
+  engine: drupal
+  groups:
+  - modules
+  - seo
+
+- name: panels
+  command: drs module-enabled panels
+  validate: '1'
+  engine: drupal
+  groups: modules
+
+- name: reuse_cached_404
+  command: drs module-enabled reuse_cached_404
+  validate: '1'
+  engine: drupal
+  groups:
+  - modules
+  - cache
+
+- name: sitemap_count
+  comment: sitemap.xml links count, not recursive
+  command: "[ $(drs module-enabled xmlsitemap) = 1 ] && drs urls sitemap | wc -l ||
+    echo 0"
+  validate:
+    warning:
+      min: 10
+  engine: drupal
+  groups: seo
+
+- name: h1_count
+  comment: h1 on mainpage count
+  command: wget -q -O- 'http://${DOMAIN}' | grep -c '<h1'
+  validate:
+    max: 1
+    warning:
+      min: 1
+  groups: seo
+
+- name: robots_disallow
+  comment: is site disallowed for index in robots.txt
+  command: grep -oEc '^Disallow:\s*?/$' robots.txt
+  validate:
+    max: 0
+  groups: seo
+
+- name: viasite_link
+  comment: count links on viasite.ru
+  command: wget -q -O- 'http://${DOMAIN}' | grep -c 'http://viasite.ru'
+  validate:
+    min: 1
+  groups: seo
+
+- name: git
+  comment: git exists
+  command: test -d .git && echo 1 || echo 0
+  validate: '1'
+  groups: git
+
+- name: git_clean
+  comment: git clean
+  disabled: true
+  command: git diff --quiet --ignore-submodules HEAD && echo 1 || echo 0
+  validate:
+    warning: '1'
+  groups:
+  - git
+  - files
+
+# - name: db_size
+#   comment: database size, mb
+#   command: db-size "$(drs database-settings database)"
+#   validate:
+#     max: 500
+#     warning:
+#       max: 200
+#   engine: drupal
+#   groups: db
+
+- name: cache_form
+  comment: cache_form rows
+  command: drs table-count cache_form
+  validate:
+    warning:
+      max: 1000
+  engine: drupal
+  groups:
+  - db
+  - cache
+
+- name: cache_menu
+  comment: cache_menu rows
+  command: drs table-count cache_menu
+  engine: drupal
+  groups:
+  - db
+  - cache
+
+- name: cache_menu_page
+  comment: cache_menu_page rows
+  command: drs sql "SELECT COUNT(*) FROM {cache_menu} WHERE cid LIKE '%:page:%'"
+  engine: drupal
+  groups:
+  - db
+  - cache
+
+- name: watchdog_count
+  comment: dblog count
+  command: drs table-count watchdog
+  engine: drupal
+  groups: db
+
+- name: node_count
+  comment: nodes count
+  command: drs table-count node
+  engine: drupal
+  groups: db
+
+- name: commerce_product_count
+  comment: commerce products count
+  command: drs table-count commerce_product
+  engine: drupal
+  groups: db
+
+- name: taxonomy_vocabulary_count
+  comment: vocabularies count
+  command: drs table-count taxonomy_vocabulary
+  engine: drupal
+  groups: db
+
+- name: taxonomy_term_data_count
+  comment: terms count
+  command: drs table-count taxonomy_term_data
+  engine: drupal
+  groups: db
+
+- name: url_alias_count
+  comment: url aliases count
+  command: drs table-count url_alias
+  engine: drupal
+  groups:
+  - db
+  - seo
+
+- name: users_count
+  comment: users count
+  command: drs table-count users
+  engine: drupal
+  groups:
+  - db
+  - users
+
+- name: user_register
+  comment: user register status (0 - disabled, 1 - admin approve, 2 - enabled)
+  command: drs vget user_register
+  validate:
+    max: 1
+    warning:
+      max: 0
+  engine: drupal
+  groups: users
+
+- name: drupal_bootstrap_full
+  comment: drupal bootstrap time (msec)
+  command: drs bootstrap-timings | grep 'DRUPAL_BOOTSTRAP_FULL' | cut -d':' -f 2 |
+    tr -d ' '
+  engine: drupal
+  type: time
