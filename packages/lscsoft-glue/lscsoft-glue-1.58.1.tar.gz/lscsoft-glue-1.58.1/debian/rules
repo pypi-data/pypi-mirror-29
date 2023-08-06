@@ -1,0 +1,35 @@
+#!/usr/bin/make -f
+include /usr/share/dpkg/pkg-info.mk
+
+# Automatically generate man pages with help2man
+export PYBUILD_AFTER_INSTALL := \
+	echo 'Automatically generating man pages with help2man' && \
+	mkdir -p {destdir}/usr/share/man/man1 && \
+	ls {destdir}/usr/bin | env PYTHONPATH={destdir}{install_dir} \
+	xargs --verbose -I @ help2man --source $(DEB_SOURCE) \
+	--version-string $(DEB_VERSION_UPSTREAM) --no-info --no-discard-stderr \
+	{destdir}/usr/bin/@ -o {destdir}/usr/share/man/man1/@.1
+
+# Run unit tests. Skip tests that require lal.
+export PYBUILD_AFTER_TEST := env \
+	PYTHONPATH={build_dir} \
+	PYTHONDONTWRITEBYTECODE=1 \
+	make -C {dir}/test PYTHON={interpreter} \
+	-o lal_verify \
+	-o ligolw_sqlite_test \
+	-o ligolw_test01 \
+	-o ligolw_test03a \
+	-o ligolw_test03b \
+	-o ligolw_test03c \
+	-o ligolw_test04 \
+	-o test_ligolw_lsctables \
+	-o test_ligolw_table \
+	-o segmentsUtils_verify \
+	-o test_ligolw_utils_segments
+
+# Redirect Python 3 packages to a directory that we are going to ignore.
+# FIXME: in the future, we could put these in libexec or change their names.
+export PYBUILD_INSTALL_ARGS_python3 := --install-scripts=/dont-install
+
+%:
+	dh $@ --with=python2,python3 --buildsystem=pybuild
