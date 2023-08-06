@@ -1,0 +1,42 @@
+language: python
+dist: trusty
+sudo: required
+cache:
+  - pip
+python:
+    - 2.7
+    - 3.5
+    - 3.6
+before_install:
+  # Always redownload tarball
+  - find ~/.cache/pip -name '*.dev*' -delete
+  - wget -q -O- 'https://download.ceph.com/keys/release.asc' | sudo apt-key add -
+  - echo deb https://download.ceph.com/debian-luminous/ trusty main | sudo tee /etc/apt/sources.list.d/ceph.list
+  - sudo apt-get -qq update
+  - sudo apt-get purge -y mysql-server-5.6 mysql-server-core-5.6 mysql-client-core-5.6 mysql-client-5.6 postgresql* libpq*
+  - sudo rm -rf /var/lib/mysql
+  # FIXME(sileht): readd rabbitmq-server when https://github.com/travis-ci/travis-cookbooks/issues/964 and https://github.com/travis-ci/travis-ci/issues/8906 are fixed
+  - sudo apt-get install -y mongodb-server mysql-server-5.5 redis-server zookeeper mongodb couchdb couchdb-bin nodejs npm ceph librados-dev python-dev gcc liberasurecode-dev liberasurecode1 postgresql libpq-dev
+  # - sudo gem install fakes3  # NOTE(sileht): fakes3 looks not installed correctly
+  - sudo npm install s3rver -g
+  - wget https://dl.influxdata.com/influxdb/releases/influxdb_0.13.0_amd64.deb
+  - sudo dpkg -i influxdb_0.13.0_amd64.deb
+  # zkEnv.sh can't be overriden with the deb version of zookeeper, this workaround that
+  - sudo chmod 777 /var/log/zookeeper
+  - wget http://www.apache.org/dist/kafka/1.0.0/kafka_2.12-1.0.0.tgz -O /opt/kafka.tar.gz
+  - tar -xzf /opt/kafka.tar.gz -C /opt
+  - ln -s /opt/kafka_2.12-1.0.0 /opt/kafka
+install:
+    # The install requirements in travis virtualenv that will be cached
+  - pip install tox-travis .[test,ceph]
+  - mkdir tmpxattr
+script: TMPDIR_FOR_XATTR=$(pwd)/tmpxattr tox -v -- $PIFPAF_TESTS
+
+deploy:
+  provider: pypi
+  user: jd
+  password:
+    secure: OwLNIwY6Oa0/e297mako9MaPM9jwIYxkJnCNUTwsgPM4r33ojaGk8pusE3X0PqpJSp6Lzqybfm2nJsARskzagt80vmO6SRjv56t7q+rBDo4HrZRwWw/GOv9t1OrbfNayLWzVkCo9OwEHRT1RLssoPJn6M2+/mOaWGO7xVpD4q4y6KlZzOT7iPzcclWOEIRahHlZ18+Uca/xGjKNeojqOuL7B/KTThXwgu09bna8kPOIwMTIQYlJxRszV58xXVf/dfZSXHShAnbREY+fR/M+h3NxvEU5uyU617VtiqAnQeKr3vnnOaH4j4u2RbON3E/c3hPLsj5/6wISNENKAOHdvVwfFktbwoMq8SLg0Qi1Jk1GMtOaFPZZ2tW9G5Oc3oC+ZMbZ/7MioGY7xjtlfSr3Rmv5mnfBPxJ/6/u93pQf3RRb1C4hteodV12LG5uvo5gQ+OR3yZMHvnyXrbWcaPcnuyNAsBtsHpT/qC7Nu7/YX5StOFbdy4jl1C40GsUXD7gHhqj0XkL28WnQYXNxjBtmcG3pd8/3h9HxprPi9Akw/thiFi39JRns0MWeXDIINphGpI6+c1B1NMtU9f7fBSCgEJg25Zum8tUdLURa1ZJVHdpqa76FmERanrLCzI1arFgkq8Nfx2pQkr6+0jP3pvW/2s6BbU7zazxWUBSwIDcRrfQE=
+  on:
+    tags: true
+  distributions: "sdist bdist_wheel"
