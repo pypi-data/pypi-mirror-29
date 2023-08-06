@@ -1,0 +1,594 @@
+Test-Scenario-1:
+  Id: ts_01
+  Path: hydratk/extensions/security/zap/01_methods_ut.jedi
+  Name: ts_init
+  Desc: Test __init__ method
+  Author: Petr Rasek <bowman@hydratk.org>
+  Version: 0.1
+  
+  Pre-Req: |
+    from hydratk.extensions.security.zap import Client
+  
+  Test-Case-1:
+    Id: tc_01
+    Name: tc_init
+    Desc: Initialize client
+    
+    Test-Condition-1: 
+      Id: tco_01
+      Name: tco_input
+      Desc: Input initialization
+      
+      Test: |
+        host, port = 'localhost', 8000
+        c = Client(host, port)
+        res = c.__class__.__name__
+      
+      Validate: |
+        this.test_result = res
+        assert (res == 'Client'), '__init__ = Client'
+        res = [c._path, c._host, c._port]
+        exp = ['zap.sh', host, port]
+        this.test_result = str(res)
+        assert (res == exp), '_path, _host, _port = {0}'.format(exp)
+        
+    Test-Condition-2: 
+      Id: tco_02
+      Name: tco_config
+      Desc: Initialization with configuration
+      
+      Test: |
+        cfg = mh.cfg['Extensions']['Security']['zap']
+        path, host, port = '/usr/share/zaproxy/zap.sh', 'localhost', 8000
+        cfg['path'] = path
+        cfg['host'] = host
+        cfg['port'] = port
+        c = Client()
+        res = c.__class__.__name__
+      
+      Validate: | 
+        this.test_result = res
+        assert (res == 'Client'), '__init__ = Client'
+        res = [c._path, c._host, c._port]
+        exp = [path, host, port]   
+        this.test_result = str(res)    
+        assert (res == exp), '_path, _host, _port = {0}'.format(exp)
+        cfg['path'] = 'zap.sh'
+        cfg['host'] = '127.0.0.1'
+        cfg['port'] = 8080    
+        
+Test-Scenario-2:
+  Id: ts_02
+  Path: hydratk/extensions/security/zap/01_methods_ut.jedi
+  Name: ts_props
+  Desc: Test properties
+  Author: Petr Rasek <bowman@hydratk.org>
+  Version: 0.1
+  
+  Pre-Req: |
+    from hydratk.extensions.security.zap import Client
+  
+  Test-Case-1:
+    Id: tc_01
+    Name: tc_getters
+    Desc: Getter methods
+    
+    Test-Condition-1: 
+      Id: tco_01
+      Name: tco_client
+      Desc: Getter client
+      
+      Test: |
+        c = Client()
+        res = c.client.__class__.__name__        
+      
+      Validate: |        
+        this.test_result = res
+        exp = c._client.__class__.__name__
+        assert (res == exp), 'client = {0}'.format(exp)
+        
+    Test-Condition-2: 
+      Id: tco_02
+      Name: tco_path
+      Desc: Getter path
+      
+      Test: |
+        res = c.path    
+      
+      Validate: |        
+        this.test_result = res
+        exp = c._path
+        assert (res == exp), 'path = {0}'.format(exp)    
+        
+    Test-Condition-3: 
+      Id: tco_03
+      Name: tco_host
+      Desc: Getter host
+      
+      Test: |
+        res = c.host   
+      
+      Validate: |        
+        this.test_result = res
+        exp = c._host
+        assert (res == exp), 'host = {0}'.format(exp)  
+        
+    Test-Condition-4: 
+      Id: tco_04
+      Name: tco_port
+      Desc: Getter port
+      
+      Test: |
+        res = c.port   
+      
+      Validate: |        
+        this.test_result = res
+        exp = c._port
+        assert (res == exp), 'port = {0}'.format(exp)                              
+        
+Test-Scenario-3:
+  Id: ts_03
+  Path: hydratk/extensions/security/zap/01_methods_ut.jedi
+  Name: ts_start
+  Desc: Test method start
+  Author: Petr Rasek <bowman@hydratk.org>
+  Version: 0.1
+  
+  Pre-Req: |
+    from hydratk.core.masterhead import MasterHead
+    from yodahelpers.hydratk.core.events import events, reg_ev_hook  
+    from hydratk.extensions.security.zap import Client
+    
+  Test-Case-1:
+    Id: tc_01
+    Name: tc_start
+    Desc: Start ZAP
+    
+    Test-Condition-1: 
+      Id: tco_01
+      Name: tco_start
+      Desc: Start
+      
+      Test: |
+        mh = MasterHead.get_head()
+        evs = ['zap_before_start', 'zap_after_start']
+        reg_ev_hook(mh, evs[0])
+        reg_ev_hook(mh, evs[1])        
+        c = Client()
+        path = '/usr/share/zaproxy/zap.sh'
+        res = c.start(path)   
+      
+      Validate: |    
+        this.test_result = res
+        assert (res), 'start = True'
+        res = [events[0]._id, events[1]._id]
+        this.test_result = str(res)
+        assert (res == evs), 'start fires {0}'.format(evs)  
+        del mh._event_hooks[evs[0]]
+        del mh._event_hooks[evs[1]]   
+        del events[0]
+        del events[0]  
+        c.stop()
+        
+    Test-Condition-2: 
+      Id: tco_02
+      Name: tco_config
+      Desc: Connect from configuration
+      
+      Test: |
+        cfg = mh.cfg['Extensions']['Security']['zap']
+        cfg['path'] = path
+        cfg['host'] = '0.0.0.0'
+        cfg['port'] = 8000
+        res = c.start()
+      
+      Validate: |        
+        this.test_result = res
+        assert (res), 'start = True'
+        c.stop()
+        cfg['path'] = 'zap.sh'
+        cfg['host'] = '127.0.0.1'
+        cfg['port'] = 8080   
+        
+  Test-Case-2:
+    Id: tc_02
+    Name: tc_negative
+    Desc: Negative cases
+    
+    Test-Condition-1: 
+      Id: tco_01
+      Name: tco_invalid_path
+      Desc: Invalid path
+      
+      Test: |
+        c = Client()
+        path = 'xxx.sh'  
+        res = c.start(path)
+      
+      Validate: |                       
+        this.test_result = res
+        assert (not res), 'start = False'      
+        
+Test-Scenario-4:
+  Id: ts_04
+  Path: hydratk/extensions/security/zap/01_methods_ut.jedi
+  Name: ts_stop
+  Desc: Test method stop
+  Author: Petr Rasek <bowman@hydratk.org>
+  Version: 0.1
+  
+  Pre-Req: |
+    from hydratk.core.masterhead import MasterHead
+    from yodahelpers.hydratk.core.events import events, reg_ev_hook  
+    from hydratk.extensions.security.zap import Client
+    from time import sleep
+    
+  Test-Case-1:
+    Id: tc_01
+    Name: tc_stop
+    Desc: Stop ZAP
+    
+    Test-Condition-1: 
+      Id: tco_01
+      Name: tco_stop
+      Desc: Stop
+      
+      Test: |
+        mh = MasterHead.get_head()
+        evs = ['zap_before_stop', 'zap_after_stop']
+        reg_ev_hook(mh, evs[0])
+        reg_ev_hook(mh, evs[1])        
+        c = Client()
+        path = '/usr/share/zaproxy/zap.sh'
+        c.start(path)
+        res = c.stop()   
+      
+      Validate: |    
+        this.test_result = res
+        assert (res), 'stop = True'
+        res = [events[0]._id, events[1]._id]
+        this.test_result = str(res)
+        assert (res == evs), 'stop fires {0}'.format(evs)  
+        del mh._event_hooks[evs[0]]
+        del mh._event_hooks[evs[1]]   
+        del events[0]
+        del events[0]  
+        sleep(5)
+        
+  Test-Case-2:
+    Id: tc_02
+    Name: tc_negative
+    Desc: Negative cases
+    
+    Test-Condition-1: 
+      Id: tco_01
+      Name: tco_not_started
+      Desc: Proxy not started
+      
+      Test: |
+        c = Client()                                       
+        res = c.stop()
+        
+      Validate: |
+        this.test_result = res
+        assert (not res), 'stop = False'  
+        
+Test-Scenario-5:
+  Id: ts_05
+  Path: hydratk/extensions/security/zap/01_methods_ut.jedi
+  Name: ts_spider
+  Desc: Test method spider
+  Author: Petr Rasek <bowman@hydratk.org>
+  Version: 0.1
+  
+  Pre-Req: |
+    from hydratk.core.masterhead import MasterHead
+    from yodahelpers.hydratk.core.events import events, reg_ev_hook  
+    from hydratk.extensions.security.zap import Client
+    from time import sleep
+    
+  Test-Case-1:
+    Id: tc_01
+    Name: tc_spider
+    Desc: Spider
+    
+    Test-Condition-1: 
+      Id: tco_01
+      Name: tco_simple
+      Desc: Simple URL
+      
+      Test: |
+        mh = MasterHead.get_head()
+        evs = ['zap_before_spider', 'zap_after_spider']
+        reg_ev_hook(mh, evs[0])
+        reg_ev_hook(mh, evs[1])        
+        c = Client()
+        path, url = '/usr/share/zaproxy/zap.sh', 'http://localhost/mutillidae/index.php?page=login.php'
+        c.start(path)   
+        res, cnt = c.spider(url)
+      
+      Validate: |    
+        this.test_result = res
+        assert (res), 'spider = True'
+        this.test_result = cnt
+        assert (cnt > 0), 'count > 0'
+        res = [events[0]._id, events[1]._id]
+        this.test_result = str(res)
+        assert (res == evs), 'spider fires {0}'.format(evs)  
+        del mh._event_hooks[evs[0]]
+        del mh._event_hooks[evs[1]]   
+        del events[0]
+        del events[0]               
+        
+    Test-Condition-2: 
+      Id: tco_02
+      Name: tco_params
+      Desc: URL with params
+      
+      Test: |
+        url = 'http://localhost/mutillidae/index.php?page=user-info.php'
+        params = {'username': 'ZAP', 'password': 'ZAP', 'user-info-php-submit-button': 'View Account Details'}  
+        res, cnt = c.spider(url, params)
+      
+      Validate: |    
+        this.test_result = res
+        assert (res), 'spider = True'
+        this.test_result = cnt
+        assert (cnt > 0), 'count > 0'   
+        c.stop()
+        sleep(5)
+        
+  Test-Case-2:
+    Id: tc_02
+    Name: tc_negative
+    Desc: Negative cases
+    
+    Test-Condition-1: 
+      Id: tco_01
+      Name: tco_invalid_url
+      Desc: Invalid URL
+      
+      Test: |
+        c = Client()
+        path, url = '/usr/share/zaproxy/zap.sh', 'htt://xxx'  
+        c.start(path)
+        res, cnt = c.spider(url)
+      
+      Validate: |                       
+        this.test_result = res
+        assert (not res), 'spider = False'
+        c.stop()                 
+        
+Test-Scenario-6:
+  Id: ts_06
+  Path: hydratk/extensions/security/zap/01_methods_ut.jedi
+  Name: ts_scan
+  Desc: Test method scan
+  Author: Petr Rasek <bowman@hydratk.org>
+  Version: 0.1
+  
+  Pre-Req: |
+    from hydratk.core.masterhead import MasterHead
+    from yodahelpers.hydratk.core.events import events, reg_ev_hook  
+    from hydratk.extensions.security.zap import Client
+    from time import sleep
+    
+  Test-Case-1:
+    Id: tc_01
+    Name: tc_scan
+    Desc: Scan
+    
+    Test-Condition-1: 
+      Id: tco_01
+      Name: tco_get
+      Desc: GET request
+      
+      Test: |
+        mh = MasterHead.get_head()
+        evs = ['zap_before_scan', 'zap_after_scan']
+        reg_ev_hook(mh, evs[0])
+        reg_ev_hook(mh, evs[1])        
+        c = Client()
+        path, url = '/usr/share/zaproxy/zap.sh', 'http://localhost/mutillidae/index.php?page=user-info.php'
+        params = {'username': 'ZAP', 'password': 'ZAP', 'user-info-php-submit-button': 'View Account Details'}
+        c.start(path)   
+        c.spider(url)
+        res, cnt = c.scan(url, params=params)
+      
+      Validate: |    
+        this.test_result = res
+        assert (res), 'scan = True'
+        this.test_result = cnt
+        assert (cnt > 0), 'count > 0'
+        res = [events[0]._id, events[1]._id]
+        this.test_result = str(res)
+        assert (res == evs), 'scan fires {0}'.format(evs)  
+        del mh._event_hooks[evs[0]]
+        del mh._event_hooks[evs[1]]   
+        del events[0]
+        del events[0]               
+        
+    Test-Condition-2: 
+      Id: tco_02
+      Name: tco_post
+      Desc: POST request
+      
+      Test: |
+        url = 'http://localhost/mutillidae/index.php?page=login.php'
+        params = {'username': 'ZAP', 'password': 'ZAP', 'login-php-submit-button': 'Login'}  
+        res, cnt = c.scan(url, method='POST', params=params)
+      
+      Validate: |    
+        this.test_result = res
+        assert (res), 'scan = True'
+        this.test_result = cnt
+        assert (cnt > 0), 'count > 0'   
+        c.stop()
+        sleep(5)
+        
+  Test-Case-2:
+    Id: tc_02
+    Name: tc_negative
+    Desc: Negative cases
+    
+    Test-Condition-1: 
+      Id: tco_01
+      Name: tco_invalid_url
+      Desc: Invalid URL
+      
+      Test: |
+        c = Client()
+        path, url = '/usr/share/zaproxy/zap.sh', 'htt://localhost/mutillidae/index.php?page=user-info.php'  
+        c.start(path)
+        res, cnt = c.scan(url)
+      
+      Validate: |                       
+        this.test_result = res
+        assert (not res), 'scan = False'
+        
+    Test-Condition-2: 
+      Id: tco_02
+      Name: tco_empty_tree
+      Desc: Empty tree
+      
+      Test: |
+        c = Client()
+        url = 'http://localhost/mutillidae/index.php?page=user-info.php'  
+        res, cnt = c.scan(url)
+      
+      Validate: |                       
+        this.test_result = res
+        assert (not res), 'scan = False'        
+        c.stop()            
+        
+Test-Scenario-7:
+  Id: ts_07
+  Path: hydratk/extensions/security/zap/01_methods_ut.jedi
+  Name: ts_export
+  Desc: Test method export
+  Author: Petr Rasek <bowman@hydratk.org>
+  Version: 0.1
+  
+  Pre-Req: |
+    from hydratk.core.masterhead import MasterHead
+    from yodahelpers.hydratk.core.events import events, reg_ev_hook  
+    from hydratk.extensions.security.zap import Client
+    from time import sleep
+    import os
+    
+  Test-Case-1:
+    Id: tc_01
+    Name: tc_export
+    Desc: Export
+    
+    Test-Condition-1: 
+      Id: tco_01
+      Name: tco_alert
+      Desc: Export alerts
+      
+      Test: |
+        mh = MasterHead.get_head()
+        evs = ['zap_before_export', 'zap_after_export']
+        reg_ev_hook(mh, evs[0])
+        reg_ev_hook(mh, evs[1])        
+        c = Client()
+        path, url = '/usr/share/zaproxy/zap.sh', 'http://localhost/mutillidae/index.php?page=user-info.php'
+        params = {'username': 'ZAP', 'password': 'ZAP', 'user-info-php-submit-button': 'View Account Details'}
+        c.start(path)   
+        c.spider(url)
+        c.scan(url, params=params)
+        res, out = c.export(out_type='alert', out_format='html', output='exp.out', url=url)
+      
+      Validate: |    
+        this.test_result = res
+        assert (res), 'export = True'
+        res = [events[0]._id, events[1]._id]
+        this.test_result = str(res)
+        assert (res == evs), 'export fires {0}'.format(evs)  
+        del mh._event_hooks[evs[0]]
+        del mh._event_hooks[evs[1]]   
+        del events[0]
+        del events[0]  
+        res = os.path.exists(out)
+        this.test_result = res
+        assert (res), 'html file created'
+        os.remove(out)
+        res, out = c.export(out_type='alert', out_format='json', output='exp.out', url=url)  
+        res = os.path.exists(out)
+        this.test_result = res
+        assert (res), 'json file created'
+        os.remove(out)
+        res, out = c.export(out_type='alert', out_format='md', output='exp.out', url=url)  
+        res = os.path.exists(out)
+        this.test_result = res
+        assert (res), 'md file created'
+        os.remove(out)  
+        res, out = c.export(out_type='alert', out_format='xml', output='exp.out', url=url)  
+        res = os.path.exists(out)
+        this.test_result = res
+        assert (res), 'xml file created'
+        os.remove(out)   
+        
+    Test-Condition-2: 
+      Id: tco_02
+      Name: tco_msg
+      Desc: Export messages
+      
+      Test: |
+        res, out = c.export(out_type='msg', out_format='har', output='exp.out', url=url)  
+        
+      Validate: |
+        res = os.path.exists(out)
+        this.test_result = res
+        assert (res), 'har file created'
+        os.remove(out)    
+        res, out = c.export(out_type='msg', out_format='json', output='exp.out', url=url)  
+        res = os.path.exists(out)
+        this.test_result = res
+        assert (res), 'json file created'
+        os.remove(out)         
+        
+    Test-Condition-3: 
+      Id: tco_03
+      Name: tco_url
+      Desc: Export URLs
+      
+      Test: |
+        res, out = c.export(out_type='url', out_format='json', output='exp.out', url=url)  
+        
+      Validate: |
+        res = os.path.exists(out)
+        this.test_result = res
+        assert (res), 'har file created'
+        os.remove(out)    
+        c.stop()                  
+        
+  Test-Case-2:
+    Id: tc_02
+    Name: tc_negative
+    Desc: Negative cases
+    
+    Test-Condition-1: 
+      Id: tco_01
+      Name: tco_invalid_type
+      Desc: Invalid type
+      
+      Test: |
+        c = Client()
+        res, out = c.export(out_type='xxx')
+      
+      Validate: |                       
+        this.test_result = res
+        assert (not res), 'export = False'         
+        
+    Test-Condition-2: 
+      Id: tco_02
+      Name: tco_invalid_format
+      Desc: Invalid format
+      
+      Test: |
+        res, out = c.export(out_format='xxx')
+      
+      Validate: |                       
+        this.test_result = res
+        assert (not res), 'export = False'                                                       
