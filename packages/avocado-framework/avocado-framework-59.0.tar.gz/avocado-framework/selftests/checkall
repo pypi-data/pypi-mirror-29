@@ -1,0 +1,197 @@
+#!/bin/bash
+ERR=()
+RESULTS_DIR=$(./scripts/avocado config | grep datadir.paths.logs_dir | awk '{print $2}')
+# Very basic version of expanduser
+RESULTS_DIR="${RESULTS_DIR/#\~/$HOME}"
+
+run_rc() {
+    CHECK=$1
+    shift
+    echo -e "\n\e[32mRunning '$1'\e[0m"
+    eval $*
+    if [ $? != 0 ]; then
+        echo -e "\e[31m$CHECK FAILED\e[0m"
+        ERR+=("$CHECK")
+        [ ! "$SELF_CHECK_CONTINUOUS" ] && exit 1
+    else
+        echo -e "\e[32m$CHECK PASSED\e[0m\n"
+    fi
+}
+
+
+parallel_selftests() {
+    local START=$(date +%s)
+    local ERR=0
+    local FIND_UNITTESTS=$(readlink -f ./contrib/scripts/avocado-find-unittests)
+    local NO_WORKERS=$(($(cat /proc/cpuinfo | grep -c processor) * 2))
+    local PY3=$(python --version 2>&1 | grep -q "$Python 3\.")$?
+
+    # The directories that may contain files with tests, from the Avocado core
+    # and from all optional plugins
+    declare -A DIR_GLOB_MAP
+    if [ $PY3 -eq 1 ]; then
+        DIR_GLOB_MAP[selftests]="selftests/unit/test_*.py selftests/functional/test_*.py selftests/doc/test_*.py"
+        for PLUGIN in $(find optional_plugins -mindepth 1 -maxdepth 1 -type d); do
+            DIR_GLOB_MAP[$PLUGIN]="tests/test_*.py"
+        done;
+    else
+        DIR_GLOB_MAP[selftests]="selftests/unit/test_*.py selftests/doc/test_*.py"
+    fi
+
+    declare -A TESTS
+    for TEST_DIR in "${!DIR_GLOB_MAP[@]}"; do
+        # tests in core, that is "selftests" expect the regular path, while
+        # python -m unittest module.class.test_name won't work for tests on
+        # plugins without a change of directory because the full path is
+        # not a valid python module (would need __init__.py) in places where
+        # it doesn't make sense
+        if [ "x$TEST_DIR" != "xselftests" ]; then
+            OLD_PWD=$PWD
+            cd $TEST_DIR
+        fi
+        # Use sort -R to randomize the order as longer tests
+        # seems to be likely in the same file
+        THIS_DIR_TESTS=$(${FIND_UNITTESTS} ${DIR_GLOB_MAP[$TEST_DIR]} | sort -R)
+        if [ -n "$THIS_DIR_TESTS" ]; then
+            TESTS[$TEST_DIR]=${THIS_DIR_TESTS};
+        fi
+        if [ -n $TEST_DIR ]; then
+            cd $OLD_PWD
+        fi
+    done
+
+    for TEST_DIR in "${!TESTS[@]}"; do
+        if [ "x$TEST_DIR" != "xselftests" ]; then
+            OLD_PWD=$PWD
+            cd $TEST_DIR
+        fi
+
+        declare -a ALL
+        ALL=(${TESTS[$TEST_DIR]})
+
+        local PER_SLICE=$((${#ALL[@]} / $NO_WORKERS))
+        [ $PER_SLICE -eq 0 ] && PER_SLICE=1
+        local PIDS=()
+        local TMPS=()
+
+        for I in $(seq 0 $PER_SLICE $((${#ALL[@]} - 1))); do
+            TMP=$(mktemp /tmp/avocado_parallel_unittest_output_XXXXXX)
+            TMPS+=("$TMP")
+            ( python -m unittest ${ALL[@]:$I:$PER_SLICE} &> $TMP ) &
+            PIDS+=("$!")
+            sleep 0.1
+        done
+
+        FAILED_ONCE=()
+        for I in $(seq 0 $((${#PIDS[@]} - 1))); do
+            wait ${PIDS[$I]}
+            RET=$?
+            if [ $RET -ne 0 ]; then
+                for FAILURE in $(cat "${TMPS[$I]}" | sed -n 's/\(ERROR\|FAIL\): \([^ ]*\) (\([^)]*\)).*/\3.\2/p'); do
+                    FAILED_ONCE+=("$FAILURE")
+                done
+            else
+                rm ${TMPS[$I]}
+            fi
+        done
+        if [ ${#FAILED_ONCE[@]} -gt 0 ]; then
+            if [ ${#FAILED_ONCE[@]} -le 24 ]; then
+                echo ${#FAILED_ONCE[@]} failed during parallel execution, trying them in series
+                echo "python -m unittest --failfast ${FAILED_ONCE[@]}"
+                if python -m unittest --failfast ${FAILED_ONCE[@]}; then
+                    echo "All failed tests passed when executed in series"
+                    echo
+                    for I in $(seq 0 $((${#PIDS[@]} - 1))); do
+                        [ -e "${TMPS[$I]}" ] && rm "${TMPS[$I]}"
+                    done
+                else
+                    echo
+                    echo "Some test(s) failed in series as well, showing failures from parallel run:"
+                    ERR=1
+                fi
+            else
+                echo "${#FAILED_ONCE[@]} tests failed during execution, not trying to re-run them."
+                ERR=1
+            fi
+        fi
+
+        # Remove all tmp files
+        for I in $(seq 0 $((${#PIDS[@]} - 1))); do
+            if [ -e "${TMPS[$I]}" ]; then
+                echo
+                echo python -m unittest ${ALL[@]:$(($I * $PER_SLICE)):$PER_SLICE}
+                cat "${TMPS[$I]}"
+                rm "${TMPS[$I]}"
+            fi
+        done
+        echo ----------------------------------------------------------------------
+        echo Ran ${#ALL[@]} tests for $TEST_DIR in $(($(date +%s) - START))s
+        if [ -n $TEST_DIR ]; then
+            cd $OLD_PWD
+        fi
+    done;
+    return $ERR
+}
+
+
+signed_off_check() {
+    AUTHOR="$(git log -1 --pretty='format:%aN <%aE>')"
+    git log -1 --pretty=format:%B | grep "Signed-off-by: $AUTHOR"
+    if [ $? != 0 ]; then
+        echo "The commit message does not contain author's signature (Signed-off-by: $AUTHOR)"
+        return 1
+    fi
+}
+
+
+results_dir_content() {
+    NOW="$(ls $RESULTS_DIR)"
+    if [ "$(echo $* | xargs)" != "$(echo $NOW | xargs)" ]; then
+        echo "The output of '$RESULTS_DIR' is not the same as before running the checks"
+        echo "ORIGINAL:"
+        echo "$*"
+        echo "NOW:"
+        echo "$NOW"
+        return 1
+    else:
+        echo "No extra files were created in '$RESULTS_DIR'"
+        return 0
+    fi
+}
+
+[ "$SKIP_RESULTSDIR_CHECK" ] || RESULTS_DIR_CONTENT="$(ls $RESULTS_DIR 2> /dev/null)"
+if [ "$TRAVIS" == "true" ]; then
+    run_rc lint 'RESULT=$(mktemp); inspekt lint --exclude=.git --enable W0102,W0611 &>$RESULT || { cat $RESULT; rm $RESULT; exit -1; }; rm $RESULT'
+else
+    run_rc lint 'inspekt lint --exclude=.git --enable W0102,W0611'
+fi
+# Skip checking test_utils_cpu.py due to inspektor bug
+run_rc indent 'inspekt indent --exclude=.git,selftests/unit/test_utils_cpu.py'
+run_rc style 'inspekt style --exclude=.git --disable E501,E265,W601,E402,E722'
+run_rc boundaries 'selftests/modules_boundaries'
+run_rc signed-off-by signed_off_check
+if [ "$AVOCADO_PARALLEL_CHECK" ]; then
+    run_rc selftests parallel_selftests
+elif [ -z "$AVOCADO_SELF_CHECK" ]; then
+    run_rc selftests selftests/run
+else
+    CMD='scripts/avocado run --job-results-dir=$(mktemp -d) selftests/{unit,functional,doc}'
+    [ ! $SELF_CHECK_CONTINUOUS ] && CMD+=" --failfast on"
+    run_rc selftests "$CMD"
+fi
+[ "$SKIP_RESULTSDIR_CHECK" ] || run_rc job-results results_dir_content "$RESULTS_DIR_CONTENT"
+
+if [ "$ERR" ]; then
+    echo -e "\e[31m"
+    echo "Checks:"
+    for CHECK in "${ERR[@]}"; do
+        echo -e " * $CHECK FAILED"
+    done
+    echo -ne "\e[0m"
+else
+    echo -e "\e[32mAll checks PASSED\e[0m"
+fi
+if [ "$ERR" ]; then
+    exit 1
+fi
+exit 0

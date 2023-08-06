@@ -1,0 +1,81 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+__author__ = 'Lucas Meneghel Rodrigues <lmr@redhat.com>'
+
+import gc
+import os
+import pkg_resources
+import subprocess
+import sys
+import unittest
+
+from avocado.core import data_dir
+
+
+CHECK_TMP_DIRS = os.path.abspath(os.path.join(os.path.dirname(__file__),
+                                              "check_tmp_dirs"))
+
+
+def plugin_available(plugin_name):
+    try:
+        pkg_resources.require(plugin_name)
+        return True
+    except pkg_resources.DistributionNotFound:
+        return False
+
+
+def test_suite():
+    suite = unittest.TestSuite()
+    loader = unittest.TestLoader()
+    selftests_dir = os.path.dirname(os.path.abspath(__file__))
+    basedir = os.path.dirname(selftests_dir)
+    if sys.version_info[0] == 3:
+        sections = ('unit', 'doc')
+    else:
+        sections = ('unit', 'functional', 'doc')
+    for section in sections:
+        suite.addTests(loader.discover(start_dir=os.path.join(selftests_dir, section),
+                                       top_level_dir=basedir))
+    if sys.version_info[0] == 3:
+        return suite
+    plugins = (('avocado-framework-plugin-varianter-yaml-to-mux',
+                'varianter_yaml_to_mux'),
+               ('avocado-framework-plugin-runner-remote',
+                'runner_remote'),
+               ('avocado-framework-plugin-runner-vm',
+                'runner_vm'))
+    for plugin_name, plugin_dir in plugins:
+        if plugin_available(plugin_name):
+            path = os.path.join(basedir, 'optional_plugins',
+                                plugin_dir, 'tests')
+            suite.addTests(loader.discover(start_dir=path, top_level_dir=path))
+    return suite
+
+
+class MyResult(unittest.TextTestResult):
+    def stopTest(self, test):
+        # stopTest
+        ret = super(MyResult, self).stopTest(test)
+        # Destroy the data_dir.get_tmpdir ...
+        data_dir._tmp_tracker.unittest_refresh_dir_tracker()
+        # Rung garbage collection (run __del__s) and force-sync disk
+        gc.collect()
+        subprocess.Popen("sync", stdin=subprocess.PIPE,
+                         stdout=subprocess.PIPE,
+                         stderr=subprocess.PIPE).communicate()
+        # ... and check whether some dirs were left behind
+        dir_check = subprocess.Popen([CHECK_TMP_DIRS], stdout=subprocess.PIPE,
+                                     stderr=subprocess.STDOUT)
+        if dir_check.wait():
+            raise AssertionError("Test %s left some tmp files behind:\n%s"
+                                 % (test, dir_check.stdout.read()))
+        return ret
+
+
+if __name__ == '__main__':
+    runner = unittest.TextTestRunner(failfast=not os.environ.get("SELF_CHECK_CONTINUOUS"),
+                                     verbosity=1, resultclass=MyResult)
+    result = runner.run(test_suite())
+    if result.failures or result.errors:
+        sys.exit(1)
