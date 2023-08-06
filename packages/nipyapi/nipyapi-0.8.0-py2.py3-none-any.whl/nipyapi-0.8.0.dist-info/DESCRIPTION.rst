@@ -1,0 +1,275 @@
+=======
+NiPyApi
+=======
+
+Nifi-Python-Api: A rich Apache NiFi Python Client SDK
+
+.. image:: https://img.shields.io/pypi/v/nipyapi.svg
+        :target: https://pypi.python.org/pypi/nipyapi
+        :alt: Release Status
+
+.. image:: https://img.shields.io/travis/Chaffelson/nipyapi.svg
+        :target: https://travis-ci.org/Chaffelson/nipyapi
+        :alt: Build Status
+
+.. image:: https://readthedocs.org/projects/nipyapi/badge/?version=latest
+        :target: https://nipyapi.readthedocs.io/en/latest/?badge=latest
+        :alt: Documentation Status
+
+.. image:: https://pyup.io/repos/github/Chaffelson/nipyapi/shield.svg
+     :target: https://pyup.io/repos/github/Chaffelson/nipyapi/
+     :alt: Python Updates
+
+.. image:: https://coveralls.io/repos/github/Chaffelson/nipyapi/badge.svg?branch=master
+    :target: https://coveralls.io/github/Chaffelson/nipyapi?branch=master&service=github
+    :alt: test coverage
+
+.. image:: https://img.shields.io/badge/License-Apache%202.0-blue.svg
+    :target: https://opensource.org/licenses/Apache-2.0
+    :alt: License
+
+
+Features
+--------
+
+**Three layers of Python support for working with Apache NiFi:**
+ - High-level Demos and example scripts
+ - Mid-level Client SDK for typical complex tasks
+ - Low-level Client SDKs for the full API implementation of NiFi and selected sub-projects
+
+**Functionality Highlights:**
+ - Detailed documentation of the full SDK at all levels
+ - CRUD wrappers for common task areas like Processor Groups, Processors, Templates, Registry Clients, Registry Buckets, Registry Flows, etc.
+ - Convenience functions for inventory tasks, such as recursively retrieving the entire canvas, or a flat list of all Process Groups
+ - Support for scheduling and purging flows
+ - Support for fetching and updating Variable Registries
+ - Support for import/export of Versioned Flows from NiFi-Registry
+ - Docker Compose configurations for testing and deployment
+ - A scripted deployment of an interactive environment, and a secured configuration, for testing and demonstration purposes
+
+**Coming soon:**
+ - Support for edge cases during Versioning changes, such as Reverting a flow containing live data
+ - Support for Mnemonic component naming and path resolution
+ - Rich configuration differential support
+
+Please see the `issue <https://github.com/Chaffelson/nipyapi/issues>`_ register for more information on current development.
+
+Quick Start
+-----------
+
+| There are several scripts to produce demo environments in *nipyapi.demo.**
+| The mid-level functionality is in *nipyapi.canvas / nipyapi.security / nipyapi.templates / nipyapi.versioning*
+| You can access the entire API using the low-level SDKs in *nipyapi.nifi / nipyapi.registry*
+
+The easiest way to install NiPyApi is with pip::
+
+    # in bash
+    pip install nipyapi
+
+You can set the config for your endpoints in the central config file::
+
+    # in python
+    import nipyapi
+    nipyapi.config.nifi_config.host = 'http://localhost:8080/nifi-api'
+    nipyapi.config.registry_config.host = 'http://localhost:18080/nifi-registry-api'
+
+Then import a module and execute tasks::
+
+
+    nipyapi.canvas.get_root_pg_id()
+    >'4d5dcf9a-015e-1000-097e-e505ed0f7fd2'
+
+You can use the Docker demos to create a secured interactive console showing many features::
+
+    from nipyapi.demo.secured_console import *
+    from nipyapi.demo.console import *
+
+You can also explore the scripts to get ideas for how NiPyAPi can be used to automate your environment.
+
+Please check out the `Contribution Guide <https://github.com/Chaffelson/nipyapi/blob/master/docs/contributing.rst>`_ if you are interested in contributing to the feature set.
+
+Background and Documentation
+----------------------------
+
+| For more information on Apache NiFi, please visit `https://nifi.apache.org <https://nifi.apache.org>`_
+| For Documentation on this package please visit `https://nipyapi.readthedocs.io. <https://nipyapi.readthedocs.io/en/latest>`_
+
+
+NiFi Version Support
+--------------------
+
+| Currently we are testing against NiFi versions 1.1.2 - 1.5.0, and NiFi-Registry version 0.1.0.
+| If you find a version compatibility problem please raise an `issue <https://github.com/Chaffelson/nipyapi/issues>`_
+
+Python Requirements
+-------------------
+
+| Python 2.7 or 3.6 supported, though other versions may work.
+| Tested on Ubuntu and OSX 10.11.x - Windows automated testing not attempted
+| Outside of the standard Python modules, we make use of lxml, DeepDiff and ruamel.yaml
+
+
+=======
+History
+=======
+
+0.8.0 (2018-03-06)
+------------------
+
+| Introducing Secured environment support, vastly expanded Versioning support including import/export.
+| Fixed Templates, better documentation, more demos, and NiFi version backtesting.
+
+**Potentially Breaking Changes**
+
+*Users should check the updated documentation and ensure their tests pass as expected*
+
+* Import/Export of Flow Versions was reworked significantly and renamed to correct bugs and remove coding complications and be generally more obvious in its behavior
+* Template upload/download reworked significantly to remove direct reliance on requests and correct bugs in some environments
+* Reworked many list/get functions to be more standardised as we stabilise the approaches to certain tasks. This should not change again in future
+* Standardised bad user submission on AssertionError, bad API submission errors on ValueError, and general API errors on ApiException. This standard should flow forwards
+* Switched ruamel.yaml from >15 to <15 as advised in the project documentation, as >15 is not considered production ready
+
+**New Features**
+
+* Added support for working with secured NiFi environments, contributed by KevDoran
+    * Added demo compatibility between secured_connection and console to produce a rich secured and version-controlled demo environment
+    * Added many secured environment convenience functions to security.py
+    * Integrated tokenAuth support throughout the low-level clients
+* Added simple Docker deployment support in utils module for test, demo, and development
+* Standardised all documentation on more readable docstrings and rst templates across the entire codebase
+* Significantly expanded versioning support, users should consult the refreshed documentation
+* Added experimental support for cleaning queues, process_groups, and setting scheduling of various components
+* Many calls now have an auto-refresh before action option to simplify applying changes
+* Implemented short and long wait controls for relevant functions to allow more deterministic changes
+* Implemented generic object-list-filtering-for-a-string-in-a-field for many response get/list types
+* Standardised many responses to conform to a common response contract: None for none, object for single, and list-of-objects for many
+* Implemented import/export to json/yaml in versioning
+* Added regression/backtesting for many functions going back through major release versions to NiFi-1.1.2. More details will be obvious from reading tests/conftest.py
+* Test suites now more reliably clean up after themselves when executed on long-running environments
+* Apparently logging is popular, so standard Python logging is now included
+
+**Other notes**
+
+* Various low-level SDK bugfixes corrected in the swagger spec and updated in the provided client
+* Enhanced Template and Flow Versioning to handle significantly more complex flows
+* Significantly enhanced testing fixtures
+* Refactored several common functions to utils.py, and moved several common configurations to config.py
+* versioning.get_flow will now export the raw Registry object for convenience when serialising flows
+* Significantly improved Py2/Py3 compatibility handling, and import management within the package
+* Removed docs dependency on M2R by converting everything over to reStructuredText
+
+0.7.0 (2018-01-30)
+------------------
+
+* Updated project to support NiFi-1.5.0 and NiFi-Registry-0.1.0
+* Merged api clients into main codebase, deprecated external client requirement
+* Created centralised project configuration and test configuration
+* Updated automated test environment to consistent docker for local and Travis
+* Removed procedurally generated boilerplate stub tests to improve readability
+* Moved pytest fixtures into conftest and expanded dramatically
+* Added limited support for processor and process group scheduling
+* Added support for all common Nifi-Registry calls
+* Added a demo package to provide an interactive test and demo console
+* Significant readme, contribution, and other documentation refresh
+* Expanded CRUD support for most processor, process group and related tasks
+
+
+0.6.1 (2018-01-04)
+------------------
+
+* Added requested functions to find and list Processors on the canvas
+* Fixed list all process groups to include the root special case properly
+
+
+0.6.0 (2017-12-31)
+------------------
+
+* Refactored many functions to use native NiFi datatypes instead of generics
+* Standardised several call names for consistency
+* Updated examples
+* Created additional tests and enhanced existing to capture several exceptions
+
+
+0.5.1 (2017-12-07)
+------------------
+
+* Added template import/export with working xml parsing and tests
+* Added a ton of testing and validation steps
+* Cleared many todos out of code by either implementing or moving to todo doc
+
+
+0.5.0 (2017-12-06)
+------------------
+
+* migrated swagger_client to separate repo to allow independent versions
+* refactored wrapper Classes to simpler functions instead
+* cleaned up documentation and project administrivia to support the split
+
+0.4.0 (2017-10-29)
+------------------
+
+* Added wrapper functions for many common Template commands (templates.py)
+* Added new functions for common Process Groups commands (canvas.py)
+* Significant test framework enhancements for wrapper functions
+* Many coding style cleanups in preparation for filling out test suite
+* Added linting
+* Cleaned up docs layout and placement within project
+* Integrated with TravisCI
+* Dropped Python2.6 testing (wasn't listed as supported anyway)
+* Updated examples and Readme to be more informative
+
+0.3.2 (2017-09-04)
+------------------
+
+* Fixed bug where tox failing locally due to coveralls expecting travis
+* Fixed bug where TravisCI failing due to incorrectly set install requirements
+* Fixed bug where swagger_client not importing as expected
+
+
+0.3.1 (2017-09-04)
+------------------
+
+* Fixed imports and requirements for wheel install from PyPi
+
+0.3.0 (2017-09-04)
+------------------
+
+* Created basic wrapper structure for future development
+* Added simple usage functions to complete todo task
+* Added devnotes, updated usage, and various sundry other documentation cleanups
+* Split tests into subfolders for better management and clarity
+* Added Coveralls and License Badge
+* Removed broken venv that ended up in project directory, added similar to ignore file
+* Changed default URL in the configuration to default docker url and port on localhost
+
+0.2.1 (2017-08-26)
+------------------
+
+* Fixed up removal of leftover swagger client dependencies
+
+0.2.0 (2017-08-25)
+------------------
+
+* Merge the nifi swagger client into this repo as a sub package
+    * Restructured tests into package subfolders
+    * Consolidate package configuration
+    * Setup package import structure
+    * Updated usage instructions
+    * Integrate documentation
+
+0.1.2 (2017-08-24)
+------------------
+
+* Created basic integration with nifi-python-swagger-client
+
+0.1.1 (2017-08-24)
+------------------
+
+* Cleaned up base project and integrations ready for code migration
+
+0.1.0 (2017-08-24)
+------------------
+
+* First release on PyPI.
+
+
