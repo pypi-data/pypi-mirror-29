@@ -1,0 +1,2 @@
+class ReflinkImpossibleError(Exception):
+    pass
