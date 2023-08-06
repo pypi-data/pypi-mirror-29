@@ -1,0 +1,132 @@
+Kuna exchange API wrapper
+=========================
+
+
+.. image:: https://img.shields.io/pypi/v/kuna.svg
+        :target: https://pypi.python.org/pypi/kuna
+
+.. image:: https://travis-ci.org/DmytroLitvinov/kuna.svg?branch=master
+        :target: https://travis-ci.org/DmytroLitvinov/kuna
+
+.. image:: https://readthedocs.org/projects/kuna/badge/?version=stable
+        :target: https://kuna.readthedocs.io/en/latest/?badge=stable
+        :alt: Documentation Status
+
+.. image:: https://pyup.io/repos/github/DmytroLitvinov/kuna/shield.svg
+     :target: https://pyup.io/repos/github/DmytroLitvinov/kuna/
+     :alt: Updates
+
+.. image:: https://pyup.io/repos/github/DmytroLitvinov/kuna/python-3-shield.svg
+     :target: https://pyup.io/repos/github/DmytroLitvinov/kuna/
+     :alt: Python 3
+
+``kuna`` is a Python package providing access to the `Kuna exchange <https://kuna.io/>`_ server API.
+Original documentation of Kuna exchange API here: https://kuna.io/documents/api
+
+
+Installation
+============
+
+Requirements
+------------
+
+kuna depends on:
+
+* `python-requests <http://docs.python-requests.org/en/latest/>`_
+
+Install with pip
+----------------
+
+.. code-block:: console
+
+   pip install kuna
+
+
+Documentation
+=============
+
+The full documentation is available on `readthedocs <https://kuna.readthedocs.io>`_.
+
+Meta
+====
+
+Dmytro Litvinov – `@Dmytro_Litvinov <https://twitter.com/Dmytro_Litvinov>`_  – litvinov.do.it@gmail.com
+
+Distributed under the MIT license. See `LICENSE <https://github.com/DmytroLitvinov/kuna/blob/master/LICENSE>`_ for more information.
+
+https://github.com/DmytroLitvinov/kuna
+
+
+
+History
+=======
+
+
+0.2.9 (2018-03-11)
+------------------
+
+* Add new pair HKN/BTC 'hknbtc
+
+
+0.2.8 (2018-02-13)
+------------------
+
+* Add new pairs EOS/BTC 'eosbtc', FOOD/BTC 'foodbtc', OTX/BTC 'otxbtc'
+
+
+0.2.7 (2018-02-09)
+------------------
+
+* Add new pair XRP/UAH 'xrpuah'
+
+
+0.2.6 (2018-01-06)
+------------------
+
+* Add new pair BCH/UAH 'bchuah'
+
+
+0.2.5 (2017-12-31)
+------------------
+
+* Fix market pair 'golosgbg' to 'golgbg' and also add new pairs 'rbtc', 'arnbtc', 'evrbtc', 'b2bbtc'
+
+
+0.2.4 (2017-11-07)
+------------------
+
+* Fix bug for User method: for correct generate signature it needs to pass assorted params.
+
+
+0.2.3 (2017-10-31)
+------------------
+
+* Add new pair
+
+
+0.2.2 (2017-10-31)
+------------------
+
+* Speed up code by change string concatenation
+* Improve docs structure
+* Minor change at code logic for getting signature
+
+
+0.2.1 (2017-10-29)
+------------------
+
+* Add User methods
+
+
+0.2.0 (2017-10-29)
+------------------
+
+* Add public methods without unittests.
+
+
+0.1.0 (2017-10-28)
+------------------
+
+* First release on PyPI.
+
+
