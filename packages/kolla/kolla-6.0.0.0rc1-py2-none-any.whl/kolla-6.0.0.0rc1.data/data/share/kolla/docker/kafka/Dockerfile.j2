@@ -1,0 +1,36 @@
+FROM {{ namespace }}/{{ image_prefix }}base:{{ tag }}
+LABEL maintainer="{{ maintainer }}" name="{{ image_name }}" build-date="{{ build_date }}"
+
+{% block kafka_header %}{% endblock %}
+
+{% import "macros.j2" as macros with context %}
+
+{{ macros.configure_user(name='kafka', homedir='/kafka') }}
+
+{% if base_distro in ['centos', 'oraclelinux', 'rhel'] %}
+    {% set kafka_packages = [
+        'java-1.8.0-openjdk',
+    ] %}
+{% elif base_distro in ['debian', 'ubuntu'] %}
+    {% set kafka_packages = [
+        'default-jre',
+    ] %}
+{% endif %}
+
+{{ macros.install_packages(kafka_packages | customizable("packages")) }}
+
+{% block kafka_install %}
+RUN curl -o kafka.tgz http://apache.osuosl.org/kafka/1.0.0/kafka_2.12-1.0.0.tgz \
+    && tar xfvz kafka.tgz \
+    && rm kafka.tgz \
+    && ln -s kafka* kafka
+{% endblock %}
+
+COPY extend_start.sh /usr/local/bin/kolla_extend_start
+RUN chmod 755 /usr/local/bin/kolla_extend_start \
+    && chown -R kafka: /kafka
+
+{% block kafka_footer %}{% endblock %}
+{% block footer %}{% endblock %}
+
+USER kafka
