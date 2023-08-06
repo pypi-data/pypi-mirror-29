@@ -1,0 +1,84 @@
+<script>
+    //Marker {{prefix}}
+    setTimeout(function(){
+        var cells=IPython.notebook.get_cells().filter(function(cell){
+            if(!cell.output_area || !cell.output_area.outputs){
+                return false;
+            }
+            return cell.output_area.outputs.filter(function(output){
+                if (output.output_type==="display_data"&&output.data&&output.data["text/html"]){
+                    return output.data["text/html"].includes("//Marker {{prefix}}")
+                }
+                return false;
+            }).length > 0;
+        });
+        if(cells.length>0){
+            var cell=cells[0];
+            var cellId=cell.cell_id;
+            var cellMetadata=cell._metadata.pixiedust;
+            var old_msg_id = cell.last_msg_id;
+            if (old_msg_id) {
+                cell.kernel.clear_callbacks_for_msg(old_msg_id);
+            }
+            function getCellWidth(){
+                try{
+                    return cell.input[0].clientWidth
+                }catch(e){
+                    console.log(e)
+                }
+            }
+            function getViewportHeight(){
+                try {
+                    return document.documentElement.clientHeight
+                } catch(e) {
+                    console.log(e)
+                }
+            }
+            var snifferOptions = [{'nostore_cw':getCellWidth()},{'nostore_vh':getViewportHeight()},{'nostore_pixiedust':(typeof pixiedust != "undefined")}];
+            {%if org_params%}
+                snifferOptions.push({'org_params':'{{org_params}}'});
+            {%endif%}
+            {%for cb in this.snifferCallbacks%}
+                snifferOptions.push({{cb()}})
+            {%endfor%}
+            user_options = { 'options': {
+                'nostore_cw':getCellWidth(),
+                'nostore_vh':getViewportHeight(),
+                'nostore_pixiedust':(typeof pixiedust != "undefined"),
+                'showchrome': 'true',
+                'cell_id': cellId
+            }}
+            {%if org_params%}
+                user_options.options.org_params= '{{org_params}}';
+            {%endif%}
+            {%for cb in this.snifferCallbacks%}
+                user_options.options = $.extend({}, user_options.options, {{cb()}} );
+            {%endfor%}
+
+            function callback(){
+                pixiedust.executeDisplay({{pd_controls}},user_options);
+            }
+            if (typeof pixiedust == "undefined"){
+                var s=document.getElementsByTagName('script')[0];
+                var g=document.createElement('script');
+                g.type='text/javascript';
+                g.defer=true; 
+                g.async=true;
+                var code = "{{pixiedust_js|trim|removeJSComments|replace("\\","\\\\")|replace("\"" ,"\\\"")|replace("\n", "\\n\"+\n\"")}}";
+                
+                try{
+                    g.appendChild(document.createTextNode(code));
+                }catch(e){
+                    g.text = code;
+                }
+
+                s.parentNode.insertBefore(g,s);
+                g.onload = g.onreadystatechange = callback;
+            }else{
+                callback();
+            }         
+        }else{
+            alert("An error occurred, unable to access cell id");
+        }
+    },0);
+</script>

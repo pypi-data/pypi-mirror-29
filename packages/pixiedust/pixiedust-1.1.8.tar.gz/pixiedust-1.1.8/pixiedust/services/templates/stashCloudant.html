@@ -1,0 +1,171 @@
+{%import "executePythonDisplayMacro.js" as display with context%}
+{%import "commonExecuteCallback.js" as commons with context%}
+<style>
+    #service-connection{{prefix}} td{
+        text-align:left;
+        font-size: x-large;
+        color: chocolate;
+        cursor: pointer;
+    }
+
+    #service-connection{{prefix}} th{
+        text-align:left;
+        font-size: x-large;
+    }
+
+    #service-connection{{prefix}} .selected{
+        background-color: #337ab7;
+        color:white;
+    }
+</style>
+
+<div class="page-header" style="margin:10px;text-align:center">
+    <h1>Stash to Cloudant</h1>
+    <h3 style="font-weight: 200;margin: 10px;">Select a connection and click submit</h3>
+    <center> <button id="go{{prefix}}" class="btn btn-default" disabled type="button">Submit</button></center>
+</div>
+
+<div class="form-group">
+    <label for="dbName{{prefix}}">Database:</label>
+    <input type="text" class="form-control" id="dbName{{prefix}}" readonly value="{{dbName}}">
+</div>
+
+<div class="form-group">
+    <label for="connection{{prefix}}">Cloudant Connection:</label>
+    <div class="df-table-wrapper panel-group">
+    <div class="panel panel-default">
+        <div class="panel-heading" style="margin: 0px;padding:0px">
+            <h4 class="panel-title input-group" style="margin: 0px;padding:0px">
+                <input type="text" class="form-control" data-toggle="collapse" data-target="#list-connections-{{prefix}}" id="connection{{prefix}}" readonly placeholder="click to see the list of connections" value=""/>
+                <span class="input-group-btn" style="height:100%">
+                    <button class="btn btn-default" type="button" style="height:100%" data-toggle="collapse" data-target="#list-connections-{{prefix}}">
+                        <i class="fa fa-caret-down"></i>
+                    </button>
+                </span>
+            </h4>
+        </div>
+        <div id="list-connections-{{prefix}}" class="panel-collapse collapse">
+            {%include module + ":listConnections.html"%}
+        </div>
+    </div>
+</div>
+
+<script>
+function updateGoBtn(){
+    if ($('#connection{{prefix}}').val().trim() == ""){
+        $("#go{{prefix}}").attr("disabled","disabled");
+    }else{
+        $("#go{{prefix}}").removeAttr("disabled");
+    }
+}
+
+function bindConnectionEvents(){
+    updateGoBtn();
+    $('#service-connection{{prefix}}').on('click', 'tbody td', function(event) {
+        if ($(this).text().trim() == ""){
+            return false;
+        }
+        $(this).closest("tbody").find("td").each(function() {
+            $(this).removeClass('selected');
+            $(this).find("input").prop('checked', false);
+        });
+        $(this).addClass("selected");
+        $(this).find("input").prop('checked', true);
+        $('#connection{{prefix}}').val( $(this).text().trim() );
+        updateGoBtn();
+    });
+
+    $('#service-connection{{prefix}} #delCon{{prefix}}').click(function(event){
+        event.stopPropagation();
+        var name = $(this).closest('td').prev().text().trim();
+        if (confirm("Delete " + name + "?")){
+            executeScript(
+                "from pixiedust.services.serviceManager import deleteConnection\ndeleteConnection('{{connType}}','" + name + "')",
+                {
+                    'onError': function(error){
+                        alert(error);
+                    },
+                    'onSuccess': function(results){
+                        if ($('#connection{{prefix}}').val()==name){
+                            $('#connection{{prefix}}').val("");
+                            updateGoBtn();
+                        }
+                        refreshListConnections();
+                    }
+                }
+            )
+        }
+    });
+
+    $('#service-connection{{prefix}} #editCon{{prefix}}').click(function(event){
+        event.stopPropagation();
+        editConnection($(this).closest('td').prev().text().trim());
+    });
+
+    $("#addCon{{prefix}}").click(function(){
+        editConnection();
+        return false;
+    });
+}
+
+bindConnectionEvents();
+
+$("#go{{prefix}}").click(function(){
+    var selectedConn = $('#connection{{prefix}}').val();
+    {% call display.executeDisplay() %}
+        var o = {};
+        o['nostore_dbName'] = "{{dbName}}";
+        o['nostore_connection'] = selectedConn;
+        addOptions(o);
+    {% endcall %}
+});
+
+function executeDisplay(displayCallback){
+    displayCallback = displayCallback || {};
+    displayCallback.options = displayCallback.options || {}
+    function onDisplayDone{{prefix}}(){
+        if (displayCallback.onDisplayDone){
+            displayCallback.onDisplayDone();
+        }
+    }
+    var $targetDivId = displayCallback.targetDivId;
+    {% call display.executeDisplay(divId="$targetDivId") %}
+        addOptions( displayCallback.options );
+    {% endcall %}
+}
+
+function executeScript(script, executeControl){
+    executeControl = executeControl || {}
+    var $targetDivId = executeControl.targetDivId;
+    var command = script;
+    {% call(results) commons.ipython_execute(None,prefix, divId="$targetDivId") %}
+        {%if results["message"]%}
+            if (executeControl.onError){
+                executeControl.onError( {{results["message"]}} );
+            }
+        {%else%}
+            if (executeControl.onSuccess){
+                executeControl.onSuccess({{results}});
+            }
+        {%endif%}
+    {% endcall %}
+}
+
+function refreshListConnections(){
+    var displayCallback = {
+        'onDisplayDone': function (){bindConnectionEvents();},
+        'targetDivId': 'list-connections-{{prefix}}',
+        'options': {'nostore_listConnections':'true'}
+    };
+    executeDisplay(displayCallback);
+}
+
+function editConnection(connectionName){
+    var editConnCallback = function(conn){
+        refreshListConnections()
+    }
+    {% with inScript=True %}
+    {%include module + ":editConnection.dialog" %}
+    {% endwith %}
+}
+</script>

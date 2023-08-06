@@ -1,0 +1,123 @@
+{%extends "basedialog.html"%}
+
+{%block title %}{{optionsTitle or 'Chart Options'}}{%endblock%}
+
+{%block body%}
+<form id="chartOptions{{prefix}}">
+{{optionsDialogBody}}
+</form>
+<div class="bootbox-body row">
+</div>
+{%endblock%}
+
+{%block onDialogShown%}
+var btnok = $('.btn-ok');
+var setOkBtnStatus = function() {
+	var valueFieldsEmpty = ($('#valueFields{{prefix}}').length && $('#valueFields{{prefix}}').children().length === 0);
+	{%if keyFieldsSupported %}
+	if (valueFieldsEmpty){
+		$('#warnEmptyValueFields{{prefix}}').show();
+	}else{
+		$('#warnEmptyValueFields{{prefix}}').hide();
+	}
+	{%endif%}
+	if ( {%if not keyFieldsSupported %}valueFieldsEmpty || {%endif%}
+		($('#keyFields{{prefix}}').length && $('#keyFields{{prefix}}').children().length === 0)
+		|| ($('#rows-count').length && Number($('#rows-count').val()) <= 0)) {
+			btnok.attr('disabled', 'disabled');
+	}
+	else {
+		btnok.attr('disabled', null);
+	}
+}
+setOkBtnStatus();
+
+$('#chartOptions{{prefix}} *').filter(':input').each(function(){
+	IPython.keyboard_manager.register_events($(this));
+});
+$('.field{{prefix}}').draggable({
+	helper:"clone",
+	containment:"document",
+	start: function(event, ui) {
+		//$('.field-container').addClass(ui.helper.data("fieldType") + '-field-drag');
+		$('.field-container').addClass('field-drag');
+	},
+	stop: function(event, ui) {
+		//$('.field-container').removeClass(ui.helper.data("fieldType") + '-field-drag');
+		$('.field-container').removeClass('field-drag');
+	}
+});
+$('.field{{prefix}}-remove').click(function(e) {
+	e.preventDefault();
+	$(this).parent().remove();
+	if ($(this).children().length === 0) {
+		setOkBtnStatus();
+	}
+	return false;
+});
+$('#keyFields{{prefix}}, #valueFields{{prefix}}').droppable({
+	accept: function(d) {
+		if ($(this).parent().hasClass('keys-fields')) {
+			return d.data("fieldType") === 'numeric' ||
+				d.data("fieldType") === 'string' || 
+				d.data("fieldType") === 'date/time'; 
+		}
+		else if ($(this).parent().hasClass('values-fields')) {
+			return d.data("fieldType") === 'numeric';
+		}
+		else {
+			return false;
+		}
+	},
+	activate: function(event, ui) {
+		$(this).parent().addClass('field-drag-acceptable');
+	},
+	deactivate: function(event, ui) {
+		$(this).parent().removeClass('field-drag-acceptable');
+	},
+	drop:function(event, ui) {
+		var newId = ui.draggable.attr('id') + '-' + $(this).attr('id');
+		if ( $('#'+newId).length == 0) { 
+			var el = ui.draggable.clone(true, true);
+			el.attr("id",newId);
+			el.find("a").addClass("field-remove");
+			el.appendTo($(this));
+			setOkBtnStatus();
+		}
+	}
+});
+$('#rows-count').on('input', function () {
+	setOkBtnStatus();
+});
+
+var rows = $('.field{{prefix}}');
+$('.options-fields-search').keyup(function() {
+	var val = '^(?=.*\\b' + $.trim($(this).val()).split(/\s+/).join('\\b)(?=.*\\b') + ').*$';
+	var reg = RegExp(val, 'i');
+	var index = 0;
+	
+	rows.each(function(i, e) {
+		if (!reg.test($(this).text().replace(/\s+/g, ' '))) {
+			$(this).attr('class', 'hidden');
+		}
+		else {
+			$(this).attr('class', (++index % 2 == 0 ? 'even' : 'odd'));
+		}
+	});
+});
+
+$('.fields-link').click(function() {
+	if ($('.all-fields').hasClass('numeric-only')) {
+		$('.all-fields').removeClass('numeric-only');
+		$(this).text('Show only numeric columns');
+	}
+	else {
+		$('.all-fields').addClass('numeric-only');
+		$(this).text('Show all columns');
+	}
+});
+{%endblock%}
+
+{%block onOK%}
+({%include resModule + ":chartOptionsDialogOnOK.js"%})()
+{%endblock%}
