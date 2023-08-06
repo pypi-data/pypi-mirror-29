@@ -1,0 +1,157 @@
+.. :changelog:
+
+Release History
+===============
+
+0.12.0 (2018-02-23)
+-------
+
+**New**
+
+- You can now deploy applications via a context xml file. A new
+  interactive command ``deploy context`` and a new method
+  ``deploy_servercontext()`` provide this capability.
+
+**Improved**
+
+- Better help messages in the interactive ``tomcat-manager`` tool
+
+**Changed**
+
+- deploy() has been replaced by three new methods:
+   - deploy_localwar()
+   - deploy_serverwar()
+   - deploy_servercontext()
+- Interactive deploy command syntax has changed:
+   - Can now deploy context xml files
+   - Specify version with --version flag instead of optional positional
+     parameter
+- Commands which use an optional version parameter now use a '-v' option
+  to specify the version
+- Most commands now have -h/--help options
+
+
+0.11.0 (2017-09-06)
+-------------------
+
+**New**
+
+- New command line switches for ``tomcat-manager``: ``--quiet``, ``--echo``,
+  ``--status_to_stdout``
+- New setting ``status_prefix`` contains the string to emit prior to all
+  status messages
+- New class ``TomcatApplication``
+
+**Improved**
+
+- If we get an http redirect during ``TomcatManager.connect()``, save the new
+  url so we don't have to re-traverse the redirect on every command.
+- Interactive `list` command now can filter by application state, and has two
+  sort options.
+
+**Changed**
+
+- ``TomcatManager._user`` is now ``TomcatManager.user``
+- ``TomcatManager._url`` is now ``TomcatManager.url``
+- ``TomcatManager.list()`` now returns a list of ``TomcatApplication`` objects
+- Renamed ``tm.codes`` to ``tm.status_codes`` to clarify the purpose
+
+
+0.10.0 (2017-08-24)
+-------------------
+
+**New**
+
+- CHANGELOG.rst
+- documentation for interactive mode
+- documentation for use from the shell command line
+- read settings from a config file
+- add `config` command which allows user to edit config file
+- server shortcuts: save url, user, and password in config file
+- `which` command to show which tomcat server you are connected to
+- `timeout` setting for HTTP timeouts
+- `restart` command as synonym for `reload`
+- Add tox for testing against multiple versions of python
+
+**Improved**
+
+- `status` command now pretty prints the xml response
+
+**Changed**
+
+- `TomcatManager.__init__` no long accepts paramemeters: use `connect`
+  instead
+- `TomcatManager` methods which act on apps (`deploy`, `sessions`,
+   `stop`, etc.) now throw exceptions if no path is specified. Previously
+   they returned a response with `r.ok == False`
+
+
+0.9.2 (2017-08-16)
+------------------
+
+**New**
+
+- new TomcatManager.connect() method
+- lots more documentation
+- pytest now runs doctests
+
+**Improved**
+
+- version numbers now provided by `setuptools_scm`
+
+
+0.9.1 (2017-08-10)
+------------------
+
+**Improved**
+
+- New release to practice packaging and distribution
+
+
+0.9.0 (2017-08-10)
+------------------
+
+**New**
+
+- Converted from a single script to an installable python package
+- Remove documentation for tomcat 6, which is no longer supported
+- Add `expire` command
+- Add `vminro` command
+- Add `sslconnectorciphers` command
+- Add `threaddump` command
+- Add `findleaks` command
+- Add `status` command
+- Unit tests using pytest
+- Support Tomcat parallel deployment
+- Real documentation using Sphinx
+- Packaged to PyPI
+
+**Improved**
+
+- Switch from getopt to argparse
+- Use `cmd2`, if available, instead of `cmd`
+- Switch from `urllib` to `requests`
+
+**Deprecated**
+
+- Drop support for Python 3.3
+
+
+Changes in 2014 and 2015
+------------------------
+
+- Remove methods deprecated in Python 3.4
+- Add documentation to support Tomcat 7
+
+
+0.4 (2013-07-07)
+----------------
+
+- Port to python 3, no support for python 2
+- New `resources` command
+
+
+0.3 (2013-01-02)
+----------------
+
+- Add code from private repo
