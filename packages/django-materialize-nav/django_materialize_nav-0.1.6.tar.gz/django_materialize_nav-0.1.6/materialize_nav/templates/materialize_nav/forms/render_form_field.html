@@ -1,0 +1,170 @@
+
+{% if input_type == "textarea" %}
+
+    <div id="{{ field.html_name }}_div" class="" style="{% if inline %}display: inline-block; min-width: 200px;{% endif %}{{ style }}">
+        <label for="{{ field.id_for_label }}" data-error="{{ field.errors|join:' ' }}" data-success="">{{ field.label }}</label>
+        <textarea name="{{ field.html_name }}"
+                  id="{{ field.id_for_label }}" class="{{ input_class }}"
+                  cols="40" rows="10"
+                  {% if placeholder %}placeholder="{{ placeholder }}"{% endif %}
+                  {% if field.required %}required{% endif %}
+                  {% if is_hidden %}hidden{% endif %}
+                  class="materialize-textarea {{ input_class }}{% if field.errors %} active validate invalid{% endif %}"
+            >{% if field.value or field.value == 0 %}{{ field.value }}{% endif %}</textarea>
+
+        <span class="helper-text" data-error="{% for err in field.errors %}{{ err }}{% if not forloop.last %}, {% endif %}{% endfor %}"
+                  style="display: table"></span>
+    </div>
+
+{% elif input_type == "select" %}
+
+    <div id="{{ field.html_name }}_div" class="input-field" style="{% if inline %}display: inline-block; min-width: 200px;{% endif %}{{ style }}">
+        <select name="{{ field.html_name }}" id="{{ field.id_for_label }}"
+        {% if field.required %}required{% endif %}
+        {% if is_hidden %}hidden{% endif %}
+        class="{{ input_class }}{% if field.errors %} active validate invalid{% endif %}">
+            {% for opt in field.subwidgets %}
+                {{ opt }}
+            {% endfor %}
+        </select>
+        <label for="{{ field.id_for_label }}" data-error="{{ field.errors|join:' ' }}" data-success="">{{ field.label }}</label>
+        <span class="helper-text" data-error="{% for err in field.errors %}{{ err }}{% if not forloop.last %}, {% endif %}{% endfor %}"
+              style="float: left"></span>
+    </div>
+
+{% elif input_type == "checkbox" or input_type == 'radio'%}
+    <div id="{{ field.html_name }}_div" class="" style="{% if inline %}display: inline-block; min-width: 200px;{% endif %}{{ style }}">
+        <ul>
+        {% for widget in field.subwidgets %}
+            <li>
+                <label for="{{ widget.id_for_label }}">
+                <input type="{{ widget.data.type }}" name="{{ widget.data.name }}" value="{{ widget.data.value }}"
+                       id="{{ widget.id_for_label }}"
+                       {% if widget.data.attrs.checked %}checked{% endif %}
+                       {% if widget.data.attrs.is_hidden %}hidden{% endif %}
+                       {% if widget.data.attrs.required %}required{% endif %}
+                       class="with-gap {{ input_class }}{% if field.errors %} active validate invalid{% endif %}" />
+                <span>{{ widget.choice_label }}</span>
+            </li>
+        {% endfor %}
+        </ul>
+    </div>
+
+{% elif input_type == "autocomplete" %}
+
+    <div id="{{ field.id_for_label }}_div" class="input-field" style="{% if inline %}display: inline-block; min-width: 200px;{% endif %}{{ style }}">
+        <label for="{{ field.id_for_label }}" data-error="{{ field.errors|join:' ' }}" data-success="">{{ field.label }}</label>
+        <input type="text" value=""
+               id="{{ field.id_for_label }}_inp"
+               autocomplete="off"
+               {% if is_hidden %}hidden{% endif %}
+               {% if placeholder %}placeholder="{{ placeholder }}"{% endif %}
+               {% if field.max_length %}maxLength={{ field.max_length }}{% endif %}
+               class="{{ input_class }}{% if field.errors %} active validate invalid{% endif %}">
+        <input id="{{ field.id_for_label }}" name="{{ field.html_name }}" {% if field.value or field.value == 0 %}value="{{ field.value }}"{% endif %} hidden>
+        <span class="helper-text" data-error="{% for err in field.errors %}{{ err }}{% if not forloop.last %}, {% endif %}{% endfor %}"></span>
+
+        <script>
+            $(document).ready(function() {
+                var auto_complete_el = document.querySelector('#{{ field.id_for_label }}_inp');
+                var auto_complete_field = document.querySelector('#{{ field.id_for_label }}');
+                var autocomplete_data = {};
+                var autocomplete_li = {};
+                {% for item in field.field.choices %}
+                    {% if item.0 == field.value %}
+
+                    {% endif %}
+                    {% if forloop.counter0 >= 1 %}
+                        autocomplete_data["{{ item.1 }}"] = "{{ item.0 }}";
+                        autocomplete_li["{{ item.1 }}"] = null;
+                    {% endif %}
+                {% endfor %}
+
+                // Set the Initial value
+                for (var name in autocomplete_data) {
+                    if (autocomplete_data[name] == "{{ field.value }}") {
+                        auto_complete_el.value = name;
+                        break;
+                    }
+                }
+
+                var auto_instance = M.Autocomplete.init(auto_complete_el, {
+                    "data": autocomplete_li,
+                    "limit": 10,
+                    onAutocomplete: function(val){
+                        var value = autocomplete_data[val];
+                        auto_complete_field.value = value;
+                     }
+                });
+
+                {% if field.url %}
+                    var search_request = null;
+                    $('#{{ field.id_for_label }}_inp').on("input", function(e){
+                        e.preventDefault();
+
+                        if(search_request != null){
+                            search_request.abort();
+                        }
+
+                        var search_text = auto_complete_el.value;
+
+                        search_request = $.ajax({
+                            type: "GET",
+                            url: "{{ field.url }}",
+                            dataType: 'json',
+                            data: {"search": search_text},
+
+                            success: function (json) {
+                                for (var key in json){
+                                    if (json.hasOwnProperty(key)){
+                                        var search = json[key];
+                                        autocomplete_data = {};
+                                        autocomplete_li = {};
+
+                                        for (var i = 0; i < search.length; i++) {
+                                            var item = search[i];
+                                            var name = item[0];
+                                            var val_id = item[1];
+                                            autocomplete_li[name] = null;
+                                            autocomplete_data[name] = val_id;
+                                        }
+
+                                        auto_instance.updateData(autocomplete_li);
+                                    }
+                                }
+                            }
+                        })
+                    });
+                {% endif %}
+            });
+        </script>
+    </div>
+
+{% elif input_type == 'file' %}
+    <div id="{{ field.html_name }}_div" class="file-field input-field" style="{% if inline %}display: inline-block; min-width: 200px;{% endif %}{{ style }}">
+        <div class="btn">
+            <span>{{ field.html_name }}</span>
+            <input type="file" name="{{ field.html_name }}" {% if field.value or field.value == 0 %}value="{{ field.value }}"{% endif %}>
+        </div>
+      <div class="file-path-wrapper">
+        <input class="file-path validate" type="text" {% if field.value or field.value == 0 %}value="{{ field.value }}"{% endif %}>
+      </div>
+    </div>
+
+{% else %}
+    <div id="{{ field.html_name }}_div" class="{{ widget.attrs.class_names }}" style="{% if widget.attrs.inline or inline %}display: inline-block; min-width: 200px;{% endif %}{{ style }}">
+        <label for="{{ field.id_for_label }}" data-error="{{ field.errors|join:' ' }}" data-success="">{{ field.label }}</label>
+        <input type="{{ widget.input_type }}" name="{{ field.html_name }}"
+               {% if field.value != None %}value="{{ field.value|stringformat:'s' }}"{% endif %}
+{#               {% for name, value in widget.attrs.items %}{% if value is not False %} {{ name }}{% if value is not True %}="{{ value|stringformat:'s' }}"{% endif %}{% endif %}{% endfor %}#}
+               id="{{ field.id_for_label }}"
+               {% if placeholder %}placeholder="{{ placeholder }}"{% endif %}
+               {% if field.max_length %}maxLength={{ field.max_length }}{% endif %}
+               {% if widget.is_hidden %}hidden{% endif %}
+               {% if widget.is_required %}required{% endif %}
+               class="{{ input_class }}{% if field.errors %} active validate invalid{% endif %}">
+        <span class="helper-text" data-error="{% for err in field.errors %}{{ err }}{% if not forloop.last %}, {% endif %}{% endfor %}"
+              style="display: table"></span>
+    </div>
+{#    {% include "django/forms/widgets/text.html" %}#}
+{% endif %}
