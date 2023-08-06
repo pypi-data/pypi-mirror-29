@@ -1,0 +1,169 @@
+# -*- rpm-spec -*-
+
+# This spec file assumes you are building on a Fedora or RHEL version
+# that's still supported by the vendor. It may work on other distros
+# or versions, but no effort will be made to ensure that going forward
+%define min_rhel 6
+%define min_fedora 25
+
+%if (0%{?fedora} && 0%{?fedora} >= %{min_fedora}) || (0%{?rhel} && 0%{?rhel} >= %{min_rhel})
+    %define supported_platform 1
+%else
+    %define supported_platform 0
+%endif
+
+%define _with_python2 1
+%define _with_python3 0
+%if 0%{?fedora} || 0%{?rhel} > 7
+%define _with_python3 1
+%endif
+
+# Whether py2 packages are assumed to have python2- name prefix
+%define py2_versioned_deps 0
+%if 0%{?fedora} || 0%{?rhel} > 7
+%define py2_versioned_deps 1
+%endif
+
+%{!?with_python2: %define with_python2 %{_with_python2}}
+%{!?with_python3: %define with_python3 %{_with_python3}}
+
+Summary: The libvirt virtualization API python2 binding
+Name: libvirt-python
+Version: 4.1.0
+Release: 1%{?dist}%{?extra_release}
+Source0: http://libvirt.org/sources/python/%{name}-%{version}.tar.gz
+Url: http://libvirt.org
+License: LGPLv2+
+Group: Development/Libraries
+BuildRequires: libvirt-devel == %{version}
+%if %{with_python2}
+%if %{py2_versioned_deps}
+BuildRequires: python2-devel
+BuildRequires: python2-nose
+BuildRequires: python2-lxml
+%else
+BuildRequires: python-devel
+BuildRequires: python-nose
+BuildRequires: python-lxml
+%endif
+%endif
+%if %{with_python3}
+BuildRequires: python3-devel
+BuildRequires: python3-nose
+BuildRequires: python3-lxml
+%endif
+
+# Don't want provides for python shared objects
+%if %{with_python2}
+%{?filter_provides_in: %filter_provides_in %{python_sitearch}/.*\.so}
+%endif
+%if %{with_python3}
+%{?filter_provides_in: %filter_provides_in %{python3_sitearch}/.*\.so}
+%endif
+%{?filter_setup}
+
+%description
+The libvirt-python package contains a module that permits applications
+written in the Python programming language to use the interface
+supplied by the libvirt library to use the virtualization capabilities
+of recent versions of Linux (and other OSes).
+
+%if %{with_python2}
+%package -n python2-libvirt
+Summary: The libvirt virtualization API python2 binding
+Url: http://libvirt.org
+License: LGPLv2+
+Group: Development/Libraries
+%{?python_provide:%python_provide python2-libvirt}
+Provides: libvirt-python = %{version}-%{release}
+Obsoletes: libvirt-python <= 3.6.0-1%{?dist}
+
+%description -n python2-libvirt
+The python2-libvirt package contains a module that permits applications
+written in the Python programming language to use the interface
+supplied by the libvirt library to use the virtualization capabilities
+of recent versions of Linux (and other OSes).
+%endif
+
+%if %{with_python3}
+%package -n python3-libvirt
+Summary: The libvirt virtualization API python3 binding
+Url: http://libvirt.org
+License: LGPLv2+
+Group: Development/Libraries
+%{?python_provide:%python_provide python3-libvirt}
+Provides: libvirt-python3 = %{version}-%{release}
+Obsoletes: libvirt-python3 <= 3.6.0-1%{?dist}
+
+%description -n python3-libvirt
+The python3-libvirt package contains a module that permits applications
+written in the Python programming language to use the interface
+supplied by the libvirt library to use the virtualization capabilities
+of recent versions of Linux (and other OSes).
+%endif
+
+%prep
+%setup -q
+
+# Unset execute bit for example scripts; it can introduce spurious
+# RPM dependencies, like /usr/bin/python which can pull in python2
+# for the -python3 package
+find examples -type f -exec chmod 0644 \{\} \;
+
+%build
+%if ! %{supported_platform}
+echo "This RPM requires either Fedora >= %{min_fedora} or RHEL >= %{min_rhel}"
+exit 1
+%endif
+
+%if %{with_python2}
+CFLAGS="$RPM_OPT_FLAGS" %{__python} setup.py build
+%endif
+%if %{with_python3}
+CFLAGS="$RPM_OPT_FLAGS" %{__python3} setup.py build
+%endif
+
+%install
+%if %{with_python2}
+%{__python} setup.py install --skip-build --root=%{buildroot}
+%endif
+%if %{with_python3}
+%{__python3} setup.py install --skip-build --root=%{buildroot}
+%endif
+
+%check
+%if %{with_python2}
+%{__python} setup.py test
+%endif
+%if %{with_python3}
+%{__python3} setup.py test
+%endif
+
+%if %{with_python2}
+%files -n python2-libvirt
+%defattr(-,root,root)
+%doc ChangeLog AUTHORS NEWS README COPYING COPYING.LESSER examples/
+%{python_sitearch}/libvirt.py*
+%{python_sitearch}/libvirt_qemu.py*
+%{python_sitearch}/libvirt_lxc.py*
+%{python_sitearch}/libvirtmod*
+%{python_sitearch}/*egg-info
+%endif
+
+%if %{with_python3}
+%files -n python3-libvirt
+%defattr(-,root,root)
+%doc ChangeLog AUTHORS NEWS README COPYING COPYING.LESSER examples/
+%{python3_sitearch}/libvirt.py*
+%{python3_sitearch}/libvirtaio.py*
+%{python3_sitearch}/libvirt_qemu.py*
+%{python3_sitearch}/libvirt_lxc.py*
+%{python3_sitearch}/__pycache__/libvirt.cpython-*.py*
+%{python3_sitearch}/__pycache__/libvirt_qemu.cpython-*.py*
+%{python3_sitearch}/__pycache__/libvirt_lxc.cpython-*.py*
+%{python3_sitearch}/__pycache__/libvirtaio.cpython-*.py*
+%{python3_sitearch}/libvirtmod*
+%{python3_sitearch}/*egg-info
+%endif
+
+%changelog
