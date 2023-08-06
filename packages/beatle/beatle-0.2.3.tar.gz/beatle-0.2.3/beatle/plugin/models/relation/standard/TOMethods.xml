@@ -1,0 +1,402 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<contents>
+  <reference>
+    <title>to side methods</title>
+    <abstract>This file contains the declarations for the to side of a relationship</abstract>
+    <author>Mel Viso</author>
+    <date>10/2014</date>
+    <package>standard</package>
+    <digital-sign/>
+  </reference>
+  <definitions>
+    <def>arg=p{toRel._name}</def>
+    <def>toKey={toRel._name}</def>
+    <def>fromPtr={fromRel._fromPtr.prefixed_name}</def>
+    <def>counter={toRel._counter.prefixed_name}</def>
+    <def>firstToPtr={toRel._firstToPtr.prefixed_name}</def>
+    <def>lastToPtr={toRel._lastToPtr.prefixed_name}</def>
+    <def>prevPtr={fromRel._prevPtr.prefixed_name}</def>
+    <def>nextPtr={fromRel._nextPtr.prefixed_name}</def>
+    <def>classTo={TO._name}</def>
+  </definitions>
+  <methods>
+    <method name="Add{toKey}First" access="protected" type='void' >
+      <args>
+        <arg name="{arg}" type="TO" ptr="True"/>
+      </args>
+      <content filter="{transactional:False}">
+#if !defined(OPTIMISTIC)
+	assert(this);
+	assert({arg});
+	#if !defined(TOLERANT)
+		assert( {arg}-&gt;{fromPtr} == nullptr );
+	#else
+		if ( {arg}-&gt;{fromPtr} != nullptr )
+		{{
+			assert( {arg}-&gt;{fromPtr} == this );
+			Move{toKey}First( {arg} );
+			return;
+		}}
+	#endif //TOLERANT
+#endif //OPTIMISTIC
+{counter}++;
+{arg}-&gt;{fromPtr} = this;
+if ( {firstToPtr} != nullptr )
+{{
+	{arg}-&gt;{nextPtr} = {firstToPtr};
+	{firstToPtr}-&gt;{prevPtr} = {arg};
+	{firstToPtr} = {arg};
+}}
+else
+{{
+	{firstToPtr} = {arg};
+	{lastToPtr} = {arg};
+}}
+      </content>
+    </method>
+    <method name="Add{toKey}Last" access="protected" type='void' >
+      <args>
+        <arg name="{arg}" type="TO" ptr="True"/>
+      </args>
+      <content filter="{transactional:False}">
+#if !defined(OPTIMISTIC)
+	assert(this);
+	assert({arg});
+	#if !defined(TOLERANT)
+		assert({arg}-&gt;{fromPtr} == nullptr);
+	#else
+		if({arg}-&gt;{fromPtr} != nullptr)
+		{{
+			assert({arg}-&gt;{fromPtr} == this);
+			Move{toKey}Last({arg});
+			return;
+		}}
+	#endif //TOLERANT
+#endif //OPTIMISTIC
+{counter}++;
+{arg}-&gt;{fromPtr} = this;
+if ({lastToPtr} != nullptr)
+{{
+	{arg}-&gt;{prevPtr} = {lastToPtr};
+	{lastToPtr}-&gt;{nextPtr} = {arg};
+	{lastToPtr} = {arg};
+}}
+else
+{{
+	{lastToPtr} = {arg};
+	{firstToPtr} = {arg};
+}}
+      </content>
+    </method>
+    <method name="Add{toKey}After" access="protected" type='void' >
+      <args>
+        <arg name="{arg}" type="TO" ptr="True"/>
+        <arg name="{arg}Pos" type="TO" ptr="True"/>
+      </args>
+      <content filter="{transactional:False}">
+#if !defined(OPTIMISTIC)
+	assert(this);
+	assert({arg});
+	assert({arg}Pos);
+	assert({arg}Pos-&gt;{fromPtr} == this);
+	#if !defined(TOLERANT)
+		assert({arg}-&gt;{fromPtr} == nullptr);
+	#else
+		if({arg}-&gt;{fromPtr} != nullptr)
+		{{
+			assert({arg}-&gt;{fromPtr} == this);
+			Move{toKey}After({arg},{arg}Pos);
+			return;
+		}}
+	#endif //TOLERANT
+#endif //OPTIMISTIC
+{counter}++;
+{arg}-&gt;{fromPtr} = this;
+{arg}-&gt;{prevPtr} = {arg}Pos;
+{arg}-&gt;{nextPtr} = {arg}Pos-&gt;{nextPtr};
+{arg}Pos-&gt;{nextPtr}  = {arg};
+if ({arg}-&gt;{nextPtr} != nullptr)
+{{
+	{arg}-&gt;{nextPtr}-&gt;{prevPtr} = {arg};
+}}
+else
+{{
+	{lastToPtr} = {arg};
+}}
+      </content>
+    </method>
+    <method name="Add{toKey}Before" access="protected" type='void'>
+      <args>
+        <arg name="{arg}" type="TO" ptr="True"/>
+        <arg name="{arg}Pos" type="TO" ptr="True"/>
+      </args>
+      <content filter="{transactional:False}">
+#if !defined(OPTIMISTIC)
+	assert(this);
+	assert({arg});
+	assert({arg}Pos);
+	assert({arg}Pos-&gt;{fromPtr} == this);
+	#if !defined(TOLERANT)
+		assert({arg}-&gt;{fromPtr} == nullptr);
+	#else
+		if ({arg}-&gt;{fromPtr} != nullptr)
+		{{
+			assert({arg}-&gt;{fromPtr} == this);
+			Move{toKey}Before({arg},{arg}Pos);
+			return;
+		}}
+	#endif //TOLERANT
+#endif //OPTIMISTIC
+{counter}++;
+{arg}-&gt;{fromPtr} = this;
+{arg}-&gt;{nextPtr} = {arg}Pos;
+{arg}-&gt;{prevPtr} = {arg}Pos-&gt;{prevPtr};
+{arg}Pos-&gt;{prevPtr} = {arg};
+if ( {arg}-&gt;{prevPtr} != nullptr )
+{{
+	{arg}-&gt;{prevPtr}-&gt;{nextPtr} = {arg};
+}}
+else
+{{
+	{firstToPtr} = {arg};
+}}
+		</content>
+    </method>
+    <method name="Remove{toKey}" access="protected" type='void'>
+      <args>
+        <arg name="{arg}" type="TO" ptr="True"/>
+      </args>
+      <content filter="{transactional:False}">
+#if !defined(OPTIMISTIC)
+	assert(this);
+	assert({arg});
+	#if !defined(TOLERANT)
+		assert( {arg}-&gt;{fromPtr} == this );
+	#else
+		if( {arg}-&gt;{fromPtr} != this )
+		{{
+			assert( {arg}-&gt;{fromPtr} == nullptr );
+			if( {arg}-&gt;{prevPtr} != nullptr )
+			{{
+				assert( {arg}-&gt;{prevPtr}-&gt;{nextPtr} != {arg} );
+			}}
+			if( {arg}-&gt;{nextPtr} != nullptr )
+			{{
+				assert( {arg}-&gt;{nextPtr}-&gt;{prevPtr} != {arg} );
+			}}
+			return;
+		}}
+	#endif //TOLERANT
+#endif //OPTIMISTIC
+{counter}++;
+if ( {arg}-&gt;{nextPtr} != nullptr )
+{{
+	{arg}-&gt;{nextPtr}-&gt;{prevPtr} = {arg}-&gt;{prevPtr};
+}}
+else
+{{
+	{lastToPtr} = {arg}-&gt;{prevPtr};
+}}
+if ( {arg}-&gt;{prevPtr} != nullptr )
+{{
+	{arg}-&gt;{prevPtr}-&gt;{nextPtr} = {arg}-&gt;{nextPtr};
+}}
+else
+{{
+	{firstToPtr} = {arg}-&gt;{nextPtr};
+}}
+{arg}-&gt;{prevPtr} = nullptr;
+{arg}-&gt;{nextPtr} = nullptr;
+{arg}-&gt;{fromPtr} = nullptr;
+		</content>
+    </method>
+    <method name="Replace{toKey}" access="protected" type='void'>
+      <args>
+        <arg name="{arg}" type="TO" ptr="True"/>
+        <arg name="{arg}New" type="TO" ptr="True"/>
+      </args>
+		<content>
+assert(this);
+assert({arg}-&gt;{fromPtr} == this);
+assert({arg}New-&gt;{fromPtr} == nullptr);
+if ({arg}-&gt;{nextPtr} != nullptr)
+{{
+	{arg}-&gt;{nextPtr}-&gt;{prevPtr} = {arg}New;
+}}
+else
+{{
+	{lastToPtr} = {arg}New;
+}}
+if ({arg}-&gt;{prevPtr} != nullptr)
+{{
+	{arg}-&gt;{prevPtr}-&gt;{nextPtr} = {arg}New;
+}}
+else
+{{
+	{firstToPtr} = {arg}New;
+}}
+{arg}New-&gt;{nextPtr} = {arg}-&gt;{nextPtr};
+{arg}New-&gt;{prevPtr} = {arg}-&gt;{prevPtr};
+{arg}-&gt;{nextPtr} = nullptr;
+{arg}-&gt;{prevPtr} = nullptr;
+{arg}-&gt;{fromPtr} = nullptr;
+{arg}New-&gt;{fromPtr} = this;
+		</content>
+    </method>
+    <method name="DeleteAll{toKey}" access="public" type='void'>
+      <args>
+      </args>
+      <content filter="{transactional:False}"> 
+{classTo} *elem = GetFirst{toKey}();
+while( elem != nullptr )
+{{
+	delete elem;
+	elem = GetFirst{toKey}();
+}}
+      </content>
+      <content filter="{transactional:True}"> 
+{classTo} *elem = GetFirst{toKey}();
+while( elem != nullptr )
+{{
+	elem-&gt;Delete();
+	elem = GetFirst{toKey}();
+}}
+      </content>
+    </method>
+    <method name="GetFirst{toKey}" access="public" type='TO' ptr="True" constmethod="True">
+      <args/>
+      <content filter="{transactional:False}">
+#if !defined(OPTIMISTIC)
+	assert(this);
+#endif //OPTIMISTIC
+return {firstToPtr};
+    </content>
+    </method>
+    <method name="GetLast{toKey}" access="public" type='TO' ptr="True" constmethod="True">
+      <args/>
+      <content filter="{transactional:False}">
+#if !defined(OPTIMISTIC)
+	assert(this);
+#endif //OPTIMISTIC
+return {lastToPtr};
+</content>
+    </method>
+    <method name="GetNext{toKey}" access="public" type='TO' ptr="True" constmethod="True">
+    <args>
+      <arg name="{arg}" type="TO" ptr="True"/>
+    </args>
+      <content filter="{transactional:False}">
+#if !defined(OPTIMISTIC)
+	assert(this);
+	assert({arg}-&gt;{fromPtr} == this);
+#endif
+return {arg}-&gt;{nextPtr}; 
+      </content>
+    </method>
+    <method name="GetPrev{toKey}" access="public" type='TO' ptr="True" constmethod="True">
+      <args>
+        <arg name="{arg}" type="TO" ptr="True"/>
+      </args>
+      <content filter="{transactional:False}">
+#if !defined(OPTIMISTIC)
+	assert(this);
+#endif
+if ({arg} == nullptr )
+{{
+	return {lastToPtr};
+}}
+assert({arg}->{fromPtr} == this);
+return {arg}->{prevPtr};
+      </content>
+    </method>
+    <method name="Get{toKey}Count" access="public" type="unsigned_long" constmethod="True">
+      <args/>
+      <content filter="{transactional:False}">
+#if !defined(OPTIMISTIC)
+	assert(this);
+#endif
+return {counter};
+      </content>
+    </method>
+    <method name="Move{toKey}First" access="public" type='void' >
+      <args><arg name="{arg}" type="TO" ptr="True"/></args>
+      <content filter="{transactional:False}">
+#if !defined(OPTIMISTIC)
+	assert({arg});
+	assert({arg}->{fromPtr});
+#endif
+{arg}->{fromPtr}->Remove{toKey}({arg});
+Add{toKey}First({arg}); 
+      </content>
+    </method>
+    <method name="Move{toKey}Last" access="public" type='void'>
+      <args><arg name="{arg}" type="TO" ptr="True"/></args>
+      <content filter="{transactional:False}">
+#if !defined(OPTIMISTIC)
+	assert({arg});
+	assert({arg}->{fromPtr});
+#endif
+{arg}->{fromPtr}->Remove{toKey}({arg});
+Add{toKey}Last({arg}); 
+      </content>
+    </method>
+    <method name="Move{toKey}After" access="public" type='void'>
+      <args>
+        <arg name="{arg}" type="TO" ptr="True"/>
+        <arg name="{arg}Pos" type="TO" ptr="True"/>
+        </args>
+      <content filter="{transactional:False}">
+#if !defined(OPTIMISTIC)
+	assert({arg});
+	assert({arg}->{fromPtr});
+#endif
+{arg}->{fromPtr}->Remove{toKey}({arg});
+Add{toKey}After({arg},{arg}Pos); 
+</content>
+    </method>
+    <method name="Move{toKey}Before" access="public" type='void'>
+      <args>
+        <arg name="{arg}" type="TO" ptr="True"/>
+        <arg name="{arg}Pos" type="TO" ptr="True"/>
+      </args>
+      <content filter="{transactional:False}">
+#if !defined(OPTIMISTIC)
+	assert({arg});
+	assert({arg}->{fromPtr});
+#endif
+{arg}->{fromPtr}->Remove{toKey}({arg});
+Add{toKey}Before({arg},{arg}Pos); 
+</content>
+    </method>
+    <method name="Sort{toKey}" access="public" type='void'>
+    <args><arg name="compare" funptr="True" type="int" argdecl="({classTo}*,{classTo}*)"/></args>
+      <args/>
+      <content filter="{transactional:False}">
+/**
+	This algorithm is a kind of bubble sort. Dont expect high performance!
+**/
+for(auto ptr=GetFirst{toKey}(); ptr != nullptr; ptr = GetNext{toKey}(ptr))
+{{
+	auto pNext = GetNext{toKey}(ptr);
+	while (pNext !=nullptr &amp;&amp;  compare(ptr, pNext) &gt; 0)
+	{{
+		auto pPrev = GetPrev{toKey}(ptr);
+		while (pPrev != nullptr &amp;&amp;  compare(pPrev, pNext) &gt; 0)
+		{{
+			pPrev = GetPrev{toKey}(pPrev);
+		}}
+		if (pPrev != nullptr)
+		{{
+			Move{toKey}After(pNext, pPrev);
+		}}
+		else
+		{{
+			Move{toKey}First(pNext);
+		}}
+		pNext = GetNext{toKey}(ptr);
+	}}
+}}
+      </content>
+    </method>
+  </methods>
+</contents>
