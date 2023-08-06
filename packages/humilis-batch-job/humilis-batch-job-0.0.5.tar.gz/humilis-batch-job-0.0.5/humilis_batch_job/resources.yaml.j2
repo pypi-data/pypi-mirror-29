@@ -1,0 +1,170 @@
+---
+resources:
+    {% if schedule_expression %}
+    LambdaFunction:
+      Type: "AWS::Lambda::Function"
+      Properties:
+        FunctionName: "{{__context.environment.name}}-{{__context.layer.name}}-{{__context.stage}}"
+        Code:
+            ZipFile:
+                "Fn::Join":
+                    - ""
+                    -
+                        - "import json\n"
+                        - "import boto3\n"
+                        - "def handler(event, context): \n"
+                        - "    client = boto3.client('batch')\n"
+                        - "    return client.submit_job(\n"
+                        - "        jobName='"
+                        - "{{__context.environment.name}}-{{__context.layer.name}}-{{__context.stage}}-{{''|timestamp|int}}"
+                        - "',\n"
+                        - "        jobQueue='{{job_queue}}',\n"
+                        - "        jobDefinition='"
+                        - {Ref: JobDefinition}
+                        - "')\n"
+        Runtime: "python3.6"
+        MemorySize: "128"
+        Description: "Lambda trigger for Batch job {{description or __context.environment.name + "-" + __context.layer.name + "-" + __context.stage}}"
+        Handler: "index.handler"
+        Role:
+          "Fn::GetAtt":
+              - LambdaExecutionRole
+              - Arn
+
+    ScheduledRule:
+      Type: "AWS::Events::Rule"
+      Properties:
+        Description: "ScheduledRule"
+        ScheduleExpression: "{{schedule_expression}}"
+        State: "ENABLED"
+        Targets:
+            - "Arn": { "Fn::GetAtt": ["LambdaFunction", "Arn"] }
+              "Id": "BatchJobTrigger"
+
+    PermissionForEventsToInvokeLambda:
+      Type: "AWS::Lambda::Permission"
+      Properties:
+        FunctionName: { "Ref": "LambdaFunction" }
+        Action: "lambda:InvokeFunction"
+        Principal: "events.amazonaws.com"
+        SourceArn: { "Fn::GetAtt": ["ScheduledRule", "Arn"] }
+
+    LambdaExecutionRole:
+        Type: "AWS::IAM::Role"
+        Properties:
+          Path: {{ "/{}/".format(__context.environment.name) }}
+          AssumeRolePolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+            - Effect: "Allow"
+              Principal: {"Service": "lambda.amazonaws.com"}
+              Action: [ "sts:AssumeRole" ]
+          Policies:
+          - PolicyName: "LogsAccessPolicy"
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+              - Sid: "ManageLambdaLogs"
+                Effect: "Allow"
+                Action:
+                - "logs:CreateLogGroup"
+                - "logs:CreateLogStream"
+                - "logs:PutLogEvents"
+                - "logs:PutRetentionPolicy"
+                - "logs:PutSubscriptionFilter"
+                - "logs:DescribeLogStreams"
+                - "logs:DeleteLogGroup"
+                - "logs:DeleteRetentionPolicy"
+                - "logs:DeleteSubscriptionFilter"
+                Resource:
+                  Fn::Sub: "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/{{__context.environment.name}}-{{__context.layer.name}}-{{__context.stage}}:*:*"
+          - PolicyName: "BatchAccessPolicy"
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+              - Sid: "SubmitBatchJobs"
+                Effect: "Allow"
+                Action:
+                - "batch:SubmitJob"
+                Resource: "*"
+    {% endif %}
+
+    ContainerRole:
+        Type: "AWS::IAM::Role"
+        Properties:
+            AssumeRolePolicyDocument: 
+                Version: "2012-10-17"
+                Statement:
+                  -
+                    Effect: "Allow"
+                    Principal: 
+                      Service: 
+                        - "ecs-tasks.amazonaws.com"
+                    Action: 
+                      - "sts:AssumeRole"
+            Path: "/"
+            {% if iam_role_policies %}
+            Policies:
+                {% for policy in iam_role_policies %}
+                - {{ policy }}
+                {% endfor %}
+            {% endif %}
+
+
+    # If the docker_image parameter is not provided then we create an ECR
+    # repository to store the job container image.
+    {% if not docker_image %}
+    EcrRepository:
+        Type: "AWS::ECR::Repository"
+        Properties:
+            RepositoryName: {{ecr_repository_name}}
+    {% endif %}
+
+    JobDefinition:
+        Type: "AWS::Batch::JobDefinition"
+        Properties:
+            Type: container
+            JobDefinitionName: {{__context.environment.name}}-{{__context.stage.lower()}}-{{__context.layer.name}}
+            {% if parameters %}
+            Parameters:
+                {% for pname, pvalue in parameters.items() %}
+                "{{pname}}": "{{pvalue}}"
+                {% endfor %}
+            {% endif %}
+            ContainerProperties:
+                {% if container_command|is_list %}
+                Command: {{container_command}}
+                {% elif container_commmand %}
+                Command: [
+                    "{{container_command}}"
+                    {% if parameters %}
+                    ,
+                    {% for pname in parameters.keys() %}
+                    "--{{pname}}",
+                    "Ref::{{pname}}"
+                    {% if not loop.last %}
+                    ,
+                    {% endif %}
+                    {% endfor %}
+                    {% endif %}
+                ]
+                # If there is no command then assume the container has an
+                # ENTRYPOINT and no parameters
+                {% endif %}
+                Image: {{docker_image}}
+                Vcpus: {{vcpus}}
+                Memory: {{memory}}
+                JobRoleArn: 
+                    "Fn::GetAtt" : ["ContainerRole", "Arn"]
+                {% if environment %}
+                Environment: [
+                    {% for varname, varvalue in environment.items() %}
+                    {"Name": "{{varname}}", "Value": "{{varvalue}}"}
+                    {% if not loop.last %}
+                    ,
+                    {% endif %}
+                    {% endfor %}
+                ]
+                {% endif %}
+            RetryStrategy:
+                Attempts: {{attempts}}
