@@ -1,0 +1,32 @@
+dist: trusty
+sudo: required
+
+language: python
+python:
+  - "3.6"
+
+notifications:
+  email: false
+
+install:
+  # Install TileDB in the Python repo's build directory
+  - mkdir build
+  - pushd ./build # . -> ./build
+  - git clone https://github.com/TileDB-Inc/TileDB
+  - pushd TileDB # ./build -> ./build/TileDB
+  - git checkout master
+  - scripts/install-deps.sh
+  - mkdir build
+  - pushd ./build  # ./build/TileDB/build
+  - ../bootstrap
+  - make install
+  - popd # ./build/TileDB/build -> ./build/TileDB
+  - popd # ./build/TileDB -> ./build
+  - popd # ./build -> .
+  # Build and install extension module
+  - pip install -U tox-travis pip setuptools wheel
+  - pip install -r requirements_dev.txt
+  - python setup.py build_ext --inplace --tiledb=./build/TileDB/dist
+
+script:
+  - env LD_LIBRARY_PATH="${TRAVIS_BUILD_DIR}/build/TileDB/dist/lib:$LD_LIBRARY_PATH" python -m unittest -v
