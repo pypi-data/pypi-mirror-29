@@ -1,0 +1,95 @@
+#!/usr/bin/env python
+# -*- coding: utf-8
+
+import os
+import sys
+import glob
+import shutil
+import signal
+import itertools
+import subprocess
+
+import anvio
+import anvio.filesnpaths as filesnpaths
+
+from anvio.errors import FilesNPathsError, ConfigError
+
+
+__author__ = "Developers of anvi'o (see AUTHORS.txt)"
+__copyright__ = "Copyleft 2015-2018, the Meren Lab (http://merenlab.org/)"
+__credits__ = []
+__license__ = "GPL 3.0"
+__version__ = anvio.__version__
+__maintainer__ = "A. Murat Eren"
+__email__ = "a.murat.eren@gmail.com"
+
+
+tests = {'mini': ['run_mini_test.sh'],
+         'full': ['run_all_tests.sh', 'run_pangenome_tests.sh'],
+         'pangenomics': ['run_pangenome_tests.sh'],
+         'alons-classifier': ['run_alons_classifier_tests.sh']}
+
+
+def __catch_sig(signum, frame):
+    """We need to press CTRL+C to kill the server that is run by this script in a\
+       subprocess, but then we don't want the script itself to catch it. This is\
+       a workaround to avoid that."""
+    pass
+
+
+def main(args):
+    if args.suite not in tests:
+        raise ConfigError("Well, the test suite '%s' is not something anvi'o knows about :/ Here is a list\
+                            of tests available if you would like to try again: %s" % (args.suite, ', '.join(list(tests.keys()))))
+
+    tests_dir_path = os.path.abspath(os.path.join(os.path.dirname(anvio.__file__), '../tests'))
+
+    test_files_found = [os.path.basename(p) for p in glob.glob(os.path.join(tests_dir_path, '*.sh'))]
+
+    for test in list(itertools.chain(*list(tests.values()))):
+        if test not in test_files_found:
+            raise FilesNPathsError("Anvi'o failed to locate the test file for '%s' ('%s')... What a\
+                                     terrible start :( (it was looking for it under '%s')." \
+                                                % (test, tests[test], tests_dir_path))
+
+    temporary_output_dir = filesnpaths.get_temp_directory_path()
+
+    os.chdir(tests_dir_path)
+
+    try:
+        for test in tests[args.suite]:
+            if subprocess.call('./%s %s' % (test, temporary_output_dir), shell=True) != 0:
+                raise ConfigError("It seems something went wrong while running your tests :/ Anvi'o hopes that the reason is clear\
+                                   from the lines above.")
+    except KeyboardInterrupt:
+        pass
+
+    print()
+    if anvio.DEBUG:
+        print("Anvi'o's self-test is done, and the temporary output files are still here: %s\n" % temporary_output_dir)
+    else:
+        shutil.rmtree(temporary_output_dir)
+        print("Anvi'o's self-test is done, and the temporary output files are cleaned.\n")
+
+
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser(description="A script for anvi'o to test itself")
+
+    parser.add_argument('--suite', default='full',
+                        help="Suite of tests to execute. By default this program will execute a full suite of example anvi'o\
+                              commands to ensure your installation is ready to run all scenarios anvi'o developers could\
+                              think of. Alternatively you can choose a specific test to run. Here is a full list of available\
+                              options: %s." % ', '.join(list(tests.keys())))
+
+    args = anvio.get_args(parser)
+
+    try:
+        signal.signal(signal.SIGINT, __catch_sig)
+        main(args)
+    except FilesNPathsError as e:
+        print(e)
+        sys.exit(-1)
+    except ConfigError as e:
+        print(e)
+        sys.exit(-2)

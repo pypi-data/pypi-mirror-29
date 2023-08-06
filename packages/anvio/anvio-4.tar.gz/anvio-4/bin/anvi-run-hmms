@@ -1,0 +1,91 @@
+#!/usr/bin/env python
+# -*- coding: utf-8
+
+import os
+import sys
+
+import anvio
+import anvio.utils as utils
+import anvio.terminal as terminal
+
+with terminal.SuppressAllOutput():
+    import anvio.data.hmm as hmm_data
+
+available_hmm_sources =  list(hmm_data.sources.keys())
+
+from anvio.errors import ConfigError, FilesNPathsError
+from anvio.tables.hmmhits import TablesForHMMHits
+
+
+__author__ = "Developers of anvi'o (see AUTHORS.txt)"
+__copyright__ = "Copyleft 2015-2018, the Meren Lab (http://merenlab.org/)"
+__credits__ = []
+__license__ = "GPL 3.0"
+__version__ = anvio.__version__
+__maintainer__ = "A. Murat Eren"
+__email__ = "a.murat.eren@gmail.com"
+
+
+run = terminal.Run()
+progress = terminal.Progress()
+
+def main(args):
+    # first check whether this computer is capable of doing an HMM search.
+    missing_programs =  utils.get_missing_programs_for_hmm_analysis()
+    if missing_programs:
+        raise ConfigError("Well, in order to run this program, you need %s to be installed on your system." %\
+                                                                                     (', and '.join(missing_programs)))
+
+    # then check whether we are going to use the default HMM profiles, or run it for a new one.
+    sources = {}
+    if args.hmm_profile_dir and args.installed_hmm_profile:
+        raise ConfigError("You must select either an installed HMM profile, or provide a path for a profile directory.\
+                           But not both :/")
+    elif args.hmm_profile_dir:
+        if not os.path.exists(args.hmm_profile_dir):
+            raise ConfigError('No such file or directory: "%s"' % args.hmm_profile_dir)
+        sources = utils.get_HMM_sources_dictionary([args.hmm_profile_dir])
+        run.info('HMM profiles', '%d source%s been loaded: %s' % (len(sources),
+                                                          's' if len(sources) > 1 else '',
+                                                          ', '.join(['%s (%d genes)' % (s, len(sources[s]['genes']))\
+                                                                                                    for s in sources])))
+    elif args.installed_hmm_profile:
+        if args.installed_hmm_profile not in available_hmm_sources:
+            raise ConfigError("You managed to find a profile that is not actually installed :/ Available ones are\
+                               these: %s." % (', '.join(available_hmm_sources)))
+
+        sources = {args.installed_hmm_profile: hmm_data.sources[args.installed_hmm_profile]}
+    else:
+        # sources will be loaded from defaults.
+        pass
+
+    search_tables = TablesForHMMHits(args.contigs_db, num_threads_to_use = args.num_threads)
+    search_tables.populate_search_tables(sources)
+
+
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser(description="This program deals with populating tables that store HMM hits in an\
+                                                  anvi'o contigs database.")
+
+    parser.add_argument(*anvio.A('contigs-db'), **anvio.K('contigs-db'))
+    parser.add_argument(*anvio.A('hmm-profile-dir'), **anvio.K('hmm-profile-dir'))
+    parser.add_argument(*anvio.A('installed-hmm-profile'), **anvio.K('installed-hmm-profile', {'help': "When you run this\
+                                  program without any parameter, it runs all %d HMM profiles installed on your system. If\
+                                  you want only a specific one to run, you can select it by using this parameter. These\
+                                  are the currently available ones: %s." % \
+                                                (len(available_hmm_sources),
+                                                 ', '.join(['"%s" (type: %s)' % (s, hmm_data.sources[s]['kind']) \
+                                                                                    for s in available_hmm_sources]))}))
+    parser.add_argument(*anvio.A('num-threads'), **anvio.K('num-threads'))
+
+    args = anvio.get_args(parser)
+
+    try:
+        main(args)
+    except ConfigError as e:
+        print(e)
+        sys.exit(-1)
+    except FilesNPathsError as e:
+        print(e)
+        sys.exit(-2)

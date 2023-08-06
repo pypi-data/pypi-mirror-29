@@ -1,0 +1,108 @@
+#!/usr/bin/env python
+# -*- coding: utf-8
+"""A script to export a FASTA file and the coverage table from a merged database.
+
+The purpose of this script is to export two critical files for most genome binning
+software: the sequences file for tetra-nucleotide analysis, and the coverage table
+that shows the coverage of each contig across samples. These output files can be
+used to identify bins, and those bins can be used to populate collections table
+via available parsers in anvi-populate-collections table."""
+
+import os
+import sys
+import argparse
+
+import anvio
+import anvio.dbops as dbops
+import anvio.utils as utils
+import anvio.terminal as terminal
+import anvio.filesnpaths as filesnpaths
+
+from anvio.errors import ConfigError
+
+
+__author__ = "Developers of anvi'o (see AUTHORS.txt)"
+__copyright__ = "Copyleft 2015-2018, the Meren Lab (http://merenlab.org/)"
+__credits__ = []
+__license__ = "GPL 3.0"
+__version__ = anvio.__version__
+__maintainer__ = "A. Murat Eren"
+__email__ = "a.murat.eren@gmail.com"
+
+
+run = terminal.Run()
+
+def main(args):
+    utils.is_profile_db_and_contigs_db_compatible(args.profile_db, args.contigs_db)
+
+    merged_profile_db = dbops.ProfileDatabase(args.profile_db)
+
+    if(merged_profile_db.meta['merged'] != True):
+        raise ConfigError("'%s' does not seem to be a merged profile database :/" % args.profile_db)
+
+    if args.splits_mode and args.report_contigs:
+        raise ConfigError("--splits-mode and --report-contigs flags are incompatible.")
+
+    if args.output_dir:
+        filesnpaths.gen_output_directory(args.output_dir)
+    else:
+        args.output_dir = os.path.dirname(os.path.abspath(args.profile_db))
+
+    if not args.output_file_prefix:
+        args.output_file_prefix = merged_profile_db.meta['sample_id']
+
+
+    if args.report_contigs:
+        sequences_output = os.path.join(args.output_dir, args.output_file_prefix + '-CONTIGS.fa')
+        coverages_output = os.path.join(args.output_dir, args.output_file_prefix + '-COVs.txt')
+
+        split_coverages = merged_profile_db.db.get_table_as_dict('mean_coverage_contigs')
+        contig_coverages = {}
+        contig_names = set([x['__parent__'] for x in split_coverages.values()])
+
+        for entry in split_coverages.values():
+            c = entry['__parent__']
+            if c in contig_names and c not in contig_coverages:
+                contig_coverages[c] = entry
+
+        utils.export_sequences_from_contigs_db(args.contigs_db, sequences_output, seq_names_to_export=sorted(list(contig_names)), splits_mode=False)
+        utils.store_dict_as_TAB_delimited_file(contig_coverages, coverages_output, ['contig'] + sorted(list(merged_profile_db.samples)))
+
+    else:
+        sequences_output = os.path.join(args.output_dir, args.output_file_prefix + '-SPLITS.fa')
+        coverages_output = os.path.join(args.output_dir, args.output_file_prefix + '-COVs.txt')
+
+        if args.splits_mode:
+            coverages = merged_profile_db.db.get_table_as_dict('mean_coverage_splits')
+        else:
+            coverages = merged_profile_db.db.get_table_as_dict('mean_coverage_contigs')
+
+        utils.export_sequences_from_contigs_db(args.contigs_db, sequences_output, seq_names_to_export=sorted(coverages.keys()), splits_mode=True)
+        utils.store_dict_as_TAB_delimited_file(coverages, coverages_output, ['contig'] + sorted(list(merged_profile_db.samples)))
+
+    merged_profile_db.disconnect()
+
+
+    run.info('Coverages file', coverages_output)
+    run.info('Sequences file', sequences_output)
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Export sequences and coverages across samples for splits or contigs')
+
+    parser.add_argument(*anvio.A('profile-db'), **anvio.K('profile-db'))
+    parser.add_argument(*anvio.A('contigs-db'), **anvio.K('contigs-db'))
+    parser.add_argument(*anvio.A('output-dir'), **anvio.K('output-dir'))
+    parser.add_argument(*anvio.A('output-file-prefix'), **anvio.K('output-file-prefix'))
+    parser.add_argument(*anvio.A('splits-mode'), **anvio.K('splits-mode'))
+    parser.add_argument('--report-contigs', default=False, action="store_true", help="By default this program reports \
+                         sequences and their coverages for 'splits'. By using this flag, you can report contig sequences\
+                         and coverages instead. For obvious reasons, you can't use this flag with `--splits-mode` flag.")
+
+    args = anvio.get_args(parser)
+
+    try:
+        main(args)
+    except ConfigError as e:
+        print(e)
+        sys.exit(-1)
