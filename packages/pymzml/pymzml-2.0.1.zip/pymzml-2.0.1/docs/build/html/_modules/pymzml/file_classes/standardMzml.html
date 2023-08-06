@@ -1,0 +1,729 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>pymzml.file_classes.standardMzml &mdash; pymzML 2.0.1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../search.html"/>
+    <link rel="top" title="pymzML 2.0.1 documentation" href="../../../index.html"/>
+        <link rel="up" title="Module code" href="../../index.html"/> 
+
+  
+  <script src="../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home"> pymzML
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                2.0.1
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../intro.html">1. Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../quick_start.html">2. Quick Start</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../modules.html">3. pymzML module content</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../examples.html">4. Examples and Advanced Usage</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../suppl_material.html">5. Supplemental Material</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">pymzML</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+      <li>pymzml.file_classes.standardMzml</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for pymzml.file_classes.standardMzml</h1><div class="highlight"><pre>
+<span></span><span class="ch">#!/usr/bin/env python3</span>
+<span class="c1"># -*- coding: utf-8 -*-</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Interface for uncompressed mzML files.</span>
+
+<span class="sd">@author: Manuel Koesters</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">print_function</span>
+<span class="kn">import</span> <span class="nn">codecs</span>
+<span class="kn">import</span> <span class="nn">pymzml.spec</span> <span class="k">as</span> <span class="nn">spec</span>
+<span class="kn">import</span> <span class="nn">pymzml.regex_patterns</span> <span class="k">as</span> <span class="nn">regex_patterns</span>
+<span class="kn">from</span> <span class="nn">xml.etree.ElementTree</span> <span class="k">import</span> <span class="n">XML</span><span class="p">,</span> <span class="n">iterparse</span>
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">import</span> <span class="nn">bisect</span>
+
+
+<div class="viewcode-block" id="StandardMzml"><a class="viewcode-back" href="../../../file_handlers.html#pymzml.file_classes.standardMzml.StandardMzml">[docs]</a><span class="k">class</span> <span class="nc">StandardMzml</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+<div class="viewcode-block" id="StandardMzml.__init__"><a class="viewcode-back" href="../../../file_handlers.html#pymzml.file_classes.standardMzml.StandardMzml.__init__">[docs]</a>    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">encoding</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Initalize Wrapper object for standard mzML files.</span>
+
+<span class="sd">        Arguments:</span>
+<span class="sd">            path (str)     : path to the file</span>
+<span class="sd">            encoding (str) : encoding of the file</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">path</span>         <span class="o">=</span> <span class="n">path</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">file_handler</span> <span class="o">=</span> <span class="n">codecs</span><span class="o">.</span><span class="n">open</span><span class="p">(</span>
+            <span class="n">path</span><span class="p">,</span>
+            <span class="n">mode</span>     <span class="o">=</span> <span class="s1">&#39;r&#39;</span><span class="p">,</span>
+            <span class="n">encoding</span> <span class="o">=</span> <span class="n">encoding</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">offset_dict</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">spec_open</span> <span class="o">=</span> <span class="n">regex_patterns</span><span class="o">.</span><span class="n">SPECTRUM_OPEN_PATTERN</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">spec_close</span> <span class="o">=</span> <span class="n">regex_patterns</span><span class="o">.</span><span class="n">SPECTRUM_CLOSE_PATTERN</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_build_index</span><span class="p">(</span><span class="kc">False</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span></div>
+
+    <span class="c1"># def __del__(self):</span>
+    <span class="c1">#     &quot;&quot;&quot;</span>
+    <span class="c1">#     &quot;&quot;&quot;</span>
+    <span class="c1">#     pass</span>
+    <span class="c1">#     # self.file_handler.close()</span>
+
+<div class="viewcode-block" id="StandardMzml.__getitem__"><a class="viewcode-back" href="../../../file_handlers.html#pymzml.file_classes.standardMzml.StandardMzml.__getitem__">[docs]</a>    <span class="k">def</span> <span class="nf">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">identifier</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Access the item with id &#39;identifier&#39;.</span>
+
+<span class="sd">        Either use linear, binary or interpolated search.</span>
+
+<span class="sd">        Arguments:</span>
+<span class="sd">            identifier (str): native id of the item to access</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            data (str): text associated with the given identifier</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1">#############################################################################</span>
+        <span class="c1"># DOES NOT HOLD IF NUMBERS DONT START WITH ONE AND/OR DONT INCREASE BY ONE  #</span>
+        <span class="c1"># TODO FIXME                                                                #</span>
+        <span class="c1">#############################################################################</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">file_handler</span><span class="o">.</span><span class="n">seek</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+
+        <span class="n">spectrum</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="k">if</span> <span class="nb">str</span><span class="p">(</span><span class="n">identifier</span><span class="p">)</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span> <span class="o">==</span> <span class="s1">&#39;TIC&#39;</span><span class="p">:</span>
+            <span class="c1"># print(str(identifier).upper())</span>
+            <span class="n">found</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="n">mzmliter</span> <span class="o">=</span> <span class="nb">iter</span><span class="p">(</span><span class="n">iterparse</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">file_handler</span><span class="p">,</span> <span class="n">events</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;end&#39;</span><span class="p">]))</span>
+            <span class="k">while</span> <span class="n">found</span> <span class="ow">is</span> <span class="kc">False</span><span class="p">:</span>
+                <span class="n">event</span><span class="p">,</span> <span class="n">element</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="n">mzmliter</span><span class="p">,</span> <span class="p">(</span><span class="s1">&#39;STOP&#39;</span><span class="p">,</span> <span class="s1">&#39;STOP&#39;</span><span class="p">))</span>
+                <span class="k">if</span> <span class="n">event</span> <span class="o">==</span> <span class="s1">&#39;end&#39;</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">element</span><span class="o">.</span><span class="n">tag</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;}chromatogram&#39;</span><span class="p">):</span>
+                        <span class="k">if</span> <span class="n">element</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;id&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="s1">&#39;TIC&#39;</span><span class="p">:</span>
+                            <span class="n">found</span> <span class="o">=</span> <span class="kc">True</span>
+                            <span class="n">spectrum</span> <span class="o">=</span> <span class="n">spec</span><span class="o">.</span><span class="n">Chromatogram</span><span class="p">(</span>
+                                <span class="n">element</span><span class="p">,</span>
+                                <span class="n">measured_precision</span> <span class="o">=</span> <span class="mf">5e-6</span>
+                            <span class="p">)</span>
+                <span class="k">elif</span> <span class="n">event</span> <span class="o">==</span> <span class="s1">&#39;STOP&#39;</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">StopIteration</span>
+
+        <span class="k">elif</span> <span class="n">identifier</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">offset_dict</span><span class="p">:</span>
+            <span class="n">start</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">offset_dict</span><span class="p">[</span><span class="n">identifier</span><span class="p">]</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">path</span><span class="p">,</span> <span class="s1">&#39;rb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">seeker</span><span class="p">:</span>
+                <span class="n">seeker</span><span class="o">.</span><span class="n">seek</span><span class="p">(</span><span class="n">start</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+                <span class="n">start</span><span class="p">,</span> <span class="n">end</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_read_to_spec_end</span><span class="p">(</span><span class="n">seeker</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">file_handler</span><span class="o">.</span><span class="n">seek</span><span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+            <span class="n">data</span>     <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">file_handler</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">end</span> <span class="o">-</span> <span class="n">start</span><span class="p">)</span>
+            <span class="n">spectrum</span> <span class="o">=</span> <span class="n">spec</span><span class="o">.</span><span class="n">Spectrum</span><span class="p">(</span>
+                <span class="n">XML</span><span class="p">(</span><span class="n">data</span><span class="p">),</span>
+                <span class="n">measured_precision</span> <span class="o">=</span> <span class="mf">5e-6</span>
+            <span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">type</span><span class="p">(</span><span class="n">identifier</span><span class="p">)</span> <span class="o">==</span> <span class="nb">str</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_search_string_identifier</span><span class="p">(</span>
+                <span class="n">identifier</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">spectrum</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_interpol_search</span><span class="p">(</span><span class="n">identifier</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">spectrum</span></div>
+
+<div class="viewcode-block" id="StandardMzml._build_index"><a class="viewcode-back" href="../../../file_handlers.html#pymzml.file_classes.standardMzml.StandardMzml._build_index">[docs]</a>    <span class="k">def</span> <span class="nf">_build_index</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">from_scratch</span><span class="p">,</span> <span class="n">use_spectra_sanity_check</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Build an index.</span>
+
+<span class="sd">        A list of offsets to which a file pointer can seek</span>
+<span class="sd">        directly to access a particular spectrum or chromatogram without</span>
+<span class="sd">        parsing the entire file.</span>
+
+<span class="sd">        Args:</span>
+
+<span class="sd">            from_scratch(bool): Whether or not to force building the index from</span>
+<span class="sd">                             scratch, by parsing the file, if no existing</span>
+<span class="sd">                             index can be found.</span>
+
+<span class="sd">            use_spectra_sanity_check(bool): Whether or not to assume all data are</span>
+<span class="sd">                spectra and follow the (scan=|nativeID=&quot;)</span>
+<span class="sd">                pattern. Disable this if you have</span>
+<span class="sd">                chromatograms or spectra with</span>
+<span class="sd">                different ids.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            A file-like object used to access the indexed content by</span>
+<span class="sd">            seeking to a particular offset for the file.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Declare the pre-seeker</span>
+        <span class="n">seeker</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">path</span><span class="p">,</span> <span class="s1">&#39;rb&#39;</span><span class="p">)</span>
+        <span class="c1"># Reading last 1024 bytes to find chromatogram Pos and SpectrumIndex Pos</span>
+        <span class="n">index_list_offset_pattern</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span>
+            <span class="sa">b</span><span class="s1">&#39;&lt;indexListOffset&gt;(?P&lt;indexListOffset&gt;[0-9]*)&lt;/indexListOffset&gt;&#39;</span>
+        <span class="p">)</span>
+        <span class="n">chromatogram_offset_pattern</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span>
+            <span class="sa">b</span><span class="s1">&#39;(?P&lt;WTF&gt;[nativeID|idRef])=&quot;TIC&quot;&gt;(?P&lt;offset&gt;[0-9]*)&lt;/offset&#39;</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">offset_dict</span><span class="p">[</span><span class="s1">&#39;TIC&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">seeker</span><span class="o">.</span><span class="n">seek</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+        <span class="n">index_found</span> <span class="o">=</span> <span class="kc">False</span>
+
+        <span class="n">spectrum_index_pattern</span> <span class="o">=</span> <span class="n">regex_patterns</span><span class="o">.</span><span class="n">SPECTRUM_INDEX_PATTERN</span>
+        <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">10</span><span class="p">):</span>  <span class="c1"># max 10kbyte</span>
+            <span class="c1"># some converters fail in writing a correct index</span>
+            <span class="c1"># we found</span>
+            <span class="c1"># a) the offset is always the same (silent fail hurray!)</span>
+            <span class="n">sanity_check_set</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">seeker</span><span class="o">.</span><span class="n">seek</span><span class="p">(</span><span class="o">-</span><span class="mi">1024</span> <span class="o">*</span> <span class="n">_</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="k">except</span><span class="p">:</span>
+                <span class="k">break</span>
+                <span class="c1"># File is smaller than 10kbytes ...</span>
+            <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">seeker</span><span class="p">:</span>
+                <span class="n">match</span> <span class="o">=</span> <span class="n">chromatogram_offset_pattern</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">match</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">offset_dict</span><span class="p">[</span><span class="s1">&#39;TIC&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span>
+                        <span class="nb">bytes</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;offset&#39;</span><span class="p">))</span>
+                    <span class="p">)</span>
+
+                <span class="n">match_spec</span> <span class="o">=</span> <span class="n">spectrum_index_pattern</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">match_spec</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">spec_byte_offset</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span>
+                        <span class="nb">bytes</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">match_spec</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;offset&#39;</span><span class="p">))</span>
+                    <span class="p">)</span>
+                    <span class="n">sanity_check_set</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">spec_byte_offset</span><span class="p">)</span>
+
+                <span class="n">match</span> <span class="o">=</span> <span class="n">index_list_offset_pattern</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">match</span><span class="p">:</span>
+                    <span class="n">index_found</span> <span class="o">=</span> <span class="kc">True</span>
+                    <span class="c1"># print(int(match.group(&#39;indexListOffset&#39;).decode(&#39;utf-8&#39;)))</span>
+                    <span class="c1"># print(line)</span>
+                    <span class="c1"># exit(1)</span>
+                    <span class="n">index_list_offset</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span>
+                        <span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;indexListOffset&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;utf-8&#39;</span><span class="p">)</span>
+                    <span class="p">)</span>
+                    <span class="c1"># break</span>
+
+            <span class="k">if</span> <span class="n">index_found</span> <span class="ow">is</span> <span class="kc">True</span> <span class="ow">and</span> \
+                    <span class="bp">self</span><span class="o">.</span><span class="n">offset_dict</span><span class="p">[</span><span class="s1">&#39;TIC&#39;</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">break</span>
+
+        <span class="k">if</span> <span class="n">index_found</span> <span class="ow">is</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="c1"># Jumping to index list and slurpin all specOffsets</span>
+            <span class="n">seeker</span><span class="o">.</span><span class="n">seek</span><span class="p">(</span><span class="n">index_list_offset</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+            <span class="n">spectrum_index_pattern</span> <span class="o">=</span> <span class="n">regex_patterns</span><span class="o">.</span><span class="n">SPECTRUM_INDEX_PATTERN</span>
+            <span class="n">sim_index_pattern</span> <span class="o">=</span> <span class="n">regex_patterns</span><span class="o">.</span><span class="n">SIM_INDEX_PATTERN</span>
+
+            <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">seeker</span><span class="p">:</span>
+                <span class="n">match_spec</span> <span class="o">=</span> <span class="n">spectrum_index_pattern</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">match_spec</span> <span class="ow">and</span> <span class="n">match_spec</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;nativeID&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="sa">b</span><span class="s1">&#39;&#39;</span><span class="p">:</span>
+                    <span class="n">match_spec</span> <span class="o">=</span> <span class="kc">None</span>
+                <span class="n">match_sim</span> <span class="o">=</span> <span class="n">sim_index_pattern</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">match_spec</span><span class="p">:</span>
+                    <span class="n">offset</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">bytes</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">match_spec</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;offset&#39;</span><span class="p">)))</span>
+                    <span class="n">native_id</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">bytes</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">match_spec</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;nativeID&#39;</span><span class="p">)))</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="n">native_id</span><span class="p">,</span> <span class="n">offset</span><span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">offset_dict</span><span class="p">[</span><span class="n">native_id</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">offset</span><span class="p">)</span>
+                <span class="k">elif</span> <span class="n">match_sim</span><span class="p">:</span>
+                    <span class="n">offset</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">bytes</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">match_sim</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;offset&#39;</span><span class="p">)))</span>
+                    <span class="n">native_id</span> <span class="o">=</span> <span class="nb">bytes</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">match_sim</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;nativeID&#39;</span><span class="p">))</span>
+                    <span class="n">native_id</span> <span class="o">=</span> <span class="n">regex_patterns</span><span class="o">.</span><span class="n">SPECTRUM_ID_PATTERN</span><span class="o">.</span><span class="n">search</span><span class="p">(</span>
+                        <span class="n">native_id</span>
+                    <span class="p">)</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="n">native_id</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">native_id</span><span class="p">)</span>
+                    <span class="k">except</span><span class="p">:</span>
+                        <span class="k">pass</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">offset_dict</span><span class="p">[</span><span class="n">native_id</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">offset</span><span class="p">,)</span>
+        <span class="n">seeker</span><span class="o">.</span><span class="n">close</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="StandardMzml._interpol_search"><a class="viewcode-back" href="../../../file_handlers.html#pymzml.file_classes.standardMzml.StandardMzml._interpol_search">[docs]</a>    <span class="k">def</span> <span class="nf">_interpol_search</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">target_index</span><span class="p">,</span>
+        <span class="n">chunk_size</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span>
+        <span class="n">fallback_cutoff</span><span class="o">=</span><span class="mi">100</span>
+    <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Use linear interpolation search to find spectra faster.</span>
+
+<span class="sd">        Arguments:</span>
+<span class="sd">            target_index (str or int) : native id of the item to access</span>
+
+<span class="sd">        Keyword Arguments:</span>
+<span class="sd">            chunk_size (int)        : size of the chunk to read in one go in kb</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># print(&#39;target &#39;, target_index)</span>
+        <span class="n">seeker</span>          <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">path</span><span class="p">,</span> <span class="s1">&#39;rb&#39;</span><span class="p">)</span>
+        <span class="n">seeker</span><span class="o">.</span><span class="n">seek</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+        <span class="n">chunk_size</span>      <span class="o">=</span> <span class="n">chunk_size</span> <span class="o">*</span> <span class="mi">512</span>
+        <span class="n">lower_bound</span>     <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">upper_bound</span>     <span class="o">=</span> <span class="n">seeker</span><span class="o">.</span><span class="n">tell</span><span class="p">()</span>
+        <span class="n">mid</span>             <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">upper_bound</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span>
+        <span class="n">seeker</span><span class="o">.</span><span class="n">seek</span><span class="p">(</span><span class="n">mid</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="n">current_position</span> <span class="o">=</span> <span class="n">seeker</span><span class="o">.</span><span class="n">tell</span><span class="p">()</span>
+        <span class="n">used_indices</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="n">spectrum_found</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="n">spectrum</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">while</span> <span class="n">spectrum_found</span> <span class="ow">is</span> <span class="kc">False</span><span class="p">:</span>
+            <span class="n">jumper_scaling</span> <span class="o">=</span> <span class="mi">1</span>
+            <span class="n">file_pointer</span>    <span class="o">=</span> <span class="n">seeker</span><span class="o">.</span><span class="n">tell</span><span class="p">()</span>
+            <span class="n">data</span>            <span class="o">=</span> <span class="n">seeker</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">chunk_size</span><span class="p">)</span>
+            <span class="n">spec_start</span>      <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">spec_open</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">spec_start</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">spec_start_offset</span> <span class="o">=</span> <span class="n">file_pointer</span> <span class="o">+</span> <span class="n">spec_start</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+                <span class="n">seeker</span><span class="o">.</span><span class="n">seek</span><span class="p">(</span><span class="n">spec_start_offset</span><span class="p">)</span>
+                <span class="n">current_index</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span>
+                    <span class="n">re</span><span class="o">.</span><span class="n">search</span><span class="p">(</span>
+                        <span class="sa">b</span><span class="s1">&#39;[0-9]*$&#39;</span><span class="p">,</span>
+                        <span class="n">spec_start</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;id&#39;</span><span class="p">)</span>
+                    <span class="p">)</span><span class="o">.</span><span class="n">group</span><span class="p">()</span>
+                <span class="p">)</span>
+
+                <span class="bp">self</span><span class="o">.</span><span class="n">offset_dict</span><span class="p">[</span><span class="n">current_index</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">spec_start_offset</span><span class="p">,)</span>
+                <span class="k">if</span> <span class="n">current_index</span> <span class="ow">in</span> <span class="n">used_indices</span><span class="p">:</span>
+                    <span class="c1"># seeker.close()</span>
+                    <span class="k">if</span> <span class="n">current_index</span> <span class="o">&gt;</span> <span class="n">target_index</span><span class="p">:</span>
+                        <span class="n">jumper_scaling</span> <span class="o">-=</span> <span class="mf">0.1</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">jumper_scaling</span> <span class="o">+=</span> <span class="mf">0.1</span>
+
+                <span class="n">used_indices</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">current_index</span><span class="p">)</span>
+
+                <span class="n">dist</span> <span class="o">=</span> <span class="n">current_index</span> <span class="o">-</span> <span class="n">target_index</span>
+                <span class="k">if</span> <span class="n">dist</span> <span class="o">&lt;</span> <span class="o">-</span><span class="mi">1</span> <span class="ow">and</span> <span class="n">dist</span> <span class="o">&gt;</span> <span class="o">-</span><span class="p">(</span><span class="n">fallback_cutoff</span><span class="p">):</span>
+                    <span class="n">spectrum</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_search_linear</span><span class="p">(</span><span class="n">seeker</span><span class="p">,</span> <span class="n">target_index</span><span class="p">)</span>
+                    <span class="n">seeker</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+                    <span class="n">spectrum_found</span> <span class="o">=</span> <span class="kc">True</span>
+                    <span class="k">break</span>
+                <span class="k">elif</span> <span class="n">dist</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">dist</span> <span class="o">&lt;</span> <span class="n">fallback_cutoff</span><span class="p">:</span>
+                    <span class="k">while</span> <span class="n">current_index</span> <span class="o">&gt;</span> <span class="n">target_index</span><span class="p">:</span>
+                        <span class="n">offset</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">current_position</span> <span class="o">-</span> <span class="n">chunk_size</span><span class="p">)</span>
+                        <span class="n">seeker</span><span class="o">.</span><span class="n">seek</span><span class="p">(</span><span class="n">offset</span> <span class="k">if</span> <span class="n">offset</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="k">else</span> <span class="mi">0</span><span class="p">)</span>
+                        <span class="n">lower_bound</span>     <span class="o">=</span> <span class="n">current_position</span>
+                        <span class="n">current_position</span> <span class="o">=</span> <span class="n">seeker</span><span class="o">.</span><span class="n">tell</span><span class="p">()</span>
+                        <span class="n">data</span> <span class="o">=</span> <span class="n">seeker</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">chunk_size</span><span class="p">)</span>
+                        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">spec_open</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">data</span><span class="p">):</span>
+                            <span class="n">spec_start</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">spec_open</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+                            <span class="n">current_index</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span>
+                                <span class="n">re</span><span class="o">.</span><span class="n">search</span><span class="p">(</span>
+                                    <span class="sa">b</span><span class="s1">&#39;[0-9]*$&#39;</span><span class="p">,</span>
+                                    <span class="n">spec_start</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;id&#39;</span><span class="p">)</span>
+                                <span class="p">)</span><span class="o">.</span><span class="n">group</span><span class="p">()</span>
+                            <span class="p">)</span>
+                    <span class="n">seeker</span><span class="o">.</span><span class="n">seek</span><span class="p">(</span><span class="n">current_position</span><span class="p">)</span>
+                    <span class="n">spectrum</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_search_linear</span><span class="p">(</span><span class="n">seeker</span><span class="p">,</span> <span class="n">target_index</span><span class="p">)</span>
+                    <span class="n">seeker</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+                    <span class="n">spectrum_found</span> <span class="o">=</span> <span class="kc">True</span>
+                    <span class="k">break</span>
+
+                <span class="k">if</span> <span class="nb">int</span><span class="p">(</span><span class="n">current_index</span><span class="p">)</span> <span class="o">==</span> <span class="n">target_index</span><span class="p">:</span>
+
+                    <span class="n">seeker</span><span class="o">.</span><span class="n">seek</span><span class="p">(</span><span class="n">spec_start_offset</span><span class="p">)</span>
+                    <span class="n">start</span><span class="p">,</span> <span class="n">end</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_read_to_spec_end</span><span class="p">(</span><span class="n">seeker</span><span class="p">)</span>
+                    <span class="n">seeker</span><span class="o">.</span><span class="n">seek</span><span class="p">(</span><span class="n">start</span><span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">offset_dict</span><span class="p">[</span><span class="n">current_index</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">)</span>
+                    <span class="n">xml_string</span> <span class="o">=</span> <span class="n">seeker</span><span class="o">.</span><span class="n">read</span><span class="p">(</span>
+                        <span class="n">end</span> <span class="o">-</span> <span class="n">start</span>
+                    <span class="p">)</span>
+                    <span class="n">seeker</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+                    <span class="n">spectrum</span> <span class="o">=</span> <span class="n">spec</span><span class="o">.</span><span class="n">Spectrum</span><span class="p">(</span>
+                        <span class="n">XML</span><span class="p">(</span><span class="n">xml_string</span><span class="p">),</span>
+                        <span class="n">measured_precision</span><span class="o">=</span><span class="mf">5e-6</span>
+                    <span class="p">)</span>
+                    <span class="n">spectrum_found</span> <span class="o">=</span> <span class="kc">True</span>
+                    <span class="k">break</span>
+
+                <span class="k">elif</span> <span class="nb">int</span><span class="p">(</span><span class="n">current_index</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">target_index</span><span class="p">:</span>
+                    <span class="n">scaling</span>          <span class="o">=</span> <span class="n">target_index</span> <span class="o">/</span> <span class="n">current_index</span>
+                    <span class="n">seeker</span><span class="o">.</span><span class="n">seek</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">current_position</span> <span class="o">*</span> <span class="n">scaling</span> <span class="o">*</span> <span class="n">jumper_scaling</span><span class="p">))</span>
+                    <span class="n">upper_bound</span>      <span class="o">=</span> <span class="n">current_position</span>
+                    <span class="n">current_position</span> <span class="o">=</span> <span class="n">seeker</span><span class="o">.</span><span class="n">tell</span><span class="p">()</span>
+                <span class="k">elif</span> <span class="nb">int</span><span class="p">(</span><span class="n">current_index</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">target_index</span><span class="p">:</span>
+                    <span class="n">scaling</span>          <span class="o">=</span> <span class="n">target_index</span> <span class="o">/</span> <span class="n">current_index</span>
+                    <span class="n">seeker</span><span class="o">.</span><span class="n">seek</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">current_position</span> <span class="o">*</span> <span class="n">scaling</span> <span class="o">*</span> <span class="n">jumper_scaling</span><span class="p">))</span>
+                    <span class="n">lower_bound</span>      <span class="o">=</span> <span class="n">current_position</span>
+                    <span class="n">current_position</span> <span class="o">=</span> <span class="n">seeker</span><span class="o">.</span><span class="n">tell</span><span class="p">()</span>
+
+            <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">sorted_keys</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">offset_dict</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+                <span class="n">pos</span> <span class="o">=</span> <span class="n">bisect</span><span class="o">.</span><span class="n">bisect_left</span><span class="p">(</span><span class="n">sorted_keys</span><span class="p">,</span> <span class="n">target_index</span><span class="p">)</span> <span class="o">-</span> <span class="mi">2</span>  <span class="c1"># dat magic number :)</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">key</span> <span class="o">=</span> <span class="n">sorted_keys</span><span class="p">[</span><span class="n">pos</span><span class="p">]</span>
+                    <span class="n">spec_start_offset</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">offset_dict</span><span class="p">[</span><span class="n">key</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+                <span class="k">except</span><span class="p">:</span>
+                    <span class="n">key</span> <span class="o">=</span> <span class="n">sorted_keys</span><span class="p">[</span><span class="n">pos</span><span class="p">]</span>
+                    <span class="n">spec_start_offset</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">offset_dict</span><span class="p">[</span><span class="n">key</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+                <span class="n">seeker</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">path</span><span class="p">,</span> <span class="s1">&#39;rb&#39;</span><span class="p">)</span>
+                <span class="n">seeker</span><span class="o">.</span><span class="n">seek</span><span class="p">(</span><span class="n">spec_start_offset</span><span class="p">)</span>
+                <span class="n">spectrum</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_search_linear</span><span class="p">(</span><span class="n">seeker</span><span class="p">,</span> <span class="n">target_index</span><span class="p">)</span>
+                <span class="n">seeker</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+                <span class="n">spectrum_found</span> <span class="o">=</span> <span class="kc">True</span>
+                <span class="k">break</span>
+
+        <span class="k">return</span> <span class="n">spectrum</span></div>
+
+    <span class="k">def</span> <span class="nf">_read_to_spec_end</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">seeker</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Read from current seeker position to the end of the</span>
+<span class="sd">        next spectrum tag and return start and end postition</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            seeker (_io.BufferedReader): Reader instance used in calling function</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            positions (tuple): tuple with start and end postion of the spectrum</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># start_pos = seeker.tell()</span>
+        <span class="n">chunk_size</span> <span class="o">=</span> <span class="mi">512</span>
+        <span class="n">end_found</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="n">start_pos</span> <span class="o">=</span> <span class="n">seeker</span><span class="o">.</span><span class="n">tell</span><span class="p">()</span>
+
+        <span class="k">while</span> <span class="n">end_found</span> <span class="ow">is</span> <span class="kc">False</span><span class="p">:</span>
+            <span class="n">chunk_offset</span> <span class="o">=</span> <span class="n">seeker</span><span class="o">.</span><span class="n">tell</span><span class="p">()</span>
+            <span class="n">data_chunk</span> <span class="o">=</span> <span class="n">seeker</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">chunk_size</span><span class="p">)</span>
+            <span class="n">tag_end</span><span class="p">,</span> <span class="n">seeker</span>  <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_read_until_tag_end</span><span class="p">(</span><span class="n">seeker</span><span class="p">)</span>
+            <span class="n">data_chunk</span> <span class="o">+=</span> <span class="n">tag_end</span>
+            <span class="k">if</span> <span class="n">regex_patterns</span><span class="o">.</span><span class="n">SPECTRUM_CLOSE_PATTERN</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">data_chunk</span><span class="p">):</span>
+                <span class="n">match</span> <span class="o">=</span> <span class="n">regex_patterns</span><span class="o">.</span><span class="n">SPECTRUM_CLOSE_PATTERN</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">data_chunk</span><span class="p">)</span>
+                <span class="n">relative_pos_in_chunk</span> <span class="o">=</span> <span class="n">match</span><span class="o">.</span><span class="n">end</span><span class="p">()</span>
+                <span class="n">end_pos</span> <span class="o">=</span> <span class="n">chunk_offset</span> <span class="o">+</span> <span class="n">relative_pos_in_chunk</span>
+                <span class="n">end_found</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">start_pos</span><span class="p">,</span> <span class="n">end_pos</span><span class="p">)</span>
+
+<div class="viewcode-block" id="StandardMzml._search_linear"><a class="viewcode-back" href="../../../file_handlers.html#pymzml.file_classes.standardMzml.StandardMzml._search_linear">[docs]</a>    <span class="k">def</span> <span class="nf">_search_linear</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">seeker</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">chunk_size</span><span class="o">=</span><span class="mi">8</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Fallback to linear search if interpolated search fails.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">total_chunk_size</span> <span class="o">=</span> <span class="n">chunk_size</span> <span class="o">*</span> <span class="mi">512</span>
+        <span class="n">spec_start</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">spec_end</span>   <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="c1"># print(&#39;target&#39;, index)</span>
+        <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="n">file_pointer</span> <span class="o">=</span> <span class="n">seeker</span><span class="o">.</span><span class="n">tell</span><span class="p">()</span>
+
+            <span class="n">data</span>         <span class="o">=</span> <span class="n">seeker</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">total_chunk_size</span><span class="p">)</span>
+            <span class="n">string</span><span class="p">,</span> <span class="n">seeker</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_read_until_tag_end</span><span class="p">(</span><span class="n">seeker</span><span class="p">)</span>
+            <span class="n">data</span> <span class="o">+=</span> <span class="n">string</span>
+
+            <span class="n">spec_start</span>    <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">spec_open</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">spec_start</span><span class="p">:</span>
+                <span class="n">spec_start_offset</span> <span class="o">=</span> <span class="n">file_pointer</span> <span class="o">+</span> <span class="n">spec_start</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+                <span class="n">seeker</span><span class="o">.</span><span class="n">seek</span><span class="p">(</span><span class="n">spec_start_offset</span><span class="p">)</span>
+                <span class="n">current_index</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span>
+                    <span class="n">re</span><span class="o">.</span><span class="n">search</span><span class="p">(</span>
+                        <span class="sa">b</span><span class="s1">&#39;[0-9]*$&#39;</span><span class="p">,</span>
+                        <span class="n">spec_start</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;id&#39;</span><span class="p">)</span>
+                    <span class="p">)</span><span class="o">.</span><span class="n">group</span><span class="p">()</span>
+                <span class="p">)</span>
+                <span class="c1"># print(current_index)</span>
+                <span class="n">spec_end</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">spec_close</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="n">spec_start</span><span class="o">.</span><span class="n">start</span><span class="p">():])</span>
+                <span class="k">if</span> <span class="n">spec_end</span><span class="p">:</span>
+                    <span class="n">spec_end_offset</span> <span class="o">=</span> <span class="n">file_pointer</span> <span class="o">+</span> <span class="n">spec_end</span><span class="o">.</span><span class="n">end</span><span class="p">()</span> <span class="o">+</span> <span class="n">spec_start</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+                    <span class="n">seeker</span><span class="o">.</span><span class="n">seek</span><span class="p">(</span><span class="n">spec_end_offset</span><span class="p">)</span>
+                <span class="k">while</span> <span class="n">spec_end</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+
+                    <span class="n">file_pointer</span> <span class="o">=</span> <span class="n">seeker</span><span class="o">.</span><span class="n">tell</span><span class="p">()</span>
+
+                    <span class="n">data</span>          <span class="o">=</span> <span class="n">seeker</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">total_chunk_size</span><span class="p">)</span>
+                    <span class="n">string</span><span class="p">,</span> <span class="n">seeker</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_read_until_tag_end</span><span class="p">(</span><span class="n">seeker</span><span class="p">)</span>
+                    <span class="n">data</span> <span class="o">+=</span> <span class="n">string</span>
+
+                    <span class="n">spec_end</span>       <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">spec_close</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">spec_end</span><span class="p">:</span>
+                        <span class="n">spec_end_offset</span> <span class="o">=</span> <span class="n">file_pointer</span> <span class="o">+</span> <span class="n">spec_end</span><span class="o">.</span><span class="n">end</span><span class="p">()</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">offset_dict</span><span class="p">[</span><span class="n">current_index</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">spec_start_offset</span><span class="p">,</span> <span class="n">spec_end_offset</span><span class="p">)</span>
+                        <span class="n">seeker</span><span class="o">.</span><span class="n">seek</span><span class="p">(</span><span class="n">spec_end_offset</span><span class="p">)</span>
+                        <span class="k">break</span>
+
+                <span class="k">if</span> <span class="n">current_index</span> <span class="o">==</span> <span class="n">index</span><span class="p">:</span>
+                    <span class="n">seeker</span><span class="o">.</span><span class="n">seek</span><span class="p">(</span><span class="n">spec_start_offset</span><span class="p">)</span>
+                    <span class="n">spec_string</span> <span class="o">=</span> <span class="n">seeker</span><span class="o">.</span><span class="n">read</span><span class="p">(</span>
+                        <span class="n">spec_end_offset</span> <span class="o">-</span> <span class="n">spec_start_offset</span>
+                    <span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">offset_dict</span><span class="p">[</span><span class="n">current_index</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+                        <span class="n">spec_start_offset</span><span class="p">,</span>
+                        <span class="n">spec_end_offset</span>
+                    <span class="p">)</span>
+                    <span class="n">xml_string</span> <span class="o">=</span> <span class="n">XML</span><span class="p">(</span><span class="n">spec_string</span><span class="p">)</span>
+                    <span class="n">seeker</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+                    <span class="k">return</span> <span class="n">spec</span><span class="o">.</span><span class="n">Spectrum</span><span class="p">(</span>
+                        <span class="n">xml_string</span><span class="p">,</span>
+                        <span class="n">measured_precision</span><span class="o">=</span><span class="mf">5e-6</span>
+                    <span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">_search_string_identifier</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">search_string</span><span class="p">,</span> <span class="n">chunk_size</span><span class="o">=</span><span class="mi">8</span><span class="p">):</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">path</span><span class="p">,</span> <span class="s1">&#39;rb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">seeker</span><span class="p">:</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="n">total_chunk_size</span> <span class="o">=</span> <span class="n">chunk_size</span> <span class="o">*</span> <span class="mi">512</span>
+            <span class="n">spec_start</span> <span class="o">=</span> <span class="kc">None</span>
+
+            <span class="c1"># NOTE: This needs to go intp regex_patterns.py</span>
+
+            <span class="n">regex_string</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span>
+                <span class="s2">&quot;&lt;\s*spectrum[^&gt;]*index=</span><span class="se">\&quot;</span><span class="s2">[0-9]+</span><span class="se">\&quot;</span><span class="s2">\sid=</span><span class="se">\&quot;</span><span class="s2">(</span><span class="si">{0}</span><span class="s2">)</span><span class="se">\&quot;</span><span class="s2">\sdefaultArrayLength=</span><span class="se">\&quot;</span><span class="s2">[0-9]+</span><span class="se">\&quot;</span><span class="s2">&gt;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                    <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+                        <span class="p">[</span><span class="s1">&#39;.*&#39;</span><span class="p">,</span> <span class="n">search_string</span><span class="p">,</span> <span class="s1">&#39;.*&#39;</span><span class="p">]</span>
+                    <span class="p">)</span>
+                <span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">()</span>
+            <span class="p">)</span>
+
+            <span class="n">search_string</span> <span class="o">=</span> <span class="n">search_string</span><span class="o">.</span><span class="n">encode</span><span class="p">()</span>
+
+            <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+                <span class="n">file_pointer</span> <span class="o">=</span> <span class="n">seeker</span><span class="o">.</span><span class="n">tell</span><span class="p">()</span>
+
+                <span class="n">data</span>         <span class="o">=</span> <span class="n">seeker</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">total_chunk_size</span><span class="p">)</span>
+                <span class="n">string</span><span class="p">,</span> <span class="n">seeker</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_read_until_tag_end</span><span class="p">(</span><span class="n">seeker</span><span class="p">,</span> <span class="n">byte_mode</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                <span class="n">data</span> <span class="o">+=</span> <span class="n">string</span>
+                <span class="n">spec_start</span> <span class="o">=</span> <span class="n">regex_string</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">spec_start</span><span class="p">:</span>
+                    <span class="n">spec_start_offset</span> <span class="o">=</span> <span class="n">file_pointer</span> <span class="o">+</span> <span class="n">spec_start</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+                    <span class="n">current_index</span> <span class="o">=</span> <span class="n">spec_start</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">search_string</span> <span class="ow">in</span> <span class="n">current_index</span><span class="p">:</span>
+                        <span class="n">seeker</span><span class="o">.</span><span class="n">seek</span><span class="p">(</span><span class="n">spec_start_offset</span><span class="p">)</span>
+                        <span class="n">start</span><span class="p">,</span> <span class="n">end</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_read_to_spec_end</span><span class="p">(</span><span class="n">seeker</span><span class="p">)</span>
+                        <span class="n">seeker</span><span class="o">.</span><span class="n">seek</span><span class="p">(</span><span class="n">start</span><span class="p">)</span>
+                        <span class="n">spec_string</span> <span class="o">=</span> <span class="n">seeker</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">end</span><span class="o">-</span><span class="n">start</span><span class="p">)</span>
+                        <span class="n">xml_string</span> <span class="o">=</span> <span class="n">XML</span><span class="p">(</span><span class="n">spec_string</span><span class="p">)</span>
+                        <span class="k">return</span> <span class="n">spec</span><span class="o">.</span><span class="n">Spectrum</span><span class="p">(</span>
+                            <span class="n">xml_string</span><span class="p">,</span>
+                            <span class="n">measured_precision</span><span class="o">=</span><span class="mf">5e-6</span>
+                        <span class="p">)</span>
+                <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s1">&#39;cant find specified string&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_read_until_tag_end</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">seeker</span><span class="p">,</span> <span class="n">max_search_len</span><span class="o">=</span><span class="mi">12</span><span class="p">,</span> <span class="n">byte_mode</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Help make sure no splitted text appear in chunked data, so regex always find</span>
+<span class="sd">        &lt;spectrum ...&gt;</span>
+<span class="sd">        and</span>
+<span class="sd">        &lt;/spectrum&gt;</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">count</span>  <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">string</span> <span class="o">=</span> <span class="sa">b</span><span class="s1">&#39;&#39;</span>
+        <span class="n">curr_byte</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+        <span class="k">while</span> <span class="n">count</span> <span class="o">&lt;</span> <span class="n">max_search_len</span> <span class="ow">and</span> <span class="n">curr_byte</span> <span class="o">!=</span> <span class="sa">b</span><span class="s1">&#39;&gt;&#39;</span> <span class="ow">and</span> <span class="n">curr_byte</span> <span class="o">!=</span> <span class="sa">b</span><span class="s1">&#39;&lt;&#39;</span> <span class="ow">and</span> <span class="n">curr_byte</span> <span class="o">!=</span> <span class="sa">b</span><span class="s1">&#39; &#39;</span><span class="p">:</span>
+            <span class="n">curr_byte</span> <span class="o">=</span> <span class="n">seeker</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+            <span class="n">string</span> <span class="o">+=</span> <span class="n">curr_byte</span>
+            <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">return</span> <span class="n">string</span><span class="p">,</span> <span class="n">seeker</span>
+
+<div class="viewcode-block" id="StandardMzml.read"><a class="viewcode-back" href="../../../file_handlers.html#pymzml.file_classes.standardMzml.StandardMzml.read">[docs]</a>    <span class="k">def</span> <span class="nf">read</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">size</span><span class="o">=-</span><span class="mi">1</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Read binary data from file handler.</span>
+
+<span class="sd">        Keyword Arguments:</span>
+<span class="sd">            size (int): Number of bytes to read from file, -1 to read to end of file</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            data (str): byte string of len size of input data</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">file_handler</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">size</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">close</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">file_handler</span><span class="o">.</span><span class="n">close</span><span class="p">()</span></div>
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="vm">__doc__</span><span class="p">)</span>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2017, Kösters, M., Leufken, J., Schulze, S., Sugimoto, K., Zahedi, R. P., Hippler, M., Leidel, S. A. and Fufezan, C..
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../',
+            VERSION:'2.0.1',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../_static/doctools.js"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>
