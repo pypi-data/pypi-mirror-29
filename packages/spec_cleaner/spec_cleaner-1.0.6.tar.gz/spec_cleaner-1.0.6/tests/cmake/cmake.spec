@@ -1,0 +1,3 @@
+BuildRequires:  cmake(Vc)
+
+%changelog
