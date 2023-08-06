@@ -1,0 +1,21 @@
+If you would like to contribute to the development of OpenStack,
+you must follow the steps in documented at:
+
+   http://docs.openstack.org/infra/manual/developers.html
+
+Once those steps have been completed, changes to OpenStack
+should be submitted for review via the Gerrit tool, following
+the workflow documented at:
+
+   http://docs.openstack.org/infra/manual/developers.html#development-workflow
+
+Pull requests submitted through GitHub will be ignored.
+
+Bugs should be filed on Launchpad, not GitHub:
+
+   https://bugs.launchpad.net/searchlight/
+
+Further documentation on feature request and bug report processes may be
+found here:
+
+   https://docs.openstack.org/searchlight/latest/contributor/feature-requests-bugs.html
