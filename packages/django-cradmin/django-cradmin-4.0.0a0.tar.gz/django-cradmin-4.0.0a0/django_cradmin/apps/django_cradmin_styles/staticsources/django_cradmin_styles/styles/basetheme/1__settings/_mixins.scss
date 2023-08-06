@@ -1,0 +1,287 @@
+@mixin min-width($name) {
+    @if not map-has-key($breakpoints, $name) {
+        @media (min-width: $name) {
+            @content;
+        }
+    } @else {
+        @media (min-width: map-get($breakpoints, $name)) {
+            @content;
+        }
+    }
+}
+
+@mixin max-width($name) {
+    @if not map-has-key($breakpoints, $name) {
+        @media (max-width: $name) {
+            @content;
+        }
+    } @else {
+        @media (max-width: (map-get($breakpoints, $name) - 1px)) {
+            @content;
+        }
+    }
+}
+
+// Defining colors as a map
+// retrieve color from $colors map ie. `color(primary, base)`
+@function color($color-name, $color-variant: 'base') {
+    // map inception
+    @return map-get(map-get($colors, $color-name), $color-variant);
+}
+
+// Find the contrast color to any color hex
+@function color-contrast($n) {
+    $color-brightness: round((red($n) * 299) + (green($n) * 587) + (blue($n) * 114) / 1000);
+    $light-color: round((red(#fff) * 299) + (green(#fff) * 587) + (blue(#fff) * 114) / 1000);
+
+    @if abs($color-brightness) < ($light-color / 2) {
+        @return $color-light;
+    } @else {
+        @return $color-dark;
+    }
+}
+
+// Responsive font sizes with vertical rythm
+@function line-height($size, $min: 1.2) {
+    $line-height: $vertical-rythm;
+    $i: 1;
+
+    @if (unit($size) != 'px') {
+        @return inherit;
+    }
+
+    @while $line-height < ($size * $min) {
+        $line-height: $vertical-rythm * $i;
+        $i: $i + 1;
+    }
+
+    @return $line-height;
+}
+
+@mixin font-size($size: base, $skip-line-height: false) {
+    $fs-breakpoints: $breakpoints;
+    $fs-map: map-get($font-size, $size);
+
+    @each $fs-breakpoint, $fs-font-size in $fs-map {
+        @if $fs-breakpoint == base {
+            @include make-font-size($fs-font-size, $skip-line-height);
+        } @else {
+            @if map-has-key($fs-breakpoints, $fs-breakpoint) {
+                $fs-breakpoint: map-get($fs-breakpoints, $fs-breakpoint);
+            }
+            @media screen and (min-width: $fs-breakpoint) {
+                @include make-font-size($fs-font-size, $skip-line-height);
+            }
+        }
+    }
+}
+
+@mixin make-font-size($fs-font-size, $skip-line-height: false) {
+    @if (type-of($fs-font-size) == 'list') {
+        font-size: nth($fs-font-size, 1);
+
+        @if ($skip-line-height != true) {
+            @if (length($fs-font-size) > 1) {
+                line-height: line-height(
+                    nth($fs-font-size, 1),
+                    nth($fs-font-size, 2));
+            } @else {
+                line-height: line-height($fs-font-size);
+            }
+        }
+    } @else {
+        font-size: $fs-font-size;
+
+        @if ($skip-line-height != true) {
+            line-height: line-height($fs-font-size);
+        }
+    }
+}
+
+// Font family and weights
+@mixin font($font-family: base, $weight: null) {
+    $family: map-get($fonts, $font-family);
+    @if $weight {
+        @if map-has-key($family, $weight) {
+            $f-weight: map-get($family, $weight);
+
+            @if (length($f-weight) > 1) {
+                font-family: nth($f-weight, 2), map-get($family, fallback);
+                font-weight: nth($f-weight, 1);
+            } @else {
+                font-family: map-get($family, font), map-get($family, fallback);
+                font-weight: $f-weight;
+            }
+        } @else {
+            font-family: map-get($family, font), map-get($family, fallback);
+        }
+    } @else {
+        font-family: map-get($family, font), map-get($family, fallback);
+    }
+}
+
+// Spaced text
+@mixin spaced-text {
+    @include font(base, bold);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+// TINT AND SHADE
+
+// Add percentage of white to a color
+@function tint($color, $percent) {
+    @return mix(white, $color, $percent);
+}
+
+// Add percentage of black to a color
+@function shade($color, $percent) {
+    @return mix(black, $color, $percent);
+}
+
+// Animation delay for childs
+@mixin animation-delay($count, $delay, $initial: 0) {
+    animation-delay: (($count + 1) * $delay) + $initial;
+
+    @for $i from 1 through $count {
+        &:nth-child(#{$i}) {
+            animation-delay: ($i * $delay) + $initial;
+        }
+    }
+}
+
+// Responsive font sizes
+@mixin responsive-font($responsive, $min, $max: false, $fallback: false) {
+    $responsive-unitless: $responsive / ($responsive - $responsive + 1);
+    $dimension: if(unit($responsive) == 'vh', 'height', 'width');
+    $min-breakpoint: $min / $responsive-unitless * 100;
+
+    @media (max-#{$dimension}: #{$min-breakpoint}) {
+        font-size: $min;
+    }
+
+    @if $max {
+        $max-breakpoint: $max / $responsive-unitless * 100;
+
+        @media (min-#{$dimension}: #{$max-breakpoint}) {
+            font-size: $max;
+        }
+    }
+
+    @if $fallback {
+        font-size: $fallback;
+    }
+
+    font-size: $responsive;
+}
+
+
+// STYLE INPUT PLACEHOLDERS
+@mixin input-placeholder {
+    &:-moz-placeholder { @content; }
+    &::-moz-placeholder { @content; }
+    &:-ms-input-placeholder { @content; }
+    &::-webkit-input-placeholder { @content; }
+}
+
+// Only visible to screen readers.
+@mixin screenreader-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    border: 0;
+}
+
+// Invisible in print.
+@mixin hidden-in-print {
+    @media print {
+        display: none !important;
+    }
+}
+
+// Only visible in print.
+@mixin display-block-only-in-print {
+    display: none !important;
+    @media print {
+        display: block;
+    }
+}
+
+// Container
+@mixin container($size: null, $no-padding: false) {
+    $width-modifier: 0;
+    margin: 0 auto;
+
+    @if ($no-padding != true) {
+        padding-left: $spacing--small;
+        padding-right: $spacing--small;
+
+        @include min-width(xs) {
+            padding-left: $spacing;
+            padding-right: $spacing;
+        }
+
+        @include min-width(md) {
+            padding-left: $spacing--large;
+            padding-right: $spacing--large;
+        }
+    } @else {
+        $width-modifier: $spacing--large;
+    }
+
+    @if ($size == xwide) {
+        max-width: $container-width--xwide - $width-modifier;
+    } @else if ($size == wide) {
+        max-width: $container-width--wide - $width-modifier;
+    } @else if ($size == medium) {
+        max-width: $container-width--medium - $width-modifier;
+    } @else if ($size == tight) {
+        max-width: $container-width--tight - $width-modifier;
+    } @else if ($size == xtight) {
+        max-width: $container-width--xtight - $width-modifier;
+    } @else {
+        max-width: $container-width - $width-modifier;
+    }
+}
+
+@function vertical-space($val: $vertical-rythm, $min: 1) {
+    $space: $vertical-rythm;
+    $i: 1;
+
+    @if (unit($val) != 'px') {
+        $space: $vertical-rythm * $val;
+    } @else {
+        @while $space < ($val * $min) {
+            $space: $vertical-rythm * $i;
+            $i: $i + 1;
+        }
+    }
+
+    @return $space;
+}
+
+// Full-width
+@mixin full-width {
+    width: 100vw;
+    position: relative;
+    left: 50%;
+    right: 50%;
+    margin-left: -50vw;
+    margin-right: -50vw;
+}
+
+// Hyphens
+@mixin hyphens {
+    overflow-wrap: break-word;
+    word-break: break-word;
+    hyphens: auto;
+}
+
+
+@function list-contains($list, $value) {
+    @return (false == index($list, $value));
+}
