@@ -1,0 +1,196 @@
+#!/usr/bin/env python
+from __future__ import print_function
+
+import argparse
+import sys
+
+import openidc_client
+import requests.exceptions
+
+import odcs.client.odcs
+import json
+
+env_config = {
+    'fedora': {
+        'prod': {
+            'server_url': 'https://odcs.fedoraproject.org',
+        },
+        'staging': {
+            'server_url': 'https://odcs.stg.fedoraproject.org',
+        }
+    },
+    'redhat': {
+        'prod': {
+            'server_url': 'https://odcs.engineering.redhat.com',
+        },
+        'staging': {
+            'server_url': 'https://odcs.stage.engineering.redhat.com',
+        }
+    }
+}
+
+id_provider_config = {
+    'prod': 'https://id.fedoraproject.org/openidc/',
+    'staging': 'https://id.stg.fedoraproject.org/openidc/',
+}
+
+parser = argparse.ArgumentParser(
+    description='''\
+%(prog)s - Submit a test compose.
+
+If you have problems authenticating with OpenID Connect, try:
+
+  $ rm -rf ~/.openidc/
+
+Example usage:
+
+  # Assume a Python virtual environment is activated
+  export PYTHONPATH=client
+  %(prog)s --staging --source f26 --source-type tag --flag no_deps \\
+    python-requests python-urllib3
+''',
+    formatter_class=argparse.RawDescriptionHelpFormatter,
+)
+parser.add_argument(
+    '--redhat', action='store_const',
+    const='redhat', default='fedora', dest='infra',
+    help='Use internal ODCS infra environment. If omitted, Fedora Infra will '
+         'be used by default.')
+parser.add_argument(
+    '--staging', action='store_const',
+    const='staging', default='prod', dest='env',
+    help='Use Fedora Infra or internal staging environment, which depends on '
+         'if --redhat is specified. If omitted, production environment will '
+         'be used.')
+parser.add_argument(
+    '--no-wait', action='store_true',
+    help='When used, odcs client will not wait for the action to finish.')
+
+subparsers = parser.add_subparsers(
+    description='These commands you can use to operate composes with ODCS')
+
+
+create_parser = subparsers.add_parser(
+    'create', help='create a new compose')
+create_parser.set_defaults(command='create')
+create_parser.add_argument(
+    'source_type', default=None,
+    choices=['tag', 'module', 'raw_config', 'pulp'],
+    help="Type for the source. Must be 'tag' or 'module'")
+create_parser.add_argument(
+    'source', default=None,
+    help="Source for the compose. May be a koji tag or a "
+    "whitespace separated list of modules.")
+create_parser.add_argument(
+    '--flag', default=[], action='append',
+    help="Flag to pass to influence the compose.")
+create_parser.add_argument(
+    '--result', default=[], action='append',
+    help="Results of a compose to influence the compose.")
+create_parser.add_argument(
+    '--sigkey', default=[], action='append',
+    help="Signing key ID using which the packages must be signed - "
+    "\none\" for no signing key.")
+create_parser.add_argument(
+    '--arch', default=[], action='append',
+    help="Koji arch to build the compose for.")
+create_parser.add_argument(
+    'packages', metavar='package', nargs='*',
+    help='Packages to be included in the compose.')
+
+
+wait_parser = subparsers.add_parser(
+    'wait', help='wait for a compose to finish')
+wait_parser.set_defaults(command='wait')
+wait_parser.add_argument(
+    'compose_id', default=None,
+    help="ODCS compose id")
+
+
+delete_parser = subparsers.add_parser(
+    'delete', help='delete compose')
+delete_parser.set_defaults(command='delete')
+delete_parser.add_argument(
+    'compose_id', default=None,
+    help="ODCS compose id")
+
+renew_parser = subparsers.add_parser(
+    'renew', help='renew compose')
+renew_parser.set_defaults(command='renew')
+renew_parser.add_argument(
+    'compose_id', default=None,
+    help="ODCS compose id")
+
+args = parser.parse_args()
+
+
+odcs_url = env_config[args.infra][args.env]['server_url']
+
+if args.infra == 'fedora':
+    id_provider = id_provider_config[args.env]
+
+    # Get the auth token using the OpenID client.
+    oidc = openidc_client.OpenIDCClient(
+        'odcs',
+        id_provider,
+        {'Token': 'Token', 'Authorization': 'Authorization'},
+        'odcs-authorizer',
+        'notsecret',
+    )
+
+    scopes = [
+        'openid',
+        'https://id.fedoraproject.org/scope/groups',
+        'https://pagure.io/odcs/new-compose',
+        'https://pagure.io/odcs/renew-compose',
+        'https://pagure.io/odcs/delete-compose',
+    ]
+    try:
+        token = oidc.get_token(scopes, new_token=True)
+        token = oidc.report_token_issue()
+    except requests.exceptions.HTTPError as e:
+        print(e.response.text)
+        raise
+
+    client = odcs.client.odcs.ODCS(
+        odcs_url,
+        auth_mech=odcs.client.odcs.AuthMech.OpenIDC,
+        openidc_token=token,
+    )
+else:
+    client = odcs.client.odcs.ODCS(
+        odcs_url,
+        auth_mech=odcs.client.odcs.AuthMech.Kerberos,
+    )
+try:
+    if args.command == "create":
+        args.sigkey = [key.replace('none', '') for key in args.sigkey]
+        result = client.new_compose(
+            source=args.source,
+            source_type=args.source_type,
+            packages=args.packages,
+            results=args.result,
+            sigkeys=args.sigkey,
+            flags=args.flag,
+            arches=args.arch,
+        )
+    elif args.command == "wait":
+        result = {"id": int(args.compose_id)}
+    elif args.command == "delete":
+        args.no_wait = True
+        result = client.delete_compose(args.compose_id)
+    elif args.command == "renew":
+        result = client.renew_compose(args.compose_id)
+    else:
+        print("Unknown command %s" % args.command)
+except requests.exceptions.HTTPError as e:
+    # error message gets printed in ODCS class.
+    sys.exit(-1)
+
+if args.no_wait:
+    print(json.dumps(result, indent=4, sort_keys=True))
+else:
+    print("Waiting for command %s on compose %d to finish." %
+          (args.command, result["id"]))
+    result = client.wait_for_compose(result["id"], 3600)
+    print(json.dumps(result, indent=4, sort_keys=True))
