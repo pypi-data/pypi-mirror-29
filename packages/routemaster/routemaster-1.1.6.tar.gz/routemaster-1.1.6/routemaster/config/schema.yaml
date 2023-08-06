@@ -1,0 +1,172 @@
+$schema: http://json-schema.org/draft-06/schema#
+title: Configuration
+type: object
+properties:
+  state_machines:
+    type: object
+    additionalProperties:
+      title: State Machine
+      type: object
+      properties:
+        feeds:
+          title: Feeds
+          type: array
+          items:
+            title: Feed
+            type: object
+            properties:
+              name:
+                type: string
+              url:
+                type: string
+            required:
+              - name
+              - url
+            additionalProperties: false
+        webhooks:
+          type: array
+          uniqueItems: true
+          items:
+            title: Webhook
+            type: object
+            properties:
+              match:
+                type: string
+              headers:
+                type: object
+            additionalProperties: false
+        states:
+          title: States
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            title: State
+            anyOf:
+              - type: object
+                properties:
+                  gate: &state_name_definition
+                    type: string
+                    pattern: '^[a-zA-Z0-9_]+$'
+                  triggers:
+                    title: Triggers
+                    type: array
+                    uniqueItems: true
+                    items:
+                      title: Trigger
+                      anyOf:
+                        - type: object
+                          properties:
+                            metadata: &dotted_path_definition
+                              type: string
+                              pattern: '^[a-zA-Z0-9_]+(\.[a-zA-Z0-9_]+)*$'
+                          required:
+                            - metadata
+                          additionalProperties: false
+                        - type: object
+                          properties:
+                            time:
+                              type: string
+                              pattern: '^[0-9]{1,2}h[0-9]{2}m$'
+                          required:
+                            - time
+                          additionalProperties: false
+                        - type: object
+                          properties:
+                            interval:
+                              type: string
+                              pattern: '^[0-9]*d?[0-9]*h?[0-9]*m?$'
+                          required:
+                            - interval
+                          additionalProperties: false
+                        - type: object
+                          properties:
+                            event:
+                              const: entry
+                          required:
+                            - event
+                          additionalProperties: false
+                  exit_condition:
+                    title: Exit condition
+                    anyOf:
+                      - type: string
+                        pattern: '^.+$'
+                      - type: boolean
+                  next: &next_definition
+                    title: Next state
+                    anyOf:
+                      - type: string
+                      - type: object
+                        properties:
+                          type:
+                            const: 'constant'
+                          state: *state_name_definition
+                        required:
+                          - type
+                          - state
+                        additionalProperties: false
+                      - type: object
+                        properties:
+                          type:
+                            const: 'metadata'
+                          path: *dotted_path_definition
+                          default:
+                            type: string
+                          destinations:
+                            type: array
+                            minItems: 1
+                            uniqueItems: true
+                            items:
+                              title: Context-switched destination
+                              type: object
+                              properties:
+                                state: *state_name_definition
+                                value:
+                                  title: JSON-compatible atomic value
+                              required:
+                                - state
+                                - value
+                              additionalProperties: false
+                        required:
+                          - type
+                          - destinations
+                        additionalProperties: false
+                required:
+                  - gate
+                  - exit_condition
+                additionalProperties: false
+              - type: object
+                properties:
+                  action: *state_name_definition
+                  webhook:
+                    type: string
+                    pattern: '^https?://.'
+                  next: *next_definition
+                required:
+                  - action
+                  - webhook
+                  - next
+                additionalProperties: false
+  plugins:
+    type: object
+    properties:
+      logging:
+        type: array
+        uniqueItems: true
+        items:
+          title: Logging plugin config
+          type: object
+          properties:
+            class:
+              type: string
+            kwargs:
+              title: Logging plugin kwargs
+              type: object
+              additionalProperties:
+                type: string
+          required:
+            - class
+          additionalProperties: false
+required:
+  - state_machines
+additionalProperties: false
