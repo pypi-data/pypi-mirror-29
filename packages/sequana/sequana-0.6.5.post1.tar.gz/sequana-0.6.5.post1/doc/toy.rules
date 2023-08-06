@@ -1,0 +1,44 @@
+# Do not edit; line number are used in the doc
+# Minimalist example to count number of reads in fastq files with a config file
+import pylab
+pylab.ioff()
+
+configfile: "toy_config.yaml"
+
+# Some initialisation
+N = config["gc"]["N"]
+name = config['gc']['database_choice']
+shell("wget -q -t 3 http://www.ebi.ac.uk/genomes/%s -O %s" % (name, name))
+shell("head -n %s %s > temp.tmp; mv temp.tmp %s " % (N, name, name))
+filenames = ["Custom/ENA_%s.fa" % this for this in open(name).read().splitlines()]
+
+rule html:
+    input: "histo.png"
+    output: "index.html"
+    run:
+        with open("index.html", "w") as fh:
+            fh.write('GC content of %s input sequences<br>' % N+ '<img src="histo.png"></img>')
+
+rule gc_computation:
+    input: filenames
+    output: "histo.png"
+    params:
+        bins=config['gc']['bins']
+    run:
+        from sequana import FastA, DNA
+        def get_gc(filename):
+            sequence = FastA(filename).next().sequence
+            return DNA(sequence).gc_content()
+        GC = [get_gc(this) for this in filenames]
+        pylab.hist(GC, alpha=0.5, bins=params.bins)
+        pylab.savefig("histo.png")
+
+rule download_sequences:
+    input: name
+    output: filenames
+    run:
+        from sequana.databases import ENADownload
+        d = ENADownload()
+        for thislist in input:
+            d.download_accession(thislist)
+
