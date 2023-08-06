@@ -1,0 +1,1 @@
+;(function(){if(window.location.host.indexOf('localhost')!==-1){window.ENVIRONMENT='DEVELOPMENT';}else{window.ENVIRONMENT='PRODUCTION';}}).call(this);
