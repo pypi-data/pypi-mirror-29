@@ -1,0 +1,388 @@
+=============
+about PyLucid
+=============
+
+PyLucid is an Open Source web content management system written in Python using Django-CMS.
+
+It's more a alternative for `djangocms-installer <https://github.com/nephila/djangocms-installer>`_
+
+The goal is to simplify the Django-CMS setup.
+
+PyLucid delivers ready-to-use compiled Twitter Bootstrap v4 (Licensed under MIT) with some simple templates directly.
+
+PyLucid is licensed under GNU General Public License v3 or later (GPLv3+)
+
+Try, fork and contribute! ;)
+
++--------------------------------------+---------------------------------------------------+
+| |Build Status on travis-ci.org|      | `travis-ci.org/jedie/PyLucid`_                    |
++--------------------------------------+---------------------------------------------------+
+| |Coverage Status on coveralls.io|    | `coveralls.io/r/jedie/PyLucid`_                   |
++--------------------------------------+---------------------------------------------------+
+| |Requirements Status on requires.io| | `requires.io/github/jedie/PyLucid/requirements/`_ |
++--------------------------------------+---------------------------------------------------+
+
+.. |Build Status on travis-ci.org| image:: https://travis-ci.org/jedie/PyLucid.svg?branch=master
+.. _travis-ci.org/jedie/PyLucid: https://travis-ci.org/jedie/PyLucid/
+.. |Coverage Status on coveralls.io| image:: https://s3.amazonaws.com/assets.coveralls.io/badges/coveralls_64.svg?branch=master
+.. _coveralls.io/r/jedie/PyLucid: https://coveralls.io/r/jedie/PyLucid
+.. |Requirements Status on requires.io| image:: https://requires.io/github/jedie/PyLucid/requirements.svg?branch=master
+.. _requires.io/github/jedie/PyLucid/requirements/: https://requires.io/github/jedie/PyLucid/requirements/
+
+-------
+install
+-------
+
+1. bootstrap PyLucid virtualenv
+===============================
+
+::
+
+    # download bootstrap file:
+    /home/FooBar$ wget https://github.com/jedie/PyLucid/raw/master/pylucid/pylucid_boot.py
+
+    # Create virtualenv with all needed packages:
+    /home/FooBar$ python3 pylucid_boot.py boot ~/PyLucid-env
+
+2. use the created PyLucid virtualenv
+=====================================
+
+::
+
+    # Go into created virtualenv:
+    /home/FooBar$ cd ~/PyLucid-env
+
+    # activate the env:
+    ~/PyLucid-env $ source bin/activate
+
+    # Start the interactive admin shell:
+    (PyLucid-env) ~/PyLucid-env $ pylucid_admin
+
+    pylucid_admin.py shell v3.0.0
+    Type help or ? to list commands.
+
+    pylucid_admin.py>
+
+3. create a page instance
+=========================
+
+A page instance is a django project with own settings, for easy start a own web page.
+Create a page instance in the interactive admin shell:
+
+::
+
+    pylucid_admin.py> create_page_instance ~/page_instance you_project_name
+    ...
+    pylucid_admin.py> quit
+
+    # Go into created page instance
+    (PyLucid_env) ~/PyLucid_env $ cd ~/page_instance/
+
+    # Create cache tables
+    (PyLucid_env) ~/page_instance $ ./manage.py createcachetable
+
+    # init database
+    (PyLucid_env) ~/page_instance $ ./manage.py migrate
+
+    # Create a super user
+    (PyLucid_env) ~/page_instance $ ./manage.py createsuperuser
+
+    # Copies all static files together:
+    (PyLucid_env) ~/page_instance $ ./manage.py collectstatic
+
+    # run developer server:
+    (PyLucid_env) ~/page_instance $ ./manage.py runserver
+
+------
+update
+------
+
+A general overview:
+
+* update environment
+
+* migrate database
+
+* collect static files
+
+* Update you own templates/styles (not always needed)
+
+Looks like this:
+
+::
+
+    # Go into created virtualenv:
+    /home/FooBar$ cd ~/PyLucid-env
+
+    # activate the env:
+    ~/PyLucid-env $ source bin/activate
+
+    # Start the interactive admin shell and update environment:
+    (PyLucid-env) ~/PyLucid-env $ pylucid_admin
+
+    pylucid_admin.py shell v3.0.0
+    Type help or ? to list commands.
+
+    pylucid_admin.py> update_env
+    ...
+    pylucid_admin.py> quit
+
+    # Go into created page instance
+    (PyLucid_env) ~/PyLucid_env $ cd ~/page_instance/
+
+    # init database
+    (PyLucid_env) ~/page_instance $ ./manage.py migrate
+
+    # Copies all static files together:
+    (PyLucid_env) ~/page_instance $ ./manage.py collectstatic
+
+**Note:** Check 'Backward-incompatible changes' below!
+
+-------------------
+further information
+-------------------
+
+run test project
+================
+
+You can run a test project with the django developer server:
+
+::
+
+    (PyLucid-env) ~/PyLucid-env $ pylucid_admin run_test_project_dev_server
+
+bootstrap manually
+==================
+
+Note: You can install PyLucid manually via PyPi package:
+
+* create virtualenv
+
+* install pylucid via pip from PyPi
+
+* run ``pylucid_admin update_env``
+
+pylucid_boot.py - interactive shell
+===================================
+
+``pylucid_boot.py`` is a interactive shell with command completion.
+You can just start it and do this:
+
+::
+
+    /home/FooBar$ python3 pylucid_boot.py
+
+    pylucid_boot.py shell v0.2.0
+    Type help or ? to list commands.
+
+    pylucid_boot.py> ?
+
+    Hint: All commands can be called directly from commandline.
+    e.g.: $ ./pylucid_boot.py help
+
+    Use <tab> to command completion.
+
+    Documented commands (type help <topic>):
+    ========================================
+    boot  boot_developer  help  quit
+
+pylucid_admin.py - interactive shell
+====================================
+
+``pylucid_admin.py`` is a interactive shell with command completion, e.g.:
+
+::
+
+    (PyLucid_env) ~/PyLucid_env $ pylucid_admin
+    Activated virtualenv detected: '/home/foobar/PyLucid-env' (/home/foobar/PyLucid-env/bin/python3)
+
+    pylucid_admin.py shell v0.2.0
+    Type help or ? to list commands.
+
+    pylucid_admin.py> ?
+
+    Hint: All commands can be called directly from commandline.
+    e.g.: $ ./pylucid_admin.py help
+
+    Use <tab> to command completion.
+
+    Documented commands (type help <topic>):
+    ========================================
+    change_editable_address  pip_freeze  run_test_project_dev_server
+    create_page_instance     pytest      update_env
+    help                     quit        upgrade_requirements
+
+-----------------------------------
+External applications configuration
+-----------------------------------
+
+Dependency applications may need configuration to work properly.
+
+Please, refer to each application documentation on details.
+
+* djangocms-blog: `https://djangocms-blog.readthedocs.io/en/latest/installation.html#minimal-configuration <https://djangocms-blog.readthedocs.io/en/latest/installation.html#minimal-configuration>`_
+
+* django-filer: `https://django-filer.readthedocs.io <https://django-filer.readthedocs.io>`_
+
+* django-meta: `https://github.com/nephila/django-meta#installation <https://github.com/nephila/django-meta#installation>`_
+
+* django-meta-mixin: `https://github.com/nephila/django-meta-mixin#installation <https://github.com/nephila/django-meta-mixin#installation>`_
+
+* django-parler: `https://django-parler.readthedocs.io/en/latest/quickstart.html#configuration <https://django-parler.readthedocs.io/en/latest/quickstart.html#configuration>`_
+
+* django-taggit-autosuggest: `https://bitbucket.org/fabian/django-taggit-autosuggest <https://bitbucket.org/fabian/django-taggit-autosuggest>`_
+
+* aldryn-search: `https://github.com/aldryn/aldryn-search#usage <https://github.com/aldryn/aldryn-search#usage>`_
+
+* haystack: `http://django-haystack.readthedocs.io/en/stable/ <http://django-haystack.readthedocs.io/en/stable/>`_
+
+* twitter bootstrap: `https://getbootstrap.com/docs/ <https://getbootstrap.com/docs/>`_
+
+-----------------------------
+Backward-incompatible changes
+-----------------------------
+
+On every update: Run the steps from section 'update': see above.
+
+v3.0 to v3.1
+============
+
+Twitter bootstrap updated from v3 to v4: update you own templates/styles.
+
+v2.1 to v3.0
+============
+
+Create a new, fresh PyLucid environment and a new page instance. See "install" section above.
+Transfer settings e.g.: Database connection information.
+
+Just run "migrations" and "collectstatic" and update you own templates/styles.
+
+Older changes are here: `https://www.pylucid.org/de/blog/tag/backward-incompatible/ <https://www.pylucid.org/de/blog/tag/backward-incompatible/>`_
+
+-----------------
+Compatible Matrix
+-----------------
+
++---------+------------+-----------+----------+
+| PyLucid | Django-CMS | Django    | Python   |
++---------+------------+-----------+----------+
+| V3.0    | V3.4 LTS   | V1.11 LTS | 3.5, 3.6 |
++---------+------------+-----------+----------+
+| v2.1    | v3.3       | v1.8 LTS  | 3.4, 3.5 |
++---------+------------+-----------+----------+
+| v2.0    | v3.2       | v1.8 LTS  | 3.4, 3.5 |
++---------+------------+-----------+----------+
+| <=v1.6  | -          | v1.6      | 2.6, 2.7 |
++---------+------------+-----------+----------+
+
+---------------
+Release History
+---------------
+
+* `compare v3.1.0...master <https://github.com/jedie/PyLucid/compare/v3.1.0...master>`_ **dev**
+
+* `09.03.2018 - v3.1.1 <https://github.com/jedie/PyLucid/compare/v3.1.0...v3.1.1>`_:
+
+    * reactivate `django-processinfo <https://github.com/jedie/django-processinfo/>`_
+
+* `09.03.2018 - v3.1.0 <https://github.com/jedie/PyLucid/compare/v3.0.2...v3.1.0>`_:
+
+    * colorize pylucid boot/admin output
+
+    * update twitter bootstrap v3 with v4
+
+    * create dummy pages while running "run_test_project_dev_server"
+
+    * requirement updates
+
+* `06.03.2018 - v3.0.2 <https://github.com/jedie/PyLucid/compare/v3.0.1...v3.0.2>`_:
+
+    * update requirements (django v1.11.11 and others)
+
+    * pylucid boot/admin: Better 'help' list: print first DocString line, too.
+
+* `05.03.2018 - v3.0.1 <https://github.com/jedie/PyLucid/compare/v3.0.0...v3.0.1>`_:
+
+    * Activate CurrentSiteMiddleware and use request.site.name in footer
+
+* `03.03.2018 - v3.0.0 <https://github.com/jedie/PyLucid/compare/v2.1.2...v3.0.0>`_:
+
+    * Update to Django-CMS v3.4.x LTS, Django v1.11 LTS
+
+    * rewrite bootstrap
+
+    * NEW: interactive shell ``pylucid_admin``
+
+* `12.Sep.2016 - v2.1.2 <https://github.com/jedie/PyLucid/compare/v2.1.1...v2.1.2>`_:
+
+    * Changed to official `https://pypi.org/project/djangocms-htmlsitemap/ <https://pypi.org/project/djangocms-htmlsitemap/>`_ PyPi Package.
+
+* `04.Sep.2016 - v2.1.1 <https://github.com/jedie/PyLucid/compare/v2.1.0.beta.0...v2.1.1>`_:
+
+    * Update: pillow, django-debug-toolbar, django-compressor, sqlparse
+
+* `v2.1.0.beta.0 <https://github.com/jedie/PyLucid/compare/old/v2.0.x...v2.1.0.beta.0>`_:
+
+    * switch from django-cms v3.2 to v3.3
+
+    * move from `cmsplugin-htmlsitemap <https://github.com/raphaa/cmsplugin-htmlsitemap>`_ to `djangocms-htmlsitemap <https://github.com/kapt-labs/djangocms-htmlsitemap/>`_ 
+
+        * WARNING: A migration will not be done! You have to migrate by hand and delete the database table *cmsplugin_htmlsitemap_htmlsitemap* ;)
+
+* `28.Dec.2015 - v2.0.x beta <https://github.com/jedie/PyLucid/compare/old/v1.6.x...old/v2.0.x>`_:
+
+    * rewrite to use Django-CMS
+
+* `12.Feb.2015 - v1.6.x <https://github.com/jedie/PyLucid/compare/old/v1.5.x...old/v1.6.x>`_:
+
+    * v1.6.x is the last PyLucid release that doesn't based on Django-CMS
+
+    * switch from django 1.4 to 1.6
+
+* `18.Jun.2012 - v1.0.x <https://github.com/jedie/PyLucid/compare/old/v0.x...old/v1.0.x>`_:
+
+    * switch from django 1.3 to 1.4
+
+* `22.Sep.2007 - v0.8.0.beta <https://github.com/jedie/PyLucid/tree/626cc139f8cc162ce2338d62718064533dcf2cc2>`_:
+
+    * PyLucid.org used the first v0.8 Beta Version who used django
+
+* `21.Apr.2005 - v0.0.1 <https://github.com/jedie/PyLucid/tree/9680c2611912ef06c33b1a4a92ea62654a7b8fb1>`_:
+
+    * first Version, only CGI script ListOfNewSides for lucidCMS (PHP based)
+
+(Not all old releases are listed.)
+
+For older PyLucid history, look at:
+
+* `http://www.pylucid.org/permalink/30/development-history#genesis <http://www.pylucid.org/permalink/30/development-history#genesis>`_
+
+========
+donation
+========
+
+* `paypal.me/JensDiemer <https://www.paypal.me/JensDiemer>`_
+
+* `Flattr This! <https://flattr.com/submit/auto?uid=jedie&url=https%3A%2F%2Fgithub.com%2Fjedie%2FPyLucid%2F>`_
+
+* Send `Bitcoins <http://www.bitcoin.org/>`_ to `1823RZ5Md1Q2X5aSXRC5LRPcYdveCiVX6F <https://blockexplorer.com/address/1823RZ5Md1Q2X5aSXRC5LRPcYdveCiVX6F>`_
+
+=====
+links
+=====
+
++----------------------+------------------------------+
+| Homepage             | `http://www.pylucid.org`_    |
++----------------------+------------------------------+
+| Sourcecode @ GitHub  | `github.com/jedie/PyLucid`_  |
++----------------------+------------------------------+
+| Python Package Index | `pypi.org/project/PyLucid/`_ |
++----------------------+------------------------------+
+| IRC                  | `#pylucid on freenode.net`_  |
++----------------------+------------------------------+
+
+.. _http://www.pylucid.org: http://www.pylucid.org
+.. _github.com/jedie/PyLucid: https://github.com/jedie/PyLucid
+.. _pypi.org/project/PyLucid/: https://pypi.org/project/PyLucid/
+.. _#pylucid on freenode.net: http://www.pylucid.org/permalink/304/irc-channel
+
