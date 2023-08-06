@@ -1,0 +1,61 @@
+dist: trusty
+language: python
+python: 3.6
+cache: pip
+addons:
+  postgresql: "9.5"
+env:
+    - TOX_ENV=py36
+    - TOX_ENV=kinto-master
+    - TOX_ENV=flake8
+sudo: false
+install:
+    - pip install tox
+before_script:
+    - psql -c "CREATE DATABASE testdb ENCODING 'UTF8' TEMPLATE template0;" -U postgres
+script:
+    - tox -e $TOX_ENV
+matrix:
+  include:
+    - go: 1.8
+      language: go
+      addons:
+        postgresql: "9.5"
+        apt:
+          sources:
+            - deadsnakes # source required so it finds the package definition below
+          packages:
+            - python3.6
+            - python3.6-dev
+      env:
+        - TOX_ENV=functional
+      install:
+        - pip install --user virtualenv tox
+        - make install
+        - make run-autograph &
+        - make run-kinto &
+        - sleep 5
+    - go: 1.8
+      language: go
+      addons:
+        postgresql: "9.5"
+        apt:
+          sources:
+            - deadsnakes # source required so it finds the package definition below
+          packages:
+            - python3.6
+            - python3.6-dev
+      env:
+        - TOX_ENV=functional
+          WITH=kinto-master
+      install:
+        - pip install --user virtualenv tox
+        - make install
+        - .venv/bin/pip install -U https://github.com/Kinto/kinto/zipball/master
+        - make run-autograph &
+        - make run-kinto &
+
+after_success:
+    # Report coverage results to coveralls.io
+    - pip install coveralls
+    - coveralls
