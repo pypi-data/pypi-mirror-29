@@ -1,0 +1,46 @@
+Redis-Tryton
+============
+
+Redis Cache backend for the Tryton application framework.
+
+
+In order to configure the redis cache you should modify your trytond
+configuration file to include the redis_tryton.RedisCache as class of the
+cache section. Optionally you can especify the redis uri with the uri value.
+If you do not specify the uri value it will use `redis:/127.0.0.1:6379/0` as
+default value. An example configuration file looks like::
+
+    [cache]
+    class=redis_tryton.RedisCache
+    uri=redis://127.0.0.1:6379/0
+
+Once you have specified the config file, everything should work out of the
+box and you should see your cache values created on the redis database.
+
+It uses msgpack as an eficient way to dump python objects to the redis cache.
+
+Issues
+------
+
+Feel free to open Issues on the
+`bitbucket issue tracker <https://bitbucket.org/pokoli/redis-tryton/issues>`_
+if you have some problems with the software or do you want to discuss some
+posible improvements.
+
+Pull Request are very welcomme also!
+
+Support
+-------
+
+You can send me and email on sergi@koolpi.com if you encounter any problems.
+I will try to reply ASAP, but it may take some time to get a reply, so please
+be patient.
+
+
+Thanks
+------
+
+This code is based on the Coopengo Guys Redis Cache implementation, so without
+their effort this should not be possible. Please give them many thanks.
+
+
