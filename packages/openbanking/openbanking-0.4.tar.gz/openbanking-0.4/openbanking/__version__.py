@@ -1,0 +1,8 @@
+__title__ = 'openbanking'
+__description__='Python 3 client for UK Open Banking.'
+__url__='https://bitbucket.org/glynjackson/openbanking'
+__version__='0.4'
+__author__='Glyn Jackson'
+__author_email__='me@glynjackson.org'
+__license__='MIT'
+__copyright__='Copyright 2018'
