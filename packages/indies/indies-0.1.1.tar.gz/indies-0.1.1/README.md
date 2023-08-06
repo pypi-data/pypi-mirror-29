@@ -1,0 +1,2 @@
+# indies
+Financial Indicators Library
