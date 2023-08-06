@@ -1,0 +1,454 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>PyFoam.Applications.NetList &mdash; PyFoam 0.6.6 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../search.html"/>
+    <link rel="top" title="PyFoam 0.6.6 documentation" href="../../../index.html"/>
+        <link rel="up" title="PyFoam" href="../../PyFoam.html"/> 
+
+  
+  <script src="../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home"> PyFoam
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.6.6
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../api/modules.html">API documentation</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">PyFoam</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+          <li><a href="../../PyFoam.html">PyFoam</a> &raquo;</li>
+        
+      <li>PyFoam.Applications.NetList</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for PyFoam.Applications.NetList</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Lists the running pyFoam-Processes&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">PyFoam.Applications.PyFoamApplication</span> <span class="k">import</span> <span class="n">PyFoamApplication</span>
+<span class="kn">from</span> <span class="nn">PyFoam</span> <span class="k">import</span> <span class="n">configuration</span> <span class="k">as</span> <span class="n">config</span>
+<span class="kn">from</span> <span class="nn">PyFoam.ThirdParty.six</span> <span class="k">import</span> <span class="n">print_</span><span class="p">,</span><span class="n">iteritems</span>
+<span class="kn">from</span> <span class="nn">PyFoam.Infrastructure.ZeroConf</span> <span class="k">import</span> <span class="n">getServerList</span>
+<span class="kn">from</span> <span class="nn">PyFoam.Infrastructure.ServerBase</span> <span class="k">import</span> <span class="n">getServerProxy</span>
+
+<span class="kn">import</span> <span class="nn">socket</span><span class="o">,</span><span class="nn">sys</span><span class="o">,</span><span class="nn">time</span>
+<span class="kn">from</span> <span class="nn">PyFoam.ThirdParty.six</span> <span class="k">import</span> <span class="n">PY3</span>
+
+<span class="k">if</span> <span class="n">PY3</span><span class="p">:</span>
+    <span class="kn">from</span> <span class="nn">xmlrpc.server</span> <span class="k">import</span> <span class="n">Fault</span>
+    <span class="kn">from</span> <span class="nn">xmlrpc.client</span> <span class="k">import</span> <span class="n">ProtocolError</span>
+<span class="k">else</span><span class="p">:</span>
+    <span class="kn">from</span> <span class="nn">xmlrpclib</span> <span class="k">import</span> <span class="n">ProtocolError</span>
+
+<span class="kn">from</span> <span class="nn">optparse</span> <span class="k">import</span> <span class="n">OptionGroup</span>
+
+<div class="viewcode-block" id="NetList"><a class="viewcode-back" href="../../../api/PyFoam.Applications.NetList.html#PyFoam.Applications.NetList.NetList">[docs]</a><span class="k">class</span> <span class="nc">NetList</span><span class="p">(</span><span class="n">PyFoamApplication</span><span class="p">):</span>
+<div class="viewcode-block" id="NetList.__init__"><a class="viewcode-back" href="../../../api/PyFoam.Applications.NetList.html#PyFoam.Applications.NetList.NetList.__init__">[docs]</a>    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">description</span><span class="o">=</span><span class="s2">&quot;&quot;&quot;</span><span class="se">\</span>
+<span class="s2">Lists all the processes known to a meta-server</span>
+<span class="s2">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">defaultHost</span><span class="o">=</span><span class="n">config</span><span class="p">()</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;Metaserver&quot;</span><span class="p">,</span><span class="s2">&quot;ip&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">defaultPort</span><span class="o">=</span><span class="n">config</span><span class="p">()</span><span class="o">.</span><span class="n">getint</span><span class="p">(</span><span class="s2">&quot;Metaserver&quot;</span><span class="p">,</span><span class="s2">&quot;port&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">defaultTimeout</span><span class="o">=</span><span class="n">config</span><span class="p">()</span><span class="o">.</span><span class="n">getfloat</span><span class="p">(</span><span class="s2">&quot;Network&quot;</span><span class="p">,</span><span class="s2">&quot;zeroconfTimeout&quot;</span><span class="p">)</span>
+
+        <span class="n">PyFoamApplication</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">description</span><span class="o">=</span><span class="n">description</span><span class="p">,</span><span class="n">usage</span><span class="o">=</span><span class="s2">&quot;%prog [options]&quot;</span><span class="p">,</span><span class="n">interspersed</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span><span class="n">nr</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="NetList.addOptions"><a class="viewcode-back" href="../../../api/PyFoam.Applications.NetList.html#PyFoam.Applications.NetList.NetList.addOptions">[docs]</a>    <span class="k">def</span> <span class="nf">addOptions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">spec</span><span class="o">=</span><span class="n">OptionGroup</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">parser</span><span class="p">,</span>
+                         <span class="s2">&quot;Source Specification&quot;</span><span class="p">,</span>
+                         <span class="s2">&quot;Where we get the info about the processes from&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">parser</span><span class="o">.</span><span class="n">add_option_group</span><span class="p">(</span><span class="n">spec</span><span class="p">)</span>
+        <span class="n">spec</span><span class="o">.</span><span class="n">add_option</span><span class="p">(</span><span class="s2">&quot;--no-zeroconf&quot;</span><span class="p">,</span>
+                        <span class="n">action</span><span class="o">=</span><span class="s2">&quot;store_false&quot;</span><span class="p">,</span>
+                        <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;zeroconf&quot;</span><span class="p">,</span>
+                        <span class="n">default</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Don&#39;t get the server info via ZeroConf. Requires correct settings of --server and --port. DEPRECATED&quot;</span><span class="p">)</span>
+        <span class="n">spec</span><span class="o">.</span><span class="n">add_option</span><span class="p">(</span><span class="s2">&quot;--server&quot;</span><span class="p">,</span>
+                        <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;string&quot;</span><span class="p">,</span>
+                        <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;server&quot;</span><span class="p">,</span>
+                        <span class="n">default</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">defaultHost</span><span class="p">,</span>
+                        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;The server that should be queried (Default: &quot;</span><span class="o">+</span><span class="bp">self</span><span class="o">.</span><span class="n">defaultHost</span><span class="o">+</span><span class="s2">&quot;)&quot;</span><span class="p">)</span>
+        <span class="n">spec</span><span class="o">.</span><span class="n">add_option</span><span class="p">(</span><span class="s2">&quot;--port&quot;</span><span class="p">,</span>
+                        <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;int&quot;</span><span class="p">,</span>
+                        <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;port&quot;</span><span class="p">,</span>
+                        <span class="n">default</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">defaultPort</span><span class="p">,</span>
+                        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;The port at which the query takes place (Default: &quot;</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">defaultPort</span><span class="p">)</span><span class="o">+</span><span class="s2">&quot;)&quot;</span><span class="p">)</span>
+        <span class="n">spec</span><span class="o">.</span><span class="n">add_option</span><span class="p">(</span><span class="s2">&quot;--zeroconf-wait&quot;</span><span class="p">,</span>
+                        <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;float&quot;</span><span class="p">,</span>
+                        <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;timeout&quot;</span><span class="p">,</span>
+                        <span class="n">default</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">defaultTimeout</span><span class="p">,</span>
+                        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;How many seconds to wait for zeroconf-info. Default: </span><span class="si">%d</span><span class="s2">efault (set with configuration &#39;Network/zeroconfTimeout&#39;)&quot;</span><span class="p">)</span>
+        <span class="n">spec</span><span class="o">.</span><span class="n">add_option</span><span class="p">(</span><span class="s2">&quot;--debug-zeroconf&quot;</span><span class="p">,</span>
+                        <span class="n">action</span><span class="o">=</span><span class="s2">&quot;store_true&quot;</span><span class="p">,</span>
+                        <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;debugZeroconf&quot;</span><span class="p">,</span>
+                        <span class="n">default</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Output additional info about ZeroConf&quot;</span><span class="p">)</span>
+
+        <span class="n">spec</span><span class="o">.</span><span class="n">add_option</span><span class="p">(</span><span class="s2">&quot;--no-progress-zeroconf&quot;</span><span class="p">,</span>
+                        <span class="n">action</span><span class="o">=</span><span class="s2">&quot;store_false&quot;</span><span class="p">,</span>
+                        <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;progressZeroconf&quot;</span><span class="p">,</span>
+                        <span class="n">default</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Do not output progress information when looking for servers&quot;</span><span class="p">)</span>
+
+        <span class="n">what</span><span class="o">=</span><span class="n">OptionGroup</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">parser</span><span class="p">,</span>
+                         <span class="s2">&quot;What&quot;</span><span class="p">,</span>
+                         <span class="s2">&quot;What should be listed&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">parser</span><span class="o">.</span><span class="n">add_option_group</span><span class="p">(</span><span class="n">what</span><span class="p">)</span>
+        <span class="n">what</span><span class="o">.</span><span class="n">add_option</span><span class="p">(</span><span class="s2">&quot;--dump&quot;</span><span class="p">,</span>
+                        <span class="n">action</span><span class="o">=</span><span class="s2">&quot;store_true&quot;</span><span class="p">,</span>
+                        <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;dump&quot;</span><span class="p">,</span>
+                        <span class="n">default</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Dump all the statically stored data&quot;</span><span class="p">)</span>
+        <span class="n">what</span><span class="o">.</span><span class="n">add_option</span><span class="p">(</span><span class="s2">&quot;--process&quot;</span><span class="p">,</span>
+                        <span class="n">action</span><span class="o">=</span><span class="s2">&quot;store_true&quot;</span><span class="p">,</span>
+                        <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;process&quot;</span><span class="p">,</span>
+                        <span class="n">default</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Additional data about the process&quot;</span><span class="p">)</span>
+        <span class="n">what</span><span class="o">.</span><span class="n">add_option</span><span class="p">(</span><span class="s2">&quot;--time&quot;</span><span class="p">,</span>
+                        <span class="n">action</span><span class="o">=</span><span class="s2">&quot;store_true&quot;</span><span class="p">,</span>
+                        <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;time&quot;</span><span class="p">,</span>
+                        <span class="n">default</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Request timing information&quot;</span><span class="p">)</span>
+        <span class="n">what</span><span class="o">.</span><span class="n">add_option</span><span class="p">(</span><span class="s2">&quot;--resources&quot;</span><span class="p">,</span>
+                        <span class="n">action</span><span class="o">=</span><span class="s2">&quot;store_true&quot;</span><span class="p">,</span>
+                        <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;resources&quot;</span><span class="p">,</span>
+                        <span class="n">default</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Reports the amount of memory used and the current load on the maching&quot;</span><span class="p">)</span>
+        <span class="n">what</span><span class="o">.</span><span class="n">add_option</span><span class="p">(</span><span class="s2">&quot;--ip&quot;</span><span class="p">,</span>
+                        <span class="n">action</span><span class="o">=</span><span class="s2">&quot;store_true&quot;</span><span class="p">,</span>
+                        <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;ip&quot;</span><span class="p">,</span>
+                        <span class="n">default</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Output the IP-number instead of the machine name&quot;</span><span class="p">)</span>
+        <span class="n">what</span><span class="o">.</span><span class="n">add_option</span><span class="p">(</span><span class="s2">&quot;--user&quot;</span><span class="p">,</span>
+                        <span class="n">action</span><span class="o">=</span><span class="s2">&quot;store&quot;</span><span class="p">,</span>
+                        <span class="n">dest</span><span class="o">=</span><span class="s2">&quot;user&quot;</span><span class="p">,</span>
+                        <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Only show runs that belong to a certain username&quot;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="NetList.run"><a class="viewcode-back" href="../../../api/PyFoam.Applications.NetList.html#PyFoam.Applications.NetList.NetList.run">[docs]</a>    <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">PyFoam.Infrastructure.Authentication</span> <span class="k">import</span> <span class="n">ensureKeyPair</span>
+        <span class="n">ensureKeyPair</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">opts</span><span class="o">.</span><span class="n">zeroconf</span><span class="p">:</span>
+            <span class="n">data</span><span class="o">=</span><span class="n">getServerList</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">opts</span><span class="o">.</span><span class="n">timeout</span><span class="p">,</span>
+                               <span class="n">verbose</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">opts</span><span class="o">.</span><span class="n">debugZeroconf</span><span class="p">,</span>
+                               <span class="n">progress</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">opts</span><span class="o">.</span><span class="n">progressZeroconf</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Using the old method of querying the meta-server. This is deprecated&quot;</span><span class="p">)</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">server</span><span class="o">=</span><span class="n">getServerProxy</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">parser</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">server</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">parser</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">port</span><span class="p">)</span>
+                <span class="n">data</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">server</span><span class="o">.</span><span class="n">list</span><span class="p">()</span>
+            <span class="k">except</span> <span class="n">socket</span><span class="o">.</span><span class="n">error</span> <span class="k">as</span> <span class="n">reason</span><span class="p">:</span>
+                <span class="n">print_</span><span class="p">(</span><span class="s2">&quot;Socket error while connecting:&quot;</span><span class="p">,</span><span class="n">reason</span><span class="p">)</span>
+                <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+            <span class="k">except</span> <span class="n">ProtocolError</span> <span class="k">as</span> <span class="n">reason</span><span class="p">:</span>
+                <span class="n">print_</span><span class="p">(</span><span class="s2">&quot;XMLRPC-problem&quot;</span><span class="p">,</span><span class="n">reason</span><span class="p">)</span>
+                <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="p">)</span><span class="o">==</span><span class="mi">0</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;No runs found&quot;</span><span class="p">)</span>
+            <span class="k">return</span>
+
+        <span class="n">hostString</span><span class="o">=</span><span class="s2">&quot;Hostname&quot;</span>
+        <span class="n">maxhost</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">hostString</span><span class="p">)</span>
+        <span class="n">cmdString</span><span class="o">=</span><span class="s2">&quot;Command Line&quot;</span>
+        <span class="n">maxcommandline</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">cmdString</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">name</span><span class="p">,</span><span class="n">info</span> <span class="ow">in</span> <span class="n">iteritems</span><span class="p">(</span><span class="n">data</span><span class="p">):</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">info</span><span class="p">[</span><span class="s2">&quot;commandLine&quot;</span><span class="p">])</span><span class="o">&gt;</span><span class="n">maxcommandline</span><span class="p">:</span>
+                <span class="n">maxcommandline</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">info</span><span class="p">[</span><span class="s2">&quot;commandLine&quot;</span><span class="p">])</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">opts</span><span class="o">.</span><span class="n">ip</span><span class="p">:</span>
+                <span class="n">tmpHost</span><span class="o">=</span><span class="n">info</span><span class="p">[</span><span class="s2">&quot;ip&quot;</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">tmpHost</span><span class="o">=</span><span class="n">info</span><span class="p">[</span><span class="s2">&quot;hostname&quot;</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">tmpHost</span><span class="o">==</span><span class="s2">&quot;no info&quot;</span><span class="p">:</span>
+                    <span class="n">tmpHost</span><span class="o">=</span><span class="n">info</span><span class="p">[</span><span class="s2">&quot;ip&quot;</span><span class="p">]</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">tmpHost</span><span class="p">)</span><span class="o">&gt;</span><span class="n">maxhost</span><span class="p">:</span>
+                <span class="n">maxhost</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">tmpHost</span><span class="p">)</span>
+
+        <span class="n">header</span><span class="o">=</span><span class="n">hostString</span><span class="o">+</span><span class="p">(</span><span class="s2">&quot; &quot;</span><span class="o">*</span><span class="p">(</span><span class="n">maxhost</span><span class="o">-</span><span class="nb">len</span><span class="p">(</span><span class="n">hostString</span><span class="p">)))</span><span class="o">+</span><span class="s2">&quot; | &quot;</span><span class="o">+</span><span class="s2">&quot; Port  | User       | &quot;</span><span class="o">+</span><span class="n">cmdString</span><span class="o">+</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span>
+        <span class="n">line</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;-&quot;</span><span class="o">*</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">header</span><span class="p">)))</span>
+        <span class="n">header</span><span class="o">+=</span><span class="n">line</span>
+
+        <span class="n">formatString</span><span class="o">=</span><span class="s2">&quot;%-&quot;</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="n">maxhost</span><span class="p">)</span><span class="o">+</span><span class="s2">&quot;s | </span><span class="si">%6d</span><span class="s2"> | </span><span class="si">%10s</span><span class="s2"> | </span><span class="si">%s</span><span class="s2">&quot;</span>
+        <span class="n">print_</span><span class="p">(</span><span class="n">header</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">name</span><span class="p">,</span><span class="n">info</span> <span class="ow">in</span> <span class="n">iteritems</span><span class="p">(</span><span class="n">data</span><span class="p">):</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">opts</span><span class="o">.</span><span class="n">user</span><span class="p">:</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">opts</span><span class="o">.</span><span class="n">user</span><span class="o">!=</span><span class="n">info</span><span class="p">[</span><span class="s2">&quot;user&quot;</span><span class="p">]:</span>
+                    <span class="k">continue</span>
+
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">opts</span><span class="o">.</span><span class="n">ip</span><span class="p">:</span>
+                <span class="n">tmpHost</span><span class="o">=</span><span class="n">info</span><span class="p">[</span><span class="s2">&quot;ip&quot;</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">tmpHost</span><span class="o">=</span><span class="n">info</span><span class="p">[</span><span class="s2">&quot;hostname&quot;</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">tmpHost</span><span class="o">==</span><span class="s2">&quot;no info&quot;</span><span class="p">:</span>
+                    <span class="n">tmpHost</span><span class="o">=</span><span class="n">info</span><span class="p">[</span><span class="s2">&quot;ip&quot;</span><span class="p">]</span>
+
+            <span class="n">print_</span><span class="p">(</span><span class="n">formatString</span> <span class="o">%</span> <span class="p">(</span><span class="n">tmpHost</span><span class="p">,</span><span class="n">info</span><span class="p">[</span><span class="s2">&quot;port&quot;</span><span class="p">],</span><span class="n">info</span><span class="p">[</span><span class="s2">&quot;user&quot;</span><span class="p">],</span><span class="n">info</span><span class="p">[</span><span class="s2">&quot;commandLine&quot;</span><span class="p">]))</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">parser</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">process</span><span class="p">:</span>
+                <span class="n">isParallel</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">forwardCommand</span><span class="p">(</span><span class="n">info</span><span class="p">,</span><span class="s2">&quot;isParallel()&quot;</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">isParallel</span><span class="p">:</span>
+                    <span class="n">pidString</span><span class="o">=</span><span class="s2">&quot;CPUs: </span><span class="si">%5d</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">forwardCommand</span><span class="p">(</span><span class="n">info</span><span class="p">,</span><span class="s2">&quot;procNr()&quot;</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">pidString</span><span class="o">=</span><span class="s2">&quot;PID: </span><span class="si">%6d</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">info</span><span class="p">[</span><span class="s2">&quot;pid&quot;</span><span class="p">]</span>
+                <span class="n">print_</span><span class="p">(</span><span class="s2">&quot;  </span><span class="si">%s</span><span class="s2">   Working dir: </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">pidString</span><span class="p">,</span><span class="n">info</span><span class="p">[</span><span class="s2">&quot;cwd&quot;</span><span class="p">]))</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">parser</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">time</span><span class="p">:</span>
+                <span class="n">startTime</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">forwardCommand</span><span class="p">(</span><span class="n">info</span><span class="p">,</span><span class="s2">&quot;startTime()&quot;</span><span class="p">)</span>
+                <span class="n">endTime</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">forwardCommand</span><span class="p">(</span><span class="n">info</span><span class="p">,</span><span class="s2">&quot;endTime()&quot;</span><span class="p">)</span>
+                <span class="n">createTime</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">forwardCommand</span><span class="p">(</span><span class="n">info</span><span class="p">,</span><span class="s2">&quot;createTime()&quot;</span><span class="p">)</span>
+                <span class="n">nowTime</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">forwardCommand</span><span class="p">(</span><span class="n">info</span><span class="p">,</span><span class="s2">&quot;time()&quot;</span><span class="p">)</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">progress</span><span class="o">=</span><span class="p">(</span><span class="n">nowTime</span><span class="o">-</span><span class="n">createTime</span><span class="p">)</span><span class="o">/</span><span class="p">(</span><span class="n">endTime</span><span class="o">-</span><span class="n">createTime</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">ZeroDivisionError</span><span class="p">:</span>
+                    <span class="n">progress</span><span class="o">=</span><span class="mi">0</span>
+
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">progress2</span><span class="o">=</span><span class="p">(</span><span class="n">nowTime</span><span class="o">-</span><span class="n">startTime</span><span class="p">)</span><span class="o">/</span><span class="p">(</span><span class="n">endTime</span><span class="o">-</span><span class="n">startTime</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">ZeroDivisionError</span><span class="p">:</span>
+                    <span class="n">progress2</span><span class="o">=</span><span class="mi">0</span>
+
+                <span class="n">print_</span><span class="p">(</span><span class="s2">&quot;  Time: </span><span class="si">%g</span><span class="s2"> Timerange: [ </span><span class="si">%g</span><span class="s2"> , </span><span class="si">%g</span><span class="s2"> ]  Mesh created: </span><span class="si">%g</span><span class="s2"> -&gt; Progress: </span><span class="si">%.2f%%</span><span class="s2"> (Total: </span><span class="si">%.2f%%</span><span class="s2">)&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">nowTime</span><span class="p">,</span><span class="n">startTime</span><span class="p">,</span><span class="n">endTime</span><span class="p">,</span><span class="n">createTime</span><span class="p">,</span><span class="n">progress</span><span class="o">*</span><span class="mi">100</span><span class="p">,</span><span class="n">progress2</span><span class="o">*</span><span class="mi">100</span><span class="p">))</span>
+
+                <span class="n">wallTime</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">forwardCommand</span><span class="p">(</span><span class="n">info</span><span class="p">,</span><span class="s2">&quot;wallTime()&quot;</span><span class="p">)</span>
+                <span class="n">now</span><span class="o">=</span><span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+                <span class="n">start</span><span class="o">=</span><span class="n">now</span><span class="o">-</span><span class="n">wallTime</span>
+                <span class="n">startString</span><span class="o">=</span><span class="n">time</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">&quot;%Y-%b-</span><span class="si">%d</span><span class="s2"> %H:%M&quot;</span><span class="p">,</span><span class="n">time</span><span class="o">.</span><span class="n">localtime</span><span class="p">(</span><span class="n">start</span><span class="p">))</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">estimate</span><span class="o">=</span><span class="n">start</span><span class="o">+</span><span class="n">wallTime</span><span class="o">/</span><span class="n">progress</span>
+                    <span class="n">estimateString</span><span class="o">=</span><span class="n">time</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">&quot;%Y-%b-</span><span class="si">%d</span><span class="s2"> %H:%M&quot;</span><span class="p">,</span><span class="n">time</span><span class="o">.</span><span class="n">localtime</span><span class="p">(</span><span class="n">estimate</span><span class="p">))</span>
+                <span class="k">except</span> <span class="ne">ZeroDivisionError</span><span class="p">:</span>
+                    <span class="n">estimate</span><span class="o">=</span><span class="n">start</span>
+                    <span class="n">estimateString</span><span class="o">=</span><span class="s2">&quot; - NaN - &quot;</span>
+
+                <span class="n">print_</span><span class="p">(</span><span class="s2">&quot;  Started: </span><span class="si">%s</span><span class="s2">   Walltime: </span><span class="si">%8g</span><span class="s2">s  Estimated End: </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">startString</span><span class="p">,</span><span class="n">wallTime</span><span class="p">,</span><span class="n">estimateString</span><span class="p">))</span>
+
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">opts</span><span class="o">.</span><span class="n">resources</span><span class="p">:</span>
+                <span class="n">mem</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">forwardCommand</span><span class="p">(</span><span class="n">info</span><span class="p">,</span><span class="s2">&quot;usedMemory()&quot;</span><span class="p">)</span>
+                <span class="n">loads</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">forwardCommand</span><span class="p">(</span><span class="n">info</span><span class="p">,</span><span class="s2">&quot;loadAvg()&quot;</span><span class="p">)</span>
+                <span class="n">loadString</span><span class="o">=</span><span class="s2">&quot;&quot;</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">loads</span><span class="p">)</span><span class="o">==</span><span class="mi">3</span><span class="p">:</span>
+                    <span class="n">loadString</span><span class="o">=</span><span class="s2">&quot;  Load 1m: </span><span class="si">%.1f</span><span class="s2"> - 5m: </span><span class="si">%.1f</span><span class="s2"> - 15m: </span><span class="si">%.1f</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">loads</span><span class="p">)</span>
+                <span class="nb">print</span><span class="p">((</span><span class="s2">&quot;   Max memory: </span><span class="si">%f</span><span class="s2"> MB&quot;</span> <span class="o">%</span> <span class="n">mem</span><span class="p">)</span><span class="o">+</span><span class="n">loadString</span><span class="p">)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">parser</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">process</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">parser</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">time</span><span class="p">:</span>
+                <span class="n">print_</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">parser</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">dump</span><span class="p">:</span>
+                <span class="n">print_</span><span class="p">(</span><span class="n">info</span><span class="p">)</span>
+                <span class="n">print_</span><span class="p">(</span><span class="n">line</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="NetList.forwardCommand"><a class="viewcode-back" href="../../../api/PyFoam.Applications.NetList.html#PyFoam.Applications.NetList.NetList.forwardCommand">[docs]</a>    <span class="k">def</span> <span class="nf">forwardCommand</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">info</span><span class="p">,</span><span class="n">cmd</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Forwards a command</span>
+<span class="sd">        :param info: dictionary with the information</span>
+<span class="sd">        :param cmd: the command that will be forwarded</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">result</span><span class="o">=</span><span class="mi">0</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">opts</span><span class="o">.</span><span class="n">zeroconf</span><span class="p">:</span>
+                <span class="n">server</span><span class="o">=</span><span class="n">getServerProxy</span><span class="p">(</span><span class="n">info</span><span class="p">[</span><span class="s2">&quot;ip&quot;</span><span class="p">],</span><span class="n">info</span><span class="p">[</span><span class="s2">&quot;port&quot;</span><span class="p">])</span>
+                <span class="n">result</span><span class="o">=</span><span class="nb">eval</span><span class="p">(</span><span class="s2">&quot;server.&quot;</span><span class="o">+</span><span class="n">cmd</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">result</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">server</span><span class="o">.</span><span class="n">forwardCommand</span><span class="p">(</span><span class="n">info</span><span class="p">[</span><span class="s2">&quot;ip&quot;</span><span class="p">],</span><span class="n">info</span><span class="p">[</span><span class="s2">&quot;port&quot;</span><span class="p">],</span><span class="n">cmd</span><span class="p">))</span>
+        <span class="k">except</span><span class="p">:</span>
+            <span class="k">pass</span>
+
+        <span class="k">return</span> <span class="n">result</span></div></div>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2015, Bernhard F.W. Gschaider.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../',
+            VERSION:'0.6.6',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../_static/doctools.js"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

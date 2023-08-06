@@ -1,0 +1,624 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>PyFoam.Infrastructure.FoamMetaServer &mdash; PyFoam 0.6.6 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../search.html"/>
+    <link rel="top" title="PyFoam 0.6.6 documentation" href="../../../index.html"/>
+        <link rel="up" title="PyFoam" href="../../PyFoam.html"/> 
+
+  
+  <script src="../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home"> PyFoam
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.6.6
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../api/modules.html">API documentation</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">PyFoam</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+          <li><a href="../../PyFoam.html">PyFoam</a> &raquo;</li>
+        
+      <li>PyFoam.Infrastructure.FoamMetaServer</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for PyFoam.Infrastructure.FoamMetaServer</h1><div class="highlight"><pre>
+<span></span><span class="c1">#  ICE Revision: $Id$</span>
+<span class="sd">&quot;&quot;&quot;A XMLRPC-Server that knows all PyFoam-Runs in its subnet&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">PyFoam.Infrastructure.ServerBase</span> <span class="k">import</span> <span class="n">ServerBase</span><span class="p">,</span><span class="n">getServerProxy</span>
+<span class="kn">from</span> <span class="nn">PyFoam.ThirdParty.six</span> <span class="k">import</span> <span class="n">PY3</span>
+
+<span class="k">if</span> <span class="n">PY3</span><span class="p">:</span>
+    <span class="kn">from</span> <span class="nn">xmlrpc.server</span> <span class="k">import</span> <span class="n">Fault</span>
+    <span class="kn">from</span> <span class="nn">xmlrpc.client</span> <span class="k">import</span> <span class="n">ServerProxy</span>
+<span class="k">else</span><span class="p">:</span>
+    <span class="kn">from</span> <span class="nn">xmlrpclib</span> <span class="k">import</span> <span class="n">Fault</span><span class="p">,</span><span class="n">ServerProxy</span>
+    <span class="kn">from</span> <span class="nn">PyFoam.ThirdParty.IPy</span> <span class="k">import</span> <span class="n">IP</span>
+
+<span class="kn">import</span> <span class="nn">socket</span>
+<span class="kn">from</span> <span class="nn">threading</span> <span class="k">import</span> <span class="n">Lock</span><span class="p">,</span><span class="n">Thread</span><span class="p">,</span><span class="n">Timer</span>
+
+<span class="kn">from</span> <span class="nn">PyFoam.Infrastructure.Logging</span> <span class="k">import</span> <span class="n">foamLogger</span>
+<span class="kn">from</span> <span class="nn">PyFoam.Infrastructure.NetworkHelpers</span> <span class="k">import</span> <span class="n">checkFoamServers</span>
+<span class="kn">from</span> <span class="nn">PyFoam</span> <span class="k">import</span> <span class="n">configuration</span> <span class="k">as</span> <span class="n">config</span>
+<span class="kn">from</span> <span class="nn">PyFoam.ThirdParty.six</span> <span class="k">import</span> <span class="n">print_</span><span class="p">,</span><span class="n">binary_type</span>
+
+<span class="kn">import</span> <span class="nn">sys</span><span class="o">,</span><span class="nn">time</span><span class="o">,</span><span class="nn">copy</span><span class="o">,</span><span class="nn">os</span>
+<span class="kn">from</span> <span class="nn">traceback</span> <span class="k">import</span> <span class="n">extract_tb</span>
+
+<span class="n">DO_WEBSYNC</span> <span class="o">=</span> <span class="n">config</span><span class="p">()</span><span class="o">.</span><span class="n">getboolean</span><span class="p">(</span><span class="s1">&#39;Metaserver&#39;</span><span class="p">,</span><span class="s1">&#39;doWebsync&#39;</span><span class="p">)</span>
+<span class="n">WEBSERVER_RPCURL</span> <span class="o">=</span> <span class="s2">&quot;http://</span><span class="si">%(host)s</span><span class="s2">/metaserver/xmlrpc/&quot;</span> <span class="o">%</span> <span class="p">{</span><span class="s2">&quot;host&quot;</span><span class="p">:</span><span class="n">config</span><span class="p">()</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;Metaserver&#39;</span><span class="p">,</span><span class="s1">&#39;webhost&#39;</span><span class="p">)}</span>
+<span class="n">WEBSYNC_INTERVAL</span> <span class="o">=</span> <span class="n">config</span><span class="p">()</span><span class="o">.</span><span class="n">getfloat</span><span class="p">(</span><span class="s1">&#39;Metaserver&#39;</span><span class="p">,</span><span class="s1">&#39;websyncInterval&#39;</span><span class="p">)</span>
+
+<div class="viewcode-block" id="FoamMetaServer"><a class="viewcode-back" href="../../../api/PyFoam.Infrastructure.FoamMetaServer.html#PyFoam.Infrastructure.FoamMetaServer.FoamMetaServer">[docs]</a><span class="k">class</span> <span class="nc">FoamMetaServer</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;The Metaserver.</span>
+
+<span class="sd">    Collects all the known FoamServers. Then waits for the servers to</span>
+<span class="sd">    register themselves. Checks at regular intervalls whether the processes are still alive</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+<div class="viewcode-block" id="FoamMetaServer.__init__"><a class="viewcode-back" href="../../../api/PyFoam.Infrastructure.FoamMetaServer.html#PyFoam.Infrastructure.FoamMetaServer.FoamMetaServer.__init__">[docs]</a>    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">port</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;:param port: The port on which the server should listen&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">port</span><span class="o">==</span><span class="kc">None</span><span class="p">:</span>
+            <span class="n">port</span><span class="o">=</span><span class="n">config</span><span class="p">()</span><span class="o">.</span><span class="n">getint</span><span class="p">(</span><span class="s2">&quot;Metaserver&quot;</span><span class="p">,</span><span class="s2">&quot;port&quot;</span><span class="p">)</span>
+
+        <span class="n">foamLogger</span><span class="p">(</span><span class="s2">&quot;server&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Starting Server up&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pid</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">getpid</span><span class="p">()</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">webserver</span> <span class="o">=</span> <span class="n">ServerProxy</span><span class="p">(</span><span class="n">WEBSERVER_RPCURL</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">servers</span><span class="o">=</span><span class="p">{}</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">dataLock</span><span class="o">=</span><span class="n">Lock</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">startupLock</span><span class="o">=</span><span class="n">Lock</span><span class="p">()</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">collect</span><span class="p">()</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">checker</span><span class="o">=</span><span class="n">MetaChecker</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">checker</span><span class="o">.</span><span class="n">setDaemon</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">checker</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">_server</span><span class="o">=</span><span class="n">ServerBase</span><span class="p">((</span><span class="s1">&#39;&#39;</span><span class="p">,</span><span class="n">port</span><span class="p">),</span><span class="n">logRequests</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_server</span><span class="o">.</span><span class="n">register_instance</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_server</span><span class="o">.</span><span class="n">register_introspection_functions</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_server</span><span class="o">.</span><span class="n">serve_forever</span><span class="p">()</span> <span class="c1"># occasional errors with &quot;Broken pipe&quot;</span>
+        <span class="k">except</span> <span class="ne">KeyboardInterrupt</span><span class="p">:</span>
+            <span class="n">foamLogger</span><span class="p">(</span><span class="s2">&quot;server&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Keyboard interrupt&quot;</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">socket</span><span class="o">.</span><span class="n">error</span> <span class="k">as</span> <span class="n">reason</span><span class="p">:</span>
+            <span class="n">foamLogger</span><span class="p">(</span><span class="s2">&quot;server&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;Socket Error: &quot;</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="n">reason</span><span class="p">))</span>
+            <span class="n">print_</span><span class="p">(</span><span class="s2">&quot;Can&#39;t start server, Problem with socket: &quot;</span><span class="p">,</span><span class="n">reason</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+        <span class="k">except</span><span class="p">:</span>
+            <span class="n">foamLogger</span><span class="p">(</span><span class="s2">&quot;server&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;Unknown exception &quot;</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">exc_info</span><span class="p">()[</span><span class="mi">0</span><span class="p">]))</span>
+            <span class="n">foamLogger</span><span class="p">(</span><span class="s2">&quot;server&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">exc_info</span><span class="p">()[</span><span class="mi">1</span><span class="p">]))</span>
+            <span class="n">foamLogger</span><span class="p">(</span><span class="s2">&quot;server&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;Traceback: &quot;</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="n">extract_tb</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">exc_info</span><span class="p">()[</span><span class="mi">2</span><span class="p">])))</span></div>
+
+<div class="viewcode-block" id="FoamMetaServer.list"><a class="viewcode-back" href="../../../api/PyFoam.Infrastructure.FoamMetaServer.html#PyFoam.Infrastructure.FoamMetaServer.FoamMetaServer.list">[docs]</a>    <span class="k">def</span> <span class="nf">list</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Returns a list of the found Foam-Runs&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dataLock</span><span class="o">.</span><span class="n">acquire</span><span class="p">()</span>
+        <span class="n">servers</span><span class="o">=</span><span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">servers</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dataLock</span><span class="o">.</span><span class="n">release</span><span class="p">()</span>
+
+        <span class="n">result</span><span class="o">=</span><span class="p">{}</span>
+
+        <span class="k">for</span> <span class="n">idnum</span><span class="p">,</span><span class="n">info</span> <span class="ow">in</span> <span class="n">servers</span><span class="o">.</span><span class="n">iteritems</span><span class="p">():</span>
+            <span class="n">result</span><span class="p">[</span><span class="n">idnum</span><span class="p">]</span><span class="o">=</span><span class="n">info</span><span class="o">.</span><span class="n">_info</span>
+
+        <span class="k">return</span> <span class="n">result</span></div>
+
+<div class="viewcode-block" id="FoamMetaServer.collect"><a class="viewcode-back" href="../../../api/PyFoam.Infrastructure.FoamMetaServer.html#PyFoam.Infrastructure.FoamMetaServer.FoamMetaServer.collect">[docs]</a>    <span class="k">def</span> <span class="nf">collect</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Starts a thread that collects the data of the servers from the net&quot;&quot;&quot;</span>
+        <span class="n">collector</span><span class="o">=</span><span class="n">MetaCollector</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="n">collector</span><span class="o">.</span><span class="n">setDaemon</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">collector</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+        <span class="k">return</span> <span class="kc">True</span></div>
+
+<div class="viewcode-block" id="FoamMetaServer.scan"><a class="viewcode-back" href="../../../api/PyFoam.Infrastructure.FoamMetaServer.html#PyFoam.Infrastructure.FoamMetaServer.FoamMetaServer.scan">[docs]</a>    <span class="k">def</span> <span class="nf">scan</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">additional</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Starts a thread that collects the data of the servers from the net</span>
+<span class="sd">        :param additional: a string with a list of additional subnets that should be scanned&quot;&quot;&quot;</span>
+        <span class="n">collector</span><span class="o">=</span><span class="n">MetaCollector</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">additional</span><span class="o">=</span><span class="n">additional</span><span class="p">)</span>
+        <span class="n">collector</span><span class="o">.</span><span class="n">setDaemon</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">collector</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+        <span class="k">return</span> <span class="kc">True</span></div>
+
+<div class="viewcode-block" id="FoamMetaServer.kill"><a class="viewcode-back" href="../../../api/PyFoam.Infrastructure.FoamMetaServer.html#PyFoam.Infrastructure.FoamMetaServer.FoamMetaServer.kill">[docs]</a>    <span class="k">def</span> <span class="nf">kill</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Exits the server&quot;&quot;&quot;</span>
+        <span class="n">foamLogger</span><span class="p">(</span><span class="s2">&quot;server&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Terminating due to request&quot;</span><span class="p">)</span>
+        <span class="n">t</span><span class="o">=</span><span class="n">Timer</span><span class="p">(</span><span class="mf">1.</span><span class="p">,</span><span class="bp">self</span><span class="o">.</span><span class="n">_suicide</span><span class="p">)</span>
+        <span class="n">t</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+        <span class="k">return</span> <span class="kc">True</span></div>
+
+<div class="viewcode-block" id="FoamMetaServer._suicide"><a class="viewcode-back" href="../../../api/PyFoam.Infrastructure.FoamMetaServer.html#PyFoam.Infrastructure.FoamMetaServer.FoamMetaServer._suicide">[docs]</a>    <span class="k">def</span> <span class="nf">_suicide</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;The server kills itself&quot;&quot;&quot;</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">kill</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">pid</span><span class="p">,</span><span class="mi">1</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="FoamMetaServer.registerServer"><a class="viewcode-back" href="../../../api/PyFoam.Infrastructure.FoamMetaServer.html#PyFoam.Infrastructure.FoamMetaServer.FoamMetaServer.registerServer">[docs]</a>    <span class="k">def</span> <span class="nf">registerServer</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">ip</span><span class="p">,</span><span class="n">pid</span><span class="p">,</span><span class="n">port</span><span class="p">,</span><span class="n">sync</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span><span class="n">external</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Registers a new server via XMLRPC</span>
+<span class="sd">        :param ip: IP of the server</span>
+<span class="sd">        :param pid: Die PID at the server</span>
+<span class="sd">        :param port: the port at which the server is listening</span>
+<span class="sd">        :param sync: (optional) if to sync with the webserver or not</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_registerServer</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span><span class="n">pid</span><span class="p">,</span><span class="n">port</span><span class="p">,</span><span class="n">sync</span><span class="o">=</span><span class="n">sync</span><span class="p">,</span><span class="n">external</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="FoamMetaServer._registerServer"><a class="viewcode-back" href="../../../api/PyFoam.Infrastructure.FoamMetaServer.html#PyFoam.Infrastructure.FoamMetaServer.FoamMetaServer._registerServer">[docs]</a>    <span class="k">def</span> <span class="nf">_registerServer</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">ip</span><span class="p">,</span><span class="n">pid</span><span class="p">,</span><span class="n">port</span><span class="p">,</span><span class="n">sync</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span><span class="n">external</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Registers a new server</span>
+<span class="sd">        :param ip: IP of the server</span>
+<span class="sd">        :param pid: Die PID at the server</span>
+<span class="sd">        :param port: the port at which the server is listening</span>
+<span class="sd">        :param external: was called via XMLRPC</span>
+<span class="sd">        :param sync: (optional) if to sync with the webserver or not</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dataLock</span><span class="o">.</span><span class="n">acquire</span><span class="p">()</span>
+        <span class="n">serverID</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">:</span><span class="si">%d</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">ip</span><span class="p">,</span><span class="n">port</span><span class="p">)</span>
+
+        <span class="n">foamLogger</span><span class="p">(</span><span class="s2">&quot;server&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Registering: </span><span class="si">%s</span><span class="s2"> with PID: </span><span class="si">%d</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">serverID</span><span class="p">,</span><span class="n">pid</span><span class="p">))</span>
+
+        <span class="n">insertServer</span><span class="o">=</span><span class="kc">False</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">servers</span><span class="o">.</span><span class="n">has_key</span><span class="p">(</span><span class="n">serverID</span><span class="p">):</span>
+                <span class="c1"># maybe it&#39;s another process</span>
+                <span class="n">server</span><span class="o">=</span><span class="n">getServerProxy</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span><span class="n">port</span><span class="p">)</span>
+                <span class="n">gotPid</span><span class="o">=</span><span class="n">server</span><span class="o">.</span><span class="n">pid</span><span class="p">()</span>
+                <span class="k">if</span> <span class="n">pid</span><span class="o">!=</span><span class="n">gotPid</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">servers</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">serverID</span><span class="p">)</span>
+                    <span class="n">foamLogger</span><span class="p">(</span><span class="s2">&quot;server&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Server &quot;</span><span class="o">+</span><span class="n">serverID</span><span class="o">+</span><span class="s2">&quot; changed PID from </span><span class="si">%d</span><span class="s2"> to </span><span class="si">%d</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">pid</span><span class="p">,</span><span class="n">gotPid</span><span class="p">))</span>
+                    <span class="n">insertServer</span><span class="o">=</span><span class="kc">True</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">foamLogger</span><span class="p">(</span><span class="s2">&quot;server&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Server &quot;</span><span class="o">+</span><span class="n">serverID</span><span class="o">+</span><span class="s2">&quot; already registered&quot;</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">insertServer</span><span class="o">=</span><span class="kc">True</span>
+
+            <span class="k">if</span> <span class="n">insertServer</span><span class="p">:</span>
+                <span class="n">new</span><span class="o">=</span><span class="n">ServerInfo</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span><span class="n">pid</span><span class="p">,</span><span class="n">port</span><span class="p">)</span>
+                <span class="n">doIt</span><span class="o">=</span><span class="n">external</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">doIt</span><span class="p">:</span>
+                    <span class="n">doIt</span><span class="o">=</span><span class="n">new</span><span class="o">.</span><span class="n">checkValid</span><span class="p">()</span>
+
+                <span class="k">if</span> <span class="n">doIt</span><span class="p">:</span>
+                    <span class="n">new</span><span class="o">.</span><span class="n">queryData</span><span class="p">()</span> <span class="c1"># occasional errors with &#39;Connection refused&#39;</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">servers</span><span class="p">[</span><span class="n">serverID</span><span class="p">]</span><span class="o">=</span><span class="n">new</span>
+                    <span class="n">foamLogger</span><span class="p">(</span><span class="s2">&quot;server&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Inserted &quot;</span><span class="o">+</span><span class="n">serverID</span><span class="p">)</span>
+        <span class="k">except</span><span class="p">:</span>
+            <span class="n">foamLogger</span><span class="p">(</span><span class="s2">&quot;server&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;Registering Server &quot;</span><span class="o">+</span><span class="n">serverID</span><span class="o">+</span><span class="s2">&quot; failed:&quot;</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">exc_info</span><span class="p">()[</span><span class="mi">0</span><span class="p">]))</span>
+            <span class="n">foamLogger</span><span class="p">(</span><span class="s2">&quot;server&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;Reason:&quot;</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">exc_info</span><span class="p">()[</span><span class="mi">1</span><span class="p">]))</span>
+            <span class="n">foamLogger</span><span class="p">(</span><span class="s2">&quot;server&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;Trace:&quot;</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="n">extract_tb</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">exc_info</span><span class="p">()[</span><span class="mi">2</span><span class="p">])))</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">dataLock</span><span class="o">.</span><span class="n">release</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="n">DO_WEBSYNC</span> <span class="ow">and</span> <span class="n">insertServer</span> <span class="ow">and</span> <span class="n">sync</span><span class="p">:</span>
+            <span class="n">foamLogger</span><span class="p">(</span><span class="s2">&quot;server&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Registering </span><span class="si">%s</span><span class="s2"> for webserver: </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">serverID</span><span class="p">,</span><span class="s1">&#39;new/</span><span class="si">%(ip)s</span><span class="s1">/</span><span class="si">%(port)s</span><span class="s1">/&#39;</span> <span class="o">%</span> <span class="p">{</span><span class="s1">&#39;ip&#39;</span><span class="p">:</span><span class="n">ip</span><span class="p">,</span> <span class="s1">&#39;port&#39;</span><span class="p">:</span><span class="n">port</span><span class="p">}))</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">webserver</span><span class="o">.</span><span class="n">new_process</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">port</span><span class="p">)</span>
+            <span class="k">except</span><span class="p">:</span>
+                <span class="n">foamLogger</span><span class="p">(</span><span class="s2">&quot;server&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Registering </span><span class="si">%s</span><span class="s2"> for webserver failed!&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">serverID</span><span class="p">))</span>
+        <span class="k">return</span> <span class="kc">True</span></div>
+
+<div class="viewcode-block" id="FoamMetaServer.deregisterServer"><a class="viewcode-back" href="../../../api/PyFoam.Infrastructure.FoamMetaServer.html#PyFoam.Infrastructure.FoamMetaServer.FoamMetaServer.deregisterServer">[docs]</a>    <span class="k">def</span> <span class="nf">deregisterServer</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">ip</span><span class="p">,</span><span class="n">pid</span><span class="p">,</span><span class="n">port</span><span class="p">,</span><span class="n">sync</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Deregisters a server</span>
+<span class="sd">        :param ip: IP of the server</span>
+<span class="sd">        :param pid: Die PID at the server</span>
+<span class="sd">        :param port: the port at which the server is listening</span>
+<span class="sd">        :param sync: (optional) if to sync with the webserver or not</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dataLock</span><span class="o">.</span><span class="n">acquire</span><span class="p">()</span>
+        <span class="n">serverID</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">:</span><span class="si">%d</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">ip</span><span class="p">,</span><span class="n">port</span><span class="p">)</span>
+        <span class="n">foamLogger</span><span class="p">(</span><span class="s2">&quot;server&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Deregistering: </span><span class="si">%s</span><span class="s2"> with PID: </span><span class="si">%d</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">serverID</span><span class="p">,</span><span class="n">pid</span><span class="p">))</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">servers</span><span class="o">.</span><span class="n">has_key</span><span class="p">(</span><span class="n">serverID</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">servers</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">serverID</span><span class="p">)</span>
+
+                <span class="k">if</span> <span class="n">DO_WEBSYNC</span> <span class="ow">and</span> <span class="n">sync</span><span class="p">:</span>
+                    <span class="n">foamLogger</span><span class="p">(</span><span class="s2">&quot;server&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Deregistering </span><span class="si">%s</span><span class="s2"> from webserver: </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">serverID</span><span class="p">,</span><span class="s1">&#39;end/</span><span class="si">%(ip)s</span><span class="s1">/</span><span class="si">%(port)s</span><span class="s1">/&#39;</span> <span class="o">%</span> <span class="p">{</span><span class="s1">&#39;ip&#39;</span><span class="p">:</span><span class="n">ip</span><span class="p">,</span> <span class="s1">&#39;port&#39;</span><span class="p">:</span><span class="n">port</span><span class="p">}))</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">webserver</span><span class="o">.</span><span class="n">end_process</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">port</span><span class="p">)</span>
+                    <span class="k">except</span><span class="p">:</span>
+                        <span class="n">foamLogger</span><span class="p">(</span><span class="s2">&quot;server&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Deregistering </span><span class="si">%s</span><span class="s2"> from webserver failed&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">serverID</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">foamLogger</span><span class="p">(</span><span class="s2">&quot;server&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Server &quot;</span><span class="o">+</span><span class="n">serverID</span><span class="o">+</span><span class="s2">&quot; not registered&quot;</span><span class="p">)</span>
+        <span class="k">except</span><span class="p">:</span>
+            <span class="n">foamLogger</span><span class="p">(</span><span class="s2">&quot;server&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;Deregistering Server &quot;</span><span class="o">+</span><span class="n">serverID</span><span class="o">+</span><span class="s2">&quot; failed:&quot;</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">exc_info</span><span class="p">()[</span><span class="mi">0</span><span class="p">]))</span>
+            <span class="n">foamLogger</span><span class="p">(</span><span class="s2">&quot;server&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;Reason:&quot;</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">exc_info</span><span class="p">()[</span><span class="mi">1</span><span class="p">]))</span>
+            <span class="n">foamLogger</span><span class="p">(</span><span class="s2">&quot;server&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;Trace:&quot;</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="n">extract_tb</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">exc_info</span><span class="p">()[</span><span class="mi">2</span><span class="p">])))</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">dataLock</span><span class="o">.</span><span class="n">release</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="kc">True</span></div>
+
+<div class="viewcode-block" id="FoamMetaServer.forwardCommand"><a class="viewcode-back" href="../../../api/PyFoam.Infrastructure.FoamMetaServer.html#PyFoam.Infrastructure.FoamMetaServer.FoamMetaServer.forwardCommand">[docs]</a>    <span class="k">def</span> <span class="nf">forwardCommand</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">ip</span><span class="p">,</span><span class="n">port</span><span class="p">,</span><span class="n">cmd</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Forwards a RPC to another machine</span>
+<span class="sd">        :param ip: IP of the server</span>
+<span class="sd">        :param port: the port at which the server is listening</span>
+<span class="sd">        :param cmd: the command that should be executed there</span>
+<span class="sd">        :return: the result of the command</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">result</span><span class="o">=</span><span class="s2">&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">server</span><span class="o">=</span><span class="n">getServerProxy</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span><span class="n">port</span><span class="p">)</span>
+            <span class="n">result</span><span class="o">=</span><span class="nb">eval</span><span class="p">(</span><span class="s2">&quot;server.&quot;</span><span class="o">+</span><span class="n">cmd</span><span class="p">)</span>
+            <span class="n">foamLogger</span><span class="p">(</span><span class="s2">&quot;server&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Forwarding to &quot;</span><span class="o">+</span><span class="n">ip</span><span class="o">+</span><span class="s2">&quot;the command</span><span class="se">\&quot;</span><span class="s2">&quot;</span><span class="o">+</span><span class="n">cmd</span><span class="o">+</span><span class="s2">&quot;</span><span class="se">\&quot;</span><span class="s2"> Result:&quot;</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="n">result</span><span class="p">))</span>
+        <span class="k">except</span> <span class="n">Fault</span> <span class="k">as</span> <span class="n">reason</span><span class="p">:</span>
+            <span class="n">result</span><span class="o">=</span><span class="s2">&quot;Fault: &quot;</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="n">reason</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">socket</span><span class="o">.</span><span class="n">error</span> <span class="k">as</span> <span class="n">reason</span><span class="p">:</span>
+            <span class="n">result</span><span class="o">=</span><span class="s2">&quot;socket.error: &quot;</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="n">reason</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">TypeError</span> <span class="k">as</span> <span class="n">reason</span><span class="p">:</span>
+            <span class="n">result</span><span class="o">=</span><span class="s2">&quot;Type error: &quot;</span><span class="p">,</span><span class="n">reason</span>
+        <span class="k">except</span> <span class="ne">SyntaxError</span> <span class="k">as</span> <span class="n">reason</span><span class="p">:</span>
+            <span class="n">result</span><span class="o">=</span><span class="s2">&quot;Syntax Error in:&quot;</span><span class="o">+</span><span class="n">cmd</span>
+
+        <span class="k">if</span> <span class="n">result</span><span class="o">==</span><span class="kc">None</span><span class="p">:</span>
+            <span class="n">result</span><span class="o">=</span><span class="s2">&quot;&quot;</span>
+
+        <span class="k">return</span> <span class="n">result</span></div></div>
+
+<div class="viewcode-block" id="ServerInfo"><a class="viewcode-back" href="../../../api/PyFoam.Infrastructure.FoamMetaServer.html#PyFoam.Infrastructure.FoamMetaServer.ServerInfo">[docs]</a><span class="k">class</span> <span class="nc">ServerInfo</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Contains the information about a server&quot;&quot;&quot;</span>
+<div class="viewcode-block" id="ServerInfo.__init__"><a class="viewcode-back" href="../../../api/PyFoam.Infrastructure.FoamMetaServer.html#PyFoam.Infrastructure.FoamMetaServer.ServerInfo.__init__">[docs]</a>    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">ip</span><span class="p">,</span><span class="n">pid</span><span class="p">,</span><span class="n">port</span><span class="p">,</span><span class="n">ssl</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :param ip: IP of the server</span>
+<span class="sd">        :param pid: Die PID at the server</span>
+<span class="sd">        :param port: the port at which the server is listening</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_info</span><span class="o">=</span><span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_info</span><span class="p">[</span><span class="s2">&quot;ip&quot;</span><span class="p">]</span><span class="o">=</span><span class="n">ip</span>
+        <span class="k">if</span> <span class="n">PY3</span> <span class="ow">and</span> <span class="nb">type</span><span class="p">(</span><span class="n">ip</span><span class="p">)</span><span class="o">==</span><span class="n">binary_type</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_info</span><span class="p">[</span><span class="s2">&quot;ip&quot;</span><span class="p">]</span><span class="o">=</span><span class="n">ip</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_info</span><span class="p">[</span><span class="s2">&quot;pid&quot;</span><span class="p">]</span><span class="o">=</span><span class="n">pid</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_info</span><span class="p">[</span><span class="s2">&quot;port&quot;</span><span class="p">]</span><span class="o">=</span><span class="n">port</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_info</span><span class="p">[</span><span class="s2">&quot;ssl&quot;</span><span class="p">]</span><span class="o">=</span><span class="n">ssl</span></div>
+
+<div class="viewcode-block" id="ServerInfo.checkValid"><a class="viewcode-back" href="../../../api/PyFoam.Infrastructure.FoamMetaServer.html#PyFoam.Infrastructure.FoamMetaServer.ServerInfo.checkValid">[docs]</a>    <span class="k">def</span> <span class="nf">checkValid</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Check with server whether this data item is still valid&quot;&quot;&quot;</span>
+        <span class="n">result</span><span class="o">=</span><span class="kc">False</span>
+
+        <span class="n">foamLogger</span><span class="p">(</span><span class="s2">&quot;server&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Checking &quot;</span><span class="o">+</span><span class="bp">self</span><span class="p">[</span><span class="s2">&quot;ip&quot;</span><span class="p">]</span><span class="o">+</span><span class="s2">&quot;@&quot;</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="p">[</span><span class="s2">&quot;port&quot;</span><span class="p">]))</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">server</span><span class="o">=</span><span class="n">getServerProxy</span><span class="p">(</span><span class="bp">self</span><span class="p">[</span><span class="s2">&quot;ip&quot;</span><span class="p">],</span><span class="bp">self</span><span class="p">[</span><span class="s2">&quot;port&quot;</span><span class="p">])</span>
+            <span class="n">pid</span><span class="o">=</span><span class="n">server</span><span class="o">.</span><span class="n">pid</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">pid</span><span class="o">==</span><span class="bp">self</span><span class="p">[</span><span class="s2">&quot;pid&quot;</span><span class="p">]:</span>
+                <span class="n">result</span><span class="o">=</span><span class="kc">True</span>
+        <span class="k">except</span> <span class="n">socket</span><span class="o">.</span><span class="n">timeout</span> <span class="k">as</span> <span class="n">reason</span><span class="p">:</span>
+            <span class="n">foamLogger</span><span class="p">(</span><span class="s2">&quot;server&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="bp">self</span><span class="p">[</span><span class="s2">&quot;ip&quot;</span><span class="p">]</span><span class="o">+</span><span class="s2">&quot;@&quot;</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="p">[</span><span class="s2">&quot;port&quot;</span><span class="p">])</span><span class="o">+</span><span class="s2">&quot; seems to be dead&quot;</span><span class="p">)</span>
+        <span class="k">except</span><span class="p">:</span>
+            <span class="n">foamLogger</span><span class="p">(</span><span class="s2">&quot;server&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Checking Valid &quot;</span><span class="o">+</span><span class="bp">self</span><span class="p">[</span><span class="s2">&quot;ip&quot;</span><span class="p">]</span><span class="o">+</span><span class="s2">&quot; failed:&quot;</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">exc_info</span><span class="p">()[</span><span class="mi">0</span><span class="p">]))</span>
+            <span class="n">foamLogger</span><span class="p">(</span><span class="s2">&quot;server&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Reason:&quot;</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">exc_info</span><span class="p">()[</span><span class="mi">1</span><span class="p">]))</span>
+            <span class="n">foamLogger</span><span class="p">(</span><span class="s2">&quot;server&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Trace:&quot;</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="n">extract_tb</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">exc_info</span><span class="p">()[</span><span class="mi">2</span><span class="p">])))</span>
+
+        <span class="n">foamLogger</span><span class="p">(</span><span class="s2">&quot;server&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Result for &quot;</span><span class="o">+</span><span class="bp">self</span><span class="p">[</span><span class="s2">&quot;ip&quot;</span><span class="p">]</span><span class="o">+</span><span class="s2">&quot;@&quot;</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="p">[</span><span class="s2">&quot;port&quot;</span><span class="p">])</span><span class="o">+</span><span class="s2">&quot; = &quot;</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="n">result</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="n">result</span></div>
+
+<div class="viewcode-block" id="ServerInfo.queryData"><a class="viewcode-back" href="../../../api/PyFoam.Infrastructure.FoamMetaServer.html#PyFoam.Infrastructure.FoamMetaServer.ServerInfo.queryData">[docs]</a>    <span class="k">def</span> <span class="nf">queryData</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Ask the server for additional data&quot;&quot;&quot;</span>
+        <span class="n">server</span><span class="o">=</span><span class="n">getServerProxy</span><span class="p">(</span><span class="bp">self</span><span class="p">[</span><span class="s2">&quot;ip&quot;</span><span class="p">],</span><span class="bp">self</span><span class="p">[</span><span class="s2">&quot;port&quot;</span><span class="p">],</span><span class="n">useSSL</span><span class="o">=</span><span class="bp">self</span><span class="p">[</span><span class="s2">&quot;ssl&quot;</span><span class="p">])</span>
+        <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;commandLine&quot;</span><span class="p">,</span><span class="s2">&quot;cwd&quot;</span><span class="p">,</span><span class="s2">&quot;foamVersion&quot;</span><span class="p">,</span><span class="s2">&quot;isParallel&quot;</span><span class="p">,</span><span class="s2">&quot;mpi&quot;</span><span class="p">,</span><span class="s2">&quot;pyFoamVersion&quot;</span><span class="p">,</span><span class="s2">&quot;scriptName&quot;</span><span class="p">,</span><span class="s2">&quot;user&quot;</span><span class="p">,</span><span class="s2">&quot;hostname&quot;</span><span class="p">]:</span>
+            <span class="k">if</span> <span class="n">server</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">result</span><span class="o">=</span><span class="nb">eval</span><span class="p">(</span><span class="s2">&quot;server.&quot;</span><span class="o">+</span><span class="n">name</span><span class="o">+</span><span class="s2">&quot;()&quot;</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">result</span><span class="o">=</span><span class="s2">&quot;no info&quot;</span>
+            <span class="bp">self</span><span class="p">[</span><span class="n">name</span><span class="p">]</span><span class="o">=</span><span class="n">result</span></div>
+
+<div class="viewcode-block" id="ServerInfo.__getitem__"><a class="viewcode-back" href="../../../api/PyFoam.Infrastructure.FoamMetaServer.html#PyFoam.Infrastructure.FoamMetaServer.ServerInfo.__getitem__">[docs]</a>    <span class="k">def</span> <span class="nf">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">key</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_info</span><span class="p">[</span><span class="n">key</span><span class="p">]</span></div>
+
+<div class="viewcode-block" id="ServerInfo.__setitem__"><a class="viewcode-back" href="../../../api/PyFoam.Infrastructure.FoamMetaServer.html#PyFoam.Infrastructure.FoamMetaServer.ServerInfo.__setitem__">[docs]</a>    <span class="k">def</span> <span class="nf">__setitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">key</span><span class="p">,</span><span class="n">value</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_info</span><span class="p">[</span><span class="n">key</span><span class="p">]</span><span class="o">=</span><span class="n">value</span></div></div>
+
+<div class="viewcode-block" id="MetaChecker"><a class="viewcode-back" href="../../../api/PyFoam.Infrastructure.FoamMetaServer.html#PyFoam.Infrastructure.FoamMetaServer.MetaChecker">[docs]</a><span class="k">class</span> <span class="nc">MetaChecker</span><span class="p">(</span><span class="n">Thread</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Checks regularily whether the registered Servers are still alive&quot;&quot;&quot;</span>
+<div class="viewcode-block" id="MetaChecker.__init__"><a class="viewcode-back" href="../../../api/PyFoam.Infrastructure.FoamMetaServer.html#PyFoam.Infrastructure.FoamMetaServer.MetaChecker.__init__">[docs]</a>    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">parent</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;:param parent: the FoamMetaServer that gets the information&quot;&quot;&quot;</span>
+        <span class="n">Thread</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">=</span><span class="n">parent</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sleepTime</span><span class="o">=</span><span class="n">config</span><span class="p">()</span><span class="o">.</span><span class="n">getfloat</span><span class="p">(</span><span class="s2">&quot;Metaserver&quot;</span><span class="p">,</span><span class="s2">&quot;checkerSleeping&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">syncTimes</span><span class="o">=</span><span class="p">{}</span></div>
+
+<div class="viewcode-block" id="MetaChecker.run"><a class="viewcode-back" href="../../../api/PyFoam.Infrastructure.FoamMetaServer.html#PyFoam.Infrastructure.FoamMetaServer.MetaChecker.run">[docs]</a>    <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">foamLogger</span><span class="p">(</span><span class="s2">&quot;server&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Checker starting&quot;</span><span class="p">)</span>
+        <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">startupLock</span><span class="o">.</span><span class="n">acquire</span><span class="p">()</span>
+            <span class="n">foamLogger</span><span class="p">(</span><span class="s2">&quot;server&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Start Checking&quot;</span><span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">dataLock</span><span class="o">.</span><span class="n">acquire</span><span class="p">()</span>
+            <span class="n">servers</span><span class="o">=</span><span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">servers</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">dataLock</span><span class="o">.</span><span class="n">release</span><span class="p">()</span>
+
+            <span class="k">for</span> <span class="n">key</span><span class="p">,</span><span class="n">obj</span> <span class="ow">in</span> <span class="n">servers</span><span class="o">.</span><span class="n">iteritems</span><span class="p">():</span>
+                <span class="n">isOK</span><span class="o">=</span><span class="n">obj</span><span class="o">.</span><span class="n">checkValid</span><span class="p">()</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">isOK</span><span class="p">:</span>
+                    <span class="n">foamLogger</span><span class="p">(</span><span class="s2">&quot;server&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Server &quot;</span><span class="o">+</span><span class="n">key</span><span class="o">+</span><span class="s2">&quot; not OK. Deregistering&quot;</span><span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">deregisterServer</span><span class="p">(</span><span class="n">obj</span><span class="p">[</span><span class="s2">&quot;ip&quot;</span><span class="p">],</span><span class="n">obj</span><span class="p">[</span><span class="s2">&quot;pid&quot;</span><span class="p">],</span><span class="n">obj</span><span class="p">[</span><span class="s2">&quot;port&quot;</span><span class="p">])</span>
+                <span class="k">elif</span> <span class="n">DO_WEBSYNC</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">syncTimes</span><span class="o">.</span><span class="n">has_key</span><span class="p">(</span><span class="n">key</span><span class="p">):</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">syncTimes</span><span class="p">[</span><span class="n">key</span><span class="p">]</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">sleepTime</span>
+
+                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">syncTimes</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="n">WEBSYNC_INTERVAL</span><span class="p">:</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">syncTimes</span><span class="p">[</span><span class="n">key</span><span class="p">]</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">sleepTime</span>
+                        <span class="n">foamLogger</span><span class="p">(</span><span class="s2">&quot;server&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Refreshing &quot;</span><span class="o">+</span><span class="n">key</span><span class="o">+</span><span class="s2">&quot; on Webserver&quot;</span><span class="p">)</span>
+                        <span class="k">try</span><span class="p">:</span>
+                            <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">webserver</span><span class="o">.</span><span class="n">refresh</span><span class="p">(</span><span class="n">obj</span><span class="p">[</span><span class="s1">&#39;ip&#39;</span><span class="p">],</span> <span class="n">obj</span><span class="p">[</span><span class="s1">&#39;port&#39;</span><span class="p">])</span>
+                        <span class="k">except</span> <span class="n">socket</span><span class="o">.</span><span class="n">timeout</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                            <span class="k">pass</span>
+                        <span class="k">except</span><span class="p">:</span>
+                            <span class="n">foamLogger</span><span class="p">(</span><span class="s2">&quot;server&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Unknown exception &quot;</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">exc_info</span><span class="p">()[</span><span class="mi">0</span><span class="p">])</span><span class="o">+</span><span class="s2">&quot; while syncing with webserver </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">WEBSERVER_RPCURL</span><span class="p">))</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">syncTimes</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sleepTime</span>
+
+            <span class="n">foamLogger</span><span class="p">(</span><span class="s2">&quot;server&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Stop Checking - sleeping&quot;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">startupLock</span><span class="o">.</span><span class="n">release</span><span class="p">()</span>
+            <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sleepTime</span><span class="p">)</span></div></div>
+
+<div class="viewcode-block" id="MetaCollector"><a class="viewcode-back" href="../../../api/PyFoam.Infrastructure.FoamMetaServer.html#PyFoam.Infrastructure.FoamMetaServer.MetaCollector">[docs]</a><span class="k">class</span> <span class="nc">MetaCollector</span><span class="p">(</span><span class="n">Thread</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Scans the net in a separate thread&quot;&quot;&quot;</span>
+<div class="viewcode-block" id="MetaCollector.__init__"><a class="viewcode-back" href="../../../api/PyFoam.Infrastructure.FoamMetaServer.html#PyFoam.Infrastructure.FoamMetaServer.MetaCollector.__init__">[docs]</a>    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">parent</span><span class="p">,</span><span class="n">additional</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;:param parent: the FoamMetaServer that gets the information</span>
+<span class="sd">        :param additional: A string with alist of additional subnets that should be scanned&quot;&quot;&quot;</span>
+        <span class="n">Thread</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">=</span><span class="n">parent</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">additional</span><span class="o">=</span><span class="n">additional</span></div>
+
+<div class="viewcode-block" id="MetaCollector.run"><a class="viewcode-back" href="../../../api/PyFoam.Infrastructure.FoamMetaServer.html#PyFoam.Infrastructure.FoamMetaServer.MetaCollector.run">[docs]</a>    <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">startupLock</span><span class="o">.</span><span class="n">acquire</span><span class="p">()</span>
+        <span class="n">foamLogger</span><span class="p">(</span><span class="s2">&quot;server&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Collector starting&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">DO_WEBSYNC</span><span class="p">:</span>
+            <span class="n">foamLogger</span><span class="p">(</span><span class="s2">&quot;server&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Get Processes from Webserver&quot;</span><span class="p">)</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">webserver</span> <span class="o">=</span> <span class="n">ServerProxy</span><span class="p">(</span><span class="n">WEBSERVER_RPCURL</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">ip</span><span class="p">,</span><span class="n">port</span><span class="p">,</span><span class="n">pid</span> <span class="ow">in</span> <span class="n">webserver</span><span class="o">.</span><span class="n">running_processes</span><span class="p">():</span>
+                    <span class="n">port</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">port</span><span class="p">)</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="n">server</span><span class="o">=</span><span class="n">getServerProxy</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span><span class="n">port</span><span class="p">)</span>
+                        <span class="n">pid</span><span class="o">=</span><span class="n">server</span><span class="o">.</span><span class="n">pid</span><span class="p">()</span>  <span class="c1"># occasional errors with &#39;Connection refused&#39;</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">_registerServer</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span><span class="n">pid</span><span class="p">,</span><span class="n">port</span><span class="p">,</span><span class="n">sync</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+                    <span class="k">except</span><span class="p">:</span>
+                        <span class="n">foamLogger</span><span class="p">(</span><span class="s2">&quot;server&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;Unknown exception &quot;</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">exc_info</span><span class="p">()[</span><span class="mi">0</span><span class="p">])</span><span class="o">+</span><span class="s2">&quot; while registering </span><span class="si">%s</span><span class="s2">:</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">port</span><span class="p">))</span>
+                        <span class="n">foamLogger</span><span class="p">(</span><span class="s2">&quot;server&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;Reason:&quot;</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">exc_info</span><span class="p">()[</span><span class="mi">1</span><span class="p">]))</span>
+                        <span class="n">foamLogger</span><span class="p">(</span><span class="s2">&quot;server&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;Trace:&quot;</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="n">extract_tb</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">exc_info</span><span class="p">()[</span><span class="mi">2</span><span class="p">])))</span>
+            <span class="k">except</span><span class="p">:</span>
+                <span class="n">foamLogger</span><span class="p">(</span><span class="s2">&quot;server&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Unknown exception &quot;</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">exc_info</span><span class="p">()[</span><span class="mi">0</span><span class="p">])</span><span class="o">+</span><span class="s2">&quot; while syncing with webserver </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">WEBSERVER_RPCURL</span><span class="p">))</span>
+
+        <span class="n">port</span><span class="o">=</span><span class="n">config</span><span class="p">()</span><span class="o">.</span><span class="n">getint</span><span class="p">(</span><span class="s2">&quot;Network&quot;</span><span class="p">,</span><span class="s2">&quot;startServerPort&quot;</span><span class="p">)</span>
+        <span class="n">length</span><span class="o">=</span><span class="n">config</span><span class="p">()</span><span class="o">.</span><span class="n">getint</span><span class="p">(</span><span class="s2">&quot;Network&quot;</span><span class="p">,</span><span class="s2">&quot;nrServerPorts&quot;</span><span class="p">)</span>
+
+        <span class="n">machines</span><span class="o">=</span><span class="n">config</span><span class="p">()</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;Metaserver&quot;</span><span class="p">,</span><span class="s2">&quot;searchservers&quot;</span><span class="p">)</span>
+
+        <span class="n">addreses</span><span class="o">=</span><span class="n">machines</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">additional</span><span class="o">!=</span><span class="kc">None</span><span class="p">:</span>
+            <span class="n">addreses</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">additional</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="p">)</span><span class="o">+</span><span class="n">addreses</span>
+
+        <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">addreses</span><span class="p">:</span>
+            <span class="n">foamLogger</span><span class="p">(</span><span class="s2">&quot;server&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Collecting in subnet &quot;</span><span class="o">+</span><span class="n">a</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">host</span> <span class="ow">in</span> <span class="n">IP</span><span class="p">(</span><span class="n">a</span><span class="p">):</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">name</span><span class="p">,</span><span class="n">alias</span><span class="p">,</span><span class="n">rest</span> <span class="o">=</span><span class="n">socket</span><span class="o">.</span><span class="n">gethostbyaddr</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">host</span><span class="p">))</span>
+                <span class="k">except</span> <span class="n">socket</span><span class="o">.</span><span class="n">herror</span> <span class="k">as</span> <span class="n">reason</span><span class="p">:</span>
+                    <span class="c1"># no name for the host</span>
+                    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;unknown&quot;</span>
+
+                <span class="n">foamLogger</span><span class="p">(</span><span class="s2">&quot;server&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Collector Checking:&quot;</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="n">host</span><span class="p">)</span><span class="o">+</span><span class="s2">&quot; &quot;</span><span class="o">+</span><span class="n">name</span><span class="p">)</span>
+
+                <span class="n">result</span><span class="o">=</span><span class="kc">None</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">result</span><span class="o">=</span><span class="n">checkFoamServers</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">host</span><span class="p">),</span><span class="n">port</span><span class="p">,</span><span class="n">length</span><span class="p">)</span>
+                <span class="k">except</span><span class="p">:</span>
+                    <span class="n">foamLogger</span><span class="p">(</span><span class="s2">&quot;server&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;Unknown exception &quot;</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">exc_info</span><span class="p">()[</span><span class="mi">0</span><span class="p">])</span><span class="o">+</span><span class="s2">&quot; while checking for new servers&quot;</span><span class="o">+</span><span class="nb">str</span><span class="p">((</span><span class="nb">str</span><span class="p">(</span><span class="n">host</span><span class="p">),</span><span class="n">port</span><span class="p">,</span><span class="n">length</span><span class="p">)))</span>
+                    <span class="n">foamLogger</span><span class="p">(</span><span class="s2">&quot;server&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;Reason:&quot;</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">exc_info</span><span class="p">()[</span><span class="mi">1</span><span class="p">]))</span>
+                    <span class="n">foamLogger</span><span class="p">(</span><span class="s2">&quot;server&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;Trace:&quot;</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="n">extract_tb</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">exc_info</span><span class="p">()[</span><span class="mi">2</span><span class="p">])))</span>
+
+                <span class="k">if</span> <span class="n">result</span><span class="o">!=</span><span class="kc">None</span><span class="p">:</span>
+                    <span class="n">foamLogger</span><span class="p">(</span><span class="s2">&quot;server&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Collector Found &quot;</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="n">result</span><span class="p">)</span><span class="o">+</span><span class="s2">&quot; for &quot;</span><span class="o">+</span><span class="n">name</span><span class="p">)</span>
+                    <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">result</span><span class="p">:</span>
+                        <span class="k">try</span><span class="p">:</span>
+                            <span class="n">server</span><span class="o">=</span><span class="n">getServerProxy</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">host</span><span class="p">),</span><span class="n">p</span><span class="p">)</span>
+                            <span class="n">ip</span><span class="o">=</span><span class="n">server</span><span class="o">.</span><span class="n">ip</span><span class="p">()</span>
+                            <span class="n">pid</span><span class="o">=</span><span class="n">server</span><span class="o">.</span><span class="n">pid</span><span class="p">()</span>
+                            <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">_registerServer</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span><span class="n">pid</span><span class="p">,</span><span class="n">p</span><span class="p">)</span>
+                        <span class="k">except</span><span class="p">:</span>
+                            <span class="n">foamLogger</span><span class="p">(</span><span class="s2">&quot;server&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;Unknown exception &quot;</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">exc_info</span><span class="p">()[</span><span class="mi">0</span><span class="p">])</span><span class="o">+</span><span class="s2">&quot; while registering &quot;</span><span class="o">+</span><span class="n">name</span><span class="p">)</span>
+                            <span class="n">foamLogger</span><span class="p">(</span><span class="s2">&quot;server&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;Reason:&quot;</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">exc_info</span><span class="p">()[</span><span class="mi">1</span><span class="p">]))</span>
+                            <span class="n">foamLogger</span><span class="p">(</span><span class="s2">&quot;server&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;Trace:&quot;</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="n">extract_tb</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">exc_info</span><span class="p">()[</span><span class="mi">2</span><span class="p">])))</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">foamLogger</span><span class="p">(</span><span class="s2">&quot;server&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Collector Found &quot;</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="n">result</span><span class="p">)</span><span class="o">+</span><span class="s2">&quot; for &quot;</span><span class="o">+</span><span class="n">name</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">startupLock</span><span class="o">.</span><span class="n">release</span><span class="p">()</span>
+
+        <span class="n">foamLogger</span><span class="p">(</span><span class="s2">&quot;server&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Collector finished&quot;</span><span class="p">)</span></div></div>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2015, Bernhard F.W. Gschaider.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../',
+            VERSION:'0.6.6',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../_static/doctools.js"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

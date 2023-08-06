@@ -1,0 +1,402 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>PyFoam.Infrastructure.ServerBase &mdash; PyFoam 0.6.6 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../search.html"/>
+    <link rel="top" title="PyFoam 0.6.6 documentation" href="../../../index.html"/>
+        <link rel="up" title="PyFoam" href="../../PyFoam.html"/> 
+
+  
+  <script src="../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home"> PyFoam
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.6.6
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../api/modules.html">API documentation</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">PyFoam</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+          <li><a href="../../PyFoam.html">PyFoam</a> &raquo;</li>
+        
+      <li>PyFoam.Infrastructure.ServerBase</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for PyFoam.Infrastructure.ServerBase</h1><div class="highlight"><pre>
+<span></span><span class="c1">#  ICE Revision: $Id$</span>
+<span class="sd">&quot;&quot;&quot;Basis for the XMLRPC-Servers in PyFoam</span>
+
+<span class="sd">Based on 15.5 in &quot;Python Cookbook&quot; for faster restarting</span>
+
+<span class="sd">SSL-handling lifted from</span>
+<span class="sd">http://blogs.blumetech.com/blumetechs-tech-blog/2011/06/python-xmlrpc-server-with-ssl-and-authentication.html</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">PyFoam.ThirdParty.six</span> <span class="k">import</span> <span class="n">PY3</span>
+<span class="kn">from</span> <span class="nn">PyFoam.Error</span> <span class="k">import</span> <span class="n">warning</span>
+<span class="kn">from</span> <span class="nn">PyFoam</span> <span class="k">import</span> <span class="n">configuration</span> <span class="k">as</span> <span class="n">config</span>
+<span class="kn">import</span> <span class="nn">PyFoam.Infrastructure.Authentication</span> <span class="k">as</span> <span class="nn">auth</span>
+<span class="kn">from</span> <span class="nn">PyFoam.FoamInformation</span> <span class="k">import</span> <span class="n">getUserName</span>
+
+<span class="k">if</span> <span class="n">PY3</span><span class="p">:</span>
+    <span class="kn">from</span> <span class="nn">xmlrpc.server</span> <span class="k">import</span> <span class="n">SimpleXMLRPCServer</span><span class="p">,</span> <span class="n">SimpleXMLRPCDispatcher</span><span class="p">,</span> <span class="n">SimpleXMLRPCRequestHandler</span>
+    <span class="kn">from</span> <span class="nn">xmlrpc.client</span> <span class="k">import</span> <span class="n">ServerProxy</span>
+<span class="k">else</span><span class="p">:</span>
+    <span class="kn">from</span> <span class="nn">SimpleXMLRPCServer</span> <span class="k">import</span> <span class="n">SimpleXMLRPCServer</span><span class="p">,</span> <span class="n">SimpleXMLRPCDispatcher</span><span class="p">,</span> <span class="n">SimpleXMLRPCRequestHandler</span>
+    <span class="kn">from</span> <span class="nn">xmlrpclib</span> <span class="k">import</span> <span class="n">ServerProxy</span>
+
+<span class="kn">import</span> <span class="nn">socket</span>
+<span class="kn">from</span> <span class="nn">os</span> <span class="k">import</span> <span class="n">path</span>
+
+<div class="viewcode-block" id="ServerBase"><a class="viewcode-back" href="../../../api/PyFoam.Infrastructure.ServerBase.html#PyFoam.Infrastructure.ServerBase.ServerBase">[docs]</a><span class="k">class</span> <span class="nc">ServerBase</span><span class="p">(</span><span class="n">SimpleXMLRPCServer</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;The Base class for the servers&quot;&quot;&quot;</span>
+<div class="viewcode-block" id="ServerBase.__init__"><a class="viewcode-back" href="../../../api/PyFoam.Infrastructure.ServerBase.html#PyFoam.Infrastructure.ServerBase.ServerBase.__init__">[docs]</a>    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">addr</span><span class="p">,</span><span class="n">useSSL</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span><span class="n">logRequests</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                 <span class="n">allow_none</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;:param addr: the (server address,port)-tuple)</span>
+<span class="sd">        :param logRequests: patched thru to the base class&quot;&quot;&quot;</span>
+        <span class="n">certfile</span><span class="o">=</span><span class="n">config</span><span class="p">()</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;Network&quot;</span><span class="p">,</span><span class="s2">&quot;personalSSLCertificate&quot;</span><span class="p">)</span>
+        <span class="n">keyfile</span><span class="o">=</span><span class="n">config</span><span class="p">()</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;Network&quot;</span><span class="p">,</span><span class="s2">&quot;privateSSLKey&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">useSSL</span><span class="o">=</span><span class="n">useSSL</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">useSSL</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">certfile</span><span class="p">):</span>
+            <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;No certficate file&quot;</span><span class="p">,</span><span class="n">certfile</span><span class="p">,</span>
+                    <span class="s2">&quot;exists. Therefor no SSL-connection for the FoamServer possible</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;To generate a private key:</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span>
+                    <span class="p">(</span><span class="s2">&quot;   openssl genrsa -out </span><span class="si">%s</span><span class="s2"> 2048&quot;</span> <span class="o">%</span> <span class="n">keyfile</span><span class="p">),</span>
+                    <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Then generate the cerificate that is valid for 3 years with </span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span>
+                    <span class="p">(</span><span class="s2">&quot;   openssl req -new -x509 -key </span><span class="si">%s</span><span class="s2"> -out </span><span class="si">%s</span><span class="s2"> -days 1095&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">keyfile</span><span class="p">,</span><span class="n">certfile</span><span class="p">)))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">useSSL</span><span class="o">=</span><span class="kc">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">authOK</span><span class="o">=</span><span class="kc">True</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">useSSL</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="kn">import</span> <span class="nn">ssl</span>
+                <span class="k">if</span> <span class="n">PY3</span><span class="p">:</span>
+                    <span class="kn">import</span> <span class="nn">socketserver</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="kn">import</span> <span class="nn">SocketServer</span> <span class="k">as</span> <span class="nn">socketserver</span>
+                <span class="kn">import</span> <span class="nn">socket</span>
+            <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+                <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Problem with the imports. Dropping SSL-support&quot;</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">useSSL</span><span class="o">=</span><span class="kc">False</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">useSSL</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logRequests</span> <span class="o">=</span> <span class="n">logRequests</span>
+
+            <span class="n">SimpleXMLRPCDispatcher</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">allow_none</span><span class="p">,</span> <span class="n">encoding</span><span class="p">)</span>
+
+            <span class="k">class</span> <span class="nc">VerifyingRequestHandler</span><span class="p">(</span><span class="n">SimpleXMLRPCRequestHandler</span><span class="p">):</span>
+                <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">                Request Handler that verifies username and security token to</span>
+<span class="sd">                XML RPC server in HTTP URL sent by client.</span>
+<span class="sd">                &#39;&#39;&#39;</span>
+                <span class="c1"># this is the method we must override</span>
+                <span class="k">def</span> <span class="nf">parse_request</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+                    <span class="c1"># first, call the original implementation which returns</span>
+                    <span class="c1"># True if all OK so far</span>
+
+                    <span class="k">if</span> <span class="n">SimpleXMLRPCRequestHandler</span><span class="o">.</span><span class="n">parse_request</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+                        <span class="c1"># next we authenticate</span>
+                        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">authenticate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">headers</span><span class="p">):</span>
+                            <span class="k">return</span> <span class="kc">True</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="c1"># if authentication fails, tell the client</span>
+                            <span class="bp">self</span><span class="o">.</span><span class="n">send_error</span><span class="p">(</span><span class="mi">401</span><span class="p">,</span> <span class="s1">&#39;Authentication failed&#39;</span><span class="p">)</span>
+                    <span class="k">return</span> <span class="kc">False</span>
+
+                <span class="k">def</span> <span class="nf">authenticate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">headers</span><span class="p">):</span>
+                    <span class="kn">from</span> <span class="nn">base64</span> <span class="k">import</span> <span class="n">b64decode</span>
+                    <span class="c1">#    Confirm that Authorization header is set to Basic</span>
+                    <span class="n">authHeader</span><span class="o">=</span><span class="n">headers</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;Authorization&#39;</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">authHeader</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="k">return</span> <span class="kc">True</span>
+                    <span class="p">(</span><span class="n">basic</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">encoded</span><span class="p">)</span> <span class="o">=</span> <span class="n">authHeader</span><span class="o">.</span><span class="n">partition</span><span class="p">(</span><span class="s1">&#39; &#39;</span><span class="p">)</span>
+                    <span class="k">assert</span> <span class="n">basic</span> <span class="o">==</span> <span class="s1">&#39;Basic&#39;</span><span class="p">,</span> <span class="s1">&#39;Only basic authentication supported&#39;</span>
+                    <span class="c1">#    Encoded portion of the header is a string</span>
+                    <span class="c1">#    Need to convert to bytestring</span>
+                    <span class="n">encodedByteString</span> <span class="o">=</span> <span class="n">encoded</span><span class="o">.</span><span class="n">encode</span><span class="p">()</span>
+                    <span class="c1">#    Decode Base64 byte String to a decoded Byte String</span>
+                    <span class="n">decodedBytes</span> <span class="o">=</span> <span class="n">b64decode</span><span class="p">(</span><span class="n">encodedByteString</span><span class="p">)</span>
+                    <span class="c1">#    Convert from byte string to a regular String</span>
+                    <span class="n">decodedString</span> <span class="o">=</span> <span class="n">decodedBytes</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span>
+                    <span class="c1">#    Get the username and password from the string</span>
+                    <span class="p">(</span><span class="n">username</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">password</span><span class="p">)</span> <span class="o">=</span> <span class="n">decodedString</span><span class="o">.</span><span class="n">partition</span><span class="p">(</span><span class="s1">&#39;:&#39;</span><span class="p">)</span>
+                    <span class="c1">#    Check that username and password match internal global dictionary</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">server</span><span class="o">.</span><span class="n">authOK</span><span class="o">=</span><span class="n">auth</span><span class="o">.</span><span class="n">checkAuthentication</span><span class="p">(</span><span class="n">username</span><span class="p">,</span><span class="n">password</span><span class="p">)</span>
+                    <span class="k">return</span> <span class="kc">True</span>
+            <span class="c1">#    Override the normal socket methods with an SSL socket</span>
+            <span class="n">socketserver</span><span class="o">.</span><span class="n">BaseServer</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">addr</span><span class="p">,</span> <span class="n">VerifyingRequestHandler</span><span class="p">)</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">socket</span> <span class="o">=</span> <span class="n">ssl</span><span class="o">.</span><span class="n">wrap_socket</span><span class="p">(</span>
+                    <span class="n">socket</span><span class="o">.</span><span class="n">socket</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">address_family</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">socket_type</span><span class="p">),</span>
+                    <span class="n">server_side</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                    <span class="n">keyfile</span><span class="o">=</span><span class="n">keyfile</span><span class="p">,</span>
+                    <span class="n">certfile</span><span class="o">=</span><span class="n">certfile</span><span class="p">,</span>
+                    <span class="n">cert_reqs</span><span class="o">=</span><span class="n">ssl</span><span class="o">.</span><span class="n">CERT_NONE</span><span class="p">,</span>
+                    <span class="n">ssl_version</span><span class="o">=</span><span class="n">ssl</span><span class="o">.</span><span class="n">PROTOCOL_SSLv23</span><span class="p">,</span>
+                <span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">server_bind</span><span class="p">()</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">server_activate</span><span class="p">()</span>
+            <span class="k">except</span> <span class="n">socket</span><span class="o">.</span><span class="n">error</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Socket error&quot;</span><span class="p">,</span><span class="n">e</span><span class="p">)</span>
+                <span class="k">raise</span> <span class="n">e</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">SimpleXMLRPCServer</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">addr</span><span class="p">,</span><span class="n">logRequests</span><span class="o">=</span><span class="n">logRequests</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="ServerBase.server_bind"><a class="viewcode-back" href="../../../api/PyFoam.Infrastructure.ServerBase.html#PyFoam.Infrastructure.ServerBase.ServerBase.server_bind">[docs]</a>    <span class="k">def</span> <span class="nf">server_bind</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Should allow a fast restart after the server was killed&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">socket</span><span class="o">.</span><span class="n">setsockopt</span><span class="p">(</span><span class="n">socket</span><span class="o">.</span><span class="n">SOL_SOCKET</span><span class="p">,</span><span class="n">socket</span><span class="o">.</span><span class="n">SO_REUSEADDR</span><span class="p">,</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">SimpleXMLRPCServer</span><span class="o">.</span><span class="n">server_bind</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="ServerBase.verify_request"><a class="viewcode-back" href="../../../api/PyFoam.Infrastructure.ServerBase.html#PyFoam.Infrastructure.ServerBase.ServerBase.verify_request">[docs]</a>    <span class="k">def</span> <span class="nf">verify_request</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">request</span><span class="p">,</span><span class="n">client_addr</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;To be overriden later&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="kc">True</span></div></div>
+
+<div class="viewcode-block" id="getServerProxy"><a class="viewcode-back" href="../../../api/PyFoam.Infrastructure.ServerBase.html#PyFoam.Infrastructure.ServerBase.getServerProxy">[docs]</a><span class="k">def</span> <span class="nf">getServerProxy</span><span class="p">(</span><span class="n">host</span><span class="p">,</span><span class="n">port</span><span class="p">,</span><span class="n">useSSL</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Get a proxy to a server. If the useSSL-parameter is unset then it</span>
+<span class="sd">    tries to automatically get the most secure connection&quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="n">useSSL</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">useSSL</span><span class="o">=</span><span class="p">[</span><span class="kc">True</span><span class="p">,</span><span class="kc">False</span><span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">useSSL</span><span class="o">=</span><span class="p">[</span><span class="n">useSSL</span><span class="p">]</span>
+
+    <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">useSSL</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">s</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="kn">import</span> <span class="nn">ssl</span>
+                <span class="kn">import</span> <span class="nn">socket</span>
+                <span class="kn">import</span> <span class="nn">uuid</span>
+                <span class="n">context</span><span class="o">=</span><span class="kc">None</span>
+                <span class="k">if</span> <span class="n">config</span><span class="p">()</span><span class="o">.</span><span class="n">getboolean</span><span class="p">(</span><span class="s2">&quot;Network&quot;</span><span class="p">,</span><span class="s2">&quot;allowSelfSignedSSL&quot;</span><span class="p">):</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="n">context</span><span class="o">=</span><span class="n">ssl</span><span class="o">.</span><span class="n">_create_unverified_context</span><span class="p">()</span>
+                    <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+                        <span class="k">pass</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">user</span><span class="o">=</span><span class="n">getUserName</span><span class="p">()</span>
+                    <span class="c1"># user=&quot;nix&quot;</span>
+                    <span class="n">challenge</span><span class="o">=</span><span class="n">auth</span><span class="o">.</span><span class="n">createChallengeString</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">uuid</span><span class="o">.</span><span class="n">uuid4</span><span class="p">()))</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="n">server</span><span class="o">=</span><span class="n">ServerProxy</span><span class="p">(</span><span class="s2">&quot;https://</span><span class="si">%s</span><span class="s2">:</span><span class="si">%s</span><span class="s2">@</span><span class="si">%s</span><span class="s2">:</span><span class="si">%d</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">user</span><span class="p">,</span><span class="n">challenge</span><span class="p">,</span>
+                                                                <span class="n">host</span><span class="p">,</span><span class="n">port</span><span class="p">),</span>
+                                           <span class="n">context</span><span class="o">=</span><span class="n">context</span><span class="p">)</span>
+                    <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+                        <span class="n">server</span><span class="o">=</span><span class="n">ServerProxy</span><span class="p">(</span><span class="s2">&quot;https://</span><span class="si">%s</span><span class="s2">:</span><span class="si">%s</span><span class="s2">@</span><span class="si">%s</span><span class="s2">:</span><span class="si">%d</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">user</span><span class="p">,</span><span class="n">challenge</span><span class="p">,</span>
+                                                                    <span class="n">host</span><span class="p">,</span><span class="n">port</span><span class="p">))</span>
+                    <span class="n">server</span><span class="o">.</span><span class="n">system</span><span class="o">.</span><span class="n">listMethods</span><span class="p">()</span>   <span class="c1"># provoke a socket-error</span>
+                    <span class="k">return</span> <span class="n">server</span>
+                <span class="k">except</span> <span class="n">socket</span><span class="o">.</span><span class="n">error</span> <span class="k">as</span> <span class="n">reason</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">reason</span><span class="p">,</span><span class="s2">&quot;reason&quot;</span><span class="p">):</span>
+                        <span class="k">if</span> <span class="n">reason</span><span class="o">.</span><span class="n">reason</span><span class="o">==</span><span class="s2">&quot;CERTIFICATE_VERIFY_FAILED&quot;</span> <span class="ow">and</span> <span class="n">context</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                            <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Can&#39;t verify certificate. Set setting &#39;network&#39;/&#39;allowSelfSignedSSL&#39; to True. This may be insecure&quot;</span><span class="p">)</span>
+                            <span class="k">raise</span> <span class="n">reason</span>
+            <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+                <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Problem with the imports. Dropping SSL-support&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">ServerProxy</span><span class="p">(</span><span class="s2">&quot;http://</span><span class="si">%s</span><span class="s2">:</span><span class="si">%d</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">host</span><span class="p">,</span><span class="n">port</span><span class="p">))</span>
+
+
+    <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Could not connect to&quot;</span><span class="p">,</span><span class="n">host</span><span class="p">,</span><span class="s2">&quot;at&quot;</span><span class="p">,</span><span class="n">port</span><span class="p">)</span>
+    <span class="k">return</span> <span class="kc">None</span></div>
+
+<span class="c1"># Should work with Python3 and Python2</span>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2015, Bernhard F.W. Gschaider.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../',
+            VERSION:'0.6.6',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../_static/doctools.js"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

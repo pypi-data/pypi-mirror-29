@@ -1,0 +1,482 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>PyFoam.Infrastructure.Authentication &mdash; PyFoam 0.6.6 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../search.html"/>
+    <link rel="top" title="PyFoam 0.6.6 documentation" href="../../../index.html"/>
+        <link rel="up" title="PyFoam" href="../../PyFoam.html"/> 
+
+  
+  <script src="../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home"> PyFoam
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.6.6
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../api/modules.html">API documentation</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">PyFoam</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+          <li><a href="../../PyFoam.html">PyFoam</a> &raquo;</li>
+        
+      <li>PyFoam.Infrastructure.Authentication</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for PyFoam.Infrastructure.Authentication</h1><div class="highlight"><pre>
+<span></span><span class="c1"># coding=utf-8</span>
+<span class="sd">&quot;&quot;&quot;Simple public key authentication with RSA based on the</span>
+<span class="sd">implementation</span>
+<span class="sd">http://code.activestate.com/recipes/578797-public-key-encryption-rsa/&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">division</span><span class="p">,</span> <span class="n">absolute_import</span>
+<span class="kn">from</span> <span class="nn">base64</span> <span class="k">import</span> <span class="n">b32encode</span><span class="p">,</span><span class="n">b32decode</span>
+<span class="kn">from</span> <span class="nn">fractions</span> <span class="k">import</span> <span class="n">gcd</span>
+<span class="kn">from</span> <span class="nn">random</span> <span class="k">import</span> <span class="n">randrange</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">namedtuple</span>
+<span class="kn">from</span> <span class="nn">math</span> <span class="k">import</span> <span class="n">log</span>
+<span class="kn">from</span> <span class="nn">binascii</span> <span class="k">import</span> <span class="n">hexlify</span><span class="p">,</span> <span class="n">unhexlify</span>
+<span class="kn">import</span> <span class="nn">binascii</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+
+<span class="kn">from</span> <span class="nn">PyFoam.ThirdParty.six</span> <span class="k">import</span> <span class="n">print_</span><span class="p">,</span><span class="n">PY3</span><span class="p">,</span><span class="n">binary_type</span><span class="p">,</span><span class="n">u</span>
+<span class="k">if</span> <span class="n">PY3</span><span class="p">:</span>
+    <span class="n">range_func</span> <span class="o">=</span> <span class="nb">range</span>
+<span class="k">else</span><span class="p">:</span>
+    <span class="n">range_func</span> <span class="o">=</span> <span class="n">xrange</span>
+
+<span class="kn">from</span> <span class="nn">PyFoam.Infrastructure.Hardcoded</span> <span class="k">import</span> <span class="n">authDirectory</span><span class="p">,</span><span class="n">assertDirectory</span>
+<span class="kn">from</span> <span class="nn">PyFoam.FoamInformation</span> <span class="k">import</span> <span class="n">getUserName</span>
+<span class="kn">from</span> <span class="nn">PyFoam.Error</span> <span class="k">import</span> <span class="n">warning</span>
+<span class="kn">from</span> <span class="nn">os</span> <span class="k">import</span> <span class="n">path</span>
+
+<div class="viewcode-block" id="myPrivateKeyFile"><a class="viewcode-back" href="../../../api/PyFoam.Infrastructure.Authentication.html#PyFoam.Infrastructure.Authentication.myPrivateKeyFile">[docs]</a><span class="k">def</span> <span class="nf">myPrivateKeyFile</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">authDirectory</span><span class="p">(),</span><span class="s2">&quot;privateKey&quot;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="myPublicKeyFile"><a class="viewcode-back" href="../../../api/PyFoam.Infrastructure.Authentication.html#PyFoam.Infrastructure.Authentication.myPublicKeyFile">[docs]</a><span class="k">def</span> <span class="nf">myPublicKeyFile</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">authDirectory</span><span class="p">(),</span><span class="s2">&quot;publicKey&quot;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="myAuthenticatedKeysFile"><a class="viewcode-back" href="../../../api/PyFoam.Infrastructure.Authentication.html#PyFoam.Infrastructure.Authentication.myAuthenticatedKeysFile">[docs]</a><span class="k">def</span> <span class="nf">myAuthenticatedKeysFile</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">authDirectory</span><span class="p">(),</span><span class="s2">&quot;myAuthenticatedKeys&quot;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="ensureKeyPair"><a class="viewcode-back" href="../../../api/PyFoam.Infrastructure.Authentication.html#PyFoam.Infrastructure.Authentication.ensureKeyPair">[docs]</a><span class="k">def</span> <span class="nf">ensureKeyPair</span><span class="p">():</span>
+    <span class="kn">from</span> <span class="nn">os</span> <span class="k">import</span> <span class="n">chmod</span>
+    <span class="n">assertDirectory</span><span class="p">(</span><span class="n">authDirectory</span><span class="p">(),</span><span class="n">dirMode</span><span class="o">=</span><span class="s2">&quot;700&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">PY3</span><span class="p">:</span>
+        <span class="n">perm</span><span class="o">=</span><span class="nb">eval</span><span class="p">(</span><span class="s2">&quot;0o700&quot;</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">perm</span><span class="o">=</span><span class="nb">eval</span><span class="p">(</span><span class="s2">&quot;0700&quot;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">myPrivateKeyFile</span><span class="p">())</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">myPublicKeyFile</span><span class="p">()):</span>
+        <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;No key pair in&quot;</span><span class="p">,</span><span class="n">authDirectory</span><span class="p">(),</span><span class="s2">&quot; .... Creating&quot;</span><span class="p">)</span>
+        <span class="n">pubkey</span><span class="p">,</span> <span class="n">privkey</span> <span class="o">=</span> <span class="n">keygen</span><span class="p">(</span><span class="mi">2</span> <span class="o">**</span> <span class="mi">64</span><span class="p">)</span>
+        <span class="nb">open</span><span class="p">(</span><span class="n">myPublicKeyFile</span><span class="p">(),</span><span class="s2">&quot;w&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">key_to_str</span><span class="p">(</span><span class="n">pubkey</span><span class="p">))</span>
+        <span class="nb">open</span><span class="p">(</span><span class="n">myPrivateKeyFile</span><span class="p">(),</span><span class="s2">&quot;w&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">key_to_str</span><span class="p">(</span><span class="n">privkey</span><span class="p">))</span>
+
+    <span class="n">chmod</span><span class="p">(</span><span class="n">myPublicKeyFile</span><span class="p">(),</span><span class="n">perm</span><span class="p">)</span>
+    <span class="n">chmod</span><span class="p">(</span><span class="n">myPrivateKeyFile</span><span class="p">(),</span><span class="n">perm</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">myAuthenticatedKeysFile</span><span class="p">()):</span>
+        <span class="n">f</span><span class="o">=</span><span class="nb">open</span><span class="p">(</span><span class="n">myAuthenticatedKeysFile</span><span class="p">(),</span><span class="s2">&quot;w&quot;</span><span class="p">)</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+    <span class="n">chmod</span><span class="p">(</span><span class="n">myAuthenticatedKeysFile</span><span class="p">(),</span><span class="n">perm</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="myPublicKeyText"><a class="viewcode-back" href="../../../api/PyFoam.Infrastructure.Authentication.html#PyFoam.Infrastructure.Authentication.myPublicKeyText">[docs]</a><span class="k">def</span> <span class="nf">myPublicKeyText</span><span class="p">():</span>
+    <span class="k">return</span> <span class="nb">open</span><span class="p">(</span><span class="n">myPublicKeyFile</span><span class="p">())</span><span class="o">.</span><span class="n">read</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="myPublicKey"><a class="viewcode-back" href="../../../api/PyFoam.Infrastructure.Authentication.html#PyFoam.Infrastructure.Authentication.myPublicKey">[docs]</a><span class="k">def</span> <span class="nf">myPublicKey</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">str_to_key</span><span class="p">(</span><span class="nb">open</span><span class="p">(</span><span class="n">myPublicKeyFile</span><span class="p">())</span><span class="o">.</span><span class="n">read</span><span class="p">())</span></div>
+
+<div class="viewcode-block" id="myPrivateKey"><a class="viewcode-back" href="../../../api/PyFoam.Infrastructure.Authentication.html#PyFoam.Infrastructure.Authentication.myPrivateKey">[docs]</a><span class="k">def</span> <span class="nf">myPrivateKey</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">str_to_key</span><span class="p">(</span><span class="nb">open</span><span class="p">(</span><span class="n">myPrivateKeyFile</span><span class="p">())</span><span class="o">.</span><span class="n">read</span><span class="p">())</span></div>
+
+<div class="viewcode-block" id="is_prime"><a class="viewcode-back" href="../../../api/PyFoam.Infrastructure.Authentication.html#PyFoam.Infrastructure.Authentication.is_prime">[docs]</a><span class="k">def</span> <span class="nf">is_prime</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">k</span><span class="o">=</span><span class="mi">30</span><span class="p">):</span>
+    <span class="c1"># http://en.wikipedia.org/wiki/Miller%E2%80%93Rabin_primality_test</span>
+    <span class="k">if</span> <span class="n">n</span> <span class="o">&lt;=</span> <span class="mi">3</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">n</span> <span class="o">==</span> <span class="mi">2</span> <span class="ow">or</span> <span class="n">n</span> <span class="o">==</span> <span class="mi">3</span>
+    <span class="n">neg_one</span> <span class="o">=</span> <span class="n">n</span> <span class="o">-</span> <span class="mi">1</span>
+
+    <span class="c1"># write n-1 as 2^s*d where d is odd</span>
+    <span class="n">s</span><span class="p">,</span> <span class="n">d</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">neg_one</span>
+    <span class="k">while</span> <span class="ow">not</span> <span class="n">d</span> <span class="o">&amp;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">s</span><span class="p">,</span> <span class="n">d</span> <span class="o">=</span> <span class="n">s</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">d</span> <span class="o">&gt;&gt;</span> <span class="mi">1</span>
+    <span class="k">assert</span> <span class="mi">2</span> <span class="o">**</span> <span class="n">s</span> <span class="o">*</span> <span class="n">d</span> <span class="o">==</span> <span class="n">neg_one</span> <span class="ow">and</span> <span class="n">d</span> <span class="o">&amp;</span> <span class="mi">1</span>
+
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">range_func</span><span class="p">(</span><span class="n">k</span><span class="p">):</span>
+        <span class="n">a</span> <span class="o">=</span> <span class="n">randrange</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">neg_one</span><span class="p">)</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="nb">pow</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">n</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">x</span> <span class="ow">in</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">neg_one</span><span class="p">):</span>
+            <span class="k">continue</span>
+        <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">range_func</span><span class="p">(</span><span class="n">s</span> <span class="o">-</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="n">x</span> <span class="o">=</span> <span class="n">x</span> <span class="o">**</span> <span class="mi">2</span> <span class="o">%</span> <span class="n">n</span>
+            <span class="k">if</span> <span class="n">x</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">False</span>
+            <span class="k">if</span> <span class="n">x</span> <span class="o">==</span> <span class="n">neg_one</span><span class="p">:</span>
+                <span class="k">break</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">return</span> <span class="kc">True</span></div>
+
+
+<div class="viewcode-block" id="randprime"><a class="viewcode-back" href="../../../api/PyFoam.Infrastructure.Authentication.html#PyFoam.Infrastructure.Authentication.randprime">[docs]</a><span class="k">def</span> <span class="nf">randprime</span><span class="p">(</span><span class="n">n</span><span class="o">=</span><span class="mi">10</span> <span class="o">**</span> <span class="mi">8</span><span class="p">):</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="k">while</span> <span class="ow">not</span> <span class="n">is_prime</span><span class="p">(</span><span class="n">p</span><span class="p">):</span>
+        <span class="n">p</span> <span class="o">=</span> <span class="n">randrange</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">p</span></div>
+
+
+<div class="viewcode-block" id="multinv"><a class="viewcode-back" href="../../../api/PyFoam.Infrastructure.Authentication.html#PyFoam.Infrastructure.Authentication.multinv">[docs]</a><span class="k">def</span> <span class="nf">multinv</span><span class="p">(</span><span class="n">modulus</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Multiplicative inverse in a given modulus</span>
+
+<span class="sd">        &gt;&gt;&gt; multinv(191, 138)</span>
+<span class="sd">        18</span>
+<span class="sd">        &gt;&gt;&gt; multinv(191, 38)</span>
+<span class="sd">        186</span>
+<span class="sd">        &gt;&gt;&gt; multinv(120, 23)</span>
+<span class="sd">        47</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># http://en.wikipedia.org/wiki/Extended_Euclidean_algorithm</span>
+    <span class="n">x</span><span class="p">,</span> <span class="n">lastx</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span>
+    <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="n">modulus</span><span class="p">,</span> <span class="n">value</span>
+    <span class="k">while</span> <span class="n">b</span><span class="p">:</span>
+        <span class="n">a</span><span class="p">,</span> <span class="n">q</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="n">b</span><span class="p">,</span> <span class="n">a</span> <span class="o">//</span> <span class="n">b</span><span class="p">,</span> <span class="n">a</span> <span class="o">%</span> <span class="n">b</span>
+        <span class="n">x</span><span class="p">,</span> <span class="n">lastx</span> <span class="o">=</span> <span class="n">lastx</span> <span class="o">-</span> <span class="n">q</span> <span class="o">*</span> <span class="n">x</span><span class="p">,</span> <span class="n">x</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">lastx</span> <span class="o">*</span> <span class="n">modulus</span><span class="p">)</span> <span class="o">//</span> <span class="n">value</span>
+    <span class="k">if</span> <span class="n">result</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">result</span> <span class="o">+=</span> <span class="n">modulus</span>
+    <span class="k">assert</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">result</span> <span class="o">&lt;</span> <span class="n">modulus</span> <span class="ow">and</span> <span class="n">value</span> <span class="o">*</span> <span class="n">result</span> <span class="o">%</span> <span class="n">modulus</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="k">return</span> <span class="n">result</span></div>
+
+
+<span class="n">KeyPair</span> <span class="o">=</span> <span class="n">namedtuple</span><span class="p">(</span><span class="s1">&#39;KeyPair&#39;</span><span class="p">,</span> <span class="s1">&#39;public private&#39;</span><span class="p">)</span>
+<span class="n">Key</span> <span class="o">=</span> <span class="n">namedtuple</span><span class="p">(</span><span class="s1">&#39;Key&#39;</span><span class="p">,</span> <span class="s1">&#39;exponent modulus&#39;</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="keygen"><a class="viewcode-back" href="../../../api/PyFoam.Infrastructure.Authentication.html#PyFoam.Infrastructure.Authentication.keygen">[docs]</a><span class="k">def</span> <span class="nf">keygen</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">public</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Generate public and private keys from primes up to N.</span>
+
+<span class="sd">    Optionally, specify the public key exponent (65537 is popular choice).</span>
+
+<span class="sd">        &gt;&gt;&gt; pubkey, privkey = keygen(2**64)</span>
+<span class="sd">        &gt;&gt;&gt; msg = 123456789012345</span>
+<span class="sd">        &gt;&gt;&gt; coded = pow(msg, *pubkey)</span>
+<span class="sd">        &gt;&gt;&gt; plain = pow(coded, *privkey)</span>
+<span class="sd">        &gt;&gt;&gt; assert msg == plain</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># http://en.wikipedia.org/wiki/RSA</span>
+    <span class="n">prime1</span> <span class="o">=</span> <span class="n">randprime</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>
+    <span class="n">prime2</span> <span class="o">=</span> <span class="n">randprime</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>
+    <span class="n">composite</span> <span class="o">=</span> <span class="n">prime1</span> <span class="o">*</span> <span class="n">prime2</span>
+    <span class="n">totient</span> <span class="o">=</span> <span class="p">(</span><span class="n">prime1</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">prime2</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">public</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">private</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="n">private</span> <span class="o">=</span> <span class="n">randrange</span><span class="p">(</span><span class="n">totient</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">gcd</span><span class="p">(</span><span class="n">private</span><span class="p">,</span> <span class="n">totient</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">break</span>
+        <span class="n">public</span> <span class="o">=</span> <span class="n">multinv</span><span class="p">(</span><span class="n">totient</span><span class="p">,</span> <span class="n">private</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">private</span> <span class="o">=</span> <span class="n">multinv</span><span class="p">(</span><span class="n">totient</span><span class="p">,</span> <span class="n">public</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">public</span> <span class="o">*</span> <span class="n">private</span> <span class="o">%</span> <span class="n">totient</span> <span class="o">==</span> <span class="n">gcd</span><span class="p">(</span><span class="n">public</span><span class="p">,</span> <span class="n">totient</span><span class="p">)</span> <span class="o">==</span> <span class="n">gcd</span><span class="p">(</span><span class="n">private</span><span class="p">,</span> <span class="n">totient</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>
+    <span class="k">assert</span> <span class="nb">pow</span><span class="p">(</span><span class="nb">pow</span><span class="p">(</span><span class="mi">1234567</span><span class="p">,</span> <span class="n">public</span><span class="p">,</span> <span class="n">composite</span><span class="p">),</span> <span class="n">private</span><span class="p">,</span> <span class="n">composite</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1234567</span>
+    <span class="k">return</span> <span class="n">KeyPair</span><span class="p">(</span><span class="n">Key</span><span class="p">(</span><span class="n">public</span><span class="p">,</span> <span class="n">composite</span><span class="p">),</span> <span class="n">Key</span><span class="p">(</span><span class="n">private</span><span class="p">,</span> <span class="n">composite</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="encode"><a class="viewcode-back" href="../../../api/PyFoam.Infrastructure.Authentication.html#PyFoam.Infrastructure.Authentication.encode">[docs]</a><span class="k">def</span> <span class="nf">encode</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="n">pubkey</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="n">chunksize</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">log</span><span class="p">(</span><span class="n">pubkey</span><span class="o">.</span><span class="n">modulus</span><span class="p">,</span> <span class="mi">256</span><span class="p">))</span>
+    <span class="n">outchunk</span> <span class="o">=</span> <span class="n">chunksize</span> <span class="o">+</span> <span class="mi">1</span>
+    <span class="n">outfmt</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">%%</span><span class="s1">0</span><span class="si">%d</span><span class="s1">x&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">outchunk</span> <span class="o">*</span> <span class="mi">2</span><span class="p">,)</span>
+    <span class="n">bmsg</span> <span class="o">=</span> <span class="n">msg</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="n">binary_type</span><span class="p">)</span> <span class="k">else</span> <span class="n">msg</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s1">&#39;utf-8&#39;</span><span class="p">)</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">start</span> <span class="ow">in</span> <span class="n">range_func</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">bmsg</span><span class="p">),</span> <span class="n">chunksize</span><span class="p">):</span>
+        <span class="n">chunk</span> <span class="o">=</span> <span class="n">bmsg</span><span class="p">[</span><span class="n">start</span><span class="p">:</span><span class="n">start</span> <span class="o">+</span> <span class="n">chunksize</span><span class="p">]</span>
+        <span class="n">chunk</span> <span class="o">+=</span> <span class="sa">b</span><span class="s1">&#39;</span><span class="se">\x00</span><span class="s1">&#39;</span> <span class="o">*</span> <span class="p">(</span><span class="n">chunksize</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="n">chunk</span><span class="p">))</span>
+        <span class="n">plain</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">hexlify</span><span class="p">(</span><span class="n">chunk</span><span class="p">),</span> <span class="mi">16</span><span class="p">)</span>
+        <span class="n">coded</span> <span class="o">=</span> <span class="nb">pow</span><span class="p">(</span><span class="n">plain</span><span class="p">,</span> <span class="o">*</span><span class="n">pubkey</span><span class="p">)</span>
+        <span class="n">bcoded</span> <span class="o">=</span> <span class="n">unhexlify</span><span class="p">((</span><span class="n">outfmt</span> <span class="o">%</span> <span class="n">coded</span><span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
+        <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span>
+            <span class="n">print_</span><span class="p">(</span><span class="s1">&#39;Encode:&#39;</span><span class="p">,</span> <span class="n">chunksize</span><span class="p">,</span> <span class="n">chunk</span><span class="p">,</span> <span class="n">plain</span><span class="p">,</span> <span class="n">coded</span><span class="p">,</span> <span class="n">bcoded</span><span class="p">)</span>
+        <span class="n">result</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">bcoded</span><span class="p">)</span>
+    <span class="k">return</span> <span class="sa">b</span><span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">result</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="decode"><a class="viewcode-back" href="../../../api/PyFoam.Infrastructure.Authentication.html#PyFoam.Infrastructure.Authentication.decode">[docs]</a><span class="k">def</span> <span class="nf">decode</span><span class="p">(</span><span class="n">bcipher</span><span class="p">,</span> <span class="n">privkey</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">chunksize</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">log</span><span class="p">(</span><span class="n">privkey</span><span class="o">.</span><span class="n">modulus</span><span class="p">,</span> <span class="mi">256</span><span class="p">))</span>
+        <span class="n">outchunk</span> <span class="o">=</span> <span class="n">chunksize</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="n">outfmt</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">%%</span><span class="s1">0</span><span class="si">%d</span><span class="s1">x&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">chunksize</span> <span class="o">*</span> <span class="mi">2</span><span class="p">,)</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">start</span> <span class="ow">in</span> <span class="n">range_func</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">bcipher</span><span class="p">),</span> <span class="n">outchunk</span><span class="p">):</span>
+            <span class="n">bcoded</span> <span class="o">=</span> <span class="n">bcipher</span><span class="p">[</span><span class="n">start</span><span class="p">:</span> <span class="n">start</span> <span class="o">+</span> <span class="n">outchunk</span><span class="p">]</span>
+            <span class="n">coded</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">hexlify</span><span class="p">(</span><span class="n">bcoded</span><span class="p">),</span> <span class="mi">16</span><span class="p">)</span>
+            <span class="n">plain</span> <span class="o">=</span> <span class="nb">pow</span><span class="p">(</span><span class="n">coded</span><span class="p">,</span> <span class="o">*</span><span class="n">privkey</span><span class="p">)</span>
+            <span class="n">chunk</span> <span class="o">=</span> <span class="n">unhexlify</span><span class="p">((</span><span class="n">outfmt</span> <span class="o">%</span> <span class="n">plain</span><span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
+            <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span>
+                <span class="n">print_</span><span class="p">(</span><span class="s1">&#39;Decode:&#39;</span><span class="p">,</span> <span class="n">chunksize</span><span class="p">,</span> <span class="n">chunk</span><span class="p">,</span> <span class="n">plain</span><span class="p">,</span> <span class="n">coded</span><span class="p">,</span> <span class="n">bcoded</span><span class="p">)</span>
+            <span class="n">result</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">chunk</span><span class="p">)</span>
+        <span class="k">return</span> <span class="sa">b</span><span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">result</span><span class="p">)</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;</span><span class="se">\x00</span><span class="s1">&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;utf-8&#39;</span><span class="p">)</span>
+    <span class="k">except</span> <span class="p">(</span><span class="ne">UnicodeDecodeError</span><span class="p">,</span><span class="n">binascii</span><span class="o">.</span><span class="n">Error</span><span class="p">,</span><span class="ne">TypeError</span><span class="p">)</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">u</span><span class="p">(</span><span class="sa">b</span><span class="s1">&#39;Failed decode for&#39;</span><span class="o">+</span><span class="n">bcipher</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="key_to_str"><a class="viewcode-back" href="../../../api/PyFoam.Infrastructure.Authentication.html#PyFoam.Infrastructure.Authentication.key_to_str">[docs]</a><span class="k">def</span> <span class="nf">key_to_str</span><span class="p">(</span><span class="n">key</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Convert `Key` to string representation</span>
+<span class="sd">    &gt;&gt;&gt; key_to_str(Key(50476910741469568741791652650587163073, 95419691922573224706255222482923256353))</span>
+<span class="sd">    &#39;25f97fd801214cdc163796f8a43289c1:47c92a08bc374e96c7af66eb141d7a21&#39;</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="s1">&#39;:&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(((</span><span class="s1">&#39;</span><span class="si">%%</span><span class="s1">0</span><span class="si">%d</span><span class="s1">x&#39;</span> <span class="o">%</span> <span class="p">((</span><span class="nb">int</span><span class="p">(</span><span class="n">log</span><span class="p">(</span><span class="n">number</span><span class="p">,</span> <span class="mi">256</span><span class="p">))</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="mi">2</span><span class="p">))</span> <span class="o">%</span> <span class="n">number</span><span class="p">)</span> <span class="k">for</span> <span class="n">number</span> <span class="ow">in</span> <span class="n">key</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="str_to_key"><a class="viewcode-back" href="../../../api/PyFoam.Infrastructure.Authentication.html#PyFoam.Infrastructure.Authentication.str_to_key">[docs]</a><span class="k">def</span> <span class="nf">str_to_key</span><span class="p">(</span><span class="n">key_str</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Convert string representation to `Key` (assuming valid input)</span>
+<span class="sd">    &gt;&gt;&gt; (str_to_key(&#39;25f97fd801214cdc163796f8a43289c1:47c92a08bc374e96c7af66eb141d7a21&#39;) ==</span>
+<span class="sd">    ...  Key(exponent=50476910741469568741791652650587163073, modulus=95419691922573224706255222482923256353))</span>
+<span class="sd">    True</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">Key</span><span class="p">(</span><span class="o">*</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">number</span><span class="p">,</span> <span class="mi">16</span><span class="p">)</span> <span class="k">for</span> <span class="n">number</span> <span class="ow">in</span> <span class="n">key_str</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;:&#39;</span><span class="p">)))</span></div>
+
+<div class="viewcode-block" id="createChallengeString"><a class="viewcode-back" href="../../../api/PyFoam.Infrastructure.Authentication.html#PyFoam.Infrastructure.Authentication.createChallengeString">[docs]</a><span class="k">def</span> <span class="nf">createChallengeString</span><span class="p">(</span><span class="n">msg</span><span class="p">):</span>
+    <span class="k">return</span> <span class="p">(</span><span class="n">b32encode</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s1">&#39;utf-8&#39;</span><span class="p">))</span><span class="o">+</span><span class="sa">b</span><span class="s2">&quot;:&quot;</span><span class="o">+</span><span class="n">b32encode</span><span class="p">(</span><span class="n">encode</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span><span class="n">myPrivateKey</span><span class="p">())))</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="checkChallenge"><a class="viewcode-back" href="../../../api/PyFoam.Infrastructure.Authentication.html#PyFoam.Infrastructure.Authentication.checkChallenge">[docs]</a><span class="k">def</span> <span class="nf">checkChallenge</span><span class="p">(</span><span class="n">challenge</span><span class="p">,</span><span class="n">pubKey</span><span class="p">):</span>
+    <span class="n">org</span><span class="p">,</span><span class="n">encoded</span><span class="o">=</span><span class="n">challenge</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;:&quot;</span><span class="p">)</span>
+    <span class="n">org</span><span class="o">=</span><span class="n">b32decode</span><span class="p">(</span><span class="n">org</span><span class="p">)</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;utf-8&#39;</span><span class="p">)</span>
+    <span class="n">encoded</span><span class="o">=</span><span class="n">decode</span><span class="p">(</span><span class="n">b32decode</span><span class="p">(</span><span class="n">encoded</span><span class="p">),</span><span class="n">pubKey</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">org</span><span class="o">==</span><span class="n">encoded</span></div>
+
+<div class="viewcode-block" id="authenticatedKeys"><a class="viewcode-back" href="../../../api/PyFoam.Infrastructure.Authentication.html#PyFoam.Infrastructure.Authentication.authenticatedKeys">[docs]</a><span class="k">def</span> <span class="nf">authenticatedKeys</span><span class="p">():</span>
+    <span class="n">keys</span><span class="o">=</span><span class="p">{}</span>
+    <span class="k">for</span> <span class="n">l</span> <span class="ow">in</span> <span class="nb">open</span><span class="p">(</span><span class="n">myAuthenticatedKeysFile</span><span class="p">())</span><span class="o">.</span><span class="n">readlines</span><span class="p">():</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">u</span><span class="p">,</span><span class="n">k</span><span class="o">=</span><span class="n">l</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+            <span class="n">keys</span><span class="p">[</span><span class="n">u</span><span class="p">]</span><span class="o">=</span><span class="n">k</span>
+        <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+            <span class="k">pass</span>
+    <span class="k">return</span> <span class="n">keys</span></div>
+
+<div class="viewcode-block" id="checkAuthentication"><a class="viewcode-back" href="../../../api/PyFoam.Infrastructure.Authentication.html#PyFoam.Infrastructure.Authentication.checkAuthentication">[docs]</a><span class="k">def</span> <span class="nf">checkAuthentication</span><span class="p">(</span><span class="n">userName</span><span class="p">,</span><span class="n">challenge</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">userName</span><span class="o">==</span><span class="n">getUserName</span><span class="p">():</span>
+        <span class="n">pub</span><span class="o">=</span><span class="n">myPublicKey</span><span class="p">()</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">pub</span><span class="o">=</span><span class="kc">None</span>
+        <span class="n">keys</span><span class="o">=</span><span class="n">authenticatedKeys</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">userName</span> <span class="ow">in</span> <span class="n">keys</span><span class="p">:</span>
+            <span class="n">pub</span><span class="o">=</span><span class="n">str_to_key</span><span class="p">(</span><span class="n">keys</span><span class="p">[</span><span class="n">userName</span><span class="p">])</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+
+    <span class="k">return</span> <span class="n">checkChallenge</span><span class="p">(</span><span class="n">challenge</span><span class="p">,</span><span class="n">pub</span><span class="p">)</span></div>
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>
+    <span class="n">ensureKeyPair</span><span class="p">()</span>
+    <span class="n">pub</span><span class="o">=</span><span class="n">myPublicKey</span><span class="p">()</span>
+    <span class="n">priv</span><span class="o">=</span><span class="n">myPrivateKey</span><span class="p">()</span>
+    <span class="n">msg</span> <span class="o">=</span> <span class="sa">u</span><span class="s1">&#39;the quick brown fox jumped over the lazy dog ® ⌀&#39;</span>
+    <span class="n">challenge</span><span class="o">=</span><span class="n">createChallengeString</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+    <span class="n">print_</span><span class="p">(</span><span class="s2">&quot;Challenge:&quot;</span><span class="p">,</span><span class="n">challenge</span><span class="p">)</span>
+    <span class="n">print_</span><span class="p">(</span><span class="s2">&quot;Checking:&quot;</span><span class="p">,</span><span class="n">checkChallenge</span><span class="p">(</span><span class="n">challenge</span><span class="p">,</span><span class="n">myPublicKey</span><span class="p">()))</span>
+    <span class="n">pubkey</span><span class="p">,</span> <span class="n">privkey</span> <span class="o">=</span> <span class="n">keygen</span><span class="p">(</span><span class="mi">2</span> <span class="o">**</span> <span class="mi">64</span><span class="p">)</span>
+    <span class="n">print_</span><span class="p">(</span><span class="s2">&quot;Checking False:&quot;</span><span class="p">,</span><span class="kc">False</span><span class="o">==</span><span class="n">checkChallenge</span><span class="p">(</span><span class="n">challenge</span><span class="p">,</span><span class="n">pubkey</span><span class="p">))</span>
+    <span class="n">print_</span><span class="p">(</span><span class="s2">&quot;Checking MyUsername:&quot;</span><span class="p">,</span><span class="n">checkAuthentication</span><span class="p">(</span><span class="n">getUserName</span><span class="p">(),</span><span class="n">challenge</span><span class="p">))</span>
+    <span class="n">print_</span><span class="p">(</span><span class="s2">&quot;Checking user &#39;test&#39;:&quot;</span><span class="p">,</span><span class="n">checkAuthentication</span><span class="p">(</span><span class="s2">&quot;test&quot;</span><span class="p">,</span><span class="n">challenge</span><span class="p">))</span>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2015, Bernhard F.W. Gschaider.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../',
+            VERSION:'0.6.6',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../_static/doctools.js"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

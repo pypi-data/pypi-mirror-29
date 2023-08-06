@@ -1,0 +1,362 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>PyFoam.Infrastructure.ZeroConf &mdash; PyFoam 0.6.6 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../search.html"/>
+    <link rel="top" title="PyFoam 0.6.6 documentation" href="../../../index.html"/>
+        <link rel="up" title="PyFoam" href="../../PyFoam.html"/> 
+
+  
+  <script src="../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home"> PyFoam
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.6.6
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../api/modules.html">API documentation</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">PyFoam</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+          <li><a href="../../PyFoam.html">PyFoam</a> &raquo;</li>
+        
+      <li>PyFoam.Infrastructure.ZeroConf</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for PyFoam.Infrastructure.ZeroConf</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Helper classes and functions to wrap the zeroconf-library&quot;&quot;&quot;</span>
+
+<span class="k">try</span><span class="p">:</span>
+    <span class="kn">import</span> <span class="nn">zeroconf</span> <span class="k">as</span> <span class="nn">zc</span>
+    <span class="n">zeroConfOK</span><span class="o">=</span><span class="kc">True</span>
+<span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+    <span class="n">zeroConfOK</span><span class="o">=</span><span class="kc">False</span>
+
+<span class="kn">from</span> <span class="nn">PyFoam.Infrastructure.Logging</span> <span class="k">import</span> <span class="n">foamLogger</span>
+<span class="kn">from</span> <span class="nn">PyFoam.Error</span> <span class="k">import</span> <span class="n">warning</span>
+<span class="kn">from</span> <span class="nn">PyFoam.ThirdParty.six</span> <span class="k">import</span> <span class="n">print_</span><span class="p">,</span><span class="n">b</span>
+<span class="kn">from</span> <span class="nn">PyFoam.Infrastructure.FoamMetaServer</span> <span class="k">import</span> <span class="n">ServerInfo</span>
+
+<span class="kn">from</span> <span class="nn">os</span> <span class="k">import</span> <span class="n">path</span>
+<span class="kn">from</span> <span class="nn">time</span> <span class="k">import</span> <span class="n">sleep</span>
+<span class="kn">import</span> <span class="nn">socket</span>
+
+<span class="n">foamServerDescriptorString</span><span class="o">=</span><span class="s2">&quot;_foamserver._tcp.local.&quot;</span>
+
+<div class="viewcode-block" id="ZeroConfFoamServer"><a class="viewcode-back" href="../../../api/PyFoam.Infrastructure.ZeroConf.html#PyFoam.Infrastructure.ZeroConf.ZeroConfFoamServer">[docs]</a><span class="k">class</span> <span class="nc">ZeroConfFoamServer</span><span class="p">:</span>
+<div class="viewcode-block" id="ZeroConfFoamServer.__init__"><a class="viewcode-back" href="../../../api/PyFoam.Infrastructure.ZeroConf.html#PyFoam.Infrastructure.ZeroConf.ZeroConfFoamServer.__init__">[docs]</a>    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">info</span><span class="o">=</span><span class="kc">None</span>
+        <span class="k">if</span> <span class="n">zeroConfOK</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">zero</span><span class="o">=</span><span class="n">zc</span><span class="o">.</span><span class="n">Zeroconf</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="ZeroConfFoamServer.register"><a class="viewcode-back" href="../../../api/PyFoam.Infrastructure.ZeroConf.html#PyFoam.Infrastructure.ZeroConf.ZeroConfFoamServer.register">[docs]</a>    <span class="k">def</span> <span class="nf">register</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">answerer</span><span class="p">,</span><span class="n">port</span><span class="p">,</span><span class="n">ssl</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">zeroConfOK</span><span class="p">:</span>
+            <span class="k">return</span>
+
+        <span class="n">desc</span> <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;host&#39;</span> <span class="p">:</span> <span class="n">answerer</span><span class="o">.</span><span class="n">hostname</span><span class="p">(),</span>
+                 <span class="s1">&#39;ip&#39;</span>   <span class="p">:</span> <span class="n">answerer</span><span class="o">.</span><span class="n">ip</span><span class="p">(),</span>
+                 <span class="s1">&#39;id&#39;</span>   <span class="p">:</span> <span class="n">answerer</span><span class="o">.</span><span class="n">id</span><span class="p">(),</span>
+                 <span class="s1">&#39;pid&#39;</span>  <span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">answerer</span><span class="o">.</span><span class="n">pid</span><span class="p">()),</span>
+                 <span class="s1">&#39;port&#39;</span> <span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">port</span><span class="p">),</span>
+                 <span class="s1">&#39;ssl&#39;</span>  <span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">ssl</span><span class="p">),</span>
+                 <span class="s1">&#39;path&#39;</span> <span class="p">:</span> <span class="n">answerer</span><span class="o">.</span><span class="n">pathToSolution</span><span class="p">(),}</span>
+        <span class="k">if</span> <span class="n">desc</span><span class="p">[</span><span class="s2">&quot;host&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="p">)</span><span class="o">&gt;</span><span class="mi">0</span><span class="p">:</span>
+            <span class="n">shorthost</span><span class="o">=</span><span class="n">desc</span><span class="p">[</span><span class="s2">&quot;host&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">:</span><span class="n">desc</span><span class="p">[</span><span class="s2">&quot;host&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="p">)]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">shorthost</span><span class="o">=</span><span class="n">desc</span><span class="p">[</span><span class="s2">&quot;host&quot;</span><span class="p">]</span>
+        <span class="n">desc</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]</span><span class="o">=</span> <span class="s2">&quot;@&quot;</span><span class="o">+</span><span class="n">shorthost</span><span class="o">+</span><span class="s2">&quot;:&quot;</span><span class="o">+</span><span class="n">desc</span><span class="p">[</span><span class="s2">&quot;port&quot;</span><span class="p">]</span><span class="o">+</span><span class="s2">&quot;.&quot;</span><span class="o">+</span> \
+                      <span class="n">foamServerDescriptorString</span>
+        <span class="n">basename</span><span class="o">=</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">desc</span><span class="p">[</span><span class="s2">&quot;path&quot;</span><span class="p">])</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="p">,</span><span class="s2">&quot;_&quot;</span><span class="p">)</span>
+        <span class="n">extraLen</span><span class="o">=</span><span class="mi">63</span><span class="o">-</span><span class="nb">len</span><span class="p">(</span><span class="n">desc</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">])</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">basename</span><span class="p">)</span><span class="o">&gt;</span><span class="n">extraLen</span><span class="p">:</span>
+            <span class="n">desc</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]</span><span class="o">=</span><span class="n">basename</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="n">extraLen</span><span class="p">]</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">,</span><span class="s1">&#39;&#39;</span><span class="p">)</span><span class="o">+</span><span class="n">desc</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">desc</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]</span><span class="o">=</span><span class="n">basename</span><span class="o">+</span><span class="n">desc</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">info</span><span class="o">=</span><span class="n">zc</span><span class="o">.</span><span class="n">ServiceInfo</span><span class="p">(</span><span class="n">type_</span><span class="o">=</span><span class="n">foamServerDescriptorString</span><span class="p">,</span>
+                                 <span class="n">name</span><span class="o">=</span><span class="n">desc</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">],</span>
+                                 <span class="c1"># name=&quot;Nix da.&quot;+foamServerDescriptorString,</span>
+                                 <span class="n">address</span><span class="o">=</span><span class="n">socket</span><span class="o">.</span><span class="n">inet_aton</span><span class="p">(</span><span class="n">answerer</span><span class="o">.</span><span class="n">ip</span><span class="p">()),</span>
+                                 <span class="n">port</span><span class="o">=</span><span class="n">port</span><span class="p">,</span>
+                                 <span class="n">weight</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+                                 <span class="n">priority</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+                                 <span class="n">properties</span><span class="o">=</span><span class="n">desc</span><span class="p">,</span>
+                                 <span class="n">server</span><span class="o">=</span><span class="n">desc</span><span class="p">[</span><span class="s2">&quot;host&quot;</span><span class="p">]</span><span class="o">+</span><span class="s2">&quot;.&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">zero</span><span class="o">.</span><span class="n">register_service</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">info</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="ZeroConfFoamServer.deregister"><a class="viewcode-back" href="../../../api/PyFoam.Infrastructure.ZeroConf.html#PyFoam.Infrastructure.ZeroConf.ZeroConfFoamServer.deregister">[docs]</a>    <span class="k">def</span> <span class="nf">deregister</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">zeroConfOK</span><span class="p">:</span>
+            <span class="k">return</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">info</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">zero</span><span class="o">.</span><span class="n">unregister_service</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">info</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">info</span><span class="o">=</span><span class="kc">None</span></div></div>
+
+<div class="viewcode-block" id="getServerList"><a class="viewcode-back" href="../../../api/PyFoam.Infrastructure.ZeroConf.html#PyFoam.Infrastructure.ZeroConf.getServerList">[docs]</a><span class="k">def</span> <span class="nf">getServerList</span><span class="p">(</span><span class="n">timeout</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span><span class="n">verbose</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span><span class="n">progress</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">zeroConfOK</span><span class="p">:</span>
+        <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;zeroconf-module not installed.&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">{}</span>
+    <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span>
+        <span class="n">progress</span><span class="o">=</span><span class="kc">False</span>
+
+    <span class="n">zero</span><span class="o">=</span><span class="n">zc</span><span class="o">.</span><span class="n">Zeroconf</span><span class="p">()</span>
+    <span class="n">servers</span><span class="o">=</span><span class="p">{}</span>
+
+    <span class="k">def</span> <span class="nf">on_service_state_change</span><span class="p">(</span><span class="n">zeroconf</span><span class="p">,</span> <span class="n">service_type</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">state_change</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span>
+            <span class="n">print_</span><span class="p">(</span><span class="s2">&quot;Service </span><span class="si">%s</span><span class="s2"> of type </span><span class="si">%s</span><span class="s2"> state changed: </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">service_type</span><span class="p">,</span> <span class="n">state_change</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="n">state_change</span> <span class="ow">is</span> <span class="n">zc</span><span class="o">.</span><span class="n">ServiceStateChange</span><span class="o">.</span><span class="n">Added</span><span class="p">:</span>
+            <span class="n">info</span> <span class="o">=</span> <span class="n">zero</span><span class="o">.</span><span class="n">get_service_info</span><span class="p">(</span><span class="n">service_type</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">info</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span>
+                    <span class="n">print_</span><span class="p">(</span><span class="s2">&quot;  Address: </span><span class="si">%s</span><span class="s2">:</span><span class="si">%d</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">socket</span><span class="o">.</span><span class="n">inet_ntoa</span><span class="p">(</span><span class="n">info</span><span class="o">.</span><span class="n">address</span><span class="p">),</span> <span class="n">info</span><span class="o">.</span><span class="n">port</span><span class="p">))</span>
+                    <span class="n">print_</span><span class="p">(</span><span class="s2">&quot;  Weight: </span><span class="si">%d</span><span class="s2">, priority: </span><span class="si">%d</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">info</span><span class="o">.</span><span class="n">weight</span><span class="p">,</span> <span class="n">info</span><span class="o">.</span><span class="n">priority</span><span class="p">))</span>
+                    <span class="n">print_</span><span class="p">(</span><span class="s2">&quot;  Server: </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">info</span><span class="o">.</span><span class="n">server</span><span class="p">,))</span>
+                <span class="k">if</span> <span class="n">info</span><span class="o">.</span><span class="n">properties</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span>
+                        <span class="n">print_</span><span class="p">(</span><span class="s2">&quot;  Properties are:&quot;</span><span class="p">)</span>
+                        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">info</span><span class="o">.</span><span class="n">properties</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                            <span class="n">print_</span><span class="p">(</span><span class="s2">&quot;    </span><span class="si">%s</span><span class="s2">: </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">))</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="n">new</span><span class="o">=</span><span class="n">ServerInfo</span><span class="p">(</span><span class="n">info</span><span class="o">.</span><span class="n">properties</span><span class="p">[</span><span class="n">b</span><span class="p">(</span><span class="s2">&quot;ip&quot;</span><span class="p">)],</span>
+                                       <span class="nb">int</span><span class="p">(</span><span class="n">info</span><span class="o">.</span><span class="n">properties</span><span class="p">[</span><span class="n">b</span><span class="p">(</span><span class="s2">&quot;pid&quot;</span><span class="p">)]),</span>
+                                       <span class="nb">int</span><span class="p">(</span><span class="n">info</span><span class="o">.</span><span class="n">properties</span><span class="p">[</span><span class="n">b</span><span class="p">(</span><span class="s2">&quot;port&quot;</span><span class="p">)]),</span>
+                                       <span class="nb">eval</span><span class="p">(</span><span class="n">info</span><span class="o">.</span><span class="n">properties</span><span class="p">[</span><span class="n">b</span><span class="p">(</span><span class="s2">&quot;ssl&quot;</span><span class="p">)])</span> <span class="k">if</span> <span class="n">b</span><span class="p">(</span><span class="s2">&quot;ssl&quot;</span><span class="p">)</span> <span class="ow">in</span> <span class="n">info</span><span class="o">.</span><span class="n">properties</span> <span class="k">else</span> <span class="kc">False</span><span class="p">)</span>
+                        <span class="n">new</span><span class="o">.</span><span class="n">queryData</span><span class="p">()</span>
+                        <span class="n">servers</span><span class="p">[</span><span class="n">name</span><span class="p">]</span><span class="o">=</span><span class="n">new</span>
+                        <span class="k">if</span> <span class="n">progress</span><span class="p">:</span>
+                            <span class="n">print_</span><span class="p">(</span><span class="s2">&quot;+&quot;</span><span class="p">,</span><span class="n">flush</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span><span class="n">end</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+                    <span class="k">except</span> <span class="n">socket</span><span class="o">.</span><span class="n">error</span><span class="p">:</span>
+                        <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Connection refused by&quot;</span><span class="p">,</span><span class="n">new</span><span class="p">[</span><span class="s2">&quot;ip&quot;</span><span class="p">])</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span>
+                        <span class="n">print_</span><span class="p">(</span><span class="s2">&quot;  No properties&quot;</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span>
+                    <span class="n">print_</span><span class="p">(</span><span class="s2">&quot;  No info&quot;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">state_change</span> <span class="ow">is</span> <span class="n">zc</span><span class="o">.</span><span class="n">ServiceStateChange</span><span class="o">.</span><span class="n">Removed</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">servers</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span>
+                    <span class="n">print_</span><span class="p">(</span><span class="s2">&quot;Remove&quot;</span><span class="p">,</span><span class="n">name</span><span class="p">)</span>
+                <span class="k">del</span> <span class="n">servers</span><span class="p">[</span><span class="n">name</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">progress</span><span class="p">:</span>
+                    <span class="n">print_</span><span class="p">(</span><span class="s2">&quot;-&quot;</span><span class="p">,</span><span class="n">flush</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span><span class="n">end</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+
+    <span class="n">browser</span> <span class="o">=</span> <span class="n">zc</span><span class="o">.</span><span class="n">ServiceBrowser</span><span class="p">(</span><span class="n">zero</span><span class="p">,</span>
+                                <span class="n">foamServerDescriptorString</span><span class="p">,</span>
+                                <span class="n">handlers</span><span class="o">=</span><span class="p">[</span><span class="n">on_service_state_change</span><span class="p">])</span>
+
+    <span class="k">if</span> <span class="n">progress</span><span class="p">:</span>
+        <span class="n">print_</span><span class="p">(</span><span class="s2">&quot;Searching  &quot;</span><span class="p">,</span><span class="n">flush</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span><span class="n">end</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+
+    <span class="k">while</span> <span class="n">timeout</span><span class="o">&gt;</span><span class="mi">0</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">progress</span><span class="p">:</span>
+            <span class="n">print_</span><span class="p">(</span><span class="s2">&quot; . &quot;</span><span class="p">,</span><span class="n">flush</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span><span class="n">end</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+        <span class="n">timeout</span><span class="o">-=</span><span class="mi">1</span>
+        <span class="n">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="n">zero</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+    <span class="k">if</span> <span class="n">progress</span><span class="p">:</span>
+        <span class="n">print_</span><span class="p">(</span><span class="s2">&quot; Done</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">servers</span></div>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2015, Bernhard F.W. Gschaider.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../',
+            VERSION:'0.6.6',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../_static/doctools.js"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>
