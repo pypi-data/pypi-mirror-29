@@ -1,0 +1,124 @@
+=============================
+JPT Django Utils
+=============================
+
+.. image:: https://badge.fury.io/py/jpt-django-utils.svg
+    :target: https://badge.fury.io/py/jpt-django-utils
+
+.. image:: https://travis-ci.com/jptd/JPT-django-utils.svg?token=whRx2vqBkv8CM6GEdmEf&branch=develop
+    :target: https://travis-ci.com/jptd/JPT-django-utils
+
+Re-usable Django utils.
+
+Documentation
+-------------
+
+The full documentation is at https://JPT-DJANGO-UTILS.readthedocs.io.
+
+Quickstart
+----------
+
+Install JPT Django Utils::
+
+    pip install jpt-django-utils
+
+Add it to your `INSTALLED_APPS`:
+
+.. code-block:: python
+
+    INSTALLED_APPS = (
+        ...
+        'jpt_django_utils.apps.JptDjangoUtilsConfig',
+        ...
+    )
+
+Add JPT Django Utils's URL patterns:
+
+.. code-block:: python
+
+    from jpt_django_utils import urls as jpt_django_utils_urls
+
+
+    urlpatterns = [
+        ...
+        url(r'^', include(jpt_django_utils_urls)),
+        ...
+    ]
+
+Features
+--------
+
+* TODO
+
+Running Tests
+-------------
+
+Does the code actually work?
+
+::
+
+    source <YOURVIRTUALENV>/bin/activate
+    (myenv) $ pip install tox
+    (myenv) $ tox
+
+
+
+
+History
+-------
+
+develop (unreleased)
+--------------------
+
+0.5.2 (2018-03-05)
+--------------------
+
+* Fix PublishExpireManager not being expored by publishable module.
+
+0.5.1 (2018-03-05)
+------------------
+
+* Add PublishExpireManager.
+
+0.5.0 (2018-02-06)
+------------------
+
+* Add AutoIntVersionSerializer
+
+0.4.0 (2018-01-30)
+------------------
+
+* Add json_client fixture.
+* Add rest_framework utils
+
+0.3.0 (2018-01-26)
+------------------
+
+* Enforce Python 3.4 >= only in setup.py.
+* Add PublishExpireMixin and PublishExpireQuerySet.
+
+0.2.1 (2018-01-24)
+------------------
+
+* Re-upload to PyPI with an all lowercase name.
+
+0.2.0 (2018-01-24)
+------------------
+
+* Add AutoIntVersionAdmin.
+
+0.1.0 (2018-01-22)
+------------------
+
+* Add SoftDeletionMixin.
+* Add AutoIntVersionMixin and AutoIntVersionField.
+* Add CreatedUpdatedMixin, CreatedUpdatedSerializer and CreatedUpdatedAdmin.
+* Add exception utils: raise_truthy, raise_falsey, raise_none.
+* Add testing.client.JSONClient.
+
+0.0.0 (2018-01-12)
+------------------
+
+* Initial commit.
+
+
