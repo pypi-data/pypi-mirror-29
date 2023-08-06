@@ -1,0 +1,233 @@
+- job:
+    name: openstacksdk-tox-py27-tips
+    parent: openstack-tox-py27
+    description: |
+      Run tox python 27 unittests against master of important libs
+    vars:
+      tox_install_siblings: true
+    # openstacksdk in required-projects so that os-client-config
+    # and keystoneauth can add the job as well
+    required-projects:
+      - openstack-infra/shade
+      - openstack/keystoneauth
+      - openstack/os-client-config
+      - openstack/python-openstacksdk
+
+- job:
+    name: openstacksdk-tox-py35-tips
+    parent: openstack-tox-py35
+    description: |
+      Run tox python 35 unittests against master of important libs
+    vars:
+      tox_install_siblings: true
+    # openstacksdk in required-projects so that osc and keystoneauth
+    # can add the job as well
+    required-projects:
+      - openstack-infra/shade
+      - openstack/keystoneauth
+      - openstack/os-client-config
+      - openstack/python-openstacksdk
+
+- project-template:
+    name: openstacksdk-tox-tips
+    check:
+      jobs:
+        - openstacksdk-tox-py27-tips
+        - openstacksdk-tox-py35-tips
+    gate:
+      jobs:
+        - openstacksdk-tox-py27-tips
+        - openstacksdk-tox-py35-tips
+
+- job:
+    name: openstacksdk-functional-devstack-base
+    parent: devstack-tox-functional-consumer
+    description: |
+      Base job for devstack-based functional tests
+    post-run: playbooks/devstack/post.yaml
+    required-projects:
+      # These jobs will DTRT when openstacksdk triggers them, but we want to
+      # make sure stable branches of openstacksdk never get cloned by other
+      # people, since stable branches of openstacksdk are, well, not actually
+      # things.
+      - name: openstack-infra/shade
+        override-branch: master
+      - name: openstack/python-openstacksdk
+        override-branch: master
+      - name: openstack/os-client-config
+        override-branch: master
+      - name: openstack/heat
+      - name: openstack/swift
+    timeout: 9000
+    vars:
+      devstack_local_conf:
+        post-config:
+          $CINDER_CONF:
+            DEFAULT:
+              osapi_max_limit: 6
+      devstack_services:
+        s-account: true
+        s-container: true
+        s-object: true
+        s-proxy: true
+      devstack_plugins:
+        heat: https://git.openstack.org/openstack/heat
+      tox_environment:
+        # Do we really need to set this? It's cargo culted
+        PYTHONUNBUFFERED: 'true'
+        # Is there a way we can query the localconf variable to get these
+        # rather than setting them explicitly?
+        OPENSTACKSDK_HAS_DESIGNATE: 0
+        OPENSTACKSDK_HAS_HEAT: 1
+        OPENSTACKSDK_HAS_MAGNUM: 0
+        OPENSTACKSDK_HAS_NEUTRON: 1
+        OPENSTACKSDK_HAS_SWIFT: 1
+      tox_install_siblings: false
+      tox_envlist: functional
+      zuul_work_dir: src/git.openstack.org/openstack/python-openstacksdk
+
+- job:
+    name: openstacksdk-functional-devstack-legacy
+    parent: openstacksdk-functional-devstack-base
+    description: |
+      Run openstacksdk functional tests against a legacy devstack
+    voting: false
+    vars:
+      devstack_localrc:
+        ENABLE_IDENTITY_V2: true
+        FLAT_INTERFACE: br_flat
+        PUBLIC_INTERFACE: br_pub
+      tox_environment:
+        OPENSTACKSDK_USE_KEYSTONE_V2: 1
+        OPENSTACKSDK_HAS_NEUTRON: 0
+    override-branch: stable/newton
+
+- job:
+    name: openstacksdk-functional-devstack
+    parent: openstacksdk-functional-devstack-base
+    description: |
+      Run openstacksdk functional tests against a master devstack
+    required-projects:
+      - openstack/octavia
+    vars:
+      devstack_localrc:
+        Q_SERVICE_PLUGIN_CLASSES: qos
+        Q_ML2_PLUGIN_EXT_DRIVERS: qos,port_security
+        DISABLE_AMP_IMAGE_BUILD: True
+      devstack_local_conf:
+        post-config:
+          $OCTAVIA_CONF:
+            DEFAULT:
+              debug: True
+            controller_worker:
+              amphora_driver: amphora_noop_driver
+              compute_driver: compute_noop_driver
+              network_driver: network_noop_driver
+            certificates:
+              cert_manager: local_cert_manager
+      devstack_plugins:
+        octavia: https://git.openstack.org/openstack/octavia
+      devstack_services:
+        octavia: true
+        o-api: true
+        o-cw: true
+        o-hm: true
+        o-hk: true
+        neutron-qos: true
+      tox_environment:
+        OPENSTACKSDK_HAS_OCTAVIA: 1
+
+- job:
+    name: openstacksdk-functional-devstack-python3
+    parent: openstacksdk-functional-devstack
+    description: |
+      Run openstacksdk functional tests using python3 against a master devstack
+    vars:
+      tox_environment:
+        OPENSTACKSDK_TOX_PYTHON: python3
+
+- job:
+    name: openstacksdk-functional-devstack-tips
+    parent: openstacksdk-functional-devstack
+    description: |
+      Run openstacksdk functional tests with tips of library dependencies
+      against a master devstack.
+    required-projects:
+      - openstack-infra/shade
+      - openstack/keystoneauth
+      - openstack/os-client-config
+      - openstack/python-openstacksdk
+    vars:
+      tox_install_siblings: true
+
+- job:
+    name: openstacksdk-functional-devstack-tips-python3
+    parent: openstacksdk-functional-devstack-tips
+    description: |
+      Run openstacksdk functional tests with tips of library dependencies using
+      python3 against a master devstack.
+    vars:
+      tox_environment:
+        OPENSTACKSDK_TOX_PYTHON: python3
+
+- job:
+    name: openstacksdk-functional-devstack-magnum
+    parent: openstacksdk-functional-devstack
+    description: |
+      Run openstacksdk functional tests against a master devstack with magnum
+    required-projects:
+      - openstack/magnum
+      - openstack/python-magnumclient
+    vars:
+      devstack_plugins:
+        magnum: https://git.openstack.org/openstack/magnum
+      devstack_localrc:
+        MAGNUM_GUEST_IMAGE_URL: https://tarballs.openstack.org/magnum/images/fedora-atomic-f23-dib.qcow2
+        MAGNUM_IMAGE_NAME: fedora-atomic-f23-dib
+      devstack_services:
+        s-account: false
+        s-container: false
+        s-object: false
+        s-proxy: false
+      tox_environment:
+        OPENSTACKSDK_HAS_SWIFT: 0
+        OPENSTACKSDK_HAS_MAGNUM: 1
+
+- project-template:
+    name: openstacksdk-functional-tips
+    check:
+      jobs:
+        - openstacksdk-functional-devstack-tips
+        - openstacksdk-functional-devstack-tips-python3
+    gate:
+      jobs:
+        - openstacksdk-functional-devstack-tips
+        - openstacksdk-functional-devstack-tips-python3
+
+- project:
+    templates:
+      - openstacksdk-functional-tips
+      - openstacksdk-tox-tips
+      - osc-tox-unit-tips
+      - shade-functional-tips
+      - shade-tox-tips
+    check:
+      jobs:
+        - build-openstack-sphinx-docs:
+            vars:
+              sphinx_python: python3
+        - openstacksdk-functional-devstack
+        - openstacksdk-functional-devstack-magnum:
+            voting: false
+        - openstacksdk-functional-devstack-python3
+        - osc-functional-devstack-tips:
+            voting: false
+        - neutron-grenade
+    gate:
+      jobs:
+        - build-openstack-sphinx-docs:
+            vars:
+              sphinx_python: python3
+        - openstacksdk-functional-devstack
+        - openstacksdk-functional-devstack-python3
+        - neutron-grenade
