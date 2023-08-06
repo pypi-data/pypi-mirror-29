@@ -1,0 +1,107 @@
+perfplot
+========
+
+|CircleCI| |codecov| |Codacy grade| |PyPi Version| |GitHub stars|
+
+perfplot extends Python's
+`timeit <https://docs.python.org/3/library/timeit.html>`__ by testing
+snippets with input parameters (e.g., the size of an array) and plotting
+the results. (By default, perfplot asserts the equality of the output of
+all snippets, too.)
+
+For example, to compare different NumPy array concatenation methods, the
+script
+
+.. code:: python
+
+    import numpy
+    import perfplot
+
+    perfplot.show(
+        setup=numpy.random.rand,
+        kernels=[
+            lambda a: numpy.c_[a, a],
+            lambda a: numpy.stack([a, a]).T,
+            lambda a: numpy.vstack([a, a]).T,
+            lambda a: numpy.column_stack([a, a]),
+            lambda a: numpy.concatenate([a[:, None], a[:, None]], axis=1)
+            ],
+        labels=['c_', 'stack', 'vstack', 'column_stack', 'concat'],
+        n_range=[2**k for k in range(15)],
+        xlabel='len(a)'
+        )
+
+produces
+
+.. figure:: https://nschloe.github.io/perfplot/concat.png
+   :alt: 
+
+Clearly, ``stack`` and ``vstack`` are the best options for large arrays.
+
+Other examples:
+
+-  `Making a flat list out of list of lists in
+   Python <https://stackoverflow.com/a/45323085/353337>`__
+-  `Most efficient way to map function over numpy
+   array <https://stackoverflow.com/a/46470401/353337>`__
+-  `numpy: most efficient frequency counts for unique values in an
+   array <https://stackoverflow.com/a/43096495/353337>`__
+-  `Most efficient way to reverse a numpy
+   array <https://stackoverflow.com/a/44921013/353337>`__
+-  `How to add an extra column to an numpy
+   array <https://stackoverflow.com/a/40218298/353337>`__
+-  `Initializing numpy matrix to something other than zero or
+   one <https://stackoverflow.com/a/45006691/353337>`__
+
+Installation
+~~~~~~~~~~~~
+
+perfplot is `available from the Python Package
+Index <https://pypi.python.org/pypi/perfplot/>`__, so simply do
+
+::
+
+    pip install -U perfplot
+
+to install or upgrade.
+
+Testing
+~~~~~~~
+
+To run the perfplot unit tests, check out this repository and type
+
+::
+
+    pytest
+
+Distribution
+~~~~~~~~~~~~
+
+To create a new release
+
+1. bump the ``__version__`` number,
+
+2. publish to PyPi and tag on GitHub:
+
+   ::
+
+       $ make publish
+
+License
+~~~~~~~
+
+perfplot is published under the `MIT
+license <https://en.wikipedia.org/wiki/MIT_License>`__.
+
+.. |CircleCI| image:: https://img.shields.io/circleci/project/github/nschloe/perfplot/master.svg
+   :target: https://circleci.com/gh/nschloe/perfplot/tree/master
+.. |codecov| image:: https://img.shields.io/codecov/c/github/nschloe/perfplot.svg
+   :target: https://codecov.io/gh/nschloe/perfplot
+.. |Codacy grade| image:: https://img.shields.io/codacy/grade/32994ce499db42059777d42edcfce900.svg
+   :target: https://app.codacy.com/app/nschloe/perfplot/dashboard
+.. |PyPi Version| image:: https://img.shields.io/pypi/v/perfplot.svg
+   :target: https://pypi.python.org/pypi/perfplot
+.. |GitHub stars| image:: https://img.shields.io/github/stars/nschloe/perfplot.svg?style=social&label=Stars
+   :target: https://github.com/nschloe/perfplot
+
+
