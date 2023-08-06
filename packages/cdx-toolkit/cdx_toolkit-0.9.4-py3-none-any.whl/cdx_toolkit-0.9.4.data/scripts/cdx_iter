@@ -1,0 +1,106 @@
+#!/home/lindahl/.pyenv/versions/3.6.4/bin/python
+
+import os
+import logging
+import argparse
+import json
+import csv
+import sys
+
+import cdx_toolkit
+
+loglevel = os.getenv('LOGLEVEL') or 'INFO'
+logging.basicConfig(level=loglevel)
+
+ARGS = argparse.ArgumentParser(description='cdx_toolkit iterator command line tool')
+ARGS.add_argument('--cc', action='store_true', help='direct the query to the Common Crawl CDX server')
+ARGS.add_argument('--ia', action='store_true', help='direct the query to the Internet Archive CDX server')
+ARGS.add_argument('--source', action='store', help='direct the query to this URL')
+ARGS.add_argument('--limit', type=int, action='store')
+ARGS.add_argument('--cc-sort', action='store', help='default mixed, alternatively: ascending')
+ARGS.add_argument('--from', action='store')
+ARGS.add_argument('--to', action='store')
+ARGS.add_argument('--filter', action='store', help='see CDX API documentation for usage')
+ARGS.add_argument('--all-fields', action='store_true')
+ARGS.add_argument('--fields', action='store', default='url,status,timestamp', help='try --all-fields if you need the list')
+ARGS.add_argument('--jsonl', action='store_true')
+ARGS.add_argument('--csv', action='store_true')
+ARGS.add_argument('--get', action='store_true', help='use a single get instead of a paged iteration')
+ARGS.add_argument('--closest', action='store')  # this is a get() thing, not an iter thing
+ARGS.add_argument('url')
+
+args = ARGS.parse_args()
+
+if not args.url:
+    raise ValueError('must specify an url to iterate, example: commoncrawl.org/*')
+
+if args.cc:
+    kwargs = {}
+    if args.cc_sort:
+        kwargs['cc_sort'] = args.cc_sort
+    cdx = cdx_toolkit.CDXFetcher(source='cc', **kwargs)
+elif args.ia:
+    cdx = cdx_toolkit.CDXFetcher(source='ia')
+elif args.source:
+    cdx = cdx_toolkit.CDXFetcher(source=args.source)
+else:
+    raise ValueError('must specify --cc, --ia, or a --source')
+
+fields = set(args.fields.split(','))
+
+fields_to_cc = {'statuscode': 'status', 'original': 'url'}
+
+if args.csv:
+    writer = csv.DictWriter(sys.stdout, fieldnames=sorted(list(fields)))
+    writer.writeheader()
+
+kwargs = {}
+if args.limit:
+    kwargs['limit'] = args.limit
+if 'from' in vars(args) and vars(args)['from']:  # python, uh, from is a reserved word
+    kwargs['from_ts'] = vars(args)['from']
+if args.to:
+    kwargs['to'] = args.to
+if args.closest:
+    if not args.get:
+        print('note: --closest works best with --get', file=sys.stderr)
+    kwargs['closest'] = args.closest
+if args.filter:
+    kwargs['filter'] = args.filter
+
+
+def rename_fields(obj):
+    try:
+        if args.ia or args.source:
+            for k, v in fields_to_cc.items():
+                if k in obj:
+                    obj[v] = obj[k]
+                    del obj[k]
+        if args.all_fields:
+            printme = obj
+        else:
+            printme = dict([(k, obj[k]) for k in fields if k in obj])
+    except KeyError:
+        print('Missing field, fields are {!r} and object is {!r}'.format(fields, obj))
+        raise
+    return printme
+
+
+def print_line(printme):
+    if args.jsonl:
+        print(json.dumps(printme, sort_keys=True))
+    elif args.csv:
+        writer.writerow(printme)
+    else:
+        print(', '.join([' '.join((k, printme[k])) for k in sorted(printme.keys())]))
+
+
+if args.get:
+    objs = cdx.get(args.url, **kwargs)
+    for obj in objs:
+        printme = rename_fields(obj)
+        print_line(printme)
+
+for obj in cdx.items(args.url, **kwargs):
+    printme = rename_fields(obj)
+    print_line(printme)
