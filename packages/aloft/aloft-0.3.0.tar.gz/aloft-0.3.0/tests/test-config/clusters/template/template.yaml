@@ -1,0 +1,115 @@
+apiVersion: kops/v1alpha2
+kind: Cluster
+metadata:
+  name: {{ .clusterFQDN }}
+spec:
+  kubeAPIServer:
+    admissionControl:
+    - Initializers
+    - NamespaceLifecycle
+    - LimitRanger
+    - ServiceAccount
+    - PersistentVolumeLabel
+    - DefaultStorageClass
+    - DefaultTolerationSeconds
+    - NodeRestriction
+    - Priority
+    - ResourceQuota
+    runtimeConfig:
+      admissionregistration.k8s.io/v1alpha1: "true"
+  api:
+    loadBalancer:
+      type: Internal
+  authorization:
+    alwaysAllow: {}
+  channel: stable
+  cloudProvider: aws
+  configBase: {{ .kopsStateStore }}/{{ .clusterFQDN }}
+  dnsZone: {{ .clusterFQDN }}
+  etcdClusters:
+  - etcdMembers:
+    {{- range $index, $value := .masters.spec.zones }}
+    - instanceGroup: master-{{ $value }}
+      name: m{{ $index }}
+      encryptedVolume: true
+    {{- end }}
+    name: main
+  - etcdMembers:
+    {{- range $index, $value := .masters.spec.zones }}
+    - instanceGroup: master-{{ $value }}
+      name: m{{ $index }}
+      encryptedVolume: true
+    {{- end }}
+    name: events
+  kubernetesApiAccess:
+  - 172.16.0.0/12
+  - 10.0.0.0/8
+  - 192.168.0.0/16
+  kubernetesVersion: {{ .kubernetesVersion }}
+  masterInternalName: api.internal.{{ .clusterFQDN }}
+  masterPublicName: api.{{ .clusterFQDN }}
+  networkId: {{ .networkId }}
+  networking:
+    calico: {}
+  nonMasqueradeCIDR: 100.64.0.0/10
+  sshAccess:
+  - 172.16.0.0/12
+  - 10.0.0.0/8
+  - 192.168.0.0/16
+  subnets:
+  {{- range $index, $value := .cluster.spec.subnets.privateSubnets }}
+  - type: Private
+    name: {{ $value.zone }}
+    cidr: {{ $value.cidr }}
+    zone: {{ $value.zone }}
+  {{- end }}
+
+  {{- range $index, $value := .cluster.spec.subnets.publicSubnets }}
+  - type: Utility
+    name: utility-{{ $value.zone }}
+    cidr: {{ $value.cidr }}
+    zone: {{ $value.zone }}
+  {{- end }}
+  topology:
+    dns:
+      type: Public
+    masters: private
+    nodes: private
+
+---
+{{ $clusterFQDN := .clusterFQDN }}
+{{ $mastersSpec := .masters.spec }}
+{{- range $index, $value := $mastersSpec.zones }}
+apiVersion: kops/v1alpha2
+kind: InstanceGroup
+metadata:
+  labels:
+    kops.k8s.io/cluster: {{ $clusterFQDN }}
+  name: master-{{ $value }}
+spec:
+  image: {{ $mastersSpec.image }}
+  machineType: {{ $mastersSpec.machineType }}
+  minSize: {{ $mastersSpec.minSize }}
+  maxSize: {{ $mastersSpec.maxSize }}
+  role: Master
+  subnets:
+  - {{ $value }}
+---
+{{- end }}
+
+apiVersion: kops/v1alpha2
+kind: InstanceGroup
+metadata:
+  labels:
+    kops.k8s.io/cluster: {{ .clusterFQDN }}
+  name: nodes
+spec:
+  image: {{ .nodes.spec.image }}
+  machineType: {{ .nodes.spec.machineType }}
+  minSize: {{ .nodes.spec.minSize }}
+  maxSize: {{ .nodes.spec.maxSize }}
+  role: Node
+  subnets:
+  {{- range $index, $value := .nodes.spec.zones }}
+  - {{ $value }}
+  {{- end }}
