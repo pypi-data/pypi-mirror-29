@@ -1,0 +1,769 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+""" TcEx Framework App Testing Module """
+import argparse
+import json
+import os
+import platform
+import re
+import sys
+import subprocess
+import tempfile
+import time
+import traceback
+
+import colorama as c
+
+# Python 2 unicode
+if sys.version_info[0] == 2:
+    reload(sys)
+    sys.setdefaultencoding('utf-8')
+
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    '--config', default='tcex.json', help='The configuration file. (default: "tcex.json")')
+parser.add_argument(
+    '--clear', action='store_true', help='Clear Redis data before running.')
+parser.add_argument(
+    '--halt_on_fail', action='store_true', help='Halt on any failure.')
+parser.add_argument(
+    '--group', default=None, help='The group of profiles to executed.')
+parser.add_argument(
+    '--profile', default='default', help='The profile to be executed. (default: "default")')
+parser.add_argument(
+    '--quiet', action='store_true', help='Suppress output.')
+parser.add_argument(
+    '--report', help='The JSON report filename.')
+parser.add_argument(
+    '--show_commands', action='store_true', help='Show staging and validation commands.')
+parser.add_argument(
+    '--unmask', action='store_true', help='Unmask masked args.')
+args, extra_args = parser.parse_known_args()
+
+
+# TODO: Clean this up when time allows
+class TcRun(object):
+    """Run profiles for App"""
+
+    def __init__(self, arg_data):
+        """ """
+        self._args = arg_data
+        self.app_path = os.getcwd()
+        self.config = {}
+        self.exit_code = 0
+        self.json_report = {}
+        self.sleep = 1
+        # data from install.json
+        self.display_name = None
+        self.program_language = 'python'
+        self.program_main = None
+        self.program_version = None
+        self.runtime_level = None
+
+        self.shell = False
+        if platform.system() == 'Windows':
+            self.shell = True
+
+        # initialize colorama
+        c.init(autoreset=True, strip=False)
+
+    def _load_config(self):
+        """Load the configuration file."""
+        if not os.path.isfile(self._args.config):
+            msg = 'Provided config file does not exist ({}).'.format(self._args.config)
+            sys.exit(msg)
+
+        print('Configuration File: {}{}{}'.format(c.Style.BRIGHT, c.Fore.CYAN, args.config))
+        with open(self._args.config) as data_file:
+            config = json.load(data_file)
+
+        # load includes
+        for directory in config.get('profile_include_dirs', []):
+            config.setdefault('profiles', []).extend(self._load_config_include(directory))
+
+        self.config = config
+
+    def _load_install_json(self, config_file):
+        """Load the install.json configuration file."""
+        install_json = {}
+        load_output = 'Load install.json: {}{}{}{}'.format(
+            c.Style.BRIGHT, c.Fore.CYAN, config_file, c.Style.RESET_ALL)
+        if config_file is not None and os.path.isfile(config_file):
+            with open(config_file) as config_data:
+                install_json = json.load(config_data)
+            load_output += ' {}{}(Loaded){}'.format(
+                c.Style.BRIGHT, c.Fore.GREEN, c.Style.RESET_ALL)
+        else:
+            load_output += ' {}{}(Not Found){}'.format(
+                c.Style.BRIGHT, c.Fore.YELLOW, c.Style.RESET_ALL)
+
+        # display load status
+        print(load_output)
+
+        self.display_name = install_json.get('displayName')
+        self.program_language = install_json.get('programLanguage', 'python').lower()
+        self.program_main = install_json.get('programMain')
+        self.program_version = install_json.get('programVersion')
+        self.runtime_level = install_json.get('runtimeLevel')
+        # self.install_json = install_json
+
+    def _load_config_include(self, include_directory):
+        """Load included configuration files."""
+        include_directory = os.path.join(self.app_path, include_directory)
+        if not os.path.isdir(include_directory):
+            msg = 'Provided include directory does not exist ({}).'.format(include_directory)
+            sys.exit(msg)
+
+        profiles = []
+        for file in sorted(os.listdir(include_directory)):
+            if file.endswith('.json'):
+                print('Include File: {}{}{}'.format(c.Style.BRIGHT, c.Fore.MAGENTA, file))
+                config_file = os.path.join(include_directory, file)
+                with open(config_file) as data_file:
+                    try:
+                        profiles.extend(json.load(data_file))
+                    except ValueError as e:
+                        print('Invalid JSON file: {}{}{}'.format(c.Style.BRIGHT, c.Fore.RED, e))
+                        sys.exit(1)
+
+        return profiles
+
+    def parameters(self, arg_data):
+        """Wrapper around Java and Python parameter methods"""
+        if self.program_language == 'java':
+            return self.parameters_java(arg_data)
+        elif self.program_language == 'python':
+            return self.parameters_python(arg_data)
+
+    def parameters_python(self, arg_data):
+        """Build CLI arguments to pass to script on the command line.
+
+        This method takes the json data and covert it to CLI args for the execution
+        of the script.
+
+        Returns:
+            (dict): A dictionary that should be converted to CLI Args
+        """
+        parameters = []
+        parameters_masked = []
+        for config_key, config_val in arg_data.items():
+            if isinstance(config_val, bool):
+                if config_val:
+                    parameters.append('--{}'.format(config_key))
+                    parameters_masked.append('--{}'.format(config_key))
+            elif isinstance(config_val, list):
+                # TODO: support env vars in list w/masked values
+                for val in config_val:
+                    parameters.append('--{}'.format(config_key))
+                    parameters_masked.append('--{}'.format(config_key))
+                    # val
+                    parameters.append('{}'.format(val))
+                    parameters_masked.append('{}'.format(self.quoted(val)))
+            elif isinstance(config_val, dict):
+                msg = 'Error: Dictionary types are not currently supported for field {}'
+                msg.format(config_val)
+                print('{}{}{}'.format(c.Style.BRIGHT, c.Fore.RED, msg))
+                sys.exit(1)
+            else:
+                mask = False
+                env_var = re.compile(r'^\$env\.(.*)$')
+                envs_var = re.compile(r'^\$envs\.(.*)$')
+
+                if env_var.match(str(config_val)):
+                    # read value from environment variable
+                    env_key = env_var.match(str(config_val)).groups()[0]
+                    config_val = os.environ.get(env_key, config_val)
+                elif envs_var.match(str(config_val)):
+                    # read secure value from environment variable
+                    env_key = envs_var.match(str(config_val)).groups()[0]
+                    config_val = os.environ.get(env_key, config_val)
+                    mask = True
+
+                parameters.append('--{}'.format(config_key))
+                parameters_masked.append('--{}'.format(config_key))
+                parameters.append('{}'.format(config_val))
+                if mask and not self._args.unmask:
+                    config_val = 'x' * len(str(config_val))
+                    parameters_masked.append('{}'.format(config_val))
+                else:
+                    parameters_masked.append('{}'.format(self.quoted(config_val)))
+        return {
+            'masked': parameters_masked,
+            'unmasked': parameters
+        }
+
+    def parameters_java(self, arg_data):
+        """Build CLI arguments to pass to Java App on the command line.
+
+        This method takes the json data and covert it to CLI args for the execution
+        of the script.
+
+        Returns:
+            (dict): A dictionary that should be converted to CLI Args
+        """
+        parameters = []
+        parameters_masked = []
+        for config_key, config_val in arg_data.items():
+            if isinstance(config_val, bool):
+                arg = '{}{}={}'.format('-D', config_key, int(config_val))
+                parameters.append(arg)
+                parameters_masked.append(arg)
+            elif isinstance(config_val, list):
+                # TODO: support env vars in list w/masked values
+                for val in config_val:
+                    arg = '{}{}={}'.format('-D', config_key, val)
+                    arg_quoted = '{}{}={}'.format('-D', config_key, self.quoted(val))
+                    parameters.append(arg)
+                    parameters_masked.append(arg_quoted)
+            elif isinstance(config_val, dict):
+                msg = 'Error: Dictionary types are not currently supported for field {}'
+                msg.format(config_val)
+                print('{}{}{}'.format(c.Style.BRIGHT, c.Fore.RED, msg))
+                sys.exit(1)
+            else:
+                mask = False
+                env_var = re.compile(r'^\$env\.(.*)$')
+                envs_var = re.compile(r'^\$envs\.(.*)$')
+
+                if env_var.match(str(config_val)):
+                    # read value from environment variable
+                    env_key = env_var.match(str(config_val)).groups()[0]
+                    config_val = os.environ.get(env_key, config_val)
+                elif envs_var.match(str(config_val)):
+                    # read secure value from environment variable
+                    env_key = envs_var.match(str(config_val)).groups()[0]
+                    config_val = os.environ.get(env_key, config_val)
+                    mask = True
+
+                arg = '{}{}={}'.format('-D', config_key, config_val)
+                arg_quoted = '{}{}={}'.format('-D', config_key, self.quoted(config_val))
+                if mask and not self._args.unmask:
+                    config_val = 'x' * len(str(config_val))
+                    arg_quoted = '{}{}={}'.format('-D', config_key, config_val)
+                else:
+                    arg_quoted = '{}{}={}'.format('-D', config_key, self.quoted(config_val))
+                parameters.append(arg)
+                parameters_masked.append(arg_quoted)
+
+        return {
+            'masked': parameters_masked,
+            'unmasked': parameters
+        }
+
+    @staticmethod
+    def data_args(arg_data):
+        """Get just the args required for data services"""
+        return {
+            'api_access_id': arg_data.get('api_access_id'),
+            'api_secret_key': arg_data.get('api_secret_key'),
+            'tc_log_level': arg_data.get('tc_log_level', arg_data.get('logging', 'debug')),
+            'tc_api_path': arg_data.get('tc_api_path'),
+            'tc_log_file': 'data.log',
+            'tc_log_path': arg_data.get('tc_log_path'),
+            'tc_out_path': arg_data.get('tc_out_path'),
+            'tc_playbook_db_context': arg_data.get('tc_playbook_db_context'),
+            'tc_playbook_db_path': arg_data.get('tc_playbook_db_path'),
+            'tc_playbook_db_port': arg_data.get('tc_playbook_db_port'),
+            'tc_playbook_db_type': arg_data.get('tc_playbook_db_type'),
+            'tc_temp_path': arg_data.get('tc_temp_path')
+        }
+
+    def clear_data(self, profile):
+        """Clear data from previous runs."""
+
+        arg_data = self.data_args(profile.get('args'))
+        data_owner = profile.get('data_owner')
+        parameters = self.parameters_python(arg_data)
+        output_variables = profile.get('args', {}).get('tc_playbook_out_variables', '').split(',')
+
+        #
+        # clear validation data
+        #
+
+        data = []
+        for variable in output_variables:
+            data.append({
+                'data': None,
+                'data_type': 'redis',
+                'variable': variable
+            })
+            print('Clearing Variables: {}{}{}'.format(c.Style.BRIGHT, c.Fore.MAGENTA, variable))
+
+        # delete is handled below.
+        with tempfile.NamedTemporaryFile(mode='w', delete=False) as f:
+            f.write(json.dumps(data))
+            f.flush()
+
+        command = [
+            'tcdata',
+            '--data_file',
+            f.name,
+            '--action',
+            'clear'
+        ]
+        if data_owner is not None:
+            command.append('--data_owner')
+            command.append(data_owner)
+        exe_command = command + parameters.get('unmasked')
+
+        # display command being run
+        if self._args.show_commands:
+            print_command = ' '.join(command + parameters.get('masked'))
+            print('Executing: {}{}{}'.format(c.Style.BRIGHT, c.Fore.GREEN, print_command))
+
+        p = subprocess.Popen(
+            exe_command, shell=self.shell, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE)
+        out, err = p.communicate()
+
+        if p.returncode != 0:
+            print('{}{}Failed removing variables'.format(
+                c.Style.BRIGHT, c.Fore.RED))
+            if err is not None and err:
+                print('{}{}{}'.format(c.Style.BRIGHT, c.Fore.RED, err))
+            sys.exit(p.returncode)
+
+        # cleanup temp file
+        if os.path.isfile(f.name):
+            os.remove(f.name)
+
+        #
+        # clear previously staged data
+        #
+
+        for file in profile.get('data_files', []):
+            if os.path.isfile(file):
+                print('Clearing Data: {}{}{}'.format(c.Style.BRIGHT, c.Fore.MAGENTA, file))
+
+                command = [
+                    'tcdata',
+                    '--data_file',
+                    file,
+                    '--action',
+                    'clear',
+                ]
+                if data_owner is not None:
+                    command.append('--data_owner')
+                    command.append(data_owner)
+                exe_command = command + parameters.get('unmasked')
+
+                # display command being run
+                if self._args.show_commands:
+                    print_command = ' '.join(command + parameters.get('masked'))
+                    print('Executing: {}{}{}'.format(c.Style.BRIGHT, c.Fore.GREEN, print_command))
+
+                p = subprocess.Popen(
+                    exe_command, shell=self.shell, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE)
+                out, err = p.communicate()
+
+                if p.returncode != 0:
+                    print('{}{}Failed to clear data for file {}.'.format(
+                        c.Style.BRIGHT, c.Fore.RED, file))
+                    if err is not None and err:
+                        print('{}{}{}'.format(c.Style.BRIGHT, c.Fore.RED, err))
+                    sys.exit(p.returncode)
+            else:
+                print('{}{}Could not find file {}.'.format(
+                    c.Style.BRIGHT, c.Fore.RED, file))
+                sys.exit(1)
+
+    def stage_data(self, profile):
+        """Stage any required data."""
+
+        arg_data = self.data_args(profile.get('args'))
+        data_owner = profile.get('data_owner')
+        parameters = self.parameters_python(arg_data)
+
+        for file in profile.get('data_files', []):
+            if os.path.isfile(file):
+                print('Staging Data: {}{}{}'.format(c.Style.BRIGHT, c.Fore.MAGENTA, file))
+                # fqfp = os.path.join(self.app_path, file)
+
+                command = [
+                    'tcdata',
+                    '--data_file',
+                    file,
+                    '--action',
+                    'stage',
+                ]
+                if data_owner is not None:
+                    command.append('--data_owner')
+                    command.append(data_owner)
+                exe_command = command + parameters.get('unmasked')
+
+                # display command being run
+                if self._args.show_commands:
+                    print_command = ' '.join(command + parameters.get('masked'))
+                    print('Executing: {}{}{}'.format(c.Style.BRIGHT, c.Fore.GREEN, print_command))
+
+                p = subprocess.Popen(
+                    exe_command, shell=self.shell, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE)
+                out, err = p.communicate()
+
+                if p.returncode != 0:
+                    print('{}{}Failed to stage data for file {}.'.format(
+                        c.Style.BRIGHT, c.Fore.RED, file))
+                    if err is not None and err:
+                        print('{}{}{}'.format(c.Style.BRIGHT, c.Fore.RED, err))
+                    sys.exit(p.returncode)
+            else:
+                print('{}{}Could not find file {}.'.format(
+                    c.Style.BRIGHT, c.Fore.RED, file))
+                sys.exit(1)
+
+    def validate_data(self, profile):
+        """Stage any required data."""
+
+        passed = True
+        arg_data = self.data_args(profile.get('args'))
+        # data_owner = profile.get('data_owner')
+        parameters = self.parameters_python(arg_data)
+
+        v_data = profile.get('validations', [])
+        if v_data:
+            variables = ', '.join([d.get('variable') for d in v_data])
+            print('Validating Variables: {}{}{}'.format(c.Style.BRIGHT, c.Fore.CYAN, variables))
+            # due to windows limitations the temp file can't be accessed while another program has
+            # the file opened. current logic creates the tempfile and does not delete on close. the
+            # delete is handled below.
+            with tempfile.NamedTemporaryFile(mode='w', delete=False) as f:
+                f.write(json.dumps(v_data))
+                f.flush()
+
+            command = [
+                'tcdata',
+                '--data_file',
+                f.name,
+                '--action',
+                'validate'
+            ]
+            # if data_owner is not None:
+            #     command.append('--data_owner')
+            #     command.append(data_owner)
+            exe_command = command + parameters.get('unmasked')
+
+            # display command being run
+            if self._args.show_commands:
+                print_command = ' '.join(command + parameters.get('masked'))
+                print('Executing: {}{}{}'.format(c.Style.BRIGHT, c.Fore.GREEN, print_command))
+
+            p = subprocess.Popen(
+                exe_command, shell=self.shell, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE)
+            out, err = p.communicate()
+
+            if p.returncode != 0:
+                passed = False
+                print('{}{}Failed variable validation.'.format(
+                    c.Style.BRIGHT, c.Fore.RED))
+                if err is not None and err:
+                    print('{}{}{}'.format(c.Style.BRIGHT, c.Fore.RED, err))
+                if args.halt_on_fail:
+                    sys.exit(p.returncode)
+
+            # cleanup temp file
+            if os.path.isfile(f.name):
+                os.remove(f.name)
+
+        return passed
+
+    @staticmethod
+    def _create_tc_dirs(profile):
+        """Create app directories for logs and data files."""
+        tc_log_path = profile.get('args', {}).get('tc_log_path')
+        if tc_log_path is not None and not os.path.isdir(tc_log_path):
+            os.makedirs(tc_log_path)
+        tc_out_path = profile.get('args', {}).get('tc_out_path')
+        if tc_out_path is not None and not os.path.isdir(tc_out_path):
+            os.makedirs(tc_out_path)
+        tc_tmp_path = profile.get('args', {}).get('tc_tmp_path')
+        if tc_tmp_path is not None and not os.path.isdir(tc_tmp_path):
+            os.makedirs(tc_tmp_path)
+
+    def run(self):
+        """Run the App using the defined config."""
+        # load tc config
+        self._load_config()
+        self.json_report = {
+            'profiles': [],
+            'run_config': {
+                'provided_group': self._args.group,
+                'provided_profile': self._args.profile,
+                'selected_profiles': []
+            }
+        }
+
+        # get all selected profiles
+        selected_profiles = []
+        for config in self.config.get('profiles'):
+            profile_name = config.get('profile_name')
+            profile_selected = False
+            report_profile = {
+                'description': config.get('description'),
+                'valid_exit_codes': config.get('exit_codes'),
+                'groups': config.get('groups', []),
+                'selected': False
+            }
+
+            if profile_name == self._args.profile:
+                profile_selected = True
+            elif config.get('group') is not None and config.get('group') == self._args.group:
+                profile_selected = True
+            elif self._args.group in config.get('groups', []):
+                profile_selected = True
+
+            if profile_selected:
+                selected_profiles.append(config)
+                report_profile['selected'] = True
+                self.json_report['run_config']['selected_profiles'].append(profile_name)
+            else:
+                # add unselected profiles
+                self.json_report['profiles'].append({
+                    profile_name: report_profile
+                })
+
+        if not selected_profiles:
+            print('{}{}No profiles selected to run.'.format(c.Style.BRIGHT, c.Fore.YELLOW))
+            sys.exit()
+
+        command_count = 0
+        reports = []
+        for sp in selected_profiles:
+            # create temp directories
+            self._create_tc_dirs(sp)
+
+            # status trackers
+            execution_success = False
+            validation_success = False
+
+            # cleanup old redis data
+            if args.clear:
+                self.clear_data(sp)
+
+            # use globally configured sleep time or per profile sleep time (default self.sleep)
+            if command_count > 0:
+                sleep = sp.get('sleep', self.config.get('sleep', self.sleep))
+                print('Sleep: {}{}{} seconds'.format(c.Style.BRIGHT, c.Fore.YELLOW, sleep))
+                time.sleep(sleep)
+
+            command_count += 1
+
+            # divider (add after sleep since sleep only runs after first profile)
+            print('{}{}'.format(c.Style.BRIGHT, '-' * 100))
+
+            # load install_json (if provided)
+            self._load_install_json(sp.get('install_json'))
+
+            # if install.json provided use programMain, otherwise use script name from tcex.json
+            # eventually install.json should be required and script will be removed from tcex.json
+            if self.program_main is not None:
+                program_main = self.program_main.replace('.py', '')
+            elif sp.get('script') is not None:
+                program_main = sp.get('script').replace('.py', '')
+            else:
+                print('{}{}No Program Main or Script defined.'.format(c.Style.BRIGHT, c.Fore.RED))
+                sys.exit(1)
+
+            # Display Output with App data
+            output = 'Profile: '
+            output += '{}{}{}{} '.format(
+                c.Style.BRIGHT, c.Fore.CYAN, sp.get('profile_name'), c.Style.RESET_ALL)
+            output += '[{}{}{}{}'.format(
+                c.Style.BRIGHT, c.Fore.MAGENTA, program_main, c.Style.RESET_ALL)
+            if self.program_version is not None:
+                output += '{}:{}'.format(
+                    c.Style.BRIGHT, c.Style.RESET_ALL)
+                output += '{}{}{}{}'.format(
+                    c.Style.BRIGHT, c.Fore.MAGENTA, self.program_version, c.Style.RESET_ALL)
+            output += ']'
+            print(output)
+            if sp.get('description'):
+                print('Description: {}{}{}'.format(
+                    c.Style.BRIGHT, c.Fore.MAGENTA, sp.get('description')))
+
+            #
+            # Stage Data
+            #
+            self.stage_data(sp)
+
+            program_filename = program_main
+            if self.program_language == 'python':
+                # for python apps append the ".py" extension to the filename
+                program_filename = '{}.py'.format(program_main)
+
+            # validate the program main file exists only for python.  for java apps the program main
+            # is not a file.
+            if self.program_language == 'python' and not os.path.isfile(program_filename):
+                print('{}{}Could not find program main file ({}).'.format(
+                    c.Style.BRIGHT, c.Fore.RED, program_filename))
+                sys.exit(1)
+
+            # build command line arguments
+            parameters = self.parameters(sp.get('args'))
+
+            # build the command
+            if self.program_language == 'python':
+                command = [
+                    sys.executable,
+                    '.',
+                    program_main
+                ]
+                exe_command = command + parameters.get('unmasked')
+                print_command = ' '.join(command + parameters.get('masked'))
+            elif self.program_language == 'java':
+                command = [
+                    self.config.get('java_path', self.program_language),
+                    '-cp',
+                    sp.get('class_path', './target/*')
+                ]
+                exe_command = command + parameters.get('unmasked') + [self.program_main]
+                print_command = ' '.join(command + parameters.get('masked') + [self.program_main])
+
+            # output command
+            print('Executing: {}{}{}'.format(c.Style.BRIGHT, c.Fore.GREEN, print_command))
+
+            #
+            # Run Command
+            #
+            p = subprocess.Popen(
+                exe_command, shell=self.shell, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE)
+            out, err = p.communicate()
+
+            #
+            # Logs
+            #
+            # log_directory = os.path.join(self.app_path, sp.get('args').get('tc_log_path'))
+            # for log_file in os.listdir(log_directory):
+            #     log_file = os.path.join(log_directory, log_file)
+            #     print('Logs: {}{}{}'.format(
+            #         self.BOLD_CYAN, log_file, self.DEFAULT))
+
+            #
+            # Script Output
+            #
+            if not sp.get('quiet') and not self._args.quiet:
+                print(self.to_string(out, 'ignore'))
+
+            #
+            # Exit Code
+            #
+            valid_exit_codes = sp.get('exit_codes', [0])
+            report_profile['exit_code'] = p.returncode
+            if p.returncode in valid_exit_codes:
+                print('App Exit Code: {}{}{}'.format(c.Style.BRIGHT, c.Fore.GREEN, p.returncode))
+                execution_success = True
+            else:
+                print('App Exit Code: {}{}{}{} (Valid Exit Codes: {})'.format(
+                    c.Style.BRIGHT, c.Fore.RED, p.returncode, c.Fore.RESET, valid_exit_codes))
+                if err is not None and err:
+                    print('{}{}{}'.format(c.Style.BRIGHT, c.Fore.RED, err))
+                self.exit_code = 1
+                if args.halt_on_fail:
+                    break
+
+            #
+            # Validate Data
+            #
+            if execution_success:
+                validation_success = self.validate_data(sp)
+
+            #
+            # Error Output
+            #
+            if err:
+                print(err.decode('utf-8'))
+
+            # updated status in report
+            reports.append({
+                'profile': sp.get('profile_name'),
+                'execution_success': execution_success,
+                'validation_success': validation_success
+            })
+            # update report
+            report_profile['execution_success'] = execution_success
+            report_profile['validation_success'] = validation_success
+            self.json_report['profiles'].append({
+                sp.get('profile_name'): report_profile
+            })
+
+        #
+        # Reports
+        #
+        if args.report:
+            with open(args.report, 'w') as outfile:
+                json.dump(self.json_report, outfile)
+
+        # on screen report
+        if reports:
+            self.report(reports)
+
+    @staticmethod
+    def report(data):
+        """Format and output report data to screen."""
+        print('\n{}{}{}'.format(c.Style.BRIGHT, c.Fore.CYAN, 'Report:'))
+        print('{0!s:<60}{1!s:<25}{2!s:<25}'.format('Profile:', 'Execution:', 'Validation:'))
+        for d in data:
+            profile = d.get('profile')
+            execution_color = c.Fore.RED
+            execution_text = 'Failed'
+            if d.get('execution_success'):
+                execution_color = c.Fore.GREEN
+                execution_text = 'Passed'
+
+            validation_color = c.Fore.RED
+            validation_text = 'Failed'
+            if d.get('validation_success'):
+                validation_color = c.Fore.GREEN
+                validation_text = 'Passed'
+
+            print('{0!s:<60}{1}{2}{3!s:<25}{4}{5!s:<25}'.format(
+                profile, c.Style.BRIGHT, execution_color, execution_text, validation_color,
+                validation_text))
+
+    @staticmethod
+    def to_string(data, errors='strict'):
+        """Covert x to string in Python 2/3
+
+        Args:
+            data (any): Data to ve validated and re-encoded
+
+        Returns:
+            (any): Return validate or encoded data
+
+        """
+        # TODO: Find better way using six or unicode_literals
+        if isinstance(data, (bytes, str)):
+            try:
+                data = unicode(data, 'utf-8', errors=errors)  # 2to3 converts unicode to str
+            except NameError:
+                data = str(data, 'utf-8', errors=errors)
+        return data
+
+    def quoted(self, data):
+        """Quote any parameters that contain spaces or special character
+
+        Returns:
+            (string): String containing parameters wrapped in double quotes
+        """
+        if self.program_language == 'python':
+            quote_char = '\''
+        elif self.program_language == 'java':
+            quote_char = '\''
+
+        if re.findall(r'[!\-\s\$]{1,}', str(data)):
+            data = '{}{}{}'.format(quote_char, data, quote_char)
+        return data
+
+
+if __name__ == '__main__':
+    try:
+        tcr = TcRun(args)
+        tcr.run()
+        sys.exit(tcr.exit_code)
+    except Exception as e:
+        # TODO: Update this, possibly raise
+        print('{}{}{}'.format(c.Style.BRIGHT, c.Fore.RED, traceback.format_exc()))
+        sys.exit(1)

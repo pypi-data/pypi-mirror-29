@@ -1,0 +1,136 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+""" TcEx Library Builder """
+import argparse
+import colorama as c
+import json
+import os
+import shutil
+import subprocess
+import sys
+import traceback
+
+# Python 2 unicode
+if sys.version_info[0] == 2:
+    reload(sys)
+    sys.setdefaultencoding('utf-8')
+
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    '--app_name', help='Fully qualified path of App.', required=False)
+parser.add_argument(
+    '--app_path', help='Fully qualified path of App.', required=False)
+parser.add_argument(
+    '--config', help='Configuration file for gen lib. (Default: tcex.json)', default='tcex.json')
+parser.add_argument(
+    '--no_cache_dir', action='store_true', help='Do not use pip cache directory.')
+args, extra_args = parser.parse_known_args()
+
+
+# TODO: Clean this up when time allows
+class TcLib(object):
+    """Install Required Modules for App"""
+
+    def __init__(self, arg_data):
+        """Init TcLib Module"""
+        self._args = arg_data
+        self.app_path = os.getcwd()
+        self.exit_code = 0
+
+        # initialize colorama
+        c.init(autoreset=True, strip=False)
+
+    def install_libs(self):
+        """Install Required Libraries using easy install."""
+        using = 'Default'
+        # default or current python version
+        lib_directory = 'lib_{}.{}.{}'.format(
+            sys.version_info.major, sys.version_info.minor, sys.version_info.micro)
+        lib_data = [{
+            "python_executable": sys.executable,
+            "lib_dir": lib_directory
+        }]
+
+        # check for requirements.txt
+        if not os.path.isfile('requirements.txt'):
+            print('{}{}A requirements.txt file is required to install modules.'.format(
+                c.Style.BRIGHT, c.Fore.RED))
+            sys.exit(1)
+
+        # load configuration
+        config_data = {}
+        file_path = os.path.join(self.app_path, self._args.config)
+        if os.path.isfile(file_path):
+            print('Loading Config File: {}{}{}'.format(
+                c.Style.BRIGHT, c.Fore.CYAN, self._args.config))
+            with open(file_path, 'r') as fh:
+                config_data = json.load(fh)
+
+        # overwrite default with config data
+        if config_data.get('lib_versions'):
+            lib_data = config_data.get('lib_versions')
+            using = 'Config'
+
+        # install all requested lib directories
+        for data in lib_data:
+            lib_dir = os.path.join(self.app_path, data.get('lib_dir'))
+            if os.access(lib_dir, os.W_OK):
+                # remove lib directory from previous runs
+                shutil.rmtree(lib_dir)
+
+            print('Building Lib Dir: {}{}{} ({})'.format(
+                c.Style.BRIGHT, c.Fore.CYAN, data.get('lib_dir'), using))
+            exe_command = [
+                os.path.expanduser(data.get('python_executable')),
+                '-m',
+                'pip',
+                'install',
+                '-r',
+                'requirements.txt',
+                '--ignore-installed',
+                '--quiet',
+                '--target',
+                lib_dir
+            ]
+            if args.no_cache_dir:
+                exe_command.append('--no-cache-dir')
+            print('Running: {}{}{}'.format(c.Style.BRIGHT, c.Fore.GREEN, ' '.join(exe_command)))
+            p = subprocess.Popen(
+                exe_command, shell=False, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE)
+            out, err = p.communicate()
+
+            if p.returncode != 0:
+                print('{}{}FAIL'.format(c.Style.BRIGHT, c.Fore.RED))
+                print('{}{}{}'.format(c.Style.BRIGHT, c.Fore.RED, err.decode('utf-8')))
+
+    # def _pip_install(self, app_path, app_name, lib_path):
+    #     """ """
+    #     args = [
+    #         'install',
+    #         '-r',
+    #         'requirements.txt',
+    #         '--ignore-installed',
+    #         '--quiet',
+    #         '--target',
+    #         lib_path
+    #     ]
+    #     command = '{} {}'.format('pip', ' '.join(args))
+    #     print('Running: {}{}{}'.format(c.Style.BRIGHT, c.Fore.GREEN, command))
+    #     pip.main(args)
+
+    # def _make_lib_dir(self, directory):
+    #     """ """
+    #     if not os.path.isdir(directory):
+    #         os.mkdir(directory)
+
+
+if __name__ == '__main__':
+    try:
+        tcl = TcLib(args)
+        tcl.install_libs()
+        sys.exit(tcl.exit_code)
+    except Exception as e:
+        # TODO: Update this, possibly raise
+        print('{}{}{}'.format(c.Style.BRIGHT, c.Fore.RED, traceback.format_exc()))
+        sys.exit(1)

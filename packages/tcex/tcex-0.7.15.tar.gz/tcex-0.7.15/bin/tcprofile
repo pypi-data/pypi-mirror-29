@@ -1,0 +1,225 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+""" TcEx Framework Profile Generation Module """
+import argparse
+import colorama as c
+import json
+import os
+import sys
+import traceback
+from uuid import uuid4
+from collections import OrderedDict
+from random import randint
+
+# Python 2 unicode
+if sys.version_info[0] == 2:
+    reload(sys)
+    sys.setdefaultencoding('utf-8')
+
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    '--config', default='install.json',
+    help='The install.json file name. (default: "install.json")')
+parser.add_argument(
+    '--outfile', help='File to output or append profile.')
+parser.add_argument(
+    '--update_only', action='store_true', help='Update existing profiles.')
+args, extra_args = parser.parse_known_args()
+
+c.init(autoreset=True, strip=False)
+
+
+def main():
+    """Generate a profile for an App"""
+    if args.update_only and args.outfile is not None:
+        if os.path.isfile(args.outfile):
+            # append
+            with open(args.outfile, 'r+') as fh:
+                try:
+                    data = json.load(fh, object_pairs_hook=OrderedDict)
+                except ValueError as e:
+                    print('{}{}Can not parse JSON data ({}).'.format(c.Style.BRIGHT, c.Fore.RED, e))
+                    sys.exit(1)
+                # update data
+                if isinstance(data, (dict)) and data.get('profiles') is not None:
+                    # update schema for existing profiles
+                    for profile in data['profiles']:
+                        update_profile(profile)
+                else:
+                    for profile in data:
+                        update_profile(profile)
+                fh.seek(0)
+                fh.write(json.dumps(data, indent=2))
+                fh.truncate()
+        sys.exit()
+
+    if not os.path.isfile(args.config):
+        print('{}{}Configuration file ({}) could not be found.'.format(
+            c.Style.BRIGHT, c.Fore.CYAN, args.config))
+
+    with open(args.config) as fh:
+        data = json.load(fh)
+
+    #
+    # args
+    #
+    config_args = OrderedDict()
+    config_args['api_default_org'] = '$env.API_DEFAULT_ORG'
+    config_args['api_access_id'] = '$env.API_ACCESS_ID'
+    config_args['api_secret_key'] = '$envs.API_SECRET_KEY'
+    config_args['tc_api_path'] = '$env.TC_API_PATH'
+    config_args['tc_log_level'] = 'debug'
+    config_args['tc_log_path'] = 'log'
+    config_args['tc_log_to_api'] = False
+    config_args['tc_out_path'] = 'log'
+    config_args['tc_proxy_external'] = False
+    config_args['tc_proxy_host'] = '$env.TC_PROXY_HOST'
+    config_args['tc_proxy_port'] = '$env.TC_PROXY_PORT'
+    config_args['tc_proxy_password'] = '$envs.TC_PROXY_PASSWORD'
+    config_args['tc_proxy_tc'] = False
+    config_args['tc_proxy_username'] = '$env.TC_PROXY_USERNAME'
+    config_args['tc_temp_path'] = 'log'
+    if data.get('runtimeLevel') == 'Playbook':
+        config_args['tc_playbook_db_type'] = 'Redis'
+        config_args['tc_playbook_db_context'] = str(uuid4())
+        config_args['tc_playbook_db_path'] = '$env.DB_PATH'
+        config_args['tc_playbook_db_port'] = '$env.DB_PORT'
+        config_args['tc_playbook_out_variables'] = ''
+
+    for d in data.get('params', []):
+        if d.get('type') == 'Boolean':
+            config_args[d.get('name')] = d.get('default', False)
+        elif d.get('name') in ['api_access_id', 'api_secret_key']:
+            # leave these parameters set to the value defined above
+            pass
+        else:
+            config_args[d.get('name')] = d.get('default', '')
+
+    #
+    # config
+    #
+
+    # use displayName if available, otherwise use prefix of install.json file
+    profile_name = data.get('displayName')
+    if profile_name is None:
+        profile_name = args.config.replace('.install.json', 'myprofile')
+    profile_name = profile_name.lower().replace(' ', '-')
+    print('Building Profile: {}{}{}'.format(c.Style.BRIGHT, c.Fore.CYAN, profile_name))
+
+    config = OrderedDict()
+    config['args'] = config_args
+    config['description'] = ''
+    config['exit_codes'] = [0]
+    config['groups'] = ['qa-build']
+    config['install_json'] = args.config
+    config['profile_name'] = profile_name
+    config['quiet'] = False
+
+    #
+    # playbook validation
+    #
+    if data.get('runtimeLevel') == 'Playbook':
+        validations = []
+        output_variables = []
+        job_id = randint(0, 9999)
+        for d in data.get('playbook', {}).get('outputVariables', []):
+            variable = '#App:{:04d}:{}!{}'.format(job_id, d.get('name'), d.get('type'))
+            output_variables.append(variable)
+
+            # null check
+            od = OrderedDict()
+            if d.get('type').endswith('Array'):
+                od['data'] = [None, []]
+                od['data_type'] = 'redis'
+                od['operator'] = 'ni'
+            else:
+                od['data'] = None
+                od['data_type'] = 'redis'
+                od['operator'] = 'ne'
+            od['variable'] = variable
+            validations.append(od)
+
+            # type check
+            od = OrderedDict()
+            if d.get('type').endswith('Array'):
+                od['data'] = 'array'
+                od['data_type'] = 'redis'
+                od['operator'] = 'it'
+            elif d.get('type').endswith('Binary'):
+                od['data'] = 'binary'
+                od['data_type'] = 'redis'
+                od['operator'] = 'it'
+            elif d.get('type').endswith('Entity') or d.get('type') == 'KeyValue':
+                od['data'] = 'entity'
+                od['data_type'] = 'redis'
+                od['operator'] = 'it'
+            else:
+                od['data'] = 'string'
+                od['data_type'] = 'redis'
+                od['operator'] = 'it'
+            od['variable'] = variable
+            validations.append(od)
+
+        config['validations'] = validations
+        config['args']['tc_playbook_out_variables'] = '{}'.format(','.join(output_variables))
+
+    if args.outfile is not None:
+        if os.path.isfile(args.outfile):
+            # append
+            print('Append to File: {}{}{}'.format(c.Style.BRIGHT, c.Fore.CYAN, args.outfile))
+            with open(args.outfile, 'r+') as fh:
+                try:
+                    data = json.load(fh, object_pairs_hook=OrderedDict)
+                except ValueError as e:
+                    print('{}{}Can not parse JSON data ({}).'.format(c.Style.BRIGHT, c.Fore.RED, e))
+                    sys.exit(1)
+                # update data
+                if isinstance(data, (dict)) and data.get('profiles') is not None:
+                    # update schema for existing profiles
+                    for profile in data['profiles']:
+                        update_profile(profile)
+                    data['profiles'].append(config)
+                else:
+                    for profile in data:
+                        update_profile(profile)
+                    data.append(config)
+                fh.seek(0)
+                fh.write(json.dumps(data, indent=2))
+                fh.truncate()
+        else:
+            # create
+            print('Create File: {}{}{}'.format(c.Style.BRIGHT, c.Fore.CYAN, args.outfile))
+            with open(args.outfile, 'w') as fh:
+                data = [config]
+                fh.write(json.dumps(data, indent=2))
+    else:
+        print(json.dumps(config, indent=2))
+
+    sys.exit()
+
+
+def update_profile(profile):
+    """Update an existing profile with new parameters or remove deprecated parameters"""
+    # warn about missing install_json parameter
+    if profile.get('install_json') is None:
+        print('{}{}Missing install_json parameter for profile {}.'.format(
+            c.Style.BRIGHT, c.Fore.YELLOW, profile.get('profile_name')))
+
+    # cleanup
+    if (profile.get('install_json') is not None and
+            profile.get('script') is not None):
+        profile.pop('script')
+
+    # update old profiles with new "data_type" field.
+    for validation in profile.get('validations', []):
+        if validation.get('data_type') is None:
+            validation['data_type'] = 'redis'
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except Exception as e:
+        # TODO: Update this, possibly raise
+        print('{}{}{}'.format(c.Style.BRIGHT, c.Fore.RED, traceback.format_exc()))
+        sys.exit(1)
