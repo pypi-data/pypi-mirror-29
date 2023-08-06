@@ -1,0 +1,40 @@
+#
+# Unless you have very specific reasons you should not change this file
+#
+
+policy:
+  filter:
+    INPUT: DROP
+    FORWARD: DROP
+    OUTPUT: DROP
+
+helper_chains:
+  filter:
+    CUSTOM_REJECT:
+      - -p tcp -j REJECT --reject-with tcp-reset
+      - -j REJECT
+    LOG_ACCEPT:
+      - '-m hashlimit --hashlimit-upto 3/minute --hashlimit-burst 5 --hashlimit-mode srcip,dstip,dstport --hashlimit-name logged_accepts -j LOG --log-level info --log-prefix "FIREWALL->ACCEPT: "'
+      - -j ACCEPT
+    LOG_DROP:
+      - '-m hashlimit --hashlimit-upto 3/minute --hashlimit-burst 5 --hashlimit-mode srcip,dstip,dstport --hashlimit-name logged_drops -j LOG --log-level info --log-prefix "FIREWALL->DROP: "'
+      - -j DROP
+    LOG_REJECT:
+      - '-m hashlimit --hashlimit-upto 3/minute --hashlimit-burst 5 --hashlimit-mode srcip,dstip,dstport --hashlimit-name logged_rejects -j LOG --log-level info --log-prefix "FIREWALL->REJECT: "'
+      - -j CUSTOM_REJECT
+
+objects:
+  tcp+udp:
+    - tcp
+    - udp
+
+default:
+  filter:
+    INPUT:
+      - -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+      - -i lo -j ACCEPT
+    FORWARD:
+      - -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+    OUTPUT:
+      - -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+      - -o lo -j ACCEPT
