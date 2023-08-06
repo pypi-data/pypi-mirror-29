@@ -1,0 +1,196 @@
+Metadata-Version: 2.0
+Name: compose-dump
+Version: 0.1b4
+Summary: Backup tool for Docker Compose projects
+Home-page: http://compose-dump.rtfd.io/
+Author: Frank Sachsenheim
+Author-email: funkyfuture@riseup.net
+License: ISC
+Description-Content-Type: UNKNOWN
+Keywords: docker-compose backup archiving
+Platform: any
+Classifier: Development Status :: 4 - Beta
+Classifier: Environment :: Console
+Classifier: Intended Audience :: System Administrators
+Classifier: License :: OSI Approved :: ISC License (ISCL)
+Classifier: Operating System :: POSIX
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.4
+Classifier: Programming Language :: Python :: 3.5
+Classifier: Programming Language :: Python :: 3.6
+Classifier: Programming Language :: Python :: Implementation :: CPython
+Classifier: Topic :: System :: Archiving :: Backup
+Requires-Dist: docker-compose (<1.20,>=1.7)
+
+Overview
+========
+
+::
+
+    This piece of code is tested with only a small number of use-cases yet.
+    You are invited to contribute.
+
+
+``compose-dump`` let's you backup and (not yet) restore `Docker Compose`_
+-projects. Like ``docker-compose`` this tool operates usually in a project-
+folder. It's intended to be a simple tool for usage within a broader
+backup-logic. The extent of a backup can be controlled by content scopes and
+services.
+
+Main features
+-------------
+
+- Archives Docker Compose projects.
+- Optionally include configuration with all its referenced files.
+- Optionally include volumes of specified services.
+- Store dumps in a directory, as archive on disk or as archive to the standard
+  output.
+
+
+See planned features below.
+
+Installation
+------------
+
+With `pipsi`_ (recommended to avoid library version conflicts)::
+
+    $ pipsi install compose-dump
+
+Or with `pip`_::
+
+    $ pip install compose-dump
+
+To install an editable development instance::
+
+    $ cd compose-dump
+    $ pipsi install -e .  # or use `pip`
+
+Usage
+-----
+
+Examples
+~~~~~~~~
+
+Fully dump a compose-project from ``project_path`` to ``/var/backups/compose``::
+
+    $ cd project_path
+    $ compose-dump backup -t /var/backups/compose
+
+Write a gzip-compressed archive to a remote host via ssh::
+
+    $ cd project_path
+    $ compose-dump backup -x gz | ssh user@host "cat - > ~/backup.tar.gz"
+
+Only dump configuration and data from container-volumes of the service ``web``::
+
+    $ compose-dump backup --config --volumes web
+
+Backup all projects with a ``docker-compose.yml`` to ``/var/backups/compose``::
+
+    $ find . -name "docker-compose.yml" -type f -execdir compose-dump backup -t /var/backups/compose \;
+
+Command line reference::
+
+    $ compose-dump
+    $ compose-dump backup --help
+
+Backup structure
+~~~~~~~~~~~~~~~~
+
+Any data that is located outside the project's scope is ignored. In
+particular this are mounted volumes that are not in the project-path or below
+and volumes in ``volumes_from``-referenced containers. Consider this not as
+a limitation, but as a feature to endorse good practices; handle these
+objects in your broader backup-logic.
+
+The resulting dump is structured this way:
+
+::
+
+    + <hostname>_<project_name>__<shorted_path_hash>___<date>_<time>  # that's the default
+      - Manifest.yml
+      + config
+        - <config_files>…  # Usually docker-compose.yml and its referenced files
+        - <build_contexts>…
+      + volumes
+        + mounted
+          <host path relative to project path>…
+        + project
+          <project volume in a tar archive>…
+        + services
+          + <service>…
+            <service volume in a tar archive>…
+
+Contributing
+------------
+
+Fork it, report issues and open pull requests at
+https://github.com/funkyfuture/compose-dump .
+
+Testing
+~~~~~~~
+
+The integration tests require a docker client on the test machine. To
+keep the temporary directories that contain integration tests' results,
+invoke ``pytest`` with the ``--keep-results`` option.
+
+Before opening a pull request, make sure you run tests against all supported
+dependencies with ``make test-all``.
+
+You are free to hate me for relying mainly on integration tests. But
+keep it to yourself, the world's already filled up with hatred. I
+suggest anyone with such sentiment uses this dark energy to implement
+improvements.
+
+Style notes
+~~~~~~~~~~~
+
+The code may seem cumbersome when it comes to paths. This is caused by
+anticipation of the `file system path protocol`_ that comes with
+Python 3.6 and later. The rule of thumb here is: Always use
+:class:`pathlib.Path` objects to represent paths, convert values for function
+calls with :func:`str`, convert results to ``Path`` instances. Until 3.6's
+reign has come.
+
+TODO / Known issues / Caveats
+-----------------------------
+
+general
+~~~~~~~
+
+- make use of compose config hashes
+- docs: point to environment variables regarding tls config
+- make use of mypy
+
+backup
+~~~~~~
+
+You may run into issues if a volume's archive delivered by the Docker daemon
+is larger than the available memory. Thus you should avoid such scenarios on
+production systems. This does not apply for mounted volumes. If you can't
+avoid such cases, please open an issue.
+
+- test volumes defined in extended services
+- filter volumes
+- only pause actually affected services
+- backup-configuration from a file in a project's folder
+- maybe:
+
+  - respect .dockerignore
+  - .backupignore
+  - read config from stdin
+
+restore
+~~~~~~~
+
+-  implement an automated restoration of a project-dump
+-  read from stdin
+
+
+.. _`Docker Compose`: https://docs.docker.com/compose/
+.. _`file system path protocol`: https://www.python.org/dev/peps/pep-0519/
+.. _`pip`: https://packaging.python.org/installing/#use-pip-for-installing
+.. _`pipsi`: https://github.com/mitsuhiko/pipsi
+
+
