@@ -1,0 +1,245 @@
+#!/Users/nabin.acharya/anaconda/envs/user_nabin/bin/python
+
+# s3edgex : a command line to access stores that use the s3 protocol 
+#        e.g. AWS S3, NexentaEdge S3, Minio S3 etc 
+
+import platform
+import getopt
+import sys
+import pprint
+import os
+from os.path import expanduser
+
+import edgex_access
+
+DEFAULT_CONFIG = "/.s3edgex"
+S3EA_LOG="s3edgex.log"
+
+
+def s3edgex_test(edgex_cfg, testName=""):
+    print("Not Yet!!")
+
+def s3edgex_stores(edgex_cfg, args):
+    print("Not Yet!!")
+    pass
+
+def s3edgex_setup():
+    print("Not Yet!!")
+    pass
+
+def list_recursive(dest_obj):
+    if dest_obj.isfolder:
+        lso = dest_obj.list()
+        for f in lso:
+            print(f)
+            dest_r_obj = edgex_access.edgex_obj(dest_obj.getStore(), dest_obj.bucketName + "/" + f)
+            if (f.endswith("/")):
+                list_recursive(dest_r_obj)
+    else:
+        print(dest_obj.oname + "\t", end='')
+
+def put_recursive(source_obj, dest_obj):
+    if source_obj.isfolder:
+        lso = source_obj.list()
+        for f in lso:
+            put_s_obj = edgex_access.edgex_obj(source_obj.getStore(), source_obj.oname + f)
+            put_d_obj = edgex_access.edgex_obj(dest_obj.getStore(), dest_obj.oname + f)
+            if f.endswith("/"):
+                put_recursive(put_s_obj, put_d_obj)
+            else:
+                try:
+                    put_d_obj.put(put_s_obj.get())
+                except:
+                    pass
+        print("")
+
+def get_recursive(remote_obj, local_obj):
+    if remote_obj.isfolder:
+        lso = remote_obj.list()
+        for f in lso:
+            get_s_obj = edgex_access.edgex_obj(remote_obj.getStore(), remote_obj.bucketName + "/" + f)
+            get_d_obj = edgex_access.edgex_obj(local_obj.getStore(), f)
+            if f.endswith("/"):
+                get_recursive(get_s_obj, get_d_obj)
+            else:
+                try:
+                    get_d_obj.put(get_s_obj.get())
+                except:
+                    pass
+        print("")
+
+def remove_recursive(dest_obj):
+    if dest_obj.isfolder:
+        lso = dest_obj.list()
+        for f in lso:
+            dest_r_obj = edgex_access.edgex_obj(dest_obj.getStore(), dest_obj.bucketName + "/" + f)
+            if (f.endswith("/")):
+                remove_recursive(dest_r_obj)
+            else:
+                try:
+                    dest_r_obj.remove()
+                except:
+                    pass
+        print("")
+
+def process_command(command, args, elog):
+    cfg_file = expanduser("~") + DEFAULT_CONFIG 
+    edgex_cfg = edgex_access.edgex_config()
+    try:
+        edgex_cfg.load_file(cfg_file)
+    except:
+        elog.log_error(" Error loading " + cfg_file  + " config file")
+        return
+    primary_store = edgex_cfg.getPrimaryStore()
+    if (command == "list"):
+        edgex_store = primary_store
+        if not args:
+            edgex_store = primary_store
+            name, items = edgex_store.list_buckets()
+            print(name)
+            for it in items:
+                print("\t" + it)
+            return
+        if (args[0] == "-r"):
+            recursive = True
+        else:
+            recursive = False
+        if args:
+            if recursive:
+                objname = args[1]
+            else:
+                objname = args[0]
+            edgex_obj = edgex_access.edgex_obj(edgex_cfg.getPrimaryStore(), objname)
+            if recursive:
+                list_recursive(edgex_obj)
+            else:
+                items = edgex_obj.list()
+                print(objname)
+                for it in items:
+                    print("\t" + it)
+    elif (command == "setup"):
+        s3edgex_setup()
+    elif (command == "store"):
+        s3edgex_store(edgex_cfg, args)
+    elif (command == "lsb"):
+        edgex_store = primary_store
+        name, items = edgex_store.list_buckets()
+        print(name)
+        for it in items:
+            print("\t" + it)
+    elif (command == "exists"):
+        edgex_obj = edgex_access.edgex_obj(edgex_cfg.getPrimaryStore(), args[0])
+        f = edgex_obj.exists()
+        print(args[0] + " : " + str(f))
+    elif (command == "meta"):
+        edgex_obj = edgex_access.edgex_obj(edgex_cfg.getPrimaryStore(), args[0])
+        f = edgex_obj.metainfo()
+        pprint.pprint(str(f))
+    elif (command == "put"):
+        if (args[0] == "-r"):
+            # todo: check number of args
+            remote_obj = edgex_access.edgex_obj(edgex_cfg.getPrimaryStore(), args[1])
+            local_obj = edgex_access.edgex_obj(edgex_cfg.getHome(), args[2])
+            put_recursive(local_obj, remote_obj)
+        else:
+            # todo: check number of args
+            remote_obj = edgex_access.edgex_obj(edgex_cfg.getPrimaryStore(), args[0])
+            local_obj = edgex_access.edgex_obj(edgex_cfg.getHome(), args[1])
+            try:
+                remote_obj.put(local_obj.get())
+            except:
+                pass
+    elif (command == "get"):
+        if (args[0] == "-r"):
+            remote_obj = edgex_access.edgex_obj(edgex_cfg.getPrimaryStore(), args[1])
+            local_obj = edgex_access.edgex_obj(edgex_cfg.getHome(), args[2])
+            get_recursive(remote_obj, local_obj)
+        else:
+            remote_obj = edgex_access.edgex_obj(edgex_cfg.getPrimaryStore(), args[0])
+            local_obj = edgex_access.edgex_obj(edgex_cfg.getHome(), args[1])
+            try:
+                local_obj.put(remote_obj.get())
+            except:
+                pass
+    elif (command == "del"):
+        if (args[0] == "-r"):
+            remote_obj = edgex_access.edgex_obj(edgex_cfg.getPrimaryStore(), args[1])
+            remove_recursive(remote_obj)
+        else:
+            remote_obj = edgex_access.edgex_obj(edgex_cfg.getPrimaryStore(), args[0])
+            try:
+                remote_obj.remove()
+            except:
+                pass
+    elif (command == "test"):
+        if args:
+            s3edgex_test(edgex_cfg, testName=args[0])
+        else:
+            s3edgex_test(edgex_cfg, testName="basic")
+    else:
+        elog.log_error('CommandError', "Unknown command: " + command)
+
+def system_info(debug_level):
+    print("python \t\t: " + platform.python_version() + " " + platform.python_implementation() + " " + str(platform.python_build()))
+    print("platform \t: " + platform.node() + " " + platform.system() + " " + platform.machine() + " " + platform.release())
+    print("uname \t\t: " + platform.uname().version)
+    print("debug_level \t: " + str(debug_level))
+
+def usage():
+    print(sys.argv[0] + " --help")
+    print(sys.argv[0] + " --system")
+    print(sys.argv[0] + " [ --debug <level> ] <command> <objname> <arg>")
+    print("Commands:")
+    print("\t\tsetup")
+    print("\t\tstore")
+    print("\t\tlist")
+    print("\t\texists")
+    print("\t\tput")
+    print("\t\tget")
+    print("\t\tdel")
+    print("\t\ttest")
+    print("Examples:")
+    print("\t% " + sys.argv[0] + " [ --debug <level> ] list [ -r ]")
+    print("\t% " + sys.argv[0] + " [ --debug <level> ] list [ -r ] <bucketname>")
+    print("\t% " + sys.argv[0] + " get <bucketname/filename> <filename>")
+    print("\t% " + sys.argv[0] + " get [ -r ] <bucketname/dirname> <dirname>")
+    print("\t% " + sys.argv[0] + " put <bucketname/filename> <filename>")
+    print("\t% " + sys.argv[0] + " put [ -r ] <bucketname/dirname> <dirname>")
+    print("\t% " + sys.argv[0] + " del <bucketname/filename>")
+    print("\t% " + sys.argv[0] + " del [ -r ] <bucketname/dirname>")
+    print("\t% " + sys.argv[0] + " info <bucketname/filename>")
+    print("\t% " + sys.argv[0] + " exists <bucketname/filename>")
+
+def main():
+    debug_level = 4
+    try:
+        opts, remainder = getopt.getopt(sys.argv[1:], "hd:s", ["help", "debug", "system"])
+    except getopt.GetoptError:
+        usage()
+        sys.exit(2)
+    for o,a in opts:
+        if o in ("-h", "--help"):
+            usage()
+            sys.exit(2)
+        if o in ("-d", "--debug"):
+            debug_level = int(a)
+        if o in ("-s", "--system"):
+            system_info(debug_level)
+            sys.exit(0)
+    if (len(remainder) < 1):
+        usage()
+        sys.exit(2)
+ 
+    elog = edgex_access.edgex_logger(debug_level, S3EA_LOG) 
+    elog.log_info(sys.argv[0] + " started")
+
+    command = remainder[0]
+    if len(remainder[1:]) >= 1:
+        process_command(command, remainder[1:], elog)
+    else:
+        process_command(command, None, elog)
+
+    elog.log_info(sys.argv[0] + " ended")
+
+if __name__ == '__main__':
+    main()
