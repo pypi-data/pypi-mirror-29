@@ -1,0 +1,43 @@
+language: python
+python:
+  - 2.7
+  - 3.6
+sudo: false
+dist: trusty
+addons:
+  apt:
+    sources:
+      - google-chrome
+    packages:
+      - google-chrome-stable
+env:
+  - DJANGO_VERSION=1.8.18 DB=SQLite
+  - DJANGO_VERSION=1.11.10 DB=SQLite
+  - DJANGO_VERSION=1.8.18 DB=Postgres
+  - DJANGO_VERSION=1.11.10 DB=Postgres
+services:
+  – postgresql
+install:
+  # for Python 3 we need robotframework-selenium2library 1.8.x
+  - if [ $TRAVIS_PYTHON_VERSION == 3.5 ]; then pip install -U https://github.com/HelioGuilherme66/robotframework-selenium2library/archive/v1.8.0b3.tar.gz; fi
+  - pip install -r requirements.txt
+  - pip install . --no-dependencies
+  - pip install -q flake8
+  - pip install -q psycopg2
+  - pip install -q  --pre Django==$DJANGO_VERSION
+#  - python setup.py install
+before_script:
+  - wget "http://chromedriver.storage.googleapis.com/2.35/chromedriver_linux64.zip"
+  - unzip chromedriver_linux64.zip
+  - sudo mv chromedriver /usr/local/bin
+  - "export DISPLAY=:99.0"
+  - "sh -e /etc/init.d/xvfb start"
+  - psql -c 'create database travis_ci_test;' -U postgres
+  - psql -c 'create database robotframework;' -U postgres
+  # - django-admin startproject mysite
+script:
+  - flake8 DjangoLibrary
+  - py.test mysite
+  - pybot DjangoLibrary/tests/
+after_script:
+  - firefox --version
