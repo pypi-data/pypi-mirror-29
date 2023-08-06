@@ -1,0 +1,83 @@
+{% macro Chart(sensor) %}
+<div class="panel panel-primary">
+	<div class="panel-heading">
+		{{sensor.name}} Heat Chart
+	</div>
+	<div class="panel-body" style="padding: 0; height: 400px">
+		<div id="SensorHeatChart" style="height: 100%; width: 100%">
+		</div>
+	</div>
+</div>
+<script>
+var chartElement = document.getElementById("SensorHeatChart");
+
+plotlySocket.on('sensorHeatChart', function(data) {
+	console.log(data);
+	Plotly.newPlot(chartElement, data.data, data.layout)
+});
+
+plotlySocket.emit('sensorHeatChart', "{{sensor.icpe}}", '{{sensor.sensor_id}}');
+</script>
+{% endmacro %}
+
+{% macro List(node) %}
+<div class="panel panel-default">
+	<div class="panel-heading">
+		Group List
+	</div>
+	<div class="panel-body" style="padding: 0;">
+		<table class="table table-hover">
+			<thead>
+				<tr>
+					<th>Name</th>
+					<th>Current Heat</th>
+					<th>Daily Average</th>
+					<th>Weekly Average</th>
+					<th>Monthly Average</th>
+				</tr>
+			</thead>
+			<tbody>
+				{% for sensor in node.icpe.sensors %}
+				{% if sensor.heat %}
+				<tr>
+					<td>
+						<a href="{{ url_for('data_view.heat_sensor', icpe = serialize(node.icpe.mac_address), sensor = sensor.sensor_id) }}">
+							{{sensor.name}}
+						</a>
+					</td>
+					<td>
+						<p id="{{node.icpe.mac_address}}{{sensor.sensor_id}}CurrentHeat">0.0</p>
+					</td>
+					<td>
+						<p id="{{node.icpe.mac_address}}{{sensor.sensor_id}}DailyHeat">0.0</p>
+					</td>
+					<td>
+						<p id="{{node.icpe.mac_address}}{{sensor.sensor_id}}WeeklyHeat">0.0</p>
+					</td>
+					<td>
+						<p id="{{node.icpe.mac_address}}{{sensor.sensor_id}}MonthlyHeat">0.0</p>
+					</td>
+				</a>
+			</tr>
+			{% endif %}
+			{% endfor %}
+			</tbody>
+		</table>
+	</div>
+</div>
+	<script>
+$(document).ready(function() {
+	dataSocket.on('sensorHeatAverage', function(data) {
+		document.getElementById(data.icpe+data.sensor+"CurrentHeat").innerHTML = parsefloat(data.current).toFixed(1);
+		document.getElementById(data.icpe+data.sensor+"DailyHeat").innerHTML = parseFloat(data.daily).toFixed(1);
+		document.getElementById(data.icpe+data.sensor+"WeeklyHeat").innerHTML = parseFloat(data.weekly).toFixed(1);
+		document.getElementById(data.icpe+data.sensor+"MonthlyHeat").innerHTML = parseFloat(data.monthly).toFixed(1);
+	});
+	{% for sensor in node.icpe.sensors %}
+	{% if sensor.heat %}
+	dataSocket.emit('sensorHeatAverage', {'icpe': '{{node.icpe.mac_address}}', 'sensor' : '{{sensor.sensor_id}}'});
+	{% endif %}
+	{% endfor %}
+});
+	</script>
+{% endmacro %}

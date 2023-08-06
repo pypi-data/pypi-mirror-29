@@ -1,0 +1,253 @@
+{% extends "frontend/base.html" %}
+{% block content %}
+<div class="row">
+    <div class="col-lg-12">
+        <h1 class="page-header">
+            Admin <small>Server Settings</small>
+        </h1>
+             <ol class="breadcrumb">
+           <li>
+						 <i class="fa fa-sliders"></i> <a href="{{url_for('index')}}">Dashboard</a>
+          </li>
+					<li class="active">Server Settings</li>
+       </ol>
+    </div>
+</div>
+{% include "frontend/flash.html" %}
+{% from "frontend/macros/conn.html" import ListMQTT %}
+{% from "frontend/macros/info.html" import FieldID %}
+{% from "frontend/macros/form.html" import render_manual %}
+{% from "frontend/macros/group.html" import SelectGroup %}
+<div class="row">
+	<div class="col-lg-4">
+		<div class="panel panel-primary">
+			<div class="panel-heading">
+				General Info
+			</div>
+			<div class="panel-body">
+        {{ FieldID('Mode', '-', 'runMode') }}
+				{{ FieldID('Hostname', '-', 'hostName') }}
+				{{ FieldID('Release', '-', 'releaseInfo') }}
+				{{ FieldID('Uptime', '-', 'uptime') }}
+			</div>
+		</div>
+	</div>
+	<div class="col-lg-4">
+		<div class="panel panel-primary">
+			<div class="panel-heading">
+				Logging Settings
+			</div>
+			<div class="panel-body" id="loggingPanel">
+        {{ FieldID("Enabled", "", "loggingEnabled") }}
+			</div>
+		</div>
+	</div>
+	<div class="col-lg-4">
+		<div class="panel panel-primary">
+			<div class="panel-heading">
+				Database Settings
+				<div class="floatRight" id="databaseSettings"></div>
+			</div>
+			<div class="panel-body" id="databasePanel">
+        {{ FieldID("Enabled", "", "databaseEnabled") }}
+			</div>
+		</div>
+	</div>
+	<div class="col-lg-4">
+		<div class="panel panel-primary">
+			<div class="panel-heading">
+				MQTT Connections
+				<div class="floatRight">
+					<div id="mqttSettings" style="display: inline;"></div>
+					<div id="mqttAdd" style="display: inline;"></div>
+				</div>
+			</div>
+			<div class="panel-body" style="padding: 0;">
+				{{ ListMQTT(MQTTList, MQTTForm) }}
+			</div>
+		</div>
+	</div>
+	<div class="col-lg-4">
+		<div class="panel panel-primary">
+			<div class="panel-heading">
+				Celery Settings
+			</div>
+			<div class="panel-body" id="celeryPanel">
+        {{ FieldID("Enabled", "", "celeryEnabled") }}
+			</div>
+		</div>
+	</div>
+	<div class="col-lg-4">
+		<div class="panel panel-primary">
+			<div class="panel-heading">
+				Mail Settings
+			</div>
+			<div class="panel-body" id="mailPanel">
+        {{ FieldID("Enabled", "", "mailEnabled") }}
+			</div>
+		</div>
+	</div>
+</div>
+<script>
+$(document).ready(function() {
+{% if current_user.has_role("administrator") %}
+	$('#mqttAdd').prepend('<a style="color: #FFFFFF;" href="#" data-toggle="modal" data-target="#AddMQTT"><i class="fa fa-plus" aria-hidden="true"></i></a>');
+{% endif %}
+});
+
+adminSocket.on('mail', function(mail) {
+  $('#mailEnabled').text(mail.enabled);
+  if (mail.enabled) {
+    $('#mailPanel').append('<div class="col-lg-4"><strong>SMTP Server:</strong></div><div class="col-lg-6"><p id="mailServer">-</p></div>');
+    $('#mailPanel').append('<div class="col-lg-4"><strong>SMTP Port:</strong></div><div class="col-lg-6"><p id="mailPort">-</p></div>');
+    $('#mailPanel').append('<div class="col-lg-4"><strong>TLS:</strong></div><div class="col-lg-6"><p id="mailTLS">-</p></div>');
+    $('#mailPanel').append('<div class="col-lg-4"><strong>SSL:</strong></div><div class="col-lg-6"><p id="mailSSL">-</p></div>');
+    $('#mailServer').text(mail.server);
+    $('#mailPort').text(mail.port);
+    $('#mailTLS').text(mail.tls);
+    $('#mailSSL').text(mail.ssl);
+  }
+});
+adminSocket.on('celery', function(celery) {
+  $('#celeryEnabled').text(celery.enabled);
+  if (celery.enabled) {
+    $('#celeryPanel').append('<div class="col-lg-4"><strong>Type:</strong></div><div class="col-lg-6"><p id="celeryBroker">-</p></div>');
+    $('#celeryPanel').append('<div class="col-lg-4"><strong>Address:</strong></div><div class="col-lg-6"><p id="celeryServer">-</p></div>');
+    $('#celeryPanel').append('<div class="col-lg-4"><strong>Port:</strong></div><div class="col-lg-6"><p id="celeryPort">-</p></div>');
+    $('#celeryPanel').append('<div class="col-lg-4"><strong>Database:</strong></div><div class="col-lg-6"><p id="celeryDatabase">-</p></div>');
+    $('#celeryBroker').text(celery.broker);
+    $('#celeryServer').text(celery.server);
+    $('#celeryPort').text(celery.port);
+    $('#celeryDatabase').text(celery.database);
+  }
+});
+adminSocket.on('logging', function(logging) {
+  $('#loggingEnabled').text(logging.enabled);
+  if (logging.enabled) {
+    $('#loggingPanel').append('<div class="col-lg-4"><strong>Type:</strong></div><div class="col-lg-6"><p id="loggingType">-</p></div>');
+    if (logging.type == 'local') {
+      $('#loggingType').text('local');
+      $('#loggingPanel').append('<div class="col-lg-4"><strong>File Name:</strong></div><div class="col-lg-6"><p id="loggingFile">-</p></div>');
+      $('#loggingFile').text(logging.name)
+    }
+    else if (logging.type == 'SYSLOG') {
+      $('#loggingType').text('Syslog');
+      $('#loggingPanel').append('<div class="col-lg-4"><strong>Address:</strong></div><div class="col-lg-6"><p id="syslogAddress">-</p></div>');
+      $('#loggingPanel').append('<div class="col-lg-4"><strong>Port:</strong></div><div class="col-lg-6"><p id="syslogPort">-</p></div>');
+      $('#syslogAddress').text(logging.address);
+      $('#syslogPort').text(logging.port);
+    }
+  }
+});
+
+adminSocket.on('database', function(database) {
+  $('#databaseEnabled').text(database.enabled);
+  if (database.enabled) {
+    $('#databasePanel').append('<div class="col-lg-4"><strong>Engine:</strong></div><div class="col-lg-6"><p id="databaseEngine">-</p></div>');
+    $('#databaseEngine').text(database.engine);
+    if (database.engine.toUpperCase() == 'SQLITE') {
+      adminSocket.emit('dbFile');
+      $('#databasePanel').append('<div class="col-lg-4"><strong>File Name:</strong></div><div class="col-lg-6"><p id="dbFile" style="word-wrap: break-word">-</p></div>');
+      $('#dbFile').text(database.file);
+    }
+    else {
+      $('#databaseEngine').text(database.engine);
+      adminSocket.emit('dbServer');
+      adminSocket.emit('dbPort');
+      $('#databasePanel').append('<div class="col-lg-4"><strong>Address:</strong></div><div class="col-lg-6"><p id="dbServer">-</p></div>');
+      $('#databasePanel').append('<div class="col-lg-4"><strong>Port:</strong></div><div class="col-lg-6"><p id="dbPort">-</p></div>');
+      $('#dbServer').text(database.server);
+      $('#dbPort').text(database.port);
+    }
+  }
+});
+
+adminSocket.on('general', function(info) {
+  $('#runMode').text(info.run_mode);
+	$('#hostName').text(info.hostname);
+	$('#releaseInfo').text(info.release);
+	$('#uptime').text(moment(info.date_loaded, "YYYYMMDD, hh:mm:ss").fromNow(true));
+});
+
+adminSocket.emit('general');
+adminSocket.emit('database');
+adminSocket.emit('celery');
+adminSocket.emit('logging');
+adminSocket.emit('mail');
+</script>
+<div class="modal fade" id="AddMQTT" role="dialog">
+	<div class="modal-dialog">
+		<div class="modal-content">
+			<div class="modal-header">
+				<button type="button" class="close" data-dismiss="modal">&times;</button>
+				<h2 class="modal-title">Add MQTT Connection</h2>
+				<div class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100"></div>
+			</div>
+			<div class="modal-body">
+				<div class="multiform-step">
+					<div class="row">
+						{{ render_manual('Address', 'mqttAddress') }}
+						{{ render_manual('Port', 'mqttPort') }}
+						{{ render_manual('Username', 'mqttUsername') }}
+						{{ render_manual('Password', 'mqttPassword') }}
+					</div>
+				</div>
+				<div class="multiform-step">
+					{{ SelectGroup(current_user) }}
+				</div>
+				<div class="multiform-step">
+					<div class="row">
+						{{ FieldID('Address', 'None', 'SubmitAddress') }}
+						{{ FieldID('Port', 'None', 'SubmitPort') }}
+						{{ FieldID('Group', 'None', 'SubmitGroup') }}
+					</div>
+				</div>
+			</div>
+			<div class="modal-footer">
+				<button class="multibtn multiform-back btn btn-info">Back</button>
+				<button class="multibtn multiform-next btn btn-info">Next</button>
+				<button class="multibtn multiform-submit btn btn-success">Submit</button>
+			</div>
+		</div>
+	</div>
+</div>
+	<script>
+$(document).ready(function() {
+	var basic = function() {
+		if ($('#mqttAddress').val() == '')
+		{
+			toastr.error('Please Enter Address');
+			return false;
+		}
+		if ($('#mqttPort').val() == '') {
+			toastr.error('Please Enter Port');
+		}
+		$('#SubmitAddress').text($('#mqttAddress').val());
+		$('#SubmitPort').text($('#mqttPort').val());
+		$('#SubmitUsername').text($('#mqttUsername').val());
+		$('#SubmitPassword').text($('#mqttPassword').val());
+		return true;
+	}
+	var group = function() {
+		if ($('#GroupsList option:selected').text() == '') {
+			toastr.error('Please choose Group');
+			return false;
+		}
+		$('#SubmitGroup').text($('#GroupsList option:selected').text());
+		return true;
+	}
+	var submit = function() {
+		var address = $('#SubmitAddress').text();
+		var port = $('#SubmitPort').text();
+		var username = $('#SubmitUsername').text();
+		var password = $('#SubmitPassword').text();
+
+		var group = $('#SubmitGroup').text();
+		adminSocket.emit('mqttCreate', address, port, group);
+	}
+	initMultistep(basic, group, submit);
+});
+	</script>
+	<script src="/static/js/multistep.js"></script>
+
+{% endblock %}

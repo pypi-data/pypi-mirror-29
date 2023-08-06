@@ -1,0 +1,144 @@
+{% macro ListGroups(groups = None) %}
+<table class="table table-hover" id="grouptable">
+	<thead>
+		<tr>
+			<th>Name</th>
+			<th>Description</th>
+			<th>Users</th>
+			<th>Nodes</th>
+		</tr>
+	</thead>
+	<tbody id="grouptbody">
+		{% if groups %}
+		{% for group in groups %}
+		<tr>
+			<td>
+				<a href="{{url_for('admin_view.admin_group', name = serialize(group.name))}}">
+				{{group.name}}
+				</a>
+			</td>
+			<td>
+				<a href="{{url_for('admin_view.admin_group', name = serialize(group.name))}}">
+					{{group.description}}
+				</a>
+			</td>
+			<td>
+				<a href="{{url_for('admin_view.admin_group', name = serialize(group.name))}}">
+				{{group.users|count}}
+				</a>
+			</td>
+			<td>
+				<a href="{{url_for('admin_view.admin_group', name = serialize(group.name))}}">
+					{{group.nodes|count}}
+				</a>
+			</td>
+		</tr>
+		{% endfor %}
+		{% endif %}
+	</tbody>
+</table>
+{% if groups %}
+
+{% else %}
+	<script>
+grouptbody = document.getElementById('grouptbody');
+grouptable = document.getElementById('grouptable');
+	function groupList(groups) {
+		for (var i = 0; i < groups.length; i++) {
+			groupSocket.emit('info', groups[i]);
+		}
+	};
+
+	function clearGroupList() {
+		while (grouptable.rows.length > 0)
+			grouptable.deleteRow(0);
+	};
+
+	groupSocket.on('info', function(group) {
+		var newRow = grouptbody.insertRow(0);
+
+		var groupName = newRow.insertCell(0);
+		var nameText = document.createElement("A");
+		nameText.innerHTML = group.name;
+		nameText.href = group.url;
+		groupName.appendChild(nameText);
+
+		var groupMail = newRow.insertCell(1);
+		var mailText = document.createElement("A");
+		mailText.innerHTML = group.email;
+		mailText.href = group.url;
+		groupMail.appendChild(mailText);
+	});
+	</script>
+{% endif %}
+{% endmacro %}
+
+{% macro GroupInfo(Group) %}
+{% from "frontend/macros/info.html" import Field %}
+<div class="row">
+	{{Field('Name', Group.name)}}
+	{{Field('Email', Group.email)}}
+	{{Field('Description', Group.description)}}
+	{{Field('Street', Group.location.street)}}
+	{{Field('City', Group.location.city)}}
+	{{Field('Created', Group.date_created)}}
+</div>
+{% endmacro %}
+
+{% macro SelectGroup(user) %}
+{% from "frontend/macros/info.html" import FieldID %}
+<div class="form-group">
+	<label for="sell">Avalible Groups: </label>
+	<select class="form-control" id="GroupsList"></select>
+</div>
+<form class="form-horizontal">
+	<div class="row">
+		{{ FieldID('Name', '-', 'Groupname') }}
+		{{ FieldID('Email', '-', 'Groupemail') }}
+		{{ FieldID('Description', '-', 'Groupdesc') }}
+		{{ FieldID('Users', '-', 'Groupusers') }}
+		{{ FieldID('Nodes', '-', 'Groupnodes') }}
+	</div>
+</form>
+<script>
+$(document).ready(function() {
+	groupSocket.emit('list');
+
+	groupSocket.on('list', function(groups) {
+		if (groups.length < 1) {
+			return
+		}
+		for (var i = 0; i < groups.length; i++) {
+			$('#GroupsList').append('<option>'+  groups[i] + '</option>');
+		}
+		groupSocket.emit('info', groups[0]);
+	});
+
+	groupSocket.on('info', function(group) {
+		$('#Groupname').text(group.name);
+		$('#Groupemail').text(group.email);
+		$('#Groupdesc').text(group.description);
+		$('#Groupusers').text(group.users.length);
+		$('#Groupnodes').text(group.nodes.length);
+	});
+
+	$('#GroupsList').change(function() {
+		var name = $('#GroupsList option:selected').text();
+		groupSocket.emit('info', name);
+	});
+
+	var addToGroup = function() {
+		groupname = $('#Groupname').text();
+		groupSocket.emit('addUser', groupname, '{{user.email}}');
+	}
+
+	try {
+		document.getElementById('addToGroup').onclick = function() {addToGroup();};
+	}
+	catch (err) {
+		console.log('addToGroup not found');
+	}
+});
+</script>
+
+{% endmacro %}

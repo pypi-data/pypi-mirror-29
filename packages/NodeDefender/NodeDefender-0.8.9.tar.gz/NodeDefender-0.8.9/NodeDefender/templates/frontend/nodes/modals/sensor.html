@@ -1,0 +1,163 @@
+{% macro SensorModal() %}
+{% from "frontend/macros/info.html" import FieldID %}
+{% from "frontend/macros/form.html" import render_manual %}
+<div class="modal fade" id="SensorModal" role="dialog">
+	<div class="modal-dialog">
+		<div class="modal-content">
+			<div class="modal-header">
+				<button type="button" class="close" data-dismiss="modal">&times;</button>
+				<h2 class="modal-title">Sensor</h2>
+			</div>
+			<div class="modal-body">
+				<ul class="nav nav-pills nav-justified">
+					<li class="active"><a data-toggle="pill" href="#SensorModalInfo">Information</a></li>
+					<li><a data-toggle="pill" href="#SensorModalEvents">Events</a></li>
+					<li><a data-toggle="pill" href="#SensorModalConfig">Configure</a></li>
+				</ul>
+				<br>
+				<div class="tab-content">
+					<div id="SensorModalInfo" class="tab-pane fade in active">
+						<div class="row">
+							{{ FieldID("Name", "-", "sensorName") }}
+							{{ FieldID("iCPE", "-", "sensoriCPE") }}
+							{{ FieldID("Sensor Id", "-", "sensor_id") }}
+							{{ FieldID("Vendor", "-", "sensorVendor") }}
+							{{ FieldID("Product Name", "-", "sensorProductName") }}
+							{{ FieldID("Library Type", "-", "sensorLibtype") }}
+							{{ FieldID("Device Type", "-", "sensorDevtype") }}
+						</div>
+					</div>
+					<div id="SensorModalEvents" class="tab-pane fade">
+						<table class="table table-striped" id="sensoreventtable">
+							<thead>
+								<tr>
+									<th>Event</th>
+									<th>Date</th>
+								</tr>
+							</thead>
+							<tbody id="sensoreventbody">
+							</tbody>
+						</table>
+					</div>
+					<div id="SensorModalConfig" class="tab-pane fade">
+						<div class="row">
+							{{ render_manual("Name", "sensorConfigName") }}
+							<div class="col-lg-12">
+								<h4>Parameter</h4>
+							</div>
+							{{ render_manual("Number", "sensorParamNumber") }}
+							{{ render_manual("size", "sensorParamSize") }}
+							{{ render_manual("value", "sensorParamValue") }}
+						</div>
+					</div>
+				</div>
+			</div>
+			<div class="modal-footer">
+				<button type="button" class="btn btn-primary" id="updateSensorInfo">Send Update</button>
+				<div style="display: inline; float: left;">
+					<button type="button" class="btn btn-primary" id="getSensorParam">Get Parameter</button>
+					<button type="button" class="btn btn-primary" id="setSensorParam">Set Parameter</button>
+				</div>
+				<button type="button" class="btn btn-primary" id="updateSensorConfig">Update Config</button>
+			</div>
+		</div>
+	</div>
+</div>
+	<script>
+var sensorEventTable = document.getElementById('sensoreventtable');
+var sensorEventBody = document.getElementById('sensoreventbody');
+
+updateSensorInfo = $('#updateSensorInfo');
+updateSensorConfig = $("#updateSensorConfig");
+getSensorParam = $('#getSensorParam');
+setSensorParam = $("#setSensorParam");
+
+updateSensorConfig.hide();
+getSensorParam.hide();
+setSensorParam.hide();
+
+$("a[href='#SensorModalInfo']").on('show.bs.tab', function(e) {
+		 updateSensorInfo.show();
+		 updateSensorConfig.hide();
+		 getSensorParam.hide();
+		 setSensorParam.hide();
+});
+$("a[href='#SensorModalEvents']").on('show.bs.tab', function(e) {
+	updateSensorInfo.hide();
+	updateSensorConfig.hide()
+	getSensorParam.hide();
+	setSensorParam.hide();
+});
+$("a[href='#SensorModalConfig']").on('show.bs.tab', function(e) {
+	updateSensorInfo.hide();
+	updateSensorConfig.show();
+	getSensorParam.show();
+	setSensorParam.show();
+});
+
+function reload() {
+	location.reload();
+};
+
+document.getElementById('updateSensorInfo').addEventListener('click', function() {
+	sensorSocket.emit('mqttUpdate', document.getElementById('sensoriCPE').innerHTML,
+		document.getElementById('sensor_id').innerHTML);
+	setTimeout(reload, 5000);
+});
+
+document.getElementById('updateSensorConfig').addEventListener('click', function() {
+	var icpe = document.getElementById("sensoriCPE").innerHTML;
+	var sensor_id = document.getElementById("sensor_id").innerHTML;
+	var sensorName = document.getElementById('sensorConfigName').value;
+	sensorSocket.emit('update', icpe, sensor_id, {'name' : sensorName});
+});
+
+document.getElementById('getSensorParam').addEventListener('click', function() {
+	var icpe = document.getElementById("sensoriCPE").innerHTML;
+	var sensor_id = document.getElementById("sensor_id").innerHTML;
+	var paramNumber = document.getElementById('sensorParamNumber').value;
+	sensorSocket.emit('getParameter', icpe, sensor_id, paramNumber);
+});
+
+document.getElementById('setSensorParam').addEventListener('click', function() {
+	var icpe = document.getElementById("sensoriCPE").innerHTML;
+	var sensor_id = document.getElementById("sensor_id").innerHTML;
+	var sensorName = document.getElementById('sensorConfigName').value;
+	var paramNumber = document.getElementById('sensorParamNumber').value;
+	var paramSize = document.getElementById('sensorParamSize').value;
+	var paramValue = document.getElementById('sensorParamValue').value;
+	sensorSocket.emit('setParameter', icpe, sensor_id, paramNumber, paramSize, paramValue);
+});
+
+sensorSocket.on('info', function(sensor) {
+	console.log(sensor);
+	document.getElementById("sensorName").innerHTML = sensor.name;
+	document.getElementById("sensorConfigName").value = sensor.name;
+	document.getElementById("sensor_id").innerHTML = sensor.sensor_id;
+	document.getElementById("sensoriCPE").innerHTML = sensor.icpe;
+	document.getElementById("sensorVendor").innerHTML = sensor.vendor_name;
+	document.getElementById("sensorProductName").innerHTML = sensor.product_name;
+	document.getElementById("sensorLibtype").innerHTML = sensor.library_type;
+	document.getElementById("sensorDevtype").innerHTML = sensor.device_type;
+});
+
+dataSocket.on('sensorEvents', function(events) {
+	for (var i = 0; i < events.length; i++) {
+		var newRow = sensorEventBody.insertRow(i);
+
+		var eventCell = newRow.insertCell(0);
+		var icon = document.createElement("i");
+		icon.className += events[i].icon;
+		eventCell.appendChild(icon);
+
+		var dateCell = newRow.insertCell(1);
+		var dateText = document.createTextNode(moment(events[i].date, "YYYYMMDD, hh:mm:ss").fromNow());
+		dateCell.appendChild(dateText);
+
+		var date2Cell = newRow.insertCell(2);
+		var date2Text = document.createTextNode(moment(events[i].date).format("ddd, hh:mm:ss"));
+		date2Cell.appendChild(date2Text);
+	}
+});
+	</script>
+{% endmacro %}

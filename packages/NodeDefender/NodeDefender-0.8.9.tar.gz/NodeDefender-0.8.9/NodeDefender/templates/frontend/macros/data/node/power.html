@@ -1,0 +1,109 @@
+{% macro Current(node) %}
+<p><strong>Current Power</strong></p>
+<div class="row">
+	<div class="col-lg-4">
+		<p id="nodeCurrentPower">0.0</p>
+	</div>
+	<div class="col-lg-8">
+		<p>Watt</p>
+	</div>
+</div>
+	<script>
+$(document).ready(function() {
+	node = "{{node.name}}";
+
+	dataSocket.on('nodePowerCurrent', function(power) {
+		document.getElementById('nodeCurrentPower').innerHTML = parseFloat(power.power).toFixed(2);
+	});
+	var loopNodePowerCurrent = function() {
+		dataSocket.emit('nodePowerCurrent',  node);
+	}
+	loopNodePowerCurrent();
+	setInterval(loopNodePowerCurrent, 5000);
+});
+	</script>
+{% endmacro %}
+
+
+{% macro Chart(node) %}
+<div class="panel panel-primary">
+	<div class="panel-heading">
+		{{node.name}} Power Chart
+	</div>
+	<div class="panel-body" style="padding: 0; height: 400px">
+		<div id="SensorsPowerChart" style="height: 100%; width: 100%">
+		</div>
+	</div>
+</div>
+<script>
+powerChart = document.getElementById("SensorsPowerChart");
+
+plotlySocket.on('nodePowerChart', function(data) {
+	Plotly.newPlot(powerChart, data.data, data.layout)
+});
+
+plotlySocket.emit('nodePowerChart', "{{node.name}}");
+</script>
+{% endmacro %}
+
+{% macro List(node) %}
+<div class="panel panel-default">
+	<div class="panel-heading">
+		Sensor List
+	</div>
+	<div class="panel-body" style="padding: 0;">
+		<table class="table table-hover">
+			<thead>
+				<tr>
+					<th>Name</th>
+					<th>Current Power</th>
+					<th>Daily Average</th>
+					<th>Weekly Average</th>
+					<th>Monthly Average</th>
+				</tr>
+			</thead>
+			<tbody>
+				{% for sensor in node.icpe.sensors %}
+				{% if sensor.power %}
+				<tr>
+					<td>
+						<a href="{{ url_for('data_view.power_sensor', icpe = serialize(node.icpe.mac_address), sensor = sensor.sensor_id) }}">
+							{{sensor.name}}
+						</a>
+					</td>
+					<td>
+						<p id="{{node.icpe.mac_address}}{{sensor.sensor_id}}CurrentPower">0.0</p>
+					</td>
+					<td>
+						<p id="{{node.icpe.mac_address}}{{sensor.sensor_id}}DailyPower">0.0</p>
+					</td>
+					<td>
+						<p id="{{node.icpe.mac_address}}{{sensor.sensor_id}}WeeklyPower">0.0</p>
+					</td>
+					<td>
+						<p id="{{node.icpe.mac_address}}{{sensor.sensor_id}}MonthlyPower">0.0</p>
+					</td>
+				</a>
+			</tr>
+			{% endif %}
+			{% endfor %}
+			</tbody>
+		</table>
+	</div>
+</div>
+	<script>
+$(document).ready(function() {
+	dataSocket.on('sensorPowerAverage', function(data) {
+		document.getElementById(data.icpe+data.sensor+"CurrentPower").innerHTML = parseFloat(data.current).toFixed(2);
+		document.getElementById(data.icpe+data.sensor+"DailyPower").innerHTML = parseFloat(data.daily).toFixed(2);
+		document.getElementById(data.icpe+data.sensor+"WeeklyPower").innerHTML = parseFloat(data.weekly).toFixed(2);
+		document.getElementById(data.icpe+data.sensor+"MonthlyPower").innerHTML = parseFloat(data.monthly).toFixed(2);
+	});
+	{% for sensor in node.icpe.sensors %}
+	{% if sensor.power %}
+	dataSocket.emit('sensorPowerAverage', {'icpe': '{{node.icpe.mac_address}}', 'sensor' : '{{sensor.sensor_id}}'});
+	{% endif %}
+	{% endfor %}
+});
+	</script>
+{% endmacro %}

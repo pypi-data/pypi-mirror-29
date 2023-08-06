@@ -1,0 +1,123 @@
+{% macro SelectiCPE(user) %}
+{% from "frontend/macros/info.html" import FieldID %}
+<br>
+<div class="form-group">
+	<label for="sell">Unassigned iCPEs: </label>
+	<select class="form-control" id="UnassignedList">
+		<option>None</option>
+	</select>
+</div>
+<form class="form-horizontal">
+	<div class="row">
+		<div id="unassigned">
+			{{ FieldID("MAC Address", "", "selectiCPEMacAddress") }}
+			{{ FieldID("IP Address", "", "selectiCPEIpAddress") }}
+			{{ FieldID("Serial Number", "", "selectiCPESerialNumber") }}
+			{{ FieldID("MQTT Connection", "", "selectiCPEMQTT") }}
+			{{ FieldID("Created", "", "selectiCPECreated") }}
+		</div>
+	</div>
+</form>
+<script>
+$(document).ready(function() {
+	iCPESocket.emit('unassigned');
+
+	iCPESocket.on('unassigned', function(icpes) {
+		for (var i = 0; i < icpes.length; i++) {
+			$('#UnassignedList').append('<option>'+  icpes[i] + '</option>');
+		}
+	});
+
+	iCPESocket.on('info', function(icpe) {
+		console.log(icpe);
+		document.getElementById('selectiCPEMacAddress').innerHTML = icpe.mac_address;
+		document.getElementById('selectiCPEIpAddress').innerHTML = icpe.ip_address;
+		document.getElementById('selectiCPESerialNumber').innerHTML = icpe.serial_number;
+		document.getElementById('selectiCPEMQTT').innerHTML = icpe.mqtt;
+		document.getElementById('selectiCPECreated').innerHTML = moment.unix(icpe.date_created, "YYYMMMDDD, hh:mm:ss");
+	});
+
+	$('#UnassignedList').change(function() {
+		var mac_address = $('#UnassignedList option:selected').text();
+		if (mac_address == 'manual') {
+			$("#unassigned").hide();
+			$("#manual").show();
+			$("#icpemac").text('None');
+		} else {
+			$("#manual").hide();
+			$("#unassigned").show();
+			$("#manualMAC").text('');
+			iCPESocket.emit('info', mac_address);
+		}
+	});
+	$("#unassigned").hide();
+});
+</script>
+{% endmacro %}
+
+{% macro iCPEList(icpes = None) %}
+<table class="table table-hover" id="iCPEtable">
+	<thead>
+		<tr>
+			<th>MAC Address</th>
+			<th>Node</th>
+			<th>Online</th>
+		</tr>
+	</thead>
+	<tbody id="iCPEtbody">
+		{% if icpes %}
+		{% for icpe in icpes %}
+		<tr>
+			<td>
+				<a href="#">
+					{{icpe.mac_address}}
+				</a>
+			</td>
+			<td>
+				<a href="#">
+					{{icpe.node.name}}
+				</a>
+			</td>
+			<td>
+				<a href="#">
+					{{icpe.online}}
+				</a>
+			</td>
+		</tr>
+		{% endfor %}
+		{% endif %}
+	</tbody>
+</table>
+	<script>
+iCPEtbody = document.getElementById('iCPEtbody');
+iCPEtable = document.getElementById('iCPEtable');
+	function iCPEList(icpes) {
+		for (var i = 0; i < icpes.length; i++) {
+			iCPESocket.emit('info', icpes[i]);
+		}
+	};
+
+	function cleariCPEList() {
+		while (iCPEtable.rows.length > 0)
+			iCPEtable.deleteRow(0);
+	};
+
+	iCPESocket.on('info', function(icpe) {
+		var newRow = iCPEtbody.insertRow(0);
+
+		var macCell = newRow.insertCell(0);
+		var macText = document.createElement("A");
+		macText.innerHTML = icpe.mac_address;
+		macCell.appendChild(macText);
+
+		var nodeCell = newRow.insertCell(1);
+		var nodeText = document.createTextNode(icpe.node);
+		nodeCell.appendChild(nodeText);
+
+		var onlineCell = newRow.insertCell(2);
+		var onlineText = document.createTextNode(icpe.online);
+		onlineCell.appendChild(onlineText);
+
+	});
+	</script>
+{% endmacro %}

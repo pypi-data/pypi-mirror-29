@@ -1,0 +1,126 @@
+{% macro SensorBox(sensor) %}
+<form name="#" class="form-horizontal" method="#" id="{{sensor.sensor_id}}fields">
+</form>
+{% endmacro %}
+
+{% macro SensorScripts(sensors) %}
+<script>
+var zwaveSocket = io.connect('//' + document.domain + ':' + location.port + '/icpe' + '{{sensors[0].icpe.mac_address}}');
+
+function switchChange(box, mac_address, sensor_id, commandclass, classtype) {
+	if (box.checked) {
+		sensorSocket.emit('set', mac_address, sensor_id, commandclass, '1');
+	} else {
+		sensorSocket.emit('set', mac_address, sensor_id, commandclass, '0');
+	}
+}
+
+function switchEvent(field, enabled) {
+	field.checked = enabled;
+}
+
+function boxEvent(box, enabled) {
+	if(enabled)
+	{
+		if (!box.classList.contains("lightboxlight"))
+			box.className += " lightboxlight";
+	} else {
+		if(box.classList.contains("lightboxlight"))
+			 box.classList.remove("lightboxlight");
+	}
+}
+
+function valueEvent(box, value) {
+	$(box).text(value);
+}
+
+function eventToastr(event) {
+};
+
+zwaveSocket.on('event', function(macAddress, sensorId, data) {
+	field = document.getElementById(sensorId + data.fields.name + "Value");
+	console.log(data);
+	if (data.fields.type == 'bool' && data.fields.readonly == false) {
+		switchEvent(field, data.state);
+	} else if (data.fields.type == 'bool' && data.fields.readonly == true) {
+		boxEvent(field, data.state);
+	} else if (data.fields.type == 'value') {
+		valueEvent(field, data.value);
+	}
+});
+
+function createFieldBox(field) {
+	box = document.createElement("LABEL");
+	box.setAttribute("class", "lightbox");
+	box.setAttribute("id", field.sensor_id+field.name+"Value");
+	if (field.state === "True")
+		box.className += " lightboxlight";
+	return box;
+};
+
+function createFieldValue(field) {
+	box = document.createElement("P");
+	box.setAttribute("id", field.sensor_id+field.name+"Value");
+	box.style.position = "absolute";
+	box.style.right = "0";
+	box.style.width = "60px";
+	box.innerHTML = field.value;
+	return box;
+}
+
+function createFieldSwitch(field) {
+	_switch = document.createElement("LABEL");
+	_switch.setAttribute("class", "switch");
+
+	input = document.createElement("INPUT");
+	input.setAttribute("type", "checkbox");
+	input.setAttribute("id", field.sensor_id+field.name+"Value");
+	input.addEventListener("click", function(){
+			switchChange(this, field.mac_address, field.sensor_id, field.commandclass_name, "");
+	})
+	slider = document.createElement("DIV");
+	slider.setAttribute("class", "slider");
+	if (field.state === "True")
+		input.checked = true;
+	else
+		input.checked = false;
+
+	_switch.appendChild(input);
+	_switch.appendChild(slider);
+	return _switch;
+}
+
+sensorSocket.on('fields', function(fields) {
+		console.log(fields);
+		for (var i = 0; i < fields.length; i++) {
+			if (fields[i].web_field == "False")
+				continue;
+			sensorBox = document.getElementById(fields[i].sensor_id+"fields");
+			formGroup = document.createElement("DIV");
+			formGroup.setAttribute("class", "form-group");
+			formName = document.createElement("LABEL");
+			formName.setAttribute("class", "col-sm-2 control-label")
+			formName.innerHTML = fields[i].name;
+			formField = document.createElement("DIV");
+			formField.setAttribute("class", "col-sm-5 col-sm-offset-5");
+			formField.setAttribute("id", fields[i].sensor_id + fields[i].name);
+
+			if (fields[i].type == "bool" && fields[i].readonly == "True")
+				formField.appendChild(createFieldBox(fields[i]));
+			else if (fields[i].type == "value")
+				formField.appendChild(createFieldValue(fields[i]));
+			else if (fields[i].type == "bool" && fields[i].readonly == "False")
+				formField.appendChild(createFieldSwitch(fields[i]));
+			else
+				console.log("unknown field " + fields[i].type);
+
+			formGroup.appendChild(formName);
+			formGroup.appendChild(formField);
+			sensorBox.appendChild(formGroup);
+		}
+});
+{% for sensor in sensors %}
+sensorSocket.emit('fields', "{{sensor.icpe.mac_address}}", "{{sensor.sensor_id}}");
+{% endfor %}
+</script>
+{% endmacro %}

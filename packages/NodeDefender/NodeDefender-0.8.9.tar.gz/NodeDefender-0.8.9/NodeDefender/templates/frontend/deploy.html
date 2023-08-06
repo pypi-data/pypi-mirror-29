@@ -1,0 +1,741 @@
+{% block content %}
+{% from "frontend/macros/form.html" import render_manual, render_secret, render_select, render_checkbox %}
+{% from "frontend/macros/info.html" import FieldID %}
+<style>
+#deployAlert {
+    position: relative;
+    z-index: 100;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+}
+</style>
+<div class="alert alert-warning alert-dismissable" id="deployAlert">
+  <a href="#" class="close" data-dismiss="alert" aria-label="close">×</a>
+  <strong>Temporary session! This session is not deployed. </strong> <a href="#" data-toggle="modal" data-target="#deployNodeDefender" class="alert-link">Deploy Here</a>
+</div>
+<div class="modal fade" id="deployNodeDefender" role="dialog">
+	<div class="modal-dialog">
+		<div class="modal-content">
+			<div class="modal-header">
+				<button type="button" class="close" data-dismiss="modal">&times;</button>
+				<h2 class="modal-title">Deploy: <div class="multiform-subtitle" id="deploy-subtitle">General</div></h2>
+				<div class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100"></div>
+			</div>
+			<div class="modal-body">
+				<div class="deployform-step">
+					<div class="row">
+            {{ render_select('Run Mode', 'generalRunMode', "Production", "Development", "Testing") }}
+          </div>
+          <div class="row">
+            {{ render_manual('Key', 'generalKey') }}
+            {{ render_manual('Salt', 'generalSalt') }}
+            {{ render_manual('Host', 'generalHost') }}
+            {{ render_manual('Port', 'generalPort') }}
+            {{ render_checkbox('Self Registration', 'generalSelfRegistration') }}
+					</div>
+				</div>
+				<div class="deployform-step">
+          <div class="row">
+            {{ render_checkbox('Enable', 'enableDatabase') }}
+            {{ render_select('Engine', 'databaseEngine', 'sqlite', 'mysql') }}
+            {{ render_manual('Host', 'databaseHost') }}
+            {{ render_manual('Port', 'databasePort') }}
+            {{ render_manual('Username', 'databaseUsername') }}
+            {{ render_manual('Password', 'databasePassword') }}
+            {{ render_manual('Database', 'databaseDatabase') }}
+            {{ render_manual('File Name', 'databaseFilepath') }}
+            <p class="col-sm-offset-2">
+              <i>
+                SQLite will be stored in Datafolder.<br>
+                <bold>Do not use any slashes(/) in the name</bold>
+              </i>
+            </p>
+				  </div>
+        </div>
+				<div class="deployform-step">
+					<div class="row">
+            {{ render_checkbox('Enable', 'enableCache') }}
+            {{ render_manual('Host', 'cacheHost') }}
+            {{ render_manual('Port', 'cachePort') }}
+            {{ render_manual('Username', 'cacheUsername') }}
+            {{ render_manual('Password', 'cachePassword') }}
+            {{ render_manual('Database', 'cacheDatabase') }}
+          </div>
+				</div>
+        <div class="deployform-step">
+          <div class="row">
+            {{ render_checkbox('Enable', 'enableMail') }}
+            {{ render_manual('Host', 'mailHost') }}
+            {{ render_manual('Port', 'mailPort') }}
+            {{ render_manual('Username', 'mailUsername') }}
+            {{ render_manual('Password', 'mailPassword') }}
+            {{ render_checkbox('SSL', 'mailSSL') }}
+            {{ render_checkbox('TLS', 'mailTLS') }}
+          </div>
+        </div>
+        <div class="deployform-step">
+          <div class="row">
+            {{ render_checkbox('Enable', 'enableLogging') }}
+            {{ render_select('Engine', 'loggingEngine', 'local', 'syslog') }}
+            {{ render_manual('Host', 'loggingHost') }}
+            {{ render_manual('Port', 'loggingPort') }}
+            {{ render_manual('File Name', 'loggingFilepath') }}
+            <p class="col-sm-offset-2">
+              <i>
+                Local logging will be stored in Datafolder.<br>
+                <bold>Do not use any slashes(/) in the name</bold>
+              </i>
+            </p>
+          </div>
+        </div>
+        <div class="deployform-step">
+          <div class="row">
+            {{ render_checkbox('Enable', 'enableCelery') }}
+            {{ render_manual('Host', 'celeryHost') }}
+            {{ render_manual('Port', 'celeryPort') }}
+            {{ render_manual('Username', 'celeryUsername') }}
+            {{ render_manual('Password', 'celeryPassword') }}
+          </div>
+        </div>
+        <div class="deployform-step">
+          <div class="row">
+            <h3>Submit</h3>
+          </div>
+        </div>
+			</div>
+			<div class="modal-footer">
+				<button class="multibtn deployform-back btn btn-info">Back</button>
+				<button class="multibtn deployform-next btn btn-info">Next</button>
+				<button class="multibtn deployform-submit btn btn-success">Submit</button>
+			</div>
+		</div>
+	</div>
+</div>
+<div class="modal fade" id="deployCreateSuperuser" role="dialog">
+	<div class="modal-dialog">
+		<div class="modal-content">
+			<div class="modal-header">
+				<button type="button" class="close" data-dismiss="modal">&times;</button>
+				<h2 class="modal-title">Create Superuser</h2>
+			</div>
+			<div class="modal-body">
+				<div class="row">
+					{{ render_manual("Email", "deploySuperUserEmail") }}
+          {{ render_manual("Firstname", "deploySuperUserFirstname") }}
+          {{ render_manual("Lastname", "deploySuperUserLastname") }}
+          {{ render_secret("Password", "deploySuperUserPassword") }}
+          {{ render_secret("Confirm", "deploySuperUserConfirm") }}
+				</div>
+			</div>
+			<div class="modal-footer">
+				<button type="submit" class="btn btn-primary" id="deploySuperUser" disabled>Create User</button>
+				</form>
+			</div>
+		</div>
+	</div>
+</div>
+<div class="modal fade" id="deployCompleted" role="dialog">
+	<div class="modal-dialog">
+		<div class="modal-content">
+			<div class="modal-header">
+				<button type="button" class="close" data-dismiss="modal">&times;</button>
+				<h2 class="modal-title">Success!</h2>
+			</div>
+			<div class="modal-body">
+				<div class="row">
+					<h3>
+            <bold>
+              Deployment successful.<br>
+              Please Retart the Service on your host in order to run with the new settings.<br>
+              Superuser will be able to login and create groups and more.
+            </bold>
+          </h3>
+				</div>
+			</div>
+			<div class="modal-footer">
+			</div>
+		</div>
+	</div>
+</div>
+<script>
+var cb = []
+var submitcb;
+var initMultistep = function() {
+	for (var i = 0; i < (arguments.length - 1); i++)
+		cb[i] = arguments[i];
+	submitcb = arguments[arguments.length - 1];
+}
+$(document).ready(function() {
+	var current = 1;
+
+	deployform   = $(".deployform-step");
+	deploynext     = $(".deployform-next");
+	deployback     = $(".deployform-back");
+	deploysubmit   = $(".deployform-submit");
+  deploySuerUser = $("#deploySuperUser");
+
+	// Init buttons and UI
+	deployform.not(':eq(0)').hide();
+	hideDeployButtons(current);
+	setDeployProgress(current);
+
+	// Next button click action
+	deploynext.click(function(){
+    submitDeploySection(current)
+  });
+
+  nextStep = function() {
+		if(current < deployform.length){
+      deployform.show();
+      deployform.not(':eq('+(current++)+')').hide();
+  	  setDeployProgress(current);
+	  }
+    hideDeployButtons(current);
+    enterDeploySection(current);
+  };
+
+	// Back button click action
+  deployback.click(function(){
+
+    if(current > 1){
+      current = current - 2;
+      nextStep();
+    }
+		hideDeployButtons(current);
+    enterDeploySection(current);
+	});
+
+  deploySuerUser.click(function() {
+		data = {
+			email : document.getElementById("deploySuperUserEmail").value,
+			firstname : document.getElementById("deploySuperUserFirstname").value,
+			lastname : document.getElementById("deploySuperUserLastname").value,
+			password : document.getElementById("deploySuperUserPassword").value,
+			role :	"superuser"
+		};
+    $.ajax({
+      url:"/api/v1/user/create",
+      type:"POST",
+      async: false,
+      data:JSON.stringify(data),
+      contentType:"application/json;",
+      dataType:"json",
+      success: function(data){
+        $("#deployCreateSuperuser").modal("hide");
+        toastr.success("User Created")
+        $("#deployCompleted").modal("show");
+        return true;
+      },
+      error: function(message) {
+        toastr.error(message)
+        return false;
+      }
+    })
+  return false;
+  })
+
+  document.getElementById("deploySuperUserConfirm").addEventListener("keyup", function() {
+    pw = document.getElementById("deploySuperUserPassword").value;
+    comparepw = document.getElementById("deploySuperUserConfirm").value;
+    if (pw == comparepw)
+      document.getElementById("deploySuperUser").disabled = false;
+    else
+      document.getElementById("deploySuperUser").disabled = true;
+  });
+
+	deploysubmit.click(function() {
+      $.ajax({
+        url:"/api/v1/config/write",
+        type:"POST",
+        async: false,
+        contentType:"application/json;",
+        success: function(data){
+          $("#deployNodeDefender").modal("hide");
+          toastr.success("Configuration Saved");
+          $("#deployCreateSuperuser").modal("show");
+          return true;
+        },
+        error: function(status, d, data) {
+          $("#deployNodeDefender").modal("hide");
+          toastr.error(status.responseText);
+          return false;
+        }
+      })
+    return false;
+	});
+
+  $.get("/api/v1/config/general", function(data, status){
+    document.getElementById("generalRunMode").val = data.run_mode;
+    document.getElementById("generalKey").value = data.key;
+    document.getElementById("generalSalt").value = data.salt;
+    document.getElementById("generalHost").value = data.host;
+    document.getElementById("generalPort").value = data.port;
+    document.getElementById("generalSelfRegistration").checked = data.self_registration;
+  });
+
+  $.get("/api/v1/config/database", function(data, status){
+    if (data.enabled)
+      document.getElementById("enableDatabase").click();
+    document.getElementById("databaseEngine").val = data.engine;
+    document.getElementById("databaseHost").value = data.host;
+    document.getElementById("databasePort").value = data.port;
+    document.getElementById("databaseUsername").value = data.username;
+    document.getElementById("databasePassword").value = data.password;
+    document.getElementById("databaseDatabase").value = data.database;
+    document.getElementById("databaseFilepath").value = data.filepath;
+  });
+
+  $.get("/api/v1/config/cache", function(data, status){
+    if (data.enabled)
+      document.getElementById("enableCache").click();
+    document.getElementById("cacheHost").value = data.host;
+    document.getElementById("cachePort").value = data.port;
+    document.getElementById("cacheUsername").value = data.username;
+    document.getElementById("cachePassword").value = data.password;
+    document.getElementById("cacheDatabase").value = data.database;
+  });
+
+  $.get("/api/v1/config/mail", function(data, status){
+    if (data.enabled)
+      document.getElementById("enableMail").click();
+    document.getElementById("mailHost").value = data.host;
+    document.getElementById("mailPort").value = data.port;
+    document.getElementById("mailUsername").value = data.username;
+    document.getElementById("mailPassword").value = data.password;
+    document.getElementById("mailSSL").value = data.ssl;
+    document.getElementById("mailTLS").value = data.tls;
+  });
+
+  $.get("/api/v1/config/logging", function(data, status){
+    if (data.enabled)
+      document.getElementById("enableLogging").click();
+    document.getElementById("loggingEngine").value = data.engine;
+    document.getElementById("loggingHost").value = data.host;
+    document.getElementById("loggingPort").value = data.port;
+    document.getElementById("loggingFilepath").value = data.filepath;
+  });
+
+  $.get("/api/v1/config/celery", function(data, status){
+    if (data.enabled)
+      document.getElementById("enableCelery").click();
+    document.getElementById("celeryHost").value = data.host;
+    document.getElementById("celeryPort").value = data.port;
+    document.getElementById("celeryUsername").value = data.username;
+    document.getElementById("celeryPassword").value = data.password;
+  });
+
+  disableDatabase();
+  disableCache();
+  disableMail();
+  disableLogging();
+  disableCelery();
+});
+
+enterGeneral = function() {
+  document.getElementById("deploy-subtitle").innerHTML = "General";
+}
+submitGeneral = function() {
+  data = {
+    run_mode : document.getElementById("generalRunMode").value,
+    key : document.getElementById("generalKey").value,
+    salt : document.getElementById("generalSalt").value,
+    host : document.getElementById("generalHost").value,
+    port : document.getElementById("generalPort").value,
+    self_registration : document.getElementById("generalSelfRegistration").checked,
+  };
+    $.ajax({
+      url:"/api/v1/config/general",
+      type:"POST",
+      async: false,
+      data:JSON.stringify(data),
+      contentType:"application/json;",
+      dataType:"json",
+      success: function(data){
+        nextStep();
+        return true;
+      },
+      error: function(message) {
+        toastr.error(message)
+        return false;
+      }
+    })
+  return false;
+}
+enterDatabase = function() {
+  document.getElementById("deploy-subtitle").innerHTML = "Database";
+}
+
+submitDatabase = function() {
+  data = {
+    enabled : document.getElementById("enableDatabase").checked,
+    engine : document.getElementById("databaseEngine").value,
+    host : document.getElementById("databaseHost").value,
+    port : document.getElementById("databasePort").value,
+    username : document.getElementById("databaseUsername").value,
+    password : document.getElementById("databasePassword").value,
+    database : document.getElementById("databaseDatabase").value,
+    filepath : document.getElementById("databaseFilepath").value
+  };
+    $.ajax({
+      url:"/api/v1/config/database",
+      type:"POST",
+      async: false,
+      data:JSON.stringify(data),
+      contentType:"application/json;",
+      dataType:"json",
+      success: function(data){
+        nextStep();
+        return true;
+      },
+      error: function(status, d, data) {
+        toastr.error(status.responseText);
+        return false;
+      }
+    })
+  return false;
+}
+
+enterCache = function() {
+  document.getElementById("deploy-subtitle").innerHTML = "Cache";
+}
+
+submitCache = function() {
+  data = {
+    enabled : document.getElementById("enableCache").checked,
+    host : document.getElementById("cacheHost").value,
+    port : document.getElementById("cachePort").value,
+    username : document.getElementById("cacheUsername").value,
+    password : document.getElementById("cachePassword").value,
+    database : document.getElementById("cacheDatabase").value
+  };
+    $.ajax({
+      url:"/api/v1/config/cache",
+      type:"POST",
+      async: false,
+      data:JSON.stringify(data),
+      contentType:"application/json;",
+      dataType:"json",
+      success: function(data){
+        nextStep();
+        return true;
+      },
+      error: function(status, d, data) {
+        toastr.error(status.responseText);
+        return false;
+      }
+    })
+  return false;
+}
+
+enterMail = function() {
+  document.getElementById("deploy-subtitle").innerHTML = "Mail";
+}
+
+submitMail = function() {
+  data = {
+    enabled : document.getElementById("enableMail").checked,
+    host : document.getElementById("mailHost").value,
+    port : document.getElementById("mailPort").value,
+    username : document.getElementById("mailUsername").value,
+    password : document.getElementById("mailPassword").value,
+    ssl : document.getElementById("mailSSL").checked,
+    tls : document.getElementById("mailTLS").checked
+  };
+    $.ajax({
+      url:"/api/v1/config/mail",
+      type:"POST",
+      async: false,
+      data:JSON.stringify(data),
+      contentType:"application/json;",
+      dataType:"json",
+      success: function(data){
+        nextStep();
+        return true;
+      },
+      error: function(status, d, data) {
+        toastr.error(status.responseText);
+        return false;
+      }
+    })
+  return false;
+}
+
+enterLogging = function() {
+  document.getElementById("deploy-subtitle").innerHTML = "Logging";
+}
+
+submitLogging = function() {
+  data = {
+    enabled : document.getElementById("enableLogging").checked,
+    engine : document.getElementById("loggingEngine").value,
+    host : document.getElementById("loggingHost").value,
+    port : document.getElementById("loggingPort").value,
+    filepath : document.getElementById("loggingFilepath").value
+  };
+    $.ajax({
+      url:"/api/v1/config/logging",
+      type:"POST",
+      async: false,
+      data:JSON.stringify(data),
+      contentType:"application/json;",
+      dataType:"json",
+      success: function(data){
+        nextStep();
+        return true;
+      },
+      error: function(status, d, data) {
+        toastr.error(status.responseText);
+        return false;
+      }
+    })
+  return false;
+}
+
+enterCelery = function() {
+  document.getElementById("deploy-subtitle").innerHTML = "Celery";
+}
+
+submitCelery = function() {
+  data = {
+    enabled : document.getElementById("enableCelery").checked,
+    host : document.getElementById("celeryHost").value,
+    port : document.getElementById("celeryPort").value,
+    username : document.getElementById("celeryUsername").value,
+    password : document.getElementById("celeryPassword").value,
+  };
+    $.ajax({
+      url:"/api/v1/config/celery",
+      type:"POST",
+      async: false,
+      data:JSON.stringify(data),
+      contentType:"application/json;",
+      dataType:"json",
+      success: function(data){
+        nextStep();
+        return true;
+      },
+      error: function(status, d, data) {
+        toastr.error(status.responseText);
+        return false;
+      }
+    })
+  return false;
+}
+
+enterSubmit = function() {
+  document.getElementById("deploy-subtitle").innerHTML = "Submit";
+}
+
+submitSubmit = function() {
+  return console.log("Submit OK");
+}
+
+
+enterDeploySections = [enterGeneral, enterDatabase, enterCache, enterMail, enterLogging, enterCelery, enterSubmit];
+submitDeploySections = [submitGeneral, submitDatabase, submitCache, submitMail, submitLogging, submitCelery,submitSubmit];
+enterDeploySection = function(step) {
+  console.log("Step: ", step);
+  if (step > 0) {
+    return enterDeploySections[step - 1]();
+  }
+  else {
+    return true;
+  }
+}
+submitDeploySection = function(step) {
+  if (step > 0) {
+    return submitDeploySections[step - 1]();
+  }
+  else {
+    return true;
+  }
+}
+
+enableDatabase = function(){
+  document.getElementById("databaseEngine").disabled = false;
+  if (document.getElementById("databaseEngine").value == "mysql")
+    enableRemoteDatabase();
+  else
+    enableLocalDatabase();
+}
+
+disableDatabase = function() {
+  document.getElementById("databaseEngine").disabled = true;
+  document.getElementById("databaseHost").disabled = true;
+  document.getElementById("databasePort").disabled = true;
+  document.getElementById("databaseUsername").disabled = true;
+  document.getElementById("databasePassword").disabled = true;
+  document.getElementById("databaseDatabase").disabled = true;
+  document.getElementById("databaseFilepath").disabled = true;
+}
+
+enableRemoteDatabase = function() {
+  document.getElementById("databaseHost").disabled = false;
+  document.getElementById("databasePort").disabled = false;
+  document.getElementById("databaseUsername").disabled = false;
+  document.getElementById("databasePassword").disabled = false;
+  document.getElementById("databaseDatabase").disabled = false;
+  document.getElementById("databaseFilepath").disabled = true;
+}
+
+enableLocalDatabase = function() {
+  document.getElementById("databaseHost").disabled = true;
+  document.getElementById("databasePort").disabled = true;
+  document.getElementById("databaseUsername").disabled = true;
+  document.getElementById("databasePassword").disabled = true;
+  document.getElementById("databaseDatabase").disabled = true;
+  document.getElementById("databaseFilepath").disabled = false;
+}
+
+document.getElementById("enableDatabase").addEventListener("change", function() {
+  if(this.checked)
+    enableDatabase()
+  else {
+    disableDatabase()
+  }
+});
+
+document.getElementById("databaseEngine").addEventListener("change", function() {
+  if(this.value == "mysql")
+    enableRemoteDatabase()
+  else {
+    enableLocalDatabase()
+  }
+});
+
+enableCache = function(){
+  document.getElementById("cacheHost").disabled = false;
+  document.getElementById("cachePort").disabled = false;
+  document.getElementById("cacheUsername").disabled = false;
+  document.getElementById("cachePassword").disabled = false;
+  document.getElementById("cacheDatabase").disabled = false;
+}
+
+disableCache = function() {
+  document.getElementById("cacheHost").disabled = true;
+  document.getElementById("cachePort").disabled = true;
+  document.getElementById("cacheUsername").disabled = true;
+  document.getElementById("cachePassword").disabled = true;
+  document.getElementById("cacheDatabase").disabled = true;
+}
+
+document.getElementById("enableCache").addEventListener("change", function() {
+  if(this.checked)
+    enableCache()
+  else {
+    disableCache()
+  }
+});
+
+enableMail = function(){
+  document.getElementById("mailHost").disabled = false;
+  document.getElementById("mailPort").disabled = false;
+  document.getElementById("mailUsername").disabled = false;
+  document.getElementById("mailPassword").disabled = false;
+  document.getElementById("mailSSL").disabled = false;
+  document.getElementById("mailTLS").disabled = false;
+}
+
+disableMail = function() {
+  document.getElementById("mailHost").disabled = true;
+  document.getElementById("mailPort").disabled = true;
+  document.getElementById("mailUsername").disabled = true;
+  document.getElementById("mailPassword").disabled = true;
+  document.getElementById("mailSSL").disabled = true;
+  document.getElementById("mailTLS").disabled = true;
+}
+
+document.getElementById("enableMail").addEventListener("change", function() {
+  if(this.checked)
+    enableMail()
+  else {
+    disableMail()
+  }
+});
+
+enableLogging = function(){
+  document.getElementById("loggingEngine").disabled = false;
+  if (document.getElementById("loggingEngine").disabled.value == "syslog")
+    enableRemoteLogging();
+  else
+    enableLocalLogging();
+}
+
+disableLogging = function() {
+  document.getElementById("loggingEngine").disabled = true;
+  document.getElementById("loggingHost").disabled = true;
+  document.getElementById("loggingPort").disabled = true;
+  document.getElementById("loggingFilepath").disabled = true;
+}
+
+enableRemoteLogging = function() {
+  document.getElementById("loggingHost").disabled = false;
+  document.getElementById("loggingPort").disabled = false;
+  document.getElementById("loggingFilepath").disabled = true;
+}
+
+enableLocalLogging = function() {
+  document.getElementById("loggingHost").disabled = true;
+  document.getElementById("loggingPort").disabled = true;
+  document.getElementById("loggingFilepath").disabled = false;
+}
+
+document.getElementById("enableLogging").addEventListener("change", function() {
+  if(this.checked)
+    enableLogging()
+  else {
+    disableLogging()
+  }
+});
+
+document.getElementById("loggingEngine").addEventListener("change", function() {
+  if(this.value == "syslog")
+    enableRemoteLogging()
+  else {
+    enableLocalLogging()
+  }
+});
+
+enableCelery = function(){
+  document.getElementById("celeryHost").disabled = false;
+  document.getElementById("celeryPort").disabled = false;
+  document.getElementById("celeryUsername").disabled = false;
+  document.getElementById("celeryPassword").disabled = false;
+}
+
+disableCelery = function() {
+  document.getElementById("celeryHost").disabled = true;
+  document.getElementById("celeryPort").disabled = true;
+  document.getElementById("celeryUsername").disabled = true;
+  document.getElementById("celeryPassword").disabled = true;
+}
+
+document.getElementById("enableCelery").addEventListener("change", function() {
+  if(this.checked)
+    enableCelery()
+  else {
+    disableCelery()
+  }
+});
+
+setDeployProgress = function(currstep){
+	var percent = parseFloat(100 / deployform.length) * currstep;
+	percent = percent.toFixed();
+	$(".progress-bar")
+        .css("width",percent+"%")
+        .html(percent+"%");
+}
+
+// Hide buttons according to the current step
+hideDeployButtons = function(current){
+	var limit = parseInt(deployform.length);
+
+	$(".multibtn").hide();
+
+	if(current < limit) deploynext.show();
+	if(current > 1) deployback.show();
+	if (current == limit) { deploynext.hide(); deploysubmit.show(); }
+}
+</script>
+{% endblock %}

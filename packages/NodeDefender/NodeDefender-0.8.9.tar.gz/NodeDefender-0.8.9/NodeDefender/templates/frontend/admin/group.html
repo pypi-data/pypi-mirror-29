@@ -1,0 +1,281 @@
+{% extends "frontend/base.html" %}
+{% block content %}
+<div class="row">
+    <div class="col-lg-12">
+        <h1 class="page-header">
+					Admin <small>Group {{Group.name}}</small>
+				</h1>
+             <ol class="breadcrumb">
+           <li class="active">
+						 <i class="fa fa-map-marker"></i><a href="{{url_for('index')}}"> Dashboard</a>
+          </li>
+					<li class="active">Node List</li>
+       </ol>
+    </div>
+</div>
+{% include "frontend/flash.html" %}
+{% from "frontend/macros/group.html" import GroupInfo with context %}
+{% from "frontend/macros/map.html" import MapGroup %}
+{% from "frontend/macros/messages.html" import MessageList, emit_group_messages %}
+{% from "frontend/macros/user.html" import ListUsers with context %}
+
+<div class="row">
+	<div class="col-lg-8">
+		<div class="panel panel-primary">
+			<div class="panel-heading">
+				Nodes
+			</div>
+			<div class="panel-body" style="height: 200px; padding: 0;">
+				{{MapGroup(Group.nodes)}}
+			</div>
+		</div>
+	</div>
+	<div class="col-lg-4">
+		<div class="panel panel-primary">
+			<div class="panel-heading">
+				General
+        <div class="floatRight" id="general">
+          {% if current_user.has_role("administrator") %}
+            <a style="color: #FFFFFF; margin: 0 5px;" href="#" data-toggle="modal" data-target="#modifyGroup"><i class="fa fa-pencil" aria-hidden="true"></i></a>
+          {% endif %}
+				</div>
+			</div>
+			<div class="panel-body" style="height: 200px;">
+				{{GroupInfo(Group)}}
+			</div>
+		</div>
+	</div>
+</div>
+{% from "frontend/macros/data/group/heat.html" import AverageHeat %}
+{% from "frontend/macros/data/group/power.html" import AveragePower %}
+{% from "frontend/macros/data/group/event.html" import AverageEvents %}
+{% from "frontend/macros/form.html" import render_manual %}
+<div class="row">
+	<div class="col-lg-4">
+		{{ AverageHeat(Group) }}
+	</div>
+	<div class="col-lg-4">
+		{{ AveragePower(Group) }}
+	</div>
+	<div class="col-lg-4">
+		{{ AverageEvents(Group) }}
+	</div>
+</div>
+<div class="row">
+	<div class="col-lg-6">
+		<div class="panel panel-primary">
+			<div class="panel-heading">
+				Messages
+			</div>
+			<div class="panel-body" style="padding: 0";>
+				{{MessageList()}}
+				{{emit_group_messages(Group)}}
+			</div>
+		</div>
+	</div>
+	<div class="col-lg-6">
+		<div class="panel panel-primary">
+			<div class="panel-heading">
+				Users
+        {% if current_user.administrator %}
+        <div class="floatRight">
+          <a style="color: #FFFFFF;" href="#" data-toggle="modal" data-target="#AddUser">
+            <i class="fa fa-plus" aria-hidden="true"></i>
+          </a>
+        </div>
+        {% endif %}
+      </div>
+			<div class="panel-body" style="padding: 0";>
+				{{ListUsers(Group.users)}}
+			</div>
+		</div>
+	</div>
+</div>
+{% from "frontend/macros/info.html" import FieldID %}
+<div class="modal fade" id="AddUser" role="dialog">
+	<div class="modal-dialog">
+		<div class="modal-content">
+			<div class="modal-header">
+				<button type="button" class="close" data-dismiss="modal">&times;</button>
+				<h2 class="modal-title">Add User</h2>
+			</div>
+			<div class="modal-body">
+        <div class="row">
+          <div class="form-group">
+            <label class="control-label col-sm-2">Email:</label>
+            <div class="col-sm-10">
+              <input type="string" class="form-control" id="addUserMail" onblur="getUserInfo()">
+            </div>
+          </div>
+          {{ FieldID("Firstname", "", "addUserFirstname") }}
+          {{ FieldID("Lastname", "", "addUserLastname") }}
+        </div>
+			</div>
+			<div class="modal-footer">
+				<button class="btn btn-success" id="submitAddUser" onclick="addUserToGroup()" disabled>Add User</button>
+			</div>
+		</div>
+	</div>
+</div>
+<script>
+group = "{{Group.name}}";
+userSocket.on('info', function(user){
+  if (user) {
+    document.getElementById("addUserFirstname").innerHTML = user.firstName;
+    document.getElementById("addUserLastname").innerHTML = user.lastName;
+    document.getElementById("submitAddUser").disabled = false;
+  }
+})
+function getUserInfo() {
+  document.getElementById("submitAddUser").disabled = true;
+  userSocket.emit('info', document.getElementById("addUserMail").value);
+}
+function addUserToGroup() {
+  groupSocket.emit('addUser', group, document.getElementById("addUserMail").value)
+}
+</script>
+<div class="modal fade" id="modifyGroup" role="dialog">
+	<div class="modal-dialog">
+		<div class="modal-content">
+			<div class="modal-header">
+				<button type="button" class="close" data-dismiss="modal">&times;</button>
+				<h2 class="modal-title">Modify Group</h2>
+			</div>
+			<div class="modal-body">
+        <ul class="nav nav-pills nav-justified">
+          <li class="active"><a data-toggle="pill" href="#modifyGroupGeneral">General</a></li>
+          <li><a data-toggle="pill" href="#modifyGroupLocation">Location</a></li>
+          <li><a data-toggle="pill" href="#modifyGroupDelete">Delete</a></li>
+        </ul>
+				<br>
+        <div class="tab-content">
+          <div id="modifyGroupGeneral" class="tab-pane fade in active">
+            <div class="row">
+              {{ render_manual("Name", "modifyGroupName") }}
+							{{ render_manual("Email", "modifyGroupEmail") }}
+							{{ render_manual("Description", "modifyGroupDescription") }}
+            </div>
+          </div>
+          <div id="modifyGroupLocation" class="tab-pane fade">
+            <div class="row">
+              <div class="form-group">
+                <label class="control-label col-sm-2">Street:</label>
+                <div class="col-sm-10">
+                  <input type="string" class="form-control" id="modifyGroupStreet" onblur="getCoordinates()">
+                </div>
+              </div>
+              <div class="form-group">
+              	<label class="control-label col-sm-2">City:</label>
+              	<div class="col-sm-10">
+              		<input type="string" class="form-control" id="modifyGroupCity" onblur="getCoordinates()">
+              	</div>
+              </div>
+              {{ render_manual("Latitude", "modifyGroupLatitude") }}
+    					{{ render_manual("Longitude", "modifyGroupLongitude") }}
+            </div>
+          </div>
+          <div id="modifyGroupDelete" class="tab-pane fade">
+            <div class="row">
+							<div class="col-sm-10">
+								<i>By deleting this group you remove all the history associated with it.
+								Please confirm the action by entering the name of the group in the text- box below</i>
+							</div>
+						</div>
+						<div class="row">
+							<br>
+              <div class="form-group">
+              	<label class="control-label col-sm-2">Group Name:</label>
+              	<div class="col-sm-10">
+              		<input type="string" class="form-control" id="confirmDeleteName" onkeyup="confirmDelete()">
+              	</div>
+              </div>
+            </div>
+          </div>
+        </div>
+			</div>
+			<div class="modal-footer">
+				<button type="button" id="submitGeneral" class="btn btn-primary">Update Genral</button>
+				<button type="button" id="submitLocation" class="btn btn-primary">Update Location</button>
+        <button type="button" id="submitDelete" class="btn btn-danger" disabled>Delete Group</button>
+			</div>
+		</div>
+	</div>
+</div>
+<script>
+$(document).ready(function() {
+  document.getElementById('')
+
+});
+submitGeneral = $('#submitGeneral');
+submitLocation = $('#submitLocation');
+submitDelete = $('#submitDelete');
+submitLocation.hide();
+submitDelete.hide();
+groupName = "{{Group.name}}";
+
+$("a[href='#modifyGroupLocation']").on('show.bs.tab', function(e) {
+     submitGeneral.hide();
+     submitDelete.hide()
+     submitLocation.show();
+});
+$("a[href='#modifyGroupGeneral']").on('show.bs.tab', function(e) {
+  submitLocation.hide();
+  submitDelete.hide()
+  submitGeneral.show();
+});
+$("a[href='#modifyGroupDelete']").on('show.bs.tab', function(e) {
+  submitLocation.hide();
+  submitGeneral.hide();
+  submitDelete.show()
+});
+groupSocket.on("info", function(group) {
+  document.getElementById("modifyGroupName").value = group.name;
+  document.getElementById("modifyGroupEmail").value = group.email;
+	document.getElementById("modifyGroupDescription").value = group.description;
+	if (group.location) {
+		document.getElementById("modifyGroupStreet").value = group.location.street;
+		document.getElementById("modifyGroupCity").value = group.location.city;
+		document.getElementById("modifyGroupLatitude").value = group.location.latitude;
+		document.getElementById("modifyGroupLongitude").value = group.location.longitude;
+	}
+});
+
+document.getElementById("submitGeneral").addEventListener("click", function() {
+ name = document.getElementById("modifyGroupName").value;
+ email = document.getElementById("modifyGroupEmail").value;
+ description = document.getElementById("modifyGroupDescription").value;
+ groupSocket.emit("update", groupName, {'name' : name, 'email' : email, 'description' : description});
+});
+
+document.getElementById("submitLocation").addEventListener("click", function() {
+ street = document.getElementById("modifyGroupStreet").value;
+ city = document.getElementById("modifyGroupCity").value;
+ latitude = document.getElementById("modifyGroupLatitude").value;
+ longitude = document.getElementById("modifyGroupLongitude").value;
+ groupSocket.emit("updateLocation", groupName, {'street' : street, 'city' : city, 'latitude' : latitude, 'longitude' : longitude});
+});
+
+document.getElementById("submitDelete").addEventListener("click", function() {
+ groupSocket.emit("delete", groupName);
+});
+
+groupSocket.on('coordinates', function(latitude, longitude) {
+  document.getElementById("modifyGroupLatitude").value = latitude;
+  document.getElementById("modifyGroupLongitude").value = longitude;
+});
+
+function getCoordinates() {
+  groupSocket.emit('coordinates', document.getElementById("modifyGroupStreet").value,
+document.getElementById("modifyGroupCity").value);
+}
+
+function confirmDelete() {
+  if (document.getElementById("confirmDeleteName").value === groupName)
+    document.getElementById("submitDelete").disabled = false;
+  else
+    document.getElementById("submitDelete").disabled = true;
+}
+
+groupSocket.emit("info", groupName);
+</script>
+{% endblock %}
