@@ -1,0 +1,94 @@
+#!/usr/bin/env python
+
+import os
+import sys
+import logging
+import click
+import subprocess
+import yaml
+
+
+@click.command()
+@click.option('--name/--no-name', help="Name of your project", default=False)
+@click.option('--env-jwt-secret/--no-env-jwt-secret', help="Return the name of the environment variable containing the project's JWT secret", default=False)
+@click.option('--env-jwt-audience/--no-env-jwt-audience', help="Return the name of the environment variable containing the project's JWT audience", default=False)
+@click.option('--live-host/--no-live-host', help="Return the url of the live server", default=False)
+@click.option('--env-secrets/--no-env-secrets', help="Return a list of environment variables to pass to docker/elasticbean", default=False)
+@click.option('--git-root/--no-git-root', help="Print the git repository's root dir", default=False)
+@click.option('--docker-repo/--no-docker-repo', help="Name of your docker repo on docker.io", default=False)
+@click.option('--docker-bucket/--no-docker-bucket', help="Name of the s3 bucket to upload the docker config to", default=False)
+@click.option('--aws-user/--no-aws-user', help="Name of the aws iam user to deploy as", default=False)
+@click.option('--aws-keypair/--no-aws-keypair', help="Name of the aws ssh keypair to deploy on ec2 instances", default=False)
+@click.option('--aws-instance-type/--no-aws-instance-type', help="Name of the aws instance type to use", default=False)
+@click.option('--aws-cert-arn/--no-aws-cert-arn', help="ARN of ssl certificate to use for server, if https enabled", default=False)
+@click.option('--include-links/--no-include-links', help="Which symlinks to include in the docker image", default=False)
+@click.option('--aws-hosts-min/--no-aws-hosts-min', help="Minimum size of autoscalling group (default: 1)", default=False)
+@click.option('--aws-hosts-max/--no-aws-hosts-max', help="Maximum size of autoscalling group (default: 4)", default=False)
+@click.option('--with-async/--no-with-async', help="Use asynchronous task support based on celery/rabbitmq", default=False)
+def main(name, env_jwt_secret, env_jwt_audience, live_host, env_secrets, git_root, docker_repo, docker_bucket, aws_user, aws_keypair, aws_instance_type, aws_cert_arn, include_links, aws_hosts_min, aws_hosts_max, with_async):
+    """Parse the klue config file (klue-config.yaml) in a shell script friendly
+    way."""
+
+    # What is the repo's root directory?
+    root_dir = subprocess.Popen(["git", "rev-parse", "--show-toplevel"], stdout=subprocess.PIPE).stdout.read()
+    root_dir = root_dir.decode("utf-8").strip()
+
+    if git_root:
+        print(root_dir)
+        sys.exit(0)
+
+    # Load klue-config.yaml
+    path = os.path.join(root_dir, 'klue-config.yaml')
+
+    if not os.path.isfile(path):
+        print("ERROR: cannot find config file %s" % path)
+        sys.exit(1)
+
+    d = None
+    with open(path, 'r') as stream:
+        d = yaml.load(stream)
+
+    if name:
+        print(d['name'])
+    elif env_jwt_secret:
+        print(d['env_jwt_secret'])
+    elif env_jwt_audience:
+        print(d['env_jwt_audience'])
+    elif live_host:
+        print(d['live_host'])
+    elif env_secrets:
+        if 'env_secrets' in d:
+            for s in d['env_secrets']:
+                print(s)
+    elif include_links:
+        if 'include_links' in d:
+            for s in d['include_links']:
+                print(s)
+    elif with_async:
+        print(d.get('with_async', ''))
+    elif docker_repo:
+        print(d['docker_repo'])
+    elif docker_bucket:
+        print(d['docker_bucket'])
+    elif aws_user:
+        print(d['aws_user'])
+    elif aws_keypair:
+        print(d['aws_keypair'])
+    elif aws_instance_type:
+        print(d['aws_instance_type'])
+    elif aws_cert_arn:
+        if 'aws_cert_arn' in d:
+            print(d['aws_cert_arn'])
+    elif aws_hosts_min:
+        if 'aws_hosts_min' in d:
+            print(d['aws_hosts_min'])
+        else:
+            print('1')
+    elif aws_hosts_max:
+        if 'aws_hosts_max' in d:
+            print(d['aws_hosts_max'])
+        else:
+            print('4')
+
+if __name__ == "__main__":
+    main()
