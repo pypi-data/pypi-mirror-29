@@ -1,0 +1,129 @@
+#!/usr/bin/env python3
+# system modules
+import argparse
+import textwrap
+import logging
+import os
+import json
+import sys
+
+# internal modules
+import patatmo
+from patatmo.utils import *
+from patatmo.cli import *
+from patatmo.api.client import NetatmoClient
+from patatmo.api.authentication import Authentication
+
+# external modules
+
+# Options
+parser = cli_argumentparser(
+    description=textwrap.dedent("""
+        Issue a Getmeasure request to the Netatmo server and write the results
+        to file.
+        """)
+)
+
+# Getmeasure arguments
+parser.add_argument("-d", "--device", help="mac address of the device",
+                    required=True)
+parser.add_argument(
+    "-m", "--module", help="The mac address of the module of "
+    "interest. If not specified, returns data of the device. If "
+    "specified, returns data from the specified module", required=False)
+parser.add_argument(
+    "-b",
+    "--begin",
+    help="UNIX-timestamp of "
+    "first measure to receive. Limit is 1024 measures.",
+    required=False)
+parser.add_argument(
+    "-e",
+    "--end",
+    help="UNIX-timestamp of "
+    "last measure to receive. Limit is 1024 measures.",
+    required=False)
+parser.add_argument(
+    "-t",
+    "--type",
+    help="Measures interested in. "
+    "List of 'rain','humidity','pressure','wind' and 'temperature'",
+    type=list,
+    required=False)
+parser.add_argument(
+    "-c",
+    "--scale",
+    help="Timelapse between two measurements."
+    "'max' (every value is returned), '30min' (1 value every 30min), "
+    "'1hour', '3hours', '1day', '1week', '1month'. Defaults to 'max'.",
+    required=False)
+parser.add_argument(
+    "--optimize",
+    action="store_true",
+    default=False,
+    help="Determines the format of the answer.  Default is False. For mobile "
+    "apps we recommend True and False if bandwidth isn't an issue as "
+    "it is easier to parse.",
+)
+parser.add_argument(
+    "--real_time",
+    help="If scale different than max, "
+    "timestamps are by default offset + scale/2. To get exact timestamps, use "
+    "true. Default is false.",
+    action="store_true",
+    default=False)
+parser.add_argument(
+    "--full",
+    help="Make sure the full requested time range is returned by "
+        "requesting multiple times",
+    action="store_true",
+    default=False)
+parser.add_argument("-r", "--raw", help="Return the raw API output.",
+                    action="store_true", default=False
+                    )
+
+# parse the arguments
+args = parser.parse_args()
+
+loglevel = logging.WARNING
+if args.verbose:
+    loglevel = logging.INFO
+if args.debug:
+    loglevel = logging.DEBUG
+# set up logging
+logging.basicConfig(level=loglevel)
+# get a client
+client = get_client(args)
+# get an output file
+output_file = get_output_file(args)
+
+# issue the Getmeasure request
+logging.info("Issuing Getmeasure request...")
+response = client.Getmeasure(
+    date_begin=args.begin,
+    date_end=args.end,
+    device_id=args.device,
+    module_id=args.module,
+    type=args.type,
+    full=args.full,
+    scale=args.scale,
+    real_time=args.real_time,
+    optimize=args.optimize,
+)
+logging.info("Getmeasure request completed!")
+
+if args.raw:
+    logging.info("Using raw API response as output")
+    output_string = json.dumps(response.response, sort_keys=True, indent=4)
+else:
+    # convert response
+    logging.info("Converting Getmeasure response...")
+    dataframe = response.dataframe()
+    logging.info("Getmeasure response converted!")
+
+    output_string = dataframe.to_csv()
+
+# output
+logging.info("Writing to output file '{}'...".format(output_file.name))
+output_file.write(output_string)
+logging.info("Written to output file!")

@@ -1,0 +1,99 @@
+#!/usr/bin/env python3
+# system modules
+import argparse
+import textwrap
+import logging
+import os
+import json
+import sys
+
+# internal modules
+import patatmo
+from patatmo.utils import *
+from patatmo.cli import *
+from patatmo.api.client import NetatmoClient
+from patatmo.api.authentication import Authentication
+
+# external modules
+
+# Options
+parser = cli_argumentparser(
+    description=textwrap.dedent("""
+        Issue a Getpublicdata request to the Netatmo server and write the
+        results to file.
+        """)
+)
+
+# Getpublicdata arguments
+parser.add_argument("--lat_ne", required=True,
+                    help="North-east latitude in degrees [-85;85]")
+parser.add_argument("--lon_ne", required=True,
+                    help="North-east longitude [-180;180]")
+parser.add_argument("--lat_sw", required=True,
+                    help="South-west latitude [-85;85]")
+parser.add_argument("--lon_sw", required=True,
+                    help="South-west longitude [-180;180]")
+parser.add_argument("--required_data", help="Some kind of data filter...",
+                    default=None)
+parser.add_argument("--filter", help="exclude stations with unusual data? "
+                    "Defaults to False.", action="store_true", default=False)
+parser.add_argument(
+    "--only_inside",
+    help="unless using raw API output, "
+    "make sure to drop stations outside of the requested region",
+    action="store_true",
+    default=False)
+parser.add_argument("--full", help="subdivide request into smaller regions?",
+                    action="store_true", default=False)
+optimal_resolution = 0.06
+parser.add_argument("--resolution",
+                    help="resolution for subdivision in degrees. "
+                    "Defaults to {} which seems to be the maximum possible "
+                    "resolution to still get all stations.".format(
+                        optimal_resolution),
+                    type=float,
+                    default=optimal_resolution)
+parser.add_argument("-r", "--raw", help="Return the raw API output.",
+                    action="store_true", default=False)
+
+# parse the arguments
+args = parser.parse_args()
+
+loglevel = logging.WARNING
+if args.verbose:
+    loglevel = logging.INFO
+if args.debug:
+    loglevel = logging.DEBUG
+# set up logging
+logging.basicConfig(level=loglevel)
+# get a client
+client = get_client(args)
+# get an output file
+output_file = get_output_file(args)
+
+# issue the Getpublicdata request
+logging.info("Issuing Getpublicdata request...")
+response = client.Getpublicdata(
+    region={key: float(getattr(args, key))
+            for key in ["lat_ne", "lon_ne", "lat_sw", "lon_sw"]},
+    required_data=args.required_data,
+    filter=args.filter,
+    full=args.full,
+    resolution=args.resolution,
+)
+logging.info("Getpublicdata request completed!")
+
+if args.raw:
+    logging.info("Using raw API response as output")
+    output_string = json.dumps(response.response, sort_keys=True, indent=4)
+else:
+    # convert response
+    logging.info("Converting Getpublicdata response...")
+    dataframe = response.dataframe(only_inside=args.only_inside)
+    logging.info("Getpublicdata response converted!")
+
+    output_string = dataframe.to_csv()
+
+# output
+logging.info("Writing to output file '{}'...".format(output_file.name))
+output_file.write(output_string)
