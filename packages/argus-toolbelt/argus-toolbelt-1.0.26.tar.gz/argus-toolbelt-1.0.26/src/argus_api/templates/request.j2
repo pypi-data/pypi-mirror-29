@@ -1,0 +1,65 @@
+{% from "helpers.j2" import format_arguments, format_url_parameters, format_arguments_as_dict, exception %}
+def {{method.name}}(
+    {{ format_arguments(method.parameters.all)}}
+    json: bool = True,
+    verify: bool = True,
+    apiKey: str = None,
+    authentication: dict = {}
+  ) -> dict:
+    """{{method.description}}
+
+    {%- if method.parameters.all -%}
+    {%- for parameter in method.parameters.all %}
+    :param {{parameter.type}} {{parameter.name}}: {{parameter.description}}
+    {%- endfor -%}
+    {%- endif -%}
+    
+    {%- if method.errors -%}
+    {%- for status_code, error in method.errors.items() | sort %}
+    {%- if error is mapping %}
+    :raises {{exception(error.description)}}: on {{status_code}}
+    {%- endif -%}
+    {%- endfor -%}
+    {% endif %}
+    :returns: {{ method.fake_response() | safe_dict_dump }}
+    """
+    from requests import {{ method.method }}
+    from argus_api.exceptions import http
+
+    url = "{{method.url}}".format({{ format_url_parameters(method.parameters.path) }})
+    headers = {
+        'Content-Type': 'application/json',
+        'User-Agent': 'ArgusToolbelt/{{version}}'
+    }
+
+    if apiKey:
+        headers["{{method.api_key_header_name}}"] = apiKey
+    elif authentication and isinstance(authentication, dict):
+        headers.update(authentication)
+    elif callable(authentication):
+        headers.update(authentication(url))
+
+    body = {}
+
+    {% for parameter in method.parameters.body %}
+    # Only send {{parameter.name}} if the argument was provided, dont send null values
+    if {{parameter.name | to_safe_argument }}:
+        body.update({ "{{parameter.name}}": {{parameter.name | to_safe_argument }} })
+    {% endfor %}
+
+    response = {{method.method}}(url,
+                    json=body if body else None,
+                    verify=verify,
+                    headers=headers
+                )
+
+    if response.status_code == 401:
+        raise http.AuthenticationFailedException(response)
+    elif response.status_code == 403:
+        raise http.AccessDeniedException(response)
+    elif response.status_code == 412:
+        raise http.ValidationErrorException(response)
+    elif response.status_code == 404:
+        raise http.ObjectNotFoundException(response)
+
+    return response.json() if json else response
