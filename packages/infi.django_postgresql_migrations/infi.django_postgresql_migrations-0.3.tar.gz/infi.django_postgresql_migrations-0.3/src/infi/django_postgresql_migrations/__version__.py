@@ -1,0 +1,11 @@
+__version__ = "0.3"
+__git_commiter_name__ = "Itai Shirav"
+__git_commiter_email__ = "itais@infinidat.com"
+__git_branch__ = 'develop'
+__git_remote_tracking_branch__ = 'origin/develop'
+__git_remote_url__ = 'git@git.infinidat.com:host-opensource/infi.django_postgresql_migrations.git'
+__git_head_hash__ = 'e77fb267f3010d92d5ba233817e99adfca3447e4'
+__git_head_subject__ = 'Finished Release v0.3'
+__git_head_message__ = ''
+__git_dirty_diff__ = ''
+__git_commit_date__ = '2018-03-13 10:07:57'
