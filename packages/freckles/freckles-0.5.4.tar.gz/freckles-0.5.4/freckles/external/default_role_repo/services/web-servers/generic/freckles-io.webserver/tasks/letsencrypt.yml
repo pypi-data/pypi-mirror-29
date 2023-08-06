@@ -1,0 +1,27 @@
+---
+- name: "[check if letsencrypt email is set]"
+  fail: msg="'webserver_letsencrypt_email' not set."
+  when: "webserver_enable_https and ( webserver_letsencrypt_email is not defined or not webserver_letsencrypt_email or webserver_letsencrypt_email in ['none', 'no', 'false'])"
+
+- name: "[stopping {{ webserver_type }} if running]"
+  service:
+    name: "{{ webserver_type }}"
+    state: stopped
+  register: unused_disable
+  failed_when: "unused_disable|failed and ('find' not in unused_disable.msg and 'found' not in unused_disable.msg)"
+
+- name: "[setting staging server]"
+  set_fact:
+    letsencrypt_server: https://acme-staging.api.letsencrypt.org/directory
+  when: webserver_letsencrypt_staging
+
+- name: "managing https certificate for {{ webserver_domain }}"
+  include_role:
+    name: thefinn93.letsencrypt
+  vars:
+    letsencrypt_email: "{{ webserver_letsencrypt_email }}"
+    letsencrypt_cert_domains:
+      - "{{ webserver_domain }}"
+    letsencrypt_webroot_path: "{{ webserver_webroot_path }}"
+    letsencrypt_renewal_command_args: '--renew-hook "systemctl restart {{ webserver_type }}"'
+  notify: restart webserver
