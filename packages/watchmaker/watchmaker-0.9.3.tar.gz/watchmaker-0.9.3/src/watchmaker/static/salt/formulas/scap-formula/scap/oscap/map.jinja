@@ -1,0 +1,25 @@
+{%- from 'scap/map.jinja' import scap with context %}
+
+{%- set osrel = salt.grains.get('osmajorrelease') %}
+
+{%- set os = salt.grains.filter_by({
+    'RedHat': 'rhel',
+    'CentOS': 'centos'
+}, grain='os') %}
+
+{#- Initialize oscap dictionary with defaults and pillar data #}
+{%- set oscap = {
+    'cpe': salt.pillar.get('scap:lookup:oscap:cpe') | default('openscap/ssg-rhel' ~ osrel ~ '-cpe-dictionary.xml', true),
+    'xccdf': salt.pillar.get('scap:lookup:oscap:xccdf') | default('openscap/ssg-' ~ os ~ osrel ~ '-xccdf.xml', true),
+    'profile': salt.pillar.get('scap:lookup:oscap:profile') | default('common', true),
+    'scap1_2': salt.pillar.get('scap:lookup:oscap:scap1_2') | default(false, true)
+} %}
+
+{#- Update oscap dictionary with static values #}
+{%- do oscap.update({
+    'output_dir': scap.output_dir,
+    'cpe': scap.content.local_dir ~ '/' ~ oscap.cpe,
+    'xccdf': scap.content.local_dir ~ '/' ~ oscap.xccdf,
+    'report': scap.output_dir ~ '/oscap-report.' ~ oscap.xccdf|replace('/','.') ~ '.$(date "+%Y%m%d%H%M").html',
+    'results': scap.output_dir ~ '/oscap-results.' ~ oscap.xccdf|replace('/','.') ~ '.$(date "+%Y%m%d%H%M").xml'
+}) %}
