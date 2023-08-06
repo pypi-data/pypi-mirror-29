@@ -1,0 +1,141 @@
+It's All Ghosts
+===============
+
+What this is
+------------
+
+It's All Ghosts is a universal "editor extension" for the GhostText_ browser
+add-on.
+
+While `It's All Text`_ was able to spawn almost any editor, GhostText focuses
+on such editors that are able to run plugin code on their own. This leaves
+users of most simple editors, like joe_, jupp_, nano_, gedit_ or kwrite_ behind.
+
+Compared to fully supported editors, there is a small trade-off: GhostText
+can update the text live between the input field and the editor.  This is
+not possible with It's All Ghosts.  Instead, It's All Ghosts simply spawns
+the editor on connect and passes the file contents back on exit.  It does,
+however, update the temporary file upon a change notification from the
+browser and some editors track file modifications - don't use that, however,
+because it will almost certainly destroy your contents somewhere.
+
+But apart from that, you can now again use your favourite editor again!
+
+How to install
+--------------
+
+You need to install/run with python3_.
+
+The easiest way to install It's All Ghosts is to use pip_.
+If you've got Python 3.4+ or 2.7.9+, pip will be installed by default on
+Windows, otherwise pip-install_ will help you install pip.  If you use
+pip to install, by-default it will install the latest version of ItsAllGhosts
+posted to https://pypi.python.org, along with all dependencies when you
+install like this (on Windows)::
+
+    c:\>c:\Python36\scripts\pip.exe install ItsAllGhosts
+
+Be sure to run the pip.exe that is located in your Python 3.x installation
+directory, as in the above example.
+
+For Unix environments you also need to ensure that you use the Python3
+version of pip, so your installation will look like this::
+
+    ~$ sudo pip3 install ItsAllGhosts
+
+More advanced examples of installing with pip (e.g., if you would like to
+install a development version of It's All Ghosts not yet present at
+pypi.python.org) can be found at
+https://packaging.python.org/tutorials/installing-packages/.
+
+If you don't have pip or choose not to use it, you can still install by
+just changing into the extracted installation directory and running
+"setup.py install" with python3_, as in the examples below.
+
+Example in Unix environments::
+
+    $ sudo python3 setup.py install
+
+Example in Windows environments::
+
+    C:\Users\me\Downloads\itsallghosts>c:\Python36\python.exe setup.py install
+
+How to define your editor
+-------------------------
+
+It's All Ghosts defaults to running:
+
+- nano in an xterm for Unix environments
+- `notepad++`_ for Windows environments
+
+You can place your own script to execute as the editor into:
+
+- for Unix environments: ``$XDG_CONFIG_HOME/itsallghosts_cmd``
+  (``$XDG_CONFIG_HOME`` defaults to ``~/.config/``)
+
+- for Windows environments: ``%XDG_CONFIG_HOME%\itsallghosts.cmd``
+  (``%XDG_CONFIG_HOME%`` defaults to ``C:\Users\<username>\.config\``);
+  note that the file extension MUST be ".cmd" to satisfy Windows cmd.exe
+
+- Unix example which runs jstar (from the joe_ suite) in KDE's Konsole
+  instead of the default::
+
+    exec konsole --separate -e jstar $*
+
+- Windows example which runs the xfte editor instead of the default::
+
+    c:\tools\xfte.exe %*
+
+How to run
+----------
+
+Just make sure that ``itsallghosts`` is running in your desktop session.
+
+Example for Unix::
+
+    $ itsallghosts
+
+Example for Windows::
+
+    c:\Python36>scripts\itsallghosts.exe
+
+Multi-user mode (Unix only)
+---------------------------
+
+The architecture of the GhostText protocol does not allow running on a
+multi-user system, as it relies on port 4001 being available to exactly one
+user.
+
+It's All Ghosts can be run as a system service, handing off single sessions
+to the corresponding user. This is done by introspecting the HTTP connection
+and is a bit of black magic not guaranteed to work correctly.
+
+To run the system service, simply run ``itsallghosts`` as root (this is the
+only way of getting hold of socket owners).
+
+In each user session then run::
+
+    itsallghosts --user
+
+Development and contributing
+----------------------------
+
+It's All Ghosts is very basic and sure can use some improvements. You can
+report issues or contribute in the `EduGit repository` (also open to GitHub
+and other users).
+
+It's All Ghosts is licensed under the MIT licence (see the LICENCE file for
+the text).
+
+.. _GhostText: https://github.com/GhostText/GhostText
+.. _joe: https://joe-editor.sourceforge.io/
+.. _jupp: https://www.mirbsd.org/jupp.htm
+.. _nano: https://www.nano-editor.org/
+.. _gedit: https://wiki.gnome.org/Apps/Gedit
+.. _kwrite: https://www.kde.org/applications/utilities/kwrite/
+.. _`It's All Text`: https://github.com/docwhat/itsalltext
+.. _`EduGit repository`: https://edugit.org/nik/itsallghosts
+.. _python3: https://www.python.org
+.. _`notepad++`: https://notepad-plus-plus.org
+.. _pip: https://pypi.python.org/pypi/pip
+.. _pip-install: https://pip.pypa.io/en/stable/installing/
