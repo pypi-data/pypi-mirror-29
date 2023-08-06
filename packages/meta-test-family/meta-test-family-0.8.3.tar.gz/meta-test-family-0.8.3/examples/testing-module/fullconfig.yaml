@@ -1,0 +1,104 @@
+# identifier of document for modularity testing framework
+# COPY of https://github.com/fedora-modularity/meta-test-family/blob/master/docs/example-config.yaml
+# if your module does not provide any service, you can use minimal version:
+# https://github.com/fedora-modularity/meta-test-family/blob/master/docs/example-config-minimal.yaml
+# MANDATORY
+document: meta-test
+# MANDATORY
+version: 1
+# name of module for testing (it should be same as moduleMD yaml file without extension)
+# MANDATORY
+name: memcached
+# link to default moduleMD file (usefull for local testing wihtout any repo)
+# env var: MODULEMDURL
+# MANDATORY (or compose-url)
+modulemd-url: https://src.fedoraproject.org/modules/memcached/raw/master/f/memcached.yaml
+# final compose done by pungi (contain also modulemd files for modules) can suppy also previous part
+# if you use compose, url,repo,repos in module->rpm will be ignored, and there will not be added more repos
+# be carefull when using compose url
+# env var: COMPOSEURL
+compose-url: https://kojipkgs.fedoraproject.org/compose/latest-Fedora-Modular-26/compose/Server/x86_64/os/
+# variables what could be used in test
+service:
+    port: 11211
+# packages what to install inside module
+# this section can be ommited, and it will install all packages in "default" profile
+# or in case default profile does not exist, it install all packages in section components
+packages:
+    rpms:
+        - bash
+        - rpm
+# also profile could be defined as set of packages
+    profiles:
+        - default
+# packages what will be installed on host machine (for example nc (netcat) for testing if module
+# provides service on port exported to host)
+# This dependencies are installed by mtf-set-env script
+testdependencies:
+    rpms:
+        - nc
+# default module type for testing if not set by env variable.
+# env var: MODULE   (docker, nspawn, rpm)
+default_module: docker
+# various module types setup and configuration (nspawn = rpm)
+# MANDATORY
+module:
+# for docker container
+# MANDATORY
+    docker:
+# run setup/cleanup commands on HOST, for example config manipulation, selinux boolean manipulation
+# there could be used also variables in python style like: {ROOT}, {HOSTNAME} see
+# trans_dict in  file https://github.com/fedora-modularity/meta-test-family/blob/master/moduleframework/module_framework.py
+        setup: echo Do magic with general config stored on host;
+               echo More magic
+        cleanup: echo Cleanup magic
+# how to start docker container (bind mounts, selinux relabeling, port mapping etc.)
+# there is (then there is added -d and docker container name, to run at background)
+        start: "docker run -it -e CACHE_SIZE=128 -p 11211:11211"
+# labels what will be checked if are properly set in container
+        labels:
+            description: "memcached is a high-performance, distributed memory"
+            io.k8s.description: "memcached is a high-performance, distributed memory"
+# link to default container location, there could be used docker.io registry,
+# tag(gz) archive local path, or docker=cotainer_name for image already imported image
+# env var: URL
+# MANDATORY
+        url: docker.io/modularitycontainers/memcached
+# same meaning as url
+# OBSOLOTE
+        container: docker.io/modularitycontainers/memcached
+# rpm section (nspawn) There is similar meaning like docker seciton, but for rpm(nspawn)
+# MANDATORY
+    rpm:
+        setup: echo Do magic with general config stored on host;
+               echo More magic
+        cleanup: echo Cleanup magic
+        start: /bin/true
+        stop: /bin/true
+        status: /bin/true
+# link to repo (additiona repos are added via dependencies in moduleMD file), in case you will
+# use "compose", this will be ignored
+# env var: URL
+# MANDATORY
+        url: https://kojipkgs.fedoraproject.org/compose/latest-Fedora-Modular-26/compose/Server/x86_64/os/
+# same meaing as url
+# OBSOLOTE
+        repo: https://kojipkgs.fedoraproject.org/compose/latest-Fedora-Modular-26/compose/Server/x86_64/os/
+# if you will not use "compose" nor repo, you can use repos, which caused that just mentioned
+# repos will be used, not additional repos from moduleMD file
+# env var: URL
+# OBSOLOTE
+        repos:
+            - https://kojipkgs.stg.fedoraproject.org/compose/branched/jkaluza/latest-Fedora-Modular-26/compose/Server/x86_64/os/
+            - https://kojipkgs.fedoraproject.org/compose/latest-Fedora-Modular-26/compose/Server/x86_64/os/
+# If you would like to have more configs for same module type, it is possible to do it via inheritance
+# There will be used parent module + overwritten values with this one, you can rewrite whatever you want.
+# you have to set parent (base) module type allowed are just
+# rpm/docker
+    inheriteddocker:
+# you have to set parent value for these inherited configs
+        parent: docker
+        start: "docker run -it -p 11211:11211"
+# Openshift module (it is similar to docker, but start action are another)
+    openshift:
+        container: fedora
