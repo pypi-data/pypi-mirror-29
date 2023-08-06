@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:i18n="http://xml.zope.org/namespaces/i18n"
+      xmlns:metal="http://xml.zope.org/namespaces/metal"
+      xmlns:tal="http://xml.zope.org/namespaces/tal">
+<body>
+
+<metal:navigation define-macro="answer" i18n:domain="onegov.election_day">
+    <span tal:condition="answer == 'accepted'" class="answer accepted" i18n:translate="">
+        Accepted
+    </span>
+    <span tal:condition="answer == 'rejected'" class="answer rejected" i18n:translate="">
+        Rejected
+    </span>
+    <span tal:condition="answer == 'proposal'" class="answer accepted" i18n:translate="">
+        Proposal
+    </span>
+    <span tal:condition="answer == 'counter-proposal'" class="answer rejected" i18n:translate="">
+        Counter Proposal
+    </span>
+</metal:navigation>
+
+<metal:navigation define-macro="progress" i18n:domain="onegov.election_day">
+    <tal:block i18n:translate="" condition="progress[1]">
+        <span tal:replace="progress[0]" i18n:name='counted' />
+            of
+        <span tal:replace="progress[1]" i18n:name='total' />
+    </tal:block>
+</metal:navigation>
+
+<metal:search define-macro="form" i18n:domain="onegov.election_day">
+    <form tal:attributes="action form.action" method="POST" enctype="multipart/form-data">
+        <tal:block repeat="fieldset form.fieldsets">
+            <fieldset tal:condition="fieldset.is_visible" id="fieldset-${fieldset.label.lower()}">
+                <legend>${fieldset.label}</legend>
+                <div class="formfields">
+                    <metal:fields use-macro="layout.macros['fields']" tal:define="fields fieldset.fields.values()" />
+                    <div class="clearfix"></div>
+                </div>
+            </fieldset>
+            <tal:block condition="not:fieldset.is_visible">
+                <div class="formfields">
+                    <metal:fields use-macro="layout.macros['fields']" tal:define="fields fieldset.fields.values()" />
+                    <div class="clearfix"></div>
+                </div>
+            </tal:block>
+        </tal:block>
+        <tal:block condition="cancel|nothing">
+            <a class="button secondary cancel-button" href="${cancel}" i18n:translate="">Cancel</a>
+        </tal:block>
+        <tal:block condition="not: button_text|nothing">
+            <input type="submit" value="Submit" class="button ${button_class|nothing}" i18n:attributes="value">
+        </tal:block>
+        <tal:block condition="button_text|nothing">
+            <input type="submit" value="${button_text}" class="button ${button_class|nothing}">
+        </tal:block>
+    </form>
+</metal:search>
+
+<metal:fields define-macro="fields" i18n:domain="onegov.election_day">
+    <tal:block repeat="field fields">
+        <div class="row"><div class="large-12 columns">
+        <tal:block define="input_type field.widget.input_type|None">
+            <tal:block condition="input_type == 'hidden'">
+                ${field()}
+                <small class="error" tal:repeat="error field.errors">${error}</small>
+            </tal:block>
+            <tal:block condition="input_type != 'hidden'">
+                <label tal:attributes="class field.errors and 'error' or None">
+                    <!--! render the label after the field if it's a boolean field -->
+                    <tal:block condition="field.type == 'BooleanField'">
+                        ${field(placeholder=request.translate(field.description))}
+                        <span class="label-text">${field.label.text}</span>
+                        <span class="label-required" tal:condition="field.flags.required|nothing">*</span>
+                    </tal:block>
+                    <tal:block condition="field.type != 'BooleanField'">
+                        <span class="label-text">${field.label.text}</span>
+                        <span class="label-required" tal:condition="field.flags.required|nothing">*</span>
+                        ${field(placeholder=request.translate(field.description))}
+                    </tal:block>
+                </label>
+                <small class="error" tal:repeat="error field.errors">${error}</small>
+            </tal:block>
+        </tal:block>
+    </div></div>
+    </tal:block>
+</metal:fields>
+
+<metal:related_link define-macro="related_link" i18n:domain="onegov.election_day">
+    <div class="row related" tal:condition="meta.get('related_link', '')|nothing">
+        <div class="columns small-12">
+            <h2 i18n:translate="">Related link</h2>
+            <p tal:define="link meta.get('related_link', '')">
+                <a href="${link}" class="related-link">${link}</a>
+            </p>
+        </div>
+    </div>
+</metal:related_link>
+
+<metal:pagination define-macro="pagination" i18n:domain="onegov.election_day">
+    <ul class="pagination" role="menubar" aria-label="Pagination">
+        <tal:block repeat="page collection.pages">
+            <tal:block define="
+                previous current_page.previous;
+                next current_page.next;
+                is_current current_page == page;
+                is_visible (abs(current_page.page-page.page) < 4) or repeat.page.start or repeat.page.end;
+            ">
+                <tal:block condition="repeat.page.start and previous">
+                    <li class="arrow">
+                        <a href="${request.link(previous)}" aria-label="Previous Page" i18n:attributes="aria-label"><i class="fa fa-chevron-left"></i></a>
+                    </li>
+                </tal:block>
+
+                <li tal:condition="is_visible" class="${is_current and 'current' or ''} ${repeat.page.start and 'first' or ''} ${repeat.page.end and 'last' or ''}">
+                    <a href="${request.link(page)}">${page.page + 1}</a>
+                </li>
+
+                <tal:block condition="repeat.page.end and next">
+                    <li class="arrow">
+                        <a href="${request.link(next)}" aria-label="Next Page" i18n:attributes="aria-label"><i class="fa fa-chevron-right"></i></a>
+                    </li>
+                </tal:block>
+            </tal:block>
+        </tal:block>
+    </ul>
+</metal:pagination>
+
+<metal:breadcrumbs define-macro="breadcrumbs">
+    <nav role="navigation" aria-label="You are here" i18n:attributes="aria-label">
+        <ul class="breadcrumbs" tal:condition="layout.breadcrumbs">
+            <tal:block repeat="breadcrumb layout.breadcrumbs">
+                <li class="${breadcrumb[2]}"><a href="${breadcrumb[1]}">${breadcrumb[0]}</a></li>
+            </tal:block>
+        </ul>
+    </nav>
+</metal:breadcrumbs>
+
+<metal:tab_menu define-macro="tab_menu">
+    <div class="tab-navigation clearfix" tal:condition="layout.menu">
+        <nav class="top-bar" data-topbar role="navigation">
+            <ul class="title-area">
+                <li class="name menu-icon"><span>${layout.title()}</span></li>
+                <li class="toggle-topbar menu-icon"><a href="#"><span></span></a></li>
+            </ul>
+            <section class="top-bar-section">
+                <ul class="left">
+                    <tal:block repeat="item layout.menu">
+                        <li class="${item[2]}"><a href="${item[1]}">${item[0]}</a></li>
+                    </tal:block>
+                </ul>
+            </section>
+        </nav>
+    </div>
+</metal:tab_menu>
+
+<metal:status_callout define-macro="status_callout" i18n:domain="onegov.election_day">
+    <div class="panel callout radius" tal:condition="not:item.completed">
+         <h5 i18n:translate="" tal:condition="not item.has_results">No results yet</h5>
+         <h5 i18n:translate="" tal:condition="item.has_results">Intermediate results</h5>
+         <p tal:condition="item.has_results">
+             <span i18n:translate="">Last change</span>:
+             <strong>${layout.format_date(item.last_result_change, 'relative')} / ${layout.format_date(item.last_result_change, 'datetime_long')}</strong>
+         </p>
+    </div>
+    <div class="panel radius" tal:condition="item.completed">
+        <span i18n:translate="">Last change</span>: ${layout.format_date(item.last_result_change, 'datetime_long')}
+    </div>
+</metal:status_callout>
+
+<metal:subscription_links define-macro="subscription_links" i18n:domain="onegov.election_day">
+    <tal:block tal:condition="python: not request.browser_session.get('headerless')">
+        <div class="row subscription-links" tal:condition="layout.principal.email_notification or layout.principal.sms_notification">
+            <div class="columns small-12" tal:define='both python: layout.principal.email_notification and layout.principal.sms_notification;
+                                                      email_only python: layout.principal.email_notification and not layout.principal.sms_notification;
+                                                      sms_only python: not layout.principal.email_notification and layout.principal.sms_notification'>
+                <h2 tal:condition="both" i18n:translate>Alerts</h2>
+                <h2 tal:condition="email_only" i18n:translate>Email alerts</h2>
+                <h2 tal:condition="sms_only" i18n:translate>SMS alerts</h2>
+                <p tal:condition="both" i18n:translate>The service provides free information on the publication of new results (intermediate results, final results):</p>
+                <p tal:condition="email_only" i18n:translate>The email service provides free information on the publication of new results (intermediate results, final results):</p>
+                <p tal:condition="sms_only" i18n:translate>The SMS service provides free information on the publication of new results (intermediate results, final results):</p>
+                <ul tal:condition="layout.principal.email_notification">
+                    <li><a href="${request.link(layout.principal, 'subscribe-email')}" i18n:translate>Get email alerts</a></li>
+                    <li><a href="${request.link(layout.principal, 'unsubscribe-email')}" i18n:translate>Stop email subscription</a></li>
+                </ul>
+                <ul tal:condition="layout.principal.sms_notification">
+                    <li><a href="${request.link(layout.principal, 'subscribe-sms')}" i18n:translate>Get SMS alerts</a></li>
+                    <li><a href="${request.link(layout.principal, 'unsubscribe-sms')}" i18n:translate>Stop SMS subscription</a></li>
+                </ul>
+            </div>
+        </div>
+    </tal:block>
+</metal:subscription_links>
+
+<metal:election_day_link define-macro="election_day_link" i18n:domain="onegov.election_day">
+    <nav role="navigation" aria-label="Aktuelle Seite">
+        <ul class="breadcrumbs back-links">
+            <li><a href="${layout.homepage_link}" i18n:translate="homepage">Start</a></li>
+            <li><a href="${request.link(layout.archive.for_date(date.year))}">${date.year}</a></li>
+            <li><a href="${request.link(layout.archive.for_date(date))}">${layout.format_date(date, 'day_long')}</a></li>
+        </ul>
+    </nav>
+</metal:election_day_link>
+
+
+<metal:election_header define-macro="election_header" i18n:domain="onegov.election_day">
+    <div metal:use-macro="layout.macros['election_day_link']" tal:define="date election.date"/>
+    <h1>${election.title}</h1>
+    <hr />
+</metal:election_header>
+
+<metal:vote_header define-macro="vote_header" i18n:domain="onegov.election_day">
+    <div metal:use-macro="layout.macros['election_day_link']" tal:define="date vote.date"/>
+    <h1>
+        ${vote.title}
+        <small tal:condition="vote.answer">
+            <div tal:condition="vote.type == 'simple'" metal:use-macro="layout.macros['answer']" tal:define="answer vote.answer"/>
+            <div tal:condition="vote.type == 'complex'">
+                <tal:block tal:define="proposal vote.proposal.accepted;
+                                       counter_proposal vote.counter_proposal.accepted;
+                                       tie_breaker vote.tie_breaker.accepted">
+                    <span tal:condition="python: not proposal and not counter_proposal" class="answer rejected" i18n:translate="">
+                        Proposal and counter proposal rejected
+                    </span>
+                    <span tal:condition="python: proposal and not counter_proposal" class="answer accepted" i18n:translate="">
+                        Proposal accepted
+                    </span>
+                    <span tal:condition="python: not proposal and counter_proposal" class="answer accepted" i18n:translate="">
+                        Counter proposal accepted
+                    </span>
+                    <tal:block tal:condition="python: proposal and counter_proposal">
+                        <span tal:condition="tie_breaker" class="answer accepted" i18n:translate="">
+                            Tie breaker in favor of the proposal
+                        </span>
+                        <span tal:condition="not: tie_breaker" class="answer rejected" i18n:translate="">
+                            Tie breaker in favor of the counter proposal
+                        </span>
+                    </tal:block>
+                </tal:block>
+            </div>
+        </small>
+    </h1>
+
+    <div class="clearfix"></div>
+
+    <tal:block tal:condition="vote.has_results and ballot">
+        <div class="row percentages">
+            <div class="columns small-6">
+                <dl>
+                    <dt i18n:translate="">Yeas</dt>
+                    <dd class="accepted" >${'{0:.2f}'.format(ballot.yeas_percentage)}%</dd>
+
+                </dl>
+            </div>
+            <div class="columns small-6 end">
+                <dl style="text-align: right;">
+                    <dt i18n:translate="">Nays</dt>
+                    <dd class="rejected" >${'{0:.2f}'.format(ballot.nays_percentage)}%</dd>
+                </dl>
+            </div>
+        </div>
+        <div class="percentage">
+            <div class="yeas"></div>
+            <div class="nays right" style="width:${'{0:.2f}'.format(ballot.nays_percentage)}%"></div>
+        </div>
+    </tal:block>
+    <tal:block tal:condition="not: vote.has_results and ballot">
+        <hr />
+    </tal:block>
+</metal:vote_header>
+
+<metal:election_factoids define-macro="election_factoids" i18n:domain="onegov.election_day">
+    <tal:block tal:condition="not election.tacit">
+        <ul class="small-block-grid-1 medium-block-grid-4 factoids">
+            <li>
+                <span i18n:translate="">Turnout</span>
+                <strong>${'{0:.2f}'.format(election.turnout)} %</strong>
+            </li>
+            <li>
+                <span i18n:translate="">Elegible Voters</span>
+                <strong>${layout.format_number(election.elegible_voters)}</strong>
+            </li>
+            <li>
+                <span i18n:translate="">Received Ballots</span>
+                <strong>${layout.format_number(election.received_ballots)}</strong>
+            </li>
+            <li>
+                <span i18n:translate="">Counted</span>
+                <strong><span metal:use-macro="layout.macros['progress']" tal:define="progress election.progress" /></strong>
+            </li>
+        </ul>
+        <ul class="small-block-grid-1 medium-block-grid-4 factoids">
+            <li>
+                <span i18n:translate="">Mandates</span>
+                <strong><span metal:use-macro="layout.macros['progress']" tal:define="progress (election.allocated_mandates, election.number_of_mandates)" /></strong>
+            </li>
+            <li tal:condition="layout.majorz">
+                <span i18n:translate="">Absolute majority</span>
+                <strong tal:condition="election.absolute_majority">${layout.format_number(election.absolute_majority or 0)}</strong>
+            </li>
+        </ul>
+    </tal:block>
+</metal:election_factoids>
+
+<metal:vote_factoids define-macro="vote_factoids" i18n:domain="onegov.election_day">
+    <ul class="small-block-grid-1 medium-block-grid-4 factoids">
+        <li>
+            <span i18n:translate="turnout_vote">Voter turnout</span>
+            <strong>${'{0:.2f}'.format(ballot.turnout)} %</strong>
+        </li>
+        <li>
+            <span i18n:translate="elegible_voters_vote">Elegible Voters</span>
+            <strong>${layout.format_number(ballot.elegible_voters)}</strong>
+        </li>
+        <li>
+            <span i18n:translate="">Cast Ballots</span>
+            <strong>${layout.format_number(ballot.cast_ballots)}</strong>
+        </li>
+        <li>
+            <span i18n:translate="">Counted</span>
+            <strong><span metal:use-macro="layout.macros['progress']" tal:define="progress ballot.progress" /></strong>
+        </li>
+    </ul>
+</metal:vote_factoids>
+
+<metal:pdf_download define-macro="pdf_download" i18n:domain="onegov.election_day">
+    <tal:block tal:condition="layout.pdf_path">
+        <h3>PDF</h3>
+        <p><span i18n:translate="">Download a PDF with all the results:</span> <a href="${request.link(model, 'pdf')}">PDF</a></p>
+    </tal:block>
+</metal:pdf_download>
+
+<metal:open_data_download define-macro="open_data_download" i18n:domain="onegov.election_day">
+    <h3 i18n:translate="">Open Data</h3>
+    <p i18n:translate="">The raw data used to display the results is available in the following formats:</p>
+    <p>
+        <ol>
+            <li><a href="${request.link(model, 'data-json')}">JSON</a></li>
+            <li><a href="${request.link(model, 'data-csv')}">CSV</a></li>
+            <li><a href="${request.link(model, 'data-xlsx')}">XLSX</a></li>
+        </ol>
+    </p>
+    <p><span i18n:translate="">The format of the data is described here:</span> <a href="${layout.opendata_link}"><span i18n:translate="">Format Description</span></a>.</p>
+</metal:open_data_download>
+
+<metal:terms_of_use define-macro="terms_of_use" i18n:domain="onegov.election_day">
+    <h4 i18n:translate="">Terms of use</h4>
+    <p>
+        <span i18n:translate="">Open use. Must provide the source.</span>
+        <ul>
+            <li i18n:translate="">You may use this dataset for non-commercial purposes.</li>
+            <li i18n:translate="">You may use this dataset for commercial purposes.</li>
+            <li>
+                <tal:block i18n:translate="">You must provide the source (author, title and link to the dataset).</tal:block>
+                <ol class="citations">
+                    <li>${layout.principal.name} (${layout.format_date(model.last_result_change, 'datetime_long')}). <cite>${model.title} (JSON)</cite>. ${request.link(model, 'data-json')}.</li>
+                    <li>${layout.principal.name} (${layout.format_date(model.last_result_change, 'datetime_long')}). <cite>${model.title} (CSV)</cite>. ${request.link(model, 'data-csv')}.</li>
+                    <li>${layout.principal.name} (${layout.format_date(model.last_result_change, 'datetime_long')}). <cite>${model.title} (XLSX)</cite>. ${request.link(model, 'data-xlsx')}.</li>
+                <ol>
+
+            </li>
+        </ul>
+        <a href="${layout.terms_link}"><img width="100" height="80" src="${layout.terms_icon}" alt="terms"></a>
+    </p>
+</metal:terms_of_use>
+
+<metal:upload_errors define-macro="upload_errors" i18n:domain="onegov.election_day">
+    <div class="after-upload" tal:condition="errors">
+        <div class="alert-box alert" i18n:translate="">
+            Your results could not be uploaded.
+        </div>
+        <ul>
+            <li tal:repeat="error errors">
+                <span class="error-line" tal:condition="error.filename">${error.filename}</span>
+                <span class="error-line" tal:condition="error.line"><span i18n:translate="">Line </span>${error.line}</span>
+                <span class="error-message">${error.error}</span>
+            </li>
+        </ul>
+    </div>
+</metal:upload_errors>
+
+</body>
