@@ -1,0 +1,144 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+"""
+ssh-ldap-pubkey - Utility to manage SSH public keys stored in LDAP.
+
+Usage:
+  ssh-ldap-pubkey list [-H URI...] [options]
+  ssh-ldap-pubkey add [-H URI...] [options] FILE
+  ssh-ldap-pubkey del [-H URI...] [options] PATTERN
+  ssh-ldap-pubkey --help
+
+  -                      Read public key from stdin.
+  FILE                   Path to the public key file to add.
+  PATTERN                Pattern that specifies public key(s) to delete, i.e.
+                         a complete key or just a part of it.
+
+Options:
+  -b DN --base=DN        Base DN where to search for the users' entry. If not
+                         provided, then it's read from the config file.
+  -c FILE --conf=FILE    Path of the ldap.conf (default is /etc/ldap.conf).
+                         The ldap.conf is not required when at least --base is
+                         provided.
+  -D DN --binddn=DN      DN to bind with instead of the user's DN.
+  -H URI... --uri=URI... URI of the LDAP server to connect; loaded from the
+                         config file by default. If not defined even there,
+                         then it defaults to ldap://localhost.
+  -q --quiet             Be quiet.
+  -u LOGIN --user=LOGIN  Login of the user to bind as and change public key(s)
+                         (default is the current user).
+  -v --version           Show version information.
+  -h --help              Show this message.
+"""
+
+from __future__ import print_function
+
+import sys
+from docopt import docopt
+from getpass import getpass, getuser
+from os import access, R_OK
+from ssh_ldap_pubkey import LdapSSH, Error, keyname
+from ssh_ldap_pubkey.config import LdapConfig
+from ssh_ldap_pubkey import __versionstr__
+
+
+DEFAULT_CONFIG_PATH = '/etc/ldap.conf'
+
+quiet = False
+
+
+def read_file(path):
+    """Read file and return its content with stripped newlines.
+
+    This is foolproof against some users that are unable to copy keys properly.
+    """
+    with open(path, 'r') as f:
+        return ''.join(f.readlines()).strip()
+
+
+def read_stdin():
+    """Read from standard input and strip newlines.
+
+    This is foolproof against some users that are unable to copy keys properly.
+    """
+    return ''.join(sys.stdin.readlines()).strip()
+
+
+def halt(msg, code=1):
+    """Print error message to stderr and exit with the specified code."""
+    print('Error: ' + msg, file=sys.stderr)
+    exit(code)
+
+
+def info(msg, *args):
+    """Print message to stderr unless we're quiet."""
+    if not quiet:
+        print(msg % args, file=sys.stderr)
+
+
+def main(**kwargs):
+    global quiet
+
+    quiet = kwargs['--quiet']
+    confpath = kwargs['--conf'] or DEFAULT_CONFIG_PATH
+    login = kwargs['--user'] or getuser()
+    passw = None
+
+    if not access(confpath, R_OK):
+        info("Notice: Could not read config: %s; running with defaults.", confpath)
+        confpath = None
+
+    conf = LdapConfig(confpath)
+    if kwargs['--uri']:
+        conf.uris = kwargs['--uri']
+    if kwargs['--base']:
+        conf.base = kwargs['--base']
+
+    # prompt for password
+    if kwargs['--binddn']:
+        conf.bind_dn = kwargs['--binddn']
+        conf.bind_pass = getpass("Enter LDAP password for '%s': " % conf.bind_dn)
+    elif kwargs['add'] or kwargs['del']:
+        passw = getpass("Enter login (LDAP) password for user '%s': " % login)
+
+    ldapssh = LdapSSH(conf)
+
+    try:
+        ldapssh.connect()
+
+        if kwargs['add']:
+            filesrc = kwargs['FILE'] and kwargs['FILE'] != '-'
+            pubkey = read_file(kwargs['FILE']) if filesrc else read_stdin()
+
+            ldapssh.add_pubkey(login, passw, pubkey)
+            info("Key has been stored: %s", keyname(pubkey))
+
+        elif kwargs['del']:
+            keys = ldapssh.find_and_remove_pubkeys(login, passw, kwargs['PATTERN'])
+            if keys:
+                info('Deleted keys:')
+                print('\n'.join(keys))
+            else:
+                info('No keys found to delete.')
+
+        else:  # list
+            keys = ldapssh.find_pubkeys(login)
+            if keys:
+                print('\n'.join(keys))
+            else:
+                info('No public keys found.')
+
+    except Error as e:
+        halt(str(e), e.code)
+
+    except IOError as e:
+        halt("%s: %s" % (e.strerror, e.filename), 1)
+
+    finally:
+        ldapssh.close()
+
+
+if __name__ == '__main__':
+    kwargs = docopt(__doc__, version="ssh-ldap-pubkey %s" % __versionstr__)
+    main(**kwargs)
