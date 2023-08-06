@@ -1,0 +1,93 @@
+Metadata-Version: 2.0
+Name: django-multi-db-relation
+Version: 0.1
+Summary: Django query optimization supports for multi db relations.
+Home-page: https://github.com/hangpark/django-multi-db-relation
+Author: Hang Park
+Author-email: hangpark@kaist.ac.kr
+License: BSD
+Platform: UNKNOWN
+Classifier: Development Status :: 1 - Planning
+Classifier: Environment :: Web Environment
+Classifier: Framework :: Django
+Classifier: Framework :: Django :: 1.10
+Classifier: Framework :: Django :: 1.11
+Classifier: Framework :: Django :: 2.0
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: BSD License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.5
+Classifier: Programming Language :: Python :: 3.6
+Classifier: Programming Language :: Python :: 3 :: Only
+Requires-Python: >=3.5
+Requires-Dist: Django (>=1.10)
+
+# django-multi-db-relation
+
+> Queryset optimization supports for multi database spanning relations between Django models.
+
+## Requirements
+
+- Python (>= 3.5)
+- Django (>= 1.10)
+
+## Installation
+
+```sh
+pip install django-multi-db-relation
+```
+
+## Usage
+
+For models
+
+```python
+class ModelA(models.Model):
+    name = models.CharField(max_length=10)
+
+class ModelB(models.Model):
+    a = models.ForeignKey(ModelA, on_delete=models.DO_NOTHING)
+
+class ModelC(models.Model):
+    b = models.ForeignKey(ModelB, on_delete=models.DO_NOTHING, db_constraint=False)
+```
+
+suppose that `ModelA` and `ModelB` is routed to `db1` and `ModelC` to `db2`.
+
+We **cannot** run a queryset with `select_related()`.
+
+```python
+>>> ModelC.objects.select_related('b') # Table not found
+```
+
+In this case, modify `ModelC` like:
+
+```python
+from multi_db_relation.mixins import ExternalDbQuerySetMixin
+
+
+class ModelCQuerySet(ExternalDbQuerySetMixin, models.QuerySet):
+    pass
+
+class ModelC(models.Model):
+    b = models.ForeignKey(ModelB, on_delete=models.DO_NOTHING, db_constraint=False)
+
+    objects = models.Manager.from_queryset(queryset_class=ModelCQuerySet)()
+
+    class Meta:
+        external_db_fields = ['b']
+```
+
+then:
+
+```python
+>>> ModelC.objects.select_related('b') # Number of queries is optimized from O(n) to O(1)
+>>> ModelC.objects.select_related('b__a') # Also works well
+```
+
+## License
+
+- See [LICENSE](LICENSE)
+
