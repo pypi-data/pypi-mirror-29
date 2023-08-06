@@ -1,0 +1,362 @@
+BioMAJ3
+=====
+
+This project is a complete rewrite of BioMAJ (http://biomaj.genouest.org).
+
+BioMAJ (BIOlogie Mise A Jour) is a workflow engine dedicated to data
+synchronization and processing. The Software automates the update cycle and the
+supervision of the locally mirrored databank repository.
+
+Common usages are to download remote databanks (Genbank for example) and apply
+some transformations (blast indexing, emboss indexing, etc.). Any script can be
+applied on downloaded data. When all treatments are successfully applied, bank
+is put in "production" on a dedicated release directory.
+With cron tasks, update tasks can be executed at regular interval, data are
+downloaded again only if a change is detected.
+
+More documentation is available in wiki page.
+
+BioMAJ is python 2 and 3 compatible.
+
+Getting started
+===============
+
+Edit global.properties file to match your settings. Minimal conf are database connection and directories.
+
+    biomaj-cli.py -h
+
+    biomaj-cli.py --config global.properties --status
+
+    biomaj-cli.py --config global.properties  --bank alu --update
+
+Migration
+=========
+
+To migrate from previous BioMAJ 1.x, a script is available at:
+https://github.com/genouest/biomaj-migrate. Script will import old database to
+the new database, and update configuration files to the modified format. Data directory is the same.
+
+Migration for 3.0 to 3.1:
+
+Biomaj 3.1 provides an optional micro service architecture, allowing to separate and distributute/scale biomaj components on one or many hosts. This implementation is optional but recommended for server installations. Monolithic installation can be kept for local computer installation.
+To upgrade an existing 3.0 installation, as biomaj code has been split into multiple components, it is necessary to install/update biomaj python package but also biomaj-cli and biomaj-daemon packages. Then database must be upgraded manually (see Upgrading in documentation).
+
+To execute database migration:
+
+    python biomaj_migrate_database.py
+
+Application Features
+====================
+
+* Synchronisation:
+ * Multiple remote protocols (ftp, sftp, http, local copy, etc.)
+ * Data transfers integrity check
+ * Release versioning using a incremental approach
+ * Multi threading
+ * Data extraction (gzip, tar, bzip)
+ * Data tree directory normalisation
+
+
+* Pre &Post processing :
+ * Advanced workflow description (D.A.G)
+ * Post-process indexation for various bioinformatics software (blast, srs, fastacmd, readseq, etc.)
+ * Easy integration of personal scripts for bank post-processing automation
+
+
+* Supervision:
+ * Optional Administration web interface (biomaj-watcher)
+ * CLI management
+ * Mail alerts for the update cycle supervision
+ * Prometheus and Influxdb optional integration
+ * Optional consul supervision of processes
+
+
+* Scalability:
+ * Monolithic (local install) or microservice architecture (remote access to a BioMAJ server)
+ * Microservice installation allows per process scalability and supervision (number of process in charge of download, execution, etc.)
+
+
+* Remote access:
+ * Optional FTP server providing authenticated or anonymous data access
+
+Dependencies
+============
+
+Packages:
+ * Debian: libcurl-dev, gcc
+ * CentOs: libcurl-devel, openldap-devel, gcc
+
+ Linux tools: tar, unzip, gunzip, bunzip
+
+Database:
+ * mongodb (local or remote)
+
+Indexing (optional):
+ * elasticsearch (global property, use_elastic=1)
+
+ElasticSearch indexing adds advanced search features to biomaj to find bank having files with specific format or type.
+Configuration of ElasticSearch is not in the scope of BioMAJ documentation.
+For a basic installation, one instance of ElasticSearch is enough (low volume of data), in such a case, the ElasticSearch configuration file should be modified accordingly:
+
+    node.name: "biomaj" (or any other name)
+    index.number_of_shards: 1
+    index.number_of_replicas: 0
+
+Installation
+============
+
+>From source:
+
+After dependencies installation, go in BioMAJ source directory:
+
+    python setup.py install
+
+>From packages:
+
+    pip install biomaj biomaj-cli biomaj-daemon
+
+
+You should consider using a Python virtual environment (virtualenv) to install BioMAJ.
+
+In tools/examples, copy the global.properties and update it to match your local
+installation.
+
+The tools/process contains example process files (python and shell).
+
+
+Docker
+======
+
+You can use BioMAJ with Docker (genouest/biomaj)
+
+
+    docker pull genouest/biomaj
+    docker pull mongo
+    docker run --name biomaj-mongodb -d mongo
+    # Wait ~10 seconds for mongo to initialize
+    # Create a local directory where databases will be permanently stored
+    # *local_path*
+    docker run --rm -v local_path:/var/lib/biomaj --link biomaj-mongodb:biomaj-mongodb osallou/biomaj-docker --help
+
+
+Copy your bank properties in directory *local_path*/conf and post-processes (if any) in *local_path*/process
+
+You can override global.properties in /etc/biomaj/global.properties (-v xx/global.properties:/etc/biomaj/global.properties)
+
+No default bank property file or process are available in the container.
+
+Examples are available at https://github.com/genouest/biomaj-data
+
+API documentation
+=================
+
+https://readthedocs.org/projects/biomaj/
+
+Status
+======
+
+[![Build Status](https://travis-ci.org/genouest/biomaj.svg?branch=master)](https://travis-ci.org/genouest/biomaj)
+
+[![Documentation Status](https://readthedocs.org/projects/biomaj/badge/?version=latest)](https://readthedocs.org/projects/biomaj/?badge=latest)
+
+[![Code Health](https://landscape.io/github/genouest/biomaj/master/landscape.svg?style=flat)](https://landscape.io/github/genouest/biomaj/master)
+
+Testing
+=======
+
+Execute unit tests
+
+    nosetests
+
+Execute unit tests but disable ones needing network access
+
+    nosetests -a '!network'
+
+
+Monitoring
+==========
+
+InfluxDB can be used to monitor biomaj. Following series are available:
+
+* biomaj.banks.quantity (number of banks)
+* biomaj.production.size.total (size of all production directories)
+* biomaj.workflow.duration (workflow duration)
+* biomaj.production.size.latest (size of latest update)
+* biomaj.bank.update.downloaded_files (number of downloaded files)
+* biomaj.bank.update.new (track updates)
+
+License
+=======
+
+A-GPL v3+
+
+Remarks
+=======
+
+Biomaj uses libcurl, for sftp libcurl must be compiled with sftp support
+
+To delete elasticsearch index:
+
+ curl -XDELETE 'http://localhost:9200/biomaj_test/'
+
+Credits
+======
+
+Special thanks for tuco at Pasteur Institute for the intensive testing and new ideas.
+Thanks to the old BioMAJ team for the work they have done.
+
+BioMAJ is developped at IRISA research institute.
+
+
+3.1.4:
+  Fix #88 Unset 'last_update_session' when found in pending sessions using --remove-pending
+  Add formats in bank info request
+  Add checks for some production fields before display
+  Add irods download support
+
+3.1.3:
+  Remove post-install step for automatic upgrades, not supported by wheel package
+
+3.1.2:
+  Fix #86 remove special character from README.md
+  Feature #85 SchemaVersion automatically add new property
+
+3.1.1:
+  Fix #80 Check process exists with `--from-task` and `--process`
+  Manage old banks with no status
+
+3.1.0:
+  ## Needs database upgrade
+  If using biomaj-watcher, must use version >= 3.1.0
+  Feature #67,#66,#61 switch to micro service architecture. Still works in local monolithic install
+  Fix some configuration parameter loading when not defined in config
+  Fix HTTP parsing parameters loading
+  Fix download_or_copy to copy files in last production release if available instead of downloading files again
+  Manage user migration for micro services
+  Feature #74 add influxdb statistics
+  Feature #65 add a release info file at the root of the bank which can be used by other services to know the latest release available
+  Feature #25 experimental support of rsync protocol
+  Add rate limiting for download with micro services
+  Limit email size to 2Mb, log file may be truncated
+
+3.0.20:
+  Fix #55: Added support for https and directhttps
+  Add possibility to define files to download from a local file with remote.list parameter
+  Fix visibility modification (bug deleted the bank properties field)
+  Fix #65 Add release file in bank dir after update
+  Add md5 or sha256 checksum checks if files are downloaded and available
+
+3.0.19:
+  Fix missing README.md in package
+  Fix #53 avoid duplicates in pending databases
+
+3.0.18:
+  Add migration method to update schema when needed
+  Manage HTTP month format to support text format (Jan, Feb, ...) and int format (01, 02, ...)
+  New optional bank property http.parse.file.date.format to extract date in HTTP protocol following python date regexp format (http://www.tutorialspoint.com/python/time_strptime.htm)
+      Example: %d-%b-%Y %H:%M
+
+3.0.17:
+  Fix #47: save_as error with directhttp protocol
+  Fix #45: error with pending releases when release has dots in value
+  typo/pylint fixes
+
+3.0.16:
+  Do not use config values, trust database values #39
+  Fix #42: Add optional release.separator to name the bank directory bankname_release (underscore as default)
+
+3.0.15:
+  Fix #37: remote local files history from db and put it in cache.dir
+  Feature #38: add optional keep.old.sessions parameter to keep all sessions in database, even for removed releases
+  Feature #28: add optional release.format parameter to specify the date format of a release
+
+3.0.14:
+  Fix in method set_owner
+  Force release to be a str
+  Fix #32: fix --from-task issue when calling a meta process
+  Fix #34: remove release from pending when doing cleanup of old sessions
+  Remove logs on some operations
+  Add --status-ko option to list bank in error state
+  Fix #36 manage workflows over by error or unfinished
+
+3.0.13:
+  Fix #27: Thread lock issue during download
+           New optional attribute in bank properties: timeout.download
+  HTTP protocol fix (deepcopy error)
+
+3.0.12:
+  Fix index deletion on bank removal
+  Fix lock errors on dir creation for multi-threads,
+      pre-create directroy structure in offline directory
+  Fix #26: save error when too many files in bank
+
+3.0.11:
+  Fix in session management with pre and rm processes
+  Fix #23: Check workflow step name passed to
+           --stop-after/--start-after/--from-task
+  Fix #24: deprecated delete_by_query method in elasticsearch
+  Add some controls on base directories
+
+
+3.0.10:
+  Change dir to process.dir to find processes in subdirs
+  If all files found in offline dir, continue workflow with no download
+  Remove extra log files for bank dependencies (computed banks)
+  Fix computed bank update when sub banks are not updated
+  Fix #15 when remote reverts to a previous release
+  Feature #16: get possibility not to download files (for computed banks for
+               example). Set protocol='none' in bank properties.
+  Fix on --check with some protocols
+  Fix #21 release.file not supported for directhttp protocol
+  Feature #22: add localrelease and remoterelease bank properties to use the
+               remote release as an expression in other properties
+               => remote.dir = xx/yy/%(remoterelease)s/zz
+  Feature #17,#20: detect remote modifications even if release is the same
+               new parameter release.control (true, false) to force a check
+               even if remote release (file controlled or date) is the same.
+  Fix on 'multi' protocol
+  Fix on "save_as" regexp when remote.files starts with a ^ character.
+
+3.0.9:
+  Fix thread synchro issue:
+      during download some download threads could be alive while main thread continues worflow
+      the fix prevents using Ctrl-C during download
+  Workflow fix:
+      if subtask of workflow fails, fail main task
+
+3.0.8:
+  do not test index if elasticsearch is not up
+  minor fixes
+  add http proxy support
+  pylint fixes
+  retry uncompress once in case of failure (#13)
+
+3.0.7:
+  Reindent code, pep8 fixes
+  Various fixes on var names and OrderedDict suport for Python < 2.7
+  Merge config files to be able to reference global.properties variables in bank
+    property file in format %(xx)s
+  Use ConfigParser instead of SafeConfigParser that will be deprecated
+
+3.0.6:
+  Add option --remove-pending to remove all pending sessions and directories
+  Add process env variables logdir and logfile
+  Fix Unicode issue with old versions of PyCurl.
+
+3.0.5:
+  Fix removal workflow during an update workflow, removedrelease was current
+  release.
+  Fix shebang of biomaj-cli, and python 2/3 compat issue
+
+3.0.4:
+  Update code to make it Python 3 compatible
+  Use ldap3 library (pure Python and p2,3 compatible) instead of python-ldap
+  get possiblity to save downloaded files for ftp and http without keeping full
+  directory structure:
+    remote.files can include groups to save file without directory structure,
+     or partial directories only, examples:
+     remote.files = genomes/fasta/.*\.gz => save files in offline directory, keeping remote structure offlinedir/genomes/fasta/
+     remote.files = genomes/fasta/(.*\.gz) => save files in offline directory offlinedir/
+     remote.files = genomes/(fasta)/(.*\.gz) => save files in offline directory offlinedir/fasta
+
+
