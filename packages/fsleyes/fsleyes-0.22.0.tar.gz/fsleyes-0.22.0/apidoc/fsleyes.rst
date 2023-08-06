@@ -1,0 +1,37 @@
+``fsleyes``
+===========
+
+.. toctree::
+   :hidden:
+
+   fsleyes.about
+   fsleyes.actions
+   fsleyes.autodisplay
+   fsleyes.colourmaps
+   fsleyes.controls
+   fsleyes.displaycontext
+   fsleyes.editor
+   fsleyes.frame
+   fsleyes.gl
+   fsleyes.icons
+   fsleyes.main
+   fsleyes.overlay
+   fsleyes.panel
+   fsleyes.parseargs
+   fsleyes.perspectives
+   fsleyes.plotting
+   fsleyes.profiles
+   fsleyes.render
+   fsleyes.splash
+   fsleyes.state
+   fsleyes.strings
+   fsleyes.toolbar
+   fsleyes.tooltips
+   fsleyes.version
+   fsleyes.views
+
+
+.. automodule:: fsleyes
+    :members:
+    :undoc-members:
+    :show-inheritance:
