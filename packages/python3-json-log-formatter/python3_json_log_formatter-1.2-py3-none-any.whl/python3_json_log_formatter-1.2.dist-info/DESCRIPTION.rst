@@ -1,0 +1,146 @@
+[Repository](https://bitbucket.org/bear_belly/json_log_formatter)
+
+Formats log output in JSON format. Shows all fields of a log record.
+
+Here is an example of the output.
+
+    ...
+    {
+    "name": "somemodule.util",
+    "msg": "This is a log message",
+    "args": "()",
+    "levelname": "DEBUG",
+    "levelno": "10",
+    "pathname": "/path/to/pyfile.py",
+    "filename": "util.py",
+    "module": "util",
+    "exc_info": "None",
+    "exc_text": "None",
+    "stack_info": "None",
+    "lineno": "217",
+    "funcName": "do_something",
+    "created": "1520373828.7142632",
+    "msecs": "714.2632007598877",
+    "relativeCreated": "2531.79669380188",
+    "thread": "140244615616320",
+    "threadName": "MainThread",
+    "processName": "MainProcess",
+    "process": "11519"
+    }
+    {
+    "name": "somemodule.util",
+    "msg": "This is an error message",
+    "args": "()",
+    "levelname": "ERROR",
+    "levelno": "10",
+    "pathname": "/path/to/otherfile.py",
+    "filename": "util.py",
+    "module": "util",
+    "exc_info": "None",
+    "exc_text": "None",
+    "stack_info": "None",
+    "lineno": "217",
+    "funcName": "do_something",
+    "created": "1520373218.7142632",
+    "msecs": "810.2632007598877",
+    "relativeCreated": "8531.79669380188",
+    "thread": "140244615616320",
+    "threadName": "MainThread",
+    "processName": "MainProcess",
+    "process": "11519"
+    }
+    ...
+
+## Installation
+
+Install as you would any other python package::
+
+    $ pip install json-log-formatter
+
+## Usage
+
+To use the formatter, include it in logging config as you would other
+formatters.
+
+The formatter takes one optional argument `json_kwargs`. These are keywords
+that are passed directly to
+[`json.dumps()`](https://docs.python.org/3/library/json.html#json.dumps).
+
+### YAML Example
+
+    logging:
+        version: 1
+        formatters:
+            ...
+            json:
+                class: json_log_formatter.JsonFormatter
+                json_kwargs:
+                    indent: 2
+            ...
+        handlers:
+            ....
+            json_console:
+                class: logging.StreamHandler
+                formatter: json
+            ...
+        loggers:
+            ...
+            console:
+                level: DEBUG
+                handler: json_console
+            ...
+        root:
+            ...
+            level: DEBUG
+        handlers: [json_console, ]
+        ...
+
+### Dict example
+
+    'logging': {
+        'version': 1,
+        'formatters': {
+            ...
+            'json': {
+                'class': 'json_log_formatter.JsonFormatter',
+                'json_kwargs': {
+                    indent: 2
+                    ...
+                },
+            ...
+            },
+        ...
+        },
+        'handlers': {
+            ....
+            'json_console': {
+                'class': 'logging.StreamHandler',
+                'formatter': 'json',
+            },
+            ...
+        },
+        'loggers': {
+            ...
+            'console': {
+                'level': 'DEBUG',
+                'handler': 'json_console',
+            },
+            ...
+        },
+        'root': {
+            ...
+            'level': 'DEBUG',
+            'handlers': ['json_console', ]
+            ...
+        },
+        ...
+    }
+
+Home-page: UNKNOWN
+Author: Jordan Hewitt
+Author-email: jordan.h@startmail.com
+License: GPLv3
+Description-Content-Type: UNKNOWN
+Description: UNKNOWN
+Keywords: json log output format flannel
+Platform: UNKNOWN
