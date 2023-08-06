@@ -1,0 +1,446 @@
+#+PROPERTY: header-args :cache yes
+HGL - Python Helper GL library
+
+This is a simple library used for writing quick tests and examples programs while avoiding some of the boiler plate code you normally require.
+It has also been designed to be used nicely in emacs org-mode so you can do literate programming, quickly testing and annotate code as you go.
+
+Currently only tested on linux, but will likely work on other platforms dependant on the context you use to render.
+
+Current contexts supported are:
++ pySDL2 context
++ pygame-sdl2 context (its a pain to install no pip)
++ gtkglarea context
++ glut context
+
+* Installation
+You install this using pip.
+#+BEGIN_SRC bash
+pip install hgl
+#+END_SRC
+
+Alternatively you can use the commend below to install directly from the downloaded source.
+#+BEGIN_SRC bash
+python3 setup.py develop
+#+END_SRC
+
+* Development
+
+To work on this library run setup.py in develop mode to create a symlink to your checked out project.
+#+BEGIN_SRC bash
+python3 setup.py develop
+#+END_SRC
+
+* Testing
+To run the test suite you should be able to use pytest in the project root 
+#+BEGIN_SRC bash
+pytest
+#+END_SRC
+
+#+RESULTS:
+| =============================                          | test                 | session    | starts        | ============================== |               |                            |              |
+| platform                                               | linux2               | --         | Python        | 2.7.13,                        | pytest-3.0.6, | py-1.4.32,                 | pluggy-0.4.0 |
+| rootdir:                                               | /home/oly/repos/hgl, | inifile:   |               |                                |               |                            |              |
+| plugins:                                               | mock-1.3.0,          | cov-2.4.0, | Inomaly-0.1.0 |                                |               |                            |              |
+| collected                                              | 56                   | items      |               |                                |               |                            |              |
+|                                                        |                      |            |               |                                |               |                            |              |
+| tests/test_calculate/test_calculations_angles.py       | ...                  |            |               |                                |               |                            |              |
+| tests/test_calculate/test_calculations_boxes.py        | ...                  |            |               |                                |               |                            |              |
+| tests/test_calculate/test_calculations_circles.py      | ....                 |            |               |                                |               |                            |              |
+| tests/test_calculate/test_calculations_curves.py       | 0                    |            |               |                                |               |                            |              |
+| tests/test_calculate/test_calculations_grid.py         | ...                  |            |               |                                |               |                            |              |
+| tests/test_calculate/test_calculations_intersection.py | ..                   |            |               |                                |               |                            |              |
+| tests/test_calculate/test_calculations_misc.py         | ..                   |            |               |                                |               |                            |              |
+| tests/test_calculate/test_calculations_origin.py       | ..                   |            |               |                                |               |                            |              |
+| tests/test_extend_context/test_change_shaders.py       | ............         |            |               |                                |               |                            |              |
+| tests/test_extend_context/test_change_vertex_array.py  | ............         |            |               |                                |               |                            |              |
+| tests/test_gl_contexts/test_context.py                 | ............         |            |               |                                |               |                            |              |
+|                                                        |                      |            |               |                                |               |                            |              |
+| ==========================                             | 56                   | passed     | in            | 29.46                          | seconds       | ========================== |              |
+
+* Examples
+Below are a few examples of using this library to knock up some quick examples.
+** Using different rendering contexts
+*** Using gtkglarea context
+#+BEGIN_SRC python :results file :exports both 
+from hgl.context.gtkglarea_context import context
+return context(version=(4, 3)).save(filename='./docs/gtkglarea_context_example.png')
+#+END_SRC
+
+#+RESULT
+        #version 330
+        out vec4 fragColor;
+        void main()
+        {
+            fragColor = vec4(1.0, 1.0, 0.0, 1.0);
+        }"""]
+
+my_ctx = custom_context(version=(4,3))
+return my_ctx.save(filename='./docs/overriden_context.png')
+#+END_SRC
+
+#+RESULTS:
+[[file:./docs/overriden_context.png]]
+
+** Texturing
+#+BEGIN_SRC python :results file :exports both
+  import os
+  from OpenGL import GL
+  import numpy as np
+  from hgl.context.gtkglarea_context import context
+  from hgl.libs.textures import load_texture
+
+  from hgl.helpers.defaults import simple_texture_fs 
+  from hgl.helpers.defaults import simple_texture_vs 
+  from hgl.helpers.defaults import square_uv, triangle_uv 
+
+  class custom_context(context):
+      vertex_list = triangle_uv 
+      vertex_size = 5
+      vertex_stride = 4 * vertex_size
+
+      default_vertex_shader = simple_texture_vs
+      default_fragment_shader = simple_texture_fs
+
+      def update(self):
+          self.texture_id = load_texture(filename='./tests/textures/testing.png')
+          super(custom_context, self).update()
+
+  my_ctx = custom_context(version=(4,3))
+  return my_ctx.save(filename='./docs/texture_context.png')
+#+END_SRC
+
+#+RESULTS:
+[[file:./docs/texture_context.png]]
+
+** Various Examples 
+*** Draw a square and shade with the uv cordinate
+#+BEGIN_SRC python :results file :exports both
+  import os
+  from OpenGL import GL
+  import numpy as np
+  from hgl.context.gtkglarea_context import context
+
+  from hgl.helpers.defaults import point_texture_fs, simple_texture_fs 
+  from hgl.helpers.defaults import point_texture_vs, simple_texture_vs
+  from hgl.helpers.defaults import square, square_uv 
+
+  class custom_context(context):
+      texture_id = 1
+      vertex_list = square_uv
+      vertex_size = 5
+      vertex_stride = 4 * vertex_size
+
+      default_vertex_shader = point_texture_vs
+      default_fragment_shader = point_texture_fs
+
+      def draw_data(self):
+          GL.glBindVertexArray(self.vertex_array_object)
+          GL.glDrawArrays(GL.GL_TRIANGLE_STRIP, 0, 4)
+          GL.glBindVertexArray(0)
+
+  my_ctx = custom_context(version=(4,3))
+  return my_ctx.save(filename='./docs/texture_shaded_point.png')
+#+END_SRC
+
+#+RESULTS:
+[[file:./docs/texture_shaded_point.png]]
+
+
+
+*** Draw multiple squares using an index array 
+#+BEGIN_SRC python :results file :exports both 
+  import random
+  from OpenGL import GL
+  import numpy as np
+  from hgl.context.gtkglarea_context import context
+  from hgl.calculate.box import plane_from_width_and_height
+
+  class custom_context(context):
+      points = 0
+      count = 0
+      box_vertex_list = []
+      box_index_list = []
+
+      def __init__(self, shader_programs=None, version=(4, 5)):
+          self.add_squares()
+          super(custom_context, self).__init__(shader_programs=shader_programs, version=version)
+      
+      def add_point(self, pos):
+          offset = 4 * self.points
+          self.box_vertex_list += plane_from_width_and_height(
+              centre=(pos[0], pos[1], pos[2]), plane_width_centre=0.1, plane_height_centre=0.1)
+          self.box_index_list += 0+offset, 1+offset, 2+offset, 2+offset, 1+offset, 3+offset
+          self.points += 1
+
+      def add_squares(self, count=20):
+          for b in range(0, count):
+              pos_x, pos_y = random.uniform(-1.0,1.0), random.uniform(-1.0,1.0)
+              self.add_point((pos_x,pos_y,0.0))
+          self.vertex_list = np.array(self.box_vertex_list, dtype=np.float32)
+          self.index_list = np.array(self.box_index_list, dtype=np.uint32)
+
+  my_ctx = custom_context(version=(4,3))
+  return my_ctx.save(filename='./docs/indexed_quads.png')
+#+END_SRC
+
+#+RESULTS:
+[[file:./docs/indexed_quads.png]]
+
+
+*** Example font rendering
+#+BEGIN_SRC python :results file :exports both
+import freetype as ft
+import numpy as np
+from hgl.context.gtkglarea_context import context
+from hgl.calculate.box import plane_from_width_and_height
+from hgl.calculate.box import box_from_line
+from hgl.calculate.font_outline import (
+    generate_text, step_text_points, step_text_lines)
+
+
+class custom_context(context):
+    points = 0
+    count = 0
+    box_vertex_list = []
+    box_index_list = []
+
+    location = (0.0,0.0,-100.0)
+
+    model_view_matrix = np.array([
+        1.0, 0.0, 0.0, 0.0,
+        0.0, 1.0, 0.0, 0.0,
+        0.0, 0.0, 1.0, 0.0,
+        0.0, 0.0, location[2],1.0
+    ], np.float32)
+
+
+    def __init__(self, shader_programs=None, version=(4, 5), points=None, lines=None):
+        if points is not None:
+            self.add_point_list(points)
+        if lines is not None:
+            self.add_line_list(lines)
+        self.load_point_buffer()
+        super(custom_context, self).__init__(shader_programs=shader_programs, version=version)
+
+    def add_line_list(self, lines):
+        for p1, p2 in step_text_lines(lines):
+            offset = 4 * self.points
+            self.box_vertex_list += box_from_line(
+                line_start=p1, line_end=p2, width=0.1)
+            self.box_index_list += 0+offset, 1+offset, 2+offset, 2+offset, 1+offset, 3+offset
+            self.points += 1
+
+    def add_point_list(self, points):
+        for p in points:
+            self.add_point(p)
+
+    def add_point(self, pos):
+        offset = 4 * self.points
+        self.box_vertex_list += plane_from_width_and_height(
+            centre=(pos[0], pos[1], pos[2]), plane_width_centre=0.3, plane_height_centre=0.3)
+        self.box_index_list += 0+offset, 1+offset, 2+offset, 2+offset, 1+offset, 3+offset
+        self.points += 1
+
+    def load_point_buffer(self):
+        self.vertex_list = np.array(self.box_vertex_list, dtype=np.float32)
+        self.index_list = np.array(self.box_index_list, dtype=np.uint32)
+
+
+face = ft.Face('/usr/share/fonts/truetype/ubuntu-font-family/UbuntuMono-B.ttf')
+face.set_char_size(12)
+face.load_char('S')
+point_list = generate_text(face, 'TESTING... :)')
+points = []
+for letter, segments, point in step_text_points(point_list):
+    points.append(point_list[letter][segments][point])
+
+my_ctx = custom_context(version=(4,3), points=[], lines=point_list)
+my_ctx.save(filename='./docs/font_outline.png')
+#+END_SRC
+
+#+RESULTS[add2ec6701393536f94eefb6f23ed47861f99092]:
+[[file:None]]
+
+
+
+*** Draw a line example
+#+BEGIN_SRC python :results file :exports both
+  import numpy as np
+  from hgl.context.gtkglarea_context import context
+  from hgl.helpers.defaults import point_texture_fs, point_texture_vs
+  from hgl.calculate.box import box_from_line
+
+
+  class custom_context(context):
+      box_index_list = []
+      box_vertex_list = []
+      points = 0
+
+      def __init__(self, shader_programs=None, version=(4, 5), points=None, lines=None):
+          if lines is not None:
+              self.add_line_list(lines)
+          self.load_point_buffer()
+          super(custom_context, self).__init__(shader_programs=shader_programs, version=version)
+
+      def add_line_list(self, lines):
+          for p1, p2 in lines:
+            offset = 4 * self.points
+            self.box_vertex_list += box_from_line(
+                line_start=p1, line_end=p2, width=0.1)
+            self.box_index_list += 0+offset, 1+offset, 2+offset, 2+offset, 1+offset, 3+offset
+            self.points += 1
+
+      def load_point_buffer(self):
+          self.vertex_list = np.array(self.box_vertex_list, dtype=np.float32)
+          self.index_list = np.array(self.box_index_list, dtype=np.uint32)
+
+  lines = [((0.5,0.5,0.0),(-0.5,-0.5,0.0),)]
+  my_ctx = custom_context(version=(4,3), lines=lines)
+  return my_ctx.save(filename='./docs/draw_line_example.png')
+#+END_SRC
+
+#+RESULTS[b1685a840741aaef88b1f292ee836a0e2b195487]:
+[[file:./docs/draw_line_example.png]]
+
+*** Bezier curve 
+#+BEGIN_SRC python :results file :exports both
+  import numpy as np
+  from hgl.context.gtkglarea_context import context
+  from hgl.helpers.defaults import point_texture_fs, point_texture_vs
+  from hgl.calculate.box import box_from_line
+  from hgl.calculate.curve import generate_quadratic_bezier_curve_points, generate_bezier
+
+
+  class custom_context(context):
+      box_index_list = []
+      box_vertex_list = []
+      points = 0
+      location = (0.0, 0.0, -10.0) 
+
+      def __init__(self, shader_programs=None, version=(4, 5), points=None, lines=None):
+          if lines is not None:
+              self.add_line_list(lines)
+          self.load_point_buffer()
+          super(custom_context, self).__init__(shader_programs=shader_programs, version=version)
+
+      def add_line_list(self, lines):
+          for p1, p2 in lines:
+            offset = 4 * self.points
+            self.box_vertex_list += box_from_line(
+                line_start=p1, line_end=p2, width=0.035)
+            self.box_index_list += 0+offset, 1+offset, 2+offset, 2+offset, 1+offset, 3+offset
+            self.points += 1
+
+      def load_point_buffer(self):
+          self.vertex_list = np.array(self.box_vertex_list, dtype=np.float32)
+          self.index_list = np.array(self.box_index_list, dtype=np.uint32)
+
+  lines = [
+      ((1.0, 0.0, 0.0), (1.0, 1.0, 0.0),),
+      ((-1.0, 1.0, 0.0), (-1.0, 0.0, 0.0),),
+   ]
+  lines = [
+      ((1.0, 2.5, 0.0), (1.5, 1.0, 0.0),),
+      ((3.5, 1.0, 0.0), (4.0, 2.5, 0.0),),
+   ]
+  line_points = [p for lp in lines for p in lp]
+  #results = generate_quadratic_bezier_curve_points(line_points, 10)
+  results = generate_bezier(line_points, 8)
+  #results = generate_quadratic_bezier_curve_points(lines[0], 10)
+  results = [(results[p], results[p+1]) for p in range(0, len(results)-1, 1)]
+  my_ctx = custom_context(version=(4,3), lines=results)
+  return my_ctx.save(filename='./docs/draw_bezier_example.png')
+  #return results
+#+END_SRC
+
+#+RESULTS[8b063fc305e53231b6c80c76bb5f3566b7be81bb]:
+[[file:./docs/draw_bezier_example.png]]
+
+
+
+
+
+#+BEGIN_SRC python
+
+  import numpy as np
+  from hgl.context.gtkglarea_context import context
+  from hgl.helpers.defaults import point_texture_fs, point_texture_vs
+  from hgl.calculate.box import box_from_line
+  from hgl.calculate.curve import generate_quadratic_bezier_curve_points, generate_bezier
+
+
+
+  lines = [
+      ((1.0, 0.0, 0.0), (1.0, 1.0, 0.0),),
+      ((-1.0, 0.0, 0.0), (-1.0, 1.0, 0.0),),
+   ]
+  line_points = [p for lp in lines for p in lp]
+  #results = generate_quadratic_bezier_curve_points(line_points, 10)
+  results = generate_bezier(line_points, 10)
+  # results = [(results[p], results[p+1]) for p in range(0, len(results)-1, 2)]
+  return lines+results 
+#+END_SRC
+
+#+RESULTS[8567e92e6e2095450741903dcf5602d5217599c4]:
+| (1.0 0.0 0.0)  | (1.0 1.0 0.0)                                 |                |
+| (-1.0 0.0 0.0) | (-1.0 1.0 0.0)                                |                |
+| (1.0 0.1 0.0)  | (0.8 0.9 0.0)                                 | (-1.0 0.1 0.0) |
+| (1.0 0.2 0.0)  | (0.6000000000000001 0.8 0.0)                  | (-1.0 0.2 0.0) |
+| (1.0 0.3 0.0)  | (0.39999999999999997 0.7 0.0)                 | (-1.0 0.3 0.0) |
+| (1.0 0.4 0.0)  | (0.19999999999999996 0.6 0.0)                 | (-1.0 0.4 0.0) |
+| (1.0 0.5 0.0)  | (0.0 0.5 0.0)                                 | (-1.0 0.5 0.0) |
+| (1.0 0.6 0.0)  | (-0.19999999999999996 0.4 0.0)                | (-1.0 0.6 0.0) |
+| (1.0 0.7 0.0)  | (-0.3999999999999999 0.30000000000000004 0.0) | (-1.0 0.7 0.0) |
+| (1.0 0.8 0.0)  | (-0.6000000000000001 0.19999999999999996 0.0) | (-1.0 0.8 0.0) |
+| (1.0 0.9 0.0)  | (-0.8 0.09999999999999998 0.0)                | (-1.0 0.9 0.0) |
+
+
+#+BEGIN_SRC python :results file :exports both
+  from hgl.context.gtkglarea_context import context
+  from hgl.helpers.context import simple_primitive_context
+  from hgl.calculate.curve import generate_quadratic_bezier_curve_points, generate_bezier
+
+  lines = [
+      ((1.0, 0.0, 0.0), (1.0, 1.0, 0.0),),
+      ((-1.0, 1.0, 0.0), (-1.0, 0.0, 0.0),),
+  ]
+
+  line_points = [p for lp in lines for p in lp]
+  results = generate_bezier(line_points, 8)
+  results = [(results[p], results[p+1]) for p in range(0, len(results)-1, 1)]
+  my_ctx = simple_primitive_context(inherited_context=context)(version=(4,3), lines=results)
+  return my_ctx.save(filename='./docs/draw_bezier_example.png')
+#+END_SRC
+
+#+RESULTS[94c9037cab1ecbd014f164d78576c0d59efa4906]:
+[[file:./docs/draw_bezier_example.png]]
+
+
+
+
+
+
+#+BEGIN_SRC python :exports both
+  from hgl.context.gtkglarea_context import context
+  from hgl.helpers.context import simple_primitive_context
+  from hgl.calculate.curve import generate_quadratic_bezier_curve_points, generate_bezier
+
+  lines = [
+      ((1.0, 0.0, 0.0), (1.0, 1.0, 0.0),),
+      ((-1.0, 1.0, 0.0), (-1.0, 0.0, 0.0),),
+  ]
+
+  line_points = [p for lp in lines for p in lp]
+  results = generate_bezier(line_points, 8)
+  results = [(results[p], results[p+1]) for p in range(0, len(results)-1, 1)]
+  my_ctx = simple_primitive_context(inherited_context=context, version=(4,3), lines=results)
+  return results 
+#+END_SRC
+
+#+RESULTS[1cf9e020722b36572275afe45d62f56f232cd3af]:
+| (0.9140625 0.328125 0.0)  | (0.6875 0.5625 0.0)       |
+| (0.6875 0.5625 0.0)       | (0.3671875 0.703125 0.0)  |
+| (0.3671875 0.703125 0.0)  | (0.0 0.75 0.0)            |
+| (0.0 0.75 0.0)            | (-0.3671875 0.703125 0.0) |
+| (-0.3671875 0.703125 0.0) | (-0.6875 0.5625 0.0)      |
+| (-0.6875 0.5625 0.0)      | (-0.9140625 0.328125 0.0) |
