@@ -1,0 +1,63 @@
+#!python
+
+import csv
+import os
+from urllib.parse import urlparse
+
+import requests
+from traitlets.config import PyFileConfigLoader
+
+from tornado.ioloop import IOLoop
+from tornado.httpserver import HTTPServer
+from tornado.web import RequestHandler, Application, authenticated, HTTPError
+
+from jupyterhub.services.auth import HubOAuthenticated, HubOAuthCallbackHandler
+from jupyterhub.utils import url_path_join
+
+from hashauthenticator import generate_password_digest
+
+service_url = urlparse(os.environ['JUPYTERHUB_SERVICE_URL'])
+prefix = os.environ.get('JUPYTERHUB_SERVICE_PREFIX', '/')
+api_token = os.environ['JUPYTERHUB_API_TOKEN']
+
+
+def generate_password_function(config_file):
+  config = PyFileConfigLoader(config_file).load_config()
+  hash_config = config.get('HashAuthenticator', dict())
+  secret_key = hash_config.get('secret_key', '')
+  password_length = hash_config.get('password_length', 6)
+  return lambda user: generate_password_digest(user, secret_key, password_length)
+
+
+class HashAuthHandler(HubOAuthenticated, RequestHandler):
+
+  def initialize(self, get_password):
+    self.get_password = get_password
+
+  @authenticated
+  def get(self):
+    if not self.get_current_user()['admin']:
+      raise HTTPError(403)
+
+    resp = requests.get('http://localhost:8081/hub/api/users',
+                        headers={'Authorization': 'token {}'.format(api_token)})
+    users = sorted((u['name'], self.get_password(u['name'])) for u in resp.json())
+    self.set_header('content-type', 'text/plain')
+    csv.writer(self).writerows(users)
+
+
+def main(config_file):
+  get_password = generate_password_function(config_file)
+  app = Application([
+    (prefix, HashAuthHandler, {'get_password': get_password}),
+    (url_path_join(prefix, 'oauth_callback'), HubOAuthCallbackHandler)
+  ], cookie_secret=os.urandom(32))
+
+  HTTPServer(app).listen(service_url.port, service_url.hostname)
+  IOLoop.current().start()
+
+
+if __name__ == '__main__':
+  import sys
+  config_file = sys.argv[1] if len(sys.argv) >= 2 else 'jupyterhub_config.py'
+  main(config_file)
